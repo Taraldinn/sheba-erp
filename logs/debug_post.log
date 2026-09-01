@@ -1,2 +1,0 @@
-[2026-09-01 13:36:01] [debug_post] POST DATA: {"username":"admin","password":"********","login":"1"} | GET: [] | User: NONE | Role: NONE | hasSubReseller: NO
-[2026-09-01 13:36:01] [debug_post] POST: {"username":"admin","password":"********","login":"1"}

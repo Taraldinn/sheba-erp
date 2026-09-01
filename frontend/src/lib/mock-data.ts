@@ -1,0 +1,810 @@
+import { Customer, Package, Router, OLT, ONU, PaymentTransaction, SmsLog, Ticket, DashboardKPIs } from '@/types';
+
+export const mockKPIs: DashboardKPIs = {
+  total_customers: 2840,
+  active_customers: 2490,
+  expired_customers: 285,
+  suspended_customers: 65,
+  today_collection: 48500,
+  month_collection: 1428000,
+  total_due: 164000,
+  total_advance: 82500,
+  online_routers: 6,
+  total_routers: 6,
+  total_onus: 2150,
+  online_onus: 2098,
+  warning_onus: 42,
+  open_tickets: 8,
+};
+
+export const mockPackages: Package[] = [
+  {
+    id: 'p1',
+    name: 'Starter Fiber - 15 Mbps',
+    mikrotik_profile: '15M_Unlimited',
+    speed_mbps: 15,
+    upload_speed_mbps: 15,
+    validity_days: 30,
+    regular_price: 500,
+    min_reseller_price: 350,
+    description: 'Buffer-free HD streaming with BDIX 100M',
+    is_active: true,
+    subscribers_count: 820,
+  },
+  {
+    id: 'p2',
+    name: 'Turbo Stream - 30 Mbps',
+    mikrotik_profile: '30M_Unlimited',
+    speed_mbps: 30,
+    upload_speed_mbps: 30,
+    validity_days: 30,
+    regular_price: 800,
+    min_reseller_price: 550,
+    description: '4K UHD Streaming, Gaming Low Latency & Cloud storage',
+    is_active: true,
+    subscribers_count: 1240,
+  },
+  {
+    id: 'p3',
+    name: 'Giga Prime - 60 Mbps',
+    mikrotik_profile: '60M_Unlimited',
+    speed_mbps: 60,
+    upload_speed_mbps: 60,
+    validity_days: 30,
+    regular_price: 1200,
+    min_reseller_price: 850,
+    description: 'Dedicated business bandwidth & Priority SLA',
+    is_active: true,
+    subscribers_count: 580,
+  },
+  {
+    id: 'p4',
+    name: 'Ultra Max - 100 Mbps',
+    mikrotik_profile: '100M_Gigabit',
+    speed_mbps: 100,
+    upload_speed_mbps: 100,
+    validity_days: 30,
+    regular_price: 2000,
+    min_reseller_price: 1400,
+    description: 'Ultra fast Gigabit symmetrical bandwidth for power users',
+    is_active: true,
+    subscribers_count: 200,
+  },
+];
+
+export const mockRouters: Router[] = [
+  {
+    id: 'r1',
+    name: 'Core-CCR1036-Dhaka-NOC',
+    ip_address: '103.145.110.1',
+    api_port: 8728,
+    username: 'admin',
+    location: 'Dhaka Central NOC',
+    status: 'Online',
+    cpu_usage: 26,
+    memory_usage: 44,
+    active_pppoe_count: 1420,
+    total_customers_count: 1850,
+    last_ping: 'Just now',
+  },
+  {
+    id: 'r2',
+    name: 'BN-CCR2004-Banani-POP',
+    ip_address: '103.145.110.5',
+    api_port: 8728,
+    username: 'admin',
+    location: 'Banani POP',
+    status: 'Online',
+    cpu_usage: 18,
+    memory_usage: 32,
+    active_pppoe_count: 860,
+    total_customers_count: 990,
+    last_ping: '1 min ago',
+  },
+  {
+    id: 'r3',
+    name: 'UT-CCR1009-Uttara-POP',
+    ip_address: '103.145.110.9',
+    api_port: 8728,
+    username: 'admin',
+    location: 'Sector 7, Uttara',
+    status: 'Online',
+    cpu_usage: 15,
+    memory_usage: 28,
+    active_pppoe_count: 510,
+    total_customers_count: 580,
+    last_ping: 'Just now',
+  },
+];
+
+export const mockCustomers: Customer[] = [
+  {
+    id: 'c1',
+    customer_code: 'SB-1001',
+    full_name: 'Tanvir Ahmed',
+    mobile: '01711223344',
+    email: 'tanvir.ahmed@gmail.com',
+    address: 'House 12, Road 4, Sector 7, Uttara',
+    area_zone: 'Uttara Zone-A',
+    connection_type: 'PPPoE',
+    router: 'r1',
+    router_name: 'Core-CCR1036-Dhaka-NOC',
+    pppoe_username: 'tanvir_home',
+    pppoe_password: '••••••••',
+    package: 'p2',
+    package_name: 'Turbo Stream - 30 Mbps',
+    package_speed: 30,
+    billing_type: 'Prepaid',
+    monthly_bill: 800,
+    due_amount: 0,
+    advance_amount: 0,
+    discount: 0,
+    bill_date: '2026-09-01',
+    expiry_date: '2026-09-24',
+    promise_date: null,
+    status: 'Active',
+    auto_lock_enabled: true,
+    reseller_name: 'Direct Sheba Fi',
+    created_at: '2026-01-15',
+  },
+  {
+    id: 'c2',
+    customer_code: 'SB-1002',
+    full_name: 'Rafiqul Islam',
+    mobile: '01899887766',
+    email: 'rafiq@outlook.com',
+    address: 'Flat 3B, Road 11, Banani',
+    area_zone: 'Banani Block-D',
+    connection_type: 'PPPoE',
+    router: 'r2',
+    router_name: 'BN-CCR2004-Banani-POP',
+    pppoe_username: 'rafiq_banani',
+    pppoe_password: '••••••••',
+    package: 'p1',
+    package_name: 'Starter Fiber - 15 Mbps',
+    package_speed: 15,
+    billing_type: 'Prepaid',
+    monthly_bill: 500,
+    due_amount: 500,
+    advance_amount: 0,
+    discount: 0,
+    bill_date: '2026-09-01',
+    expiry_date: '2026-08-30',
+    promise_date: '2026-09-03',
+    status: 'Expired',
+    auto_lock_enabled: true,
+    reseller_name: 'Uttara Sub-ISP',
+    created_at: '2026-02-10',
+  },
+  {
+    id: 'c3',
+    customer_code: 'SB-1003',
+    full_name: 'Smart Tech Solution Ltd.',
+    mobile: '01977665544',
+    email: 'info@smarttech.bd',
+    address: 'Level 9, Navana Tower, Gulshan-1',
+    area_zone: 'Gulshan Commercial',
+    connection_type: 'PPPoE',
+    router: 'r1',
+    router_name: 'Core-CCR1036-Dhaka-NOC',
+    pppoe_username: 'sheba_corporate',
+    pppoe_password: '••••••••',
+    package: 'p3',
+    package_name: 'Giga Prime - 60 Mbps',
+    package_speed: 60,
+    billing_type: 'Postpaid',
+    monthly_bill: 1200,
+    due_amount: 0,
+    advance_amount: 2400,
+    discount: 100,
+    bill_date: '2026-09-01',
+    expiry_date: '2026-10-31',
+    promise_date: null,
+    status: 'Active',
+    auto_lock_enabled: false,
+    reseller_name: 'Direct Sheba Fi',
+    created_at: '2025-11-20',
+  },
+  {
+    id: 'c4',
+    customer_code: 'SB-1004',
+    full_name: 'Kazi Mahbub Alam',
+    mobile: '01622334455',
+    email: 'mahbub.alam@yahoo.com',
+    address: 'House 44, Road 18, Block B, Banani',
+    area_zone: 'Banani Block-B',
+    connection_type: 'PPPoE',
+    router: 'r2',
+    router_name: 'BN-CCR2004-Banani-POP',
+    pppoe_username: 'kazi_mahbub',
+    pppoe_password: '••••••••',
+    package: 'p2',
+    package_name: 'Turbo Stream - 30 Mbps',
+    package_speed: 30,
+    billing_type: 'Prepaid',
+    monthly_bill: 800,
+    due_amount: 0,
+    advance_amount: 0,
+    discount: 0,
+    bill_date: '2026-09-01',
+    expiry_date: '2026-09-18',
+    promise_date: null,
+    status: 'Active',
+    auto_lock_enabled: true,
+    reseller_name: 'Direct Sheba Fi',
+    created_at: '2026-03-05',
+  },
+  {
+    id: 'c5',
+    customer_code: 'SB-1005',
+    full_name: 'Farhana Yasmin',
+    mobile: '01511224488',
+    email: 'farhana.y@gmail.com',
+    address: 'Sector 3, Uttara Model Town',
+    area_zone: 'Uttara Zone-B',
+    connection_type: 'PPPoE',
+    router: 'r3',
+    router_name: 'UT-CCR1009-Uttara-POP',
+    pppoe_username: 'farhana_uttara',
+    pppoe_password: '••••••••',
+    package: 'p4',
+    package_name: 'Ultra Max - 100 Mbps',
+    package_speed: 100,
+    billing_type: 'Prepaid',
+    monthly_bill: 2000,
+    due_amount: 0,
+    advance_amount: 0,
+    discount: 0,
+    bill_date: '2026-09-01',
+    expiry_date: '2026-09-28',
+    promise_date: null,
+    status: 'Active',
+    auto_lock_enabled: true,
+    reseller_name: 'Uttara Sub-ISP',
+    created_at: '2026-04-12',
+  },
+];
+
+export const mockOLTs: OLT[] = [
+  {
+    id: 'olt1',
+    name: 'VSOL-GPON-OLT-Banani',
+    brand: 'V-SOL',
+    ip_address: '192.168.100.10',
+    pon_ports_count: 8,
+    total_onus: 420,
+    online_onus: 412,
+    status: 'Online',
+    last_sync: '3 mins ago',
+  },
+  {
+    id: 'olt2',
+    name: 'Huawei-MA5683T-NOC',
+    brand: 'Huawei',
+    ip_address: '192.168.100.20',
+    pon_ports_count: 16,
+    total_onus: 1120,
+    online_onus: 1098,
+    status: 'Online',
+    last_sync: '1 min ago',
+  },
+  {
+    id: 'olt3',
+    name: 'ZTE-C320-Uttara',
+    brand: 'ZTE',
+    ip_address: '192.168.100.30',
+    pon_ports_count: 8,
+    total_onus: 610,
+    online_onus: 588,
+    status: 'Online',
+    last_sync: '5 mins ago',
+  },
+];
+
+export const mockONUs: ONU[] = [
+  {
+    id: 'onu1',
+    olt: 'olt1',
+    olt_name: 'VSOL-GPON-OLT-Banani',
+    pon_port: 'EPON0/1',
+    onu_index: 1,
+    mac_address: '48:8F:5A:21:40:AA',
+    serial_number: 'VSOL10928374',
+    customer_name: 'Tanvir Ahmed',
+    customer_phone: '01711223344',
+    rx_power: -19.45,
+    tx_power: 2.30,
+    status: 'Online',
+    signal_status: 'good',
+    distance_meters: 840,
+    last_sync: 'Just now',
+  },
+  {
+    id: 'onu2',
+    olt: 'olt1',
+    olt_name: 'VSOL-GPON-OLT-Banani',
+    pon_port: 'EPON0/1',
+    onu_index: 2,
+    mac_address: '48:8F:5A:21:40:AB',
+    serial_number: 'VSOL10928375',
+    customer_name: 'Rafiqul Islam',
+    customer_phone: '01899887766',
+    rx_power: -26.80,
+    tx_power: 1.95,
+    status: 'Online',
+    signal_status: 'warning',
+    distance_meters: 1920,
+    last_sync: 'Just now',
+  },
+  {
+    id: 'onu3',
+    olt: 'olt2',
+    olt_name: 'Huawei-MA5683T-NOC',
+    pon_port: 'GPON0/3',
+    onu_index: 14,
+    mac_address: '00:1A:2B:3C:4D:5E',
+    serial_number: 'HWTC49281729',
+    customer_name: 'Smart Tech Solution Ltd.',
+    customer_phone: '01977665544',
+    rx_power: -17.20,
+    tx_power: 2.85,
+    status: 'Online',
+    signal_status: 'good',
+    distance_meters: 520,
+    last_sync: 'Just now',
+  },
+  {
+    id: 'onu4',
+    olt: 'olt2',
+    olt_name: 'Huawei-MA5683T-NOC',
+    pon_port: 'GPON0/4',
+    onu_index: 8,
+    mac_address: '00:E0:4C:68:01:22',
+    serial_number: 'HWTC88271625',
+    customer_name: 'Rahman Enterprise',
+    customer_phone: '01712998811',
+    rx_power: -29.40,
+    tx_power: 1.10,
+    status: 'Online',
+    signal_status: 'critical',
+    distance_meters: 3100,
+    last_sync: '2 mins ago',
+  },
+];
+
+export const mockTransactions: PaymentTransaction[] = [
+  {
+    id: 'tx1',
+    customer: 'c1',
+    customer_name: 'Tanvir Ahmed',
+    customer_username: 'tanvir_home',
+    amount: 800,
+    trx_id: '9X7K2M91PQ',
+    payment_method: 'bKash',
+    status: 'Success',
+    customer_account: '01711223344',
+    created_at: '2026-09-01 10:24 AM',
+  },
+  {
+    id: 'tx2',
+    customer: 'c3',
+    customer_name: 'Smart Tech Solution Ltd.',
+    customer_username: 'sheba_corporate',
+    amount: 2400,
+    trx_id: 'NGD88219482',
+    payment_method: 'Nagad',
+    status: 'Success',
+    customer_account: '01977665544',
+    created_at: '2026-09-01 11:45 AM',
+  },
+  {
+    id: 'tx3',
+    customer: 'c5',
+    customer_name: 'Farhana Yasmin',
+    customer_username: 'farhana_uttara',
+    amount: 2000,
+    trx_id: 'BKSH99281726',
+    payment_method: 'bKash',
+    status: 'Success',
+    customer_account: '01511224488',
+    created_at: '2026-09-01 02:15 PM',
+  },
+];
+
+export const mockSmsLogs: SmsLog[] = [
+  {
+    id: 'sms1',
+    sender: 'bKash',
+    raw_message: 'You have received Tk 800.00 from 01711223344. Fee Tk 0.00. Balance Tk 48500.00. TrxID 9X7K2M91PQ',
+    parsed_provider: 'bKash',
+    parsed_amount: 800,
+    parsed_trx_id: '9X7K2M91PQ',
+    parsed_account: '01711223344',
+    is_matched: true,
+    matched_customer_name: 'Tanvir Ahmed (tanvir_home)',
+    created_at: '2026-09-01 10:24 AM',
+  },
+  {
+    id: 'sms2',
+    sender: '16167',
+    raw_message: 'Nagad: Received Tk 2,400.00 from 01977665544. TxnId: NGD88219482 at 01/09/2026 11:45',
+    parsed_provider: 'Nagad',
+    parsed_amount: 2400,
+    parsed_trx_id: 'NGD88219482',
+    parsed_account: '01977665544',
+    is_matched: true,
+    matched_customer_name: 'Smart Tech Solution Ltd.',
+    created_at: '2026-09-01 11:45 AM',
+  },
+  {
+    id: 'sms3',
+    sender: 'bKash',
+    raw_message: 'You have received Tk 500.00 from 01844991100. Fee Tk 0.00. Balance Tk 49000.00. TrxID 9M4K1P88XQ',
+    parsed_provider: 'bKash',
+    parsed_amount: 500,
+    parsed_trx_id: '9M4K1P88XQ',
+    parsed_account: '01844991100',
+    is_matched: false,
+    created_at: '2026-09-01 03:10 PM',
+  },
+];
+
+export const mockTickets: Ticket[] = [
+  {
+    id: 't1',
+    ticket_no: 'TCK-882194',
+    customer: 'c2',
+    customer_name: 'Rafiqul Islam',
+    customer_phone: '01899887766',
+    category: 'Low Optical Power / High Latency',
+    subject: 'Internet speed dropping during peak hours',
+    description: 'Customer reported frequent buffering and packet drops. RX power shows -26.80 dBm.',
+    priority: 'High',
+    status: 'In_Progress',
+    assigned_to_name: 'System Administrator',
+    created_at: '2026-09-01 09:15 AM',
+    replies: [
+      {
+        id: 'r1',
+        sender_name: 'System Admin',
+        is_staff: true,
+        message: 'Assigned field team to inspect fiber splice at Banani joint closure box #3.',
+        created_at: '2026-09-01 10:00 AM',
+      },
+    ],
+  },
+  {
+    id: 't2',
+    ticket_no: 'TCK-882195',
+    customer: 'c4',
+    customer_name: 'Kazi Mahbub Alam',
+    customer_phone: '01622334455',
+    category: 'Package Upgrade Request',
+    subject: 'Request to upgrade package from 30 Mbps to 60 Mbps',
+    description: 'Need higher upload bandwidth for home office video conference server.',
+    priority: 'Medium',
+    status: 'Open',
+    assigned_to_name: 'Billing Support',
+    created_at: '2026-09-01 01:30 PM',
+  },
+];
+
+// Additional PHP Module Datasets:
+
+export interface ResellerItem {
+  id: string;
+  name: string;
+  username: string;
+  phone: string;
+  zone: string;
+  wallet_balance: number;
+  credit_limit: number;
+  commission_rate: number;
+  subscribers_count: number;
+  active_count: number;
+  status: 'Active' | 'Suspended';
+}
+
+export const mockResellers: ResellerItem[] = [
+  {
+    id: 'res1',
+    name: 'Uttara Sub-ISP Network',
+    username: 'reseller_uttara',
+    phone: '+8801811223344',
+    zone: 'Uttara Sector 1-14',
+    wallet_balance: 45000,
+    credit_limit: 100000,
+    commission_rate: 15,
+    subscribers_count: 580,
+    active_count: 540,
+    status: 'Active',
+  },
+  {
+    id: 'res2',
+    name: 'Banani Digital Fiber Agent',
+    username: 'agent_banani',
+    phone: '+8801722334455',
+    zone: 'Banani Block A-F',
+    wallet_balance: 18500,
+    credit_limit: 50000,
+    commission_rate: 12,
+    subscribers_count: 320,
+    active_count: 295,
+    status: 'Active',
+  },
+  {
+    id: 'res3',
+    name: 'Gulshan High-Speed Gateway',
+    username: 'gulshan_reseller',
+    phone: '+8801933445566',
+    zone: 'Gulshan 1 & 2',
+    wallet_balance: 82000,
+    credit_limit: 150000,
+    commission_rate: 18,
+    subscribers_count: 740,
+    active_count: 710,
+    status: 'Active',
+  },
+];
+
+export interface OnlineSession {
+  id: string;
+  username: string;
+  customer_name: string;
+  ip_address: string;
+  mac_address: string;
+  caller_id: string;
+  router_name: string;
+  uptime: string;
+  download_mb: number;
+  upload_mb: number;
+  rate_limit: string;
+}
+
+export const mockOnlineSessions: OnlineSession[] = [
+  {
+    id: 's1',
+    username: 'tanvir_home',
+    customer_name: 'Tanvir Ahmed',
+    ip_address: '10.200.15.42',
+    mac_address: '48:8F:5A:21:40:AA',
+    caller_id: '01711223344',
+    router_name: 'Core-CCR1036-Dhaka-NOC',
+    uptime: '1d 14h 22m',
+    download_mb: 14280,
+    upload_mb: 3120,
+    rate_limit: '30M/30M',
+  },
+  {
+    id: 's2',
+    username: 'sheba_corporate',
+    customer_name: 'Smart Tech Solution Ltd.',
+    ip_address: '10.200.15.88',
+    mac_address: '00:1A:2B:3C:4D:5E',
+    caller_id: '01977665544',
+    router_name: 'Core-CCR1036-Dhaka-NOC',
+    uptime: '6d 08h 45m',
+    download_mb: 84500,
+    upload_mb: 42300,
+    rate_limit: '60M/60M',
+  },
+  {
+    id: 's3',
+    username: 'kazi_mahbub',
+    customer_name: 'Kazi Mahbub Alam',
+    ip_address: '10.200.16.12',
+    mac_address: '3C:84:6A:11:90:3F',
+    caller_id: '01622334455',
+    router_name: 'BN-CCR2004-Banani-POP',
+    uptime: '18h 05m',
+    download_mb: 6100,
+    upload_mb: 1450,
+    rate_limit: '30M/30M',
+  },
+  {
+    id: 's4',
+    username: 'farhana_uttara',
+    customer_name: 'Farhana Yasmin',
+    ip_address: '10.200.17.91',
+    mac_address: 'E4:95:6E:88:21:04',
+    caller_id: '01511224488',
+    router_name: 'UT-CCR1009-Uttara-POP',
+    uptime: '3d 02h 10m',
+    download_mb: 32400,
+    upload_mb: 9800,
+    rate_limit: '100M/100M',
+  },
+];
+
+export interface EmployeeItem {
+  id: string;
+  code: string;
+  name: string;
+  designation: string;
+  department: string;
+  phone: string;
+  basic_salary: number;
+  attendance_status: 'Present' | 'Late' | 'Absent' | 'On Leave';
+  check_in_time: string;
+}
+
+export const mockEmployees: EmployeeItem[] = [
+  {
+    id: 'emp1',
+    code: 'EMP-01',
+    name: 'Mahmudul Hasan',
+    designation: 'Senior NOC Engineer',
+    department: 'Technical & NOC',
+    phone: '+8801711001122',
+    basic_salary: 35000,
+    attendance_status: 'Present',
+    check_in_time: '09:02 AM',
+  },
+  {
+    id: 'emp2',
+    code: 'EMP-02',
+    name: 'Sajidul Islam',
+    designation: 'Fiber Splicer & Field Tech',
+    department: 'Field Operations',
+    phone: '+8801822334411',
+    basic_salary: 22000,
+    attendance_status: 'Present',
+    check_in_time: '09:14 AM',
+  },
+  {
+    id: 'emp3',
+    code: 'EMP-03',
+    name: 'Nusrat Jahan',
+    designation: 'Billing & Accounts Officer',
+    department: 'Accounts & Finance',
+    phone: '+8801933441122',
+    basic_salary: 28000,
+    attendance_status: 'Late',
+    check_in_time: '09:42 AM',
+  },
+  {
+    id: 'emp4',
+    code: 'EMP-04',
+    name: 'Kamrul Ahsan',
+    designation: 'Customer Support Executive',
+    department: 'Customer Care',
+    phone: '+8801644552233',
+    basic_salary: 18000,
+    attendance_status: 'Present',
+    check_in_time: '08:55 AM',
+  },
+];
+
+export interface InventoryItem {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  unit: string;
+  stock_quantity: number;
+  min_alert: number;
+  unit_price: number;
+}
+
+export const mockInventory: InventoryItem[] = [
+  {
+    id: 'inv1',
+    code: 'FBR-DRP-2C',
+    name: '2-Core FTTH Drop Cable (1000m Drum)',
+    category: 'Fiber Cables',
+    unit: 'Drum',
+    stock_quantity: 14,
+    min_alert: 5,
+    unit_price: 6500,
+  },
+  {
+    id: 'inv2',
+    code: 'ONU-VSOL-XPON',
+    name: 'V-SOL Dual Band XPON Gigabit ONU',
+    category: 'Optical Equipment',
+    unit: 'Pcs',
+    stock_quantity: 48,
+    min_alert: 15,
+    unit_price: 1650,
+  },
+  {
+    id: 'inv3',
+    code: 'FBR-SPL-1X8',
+    name: 'PLC Fiber Splitter 1x8 (SC/UPC)',
+    category: 'Passive Components',
+    unit: 'Pcs',
+    stock_quantity: 85,
+    min_alert: 20,
+    unit_price: 240,
+  },
+  {
+    id: 'inv4',
+    code: 'SFP-1G-20KM',
+    name: '1.25G Single Mode SFP Module (20km)',
+    category: 'Optical Transceivers',
+    unit: 'Pair',
+    stock_quantity: 6,
+    min_alert: 10, // low stock
+    unit_price: 1200,
+  },
+];
+
+export interface CallLogItem {
+  id: string;
+  caller: string;
+  customer_name: string;
+  agent: string;
+  type: 'Inbound' | 'Outbound' | 'Voice Broadcast';
+  duration: string;
+  status: 'Answered' | 'Missed' | 'Follow-up Needed';
+  timestamp: string;
+}
+
+export const mockCallLogs: CallLogItem[] = [
+  {
+    id: 'cl1',
+    caller: '01711223344',
+    customer_name: 'Tanvir Ahmed',
+    agent: 'Kamrul Ahsan',
+    type: 'Inbound',
+    duration: '2m 45s',
+    status: 'Answered',
+    timestamp: '2026-09-01 11:20 AM',
+  },
+  {
+    id: 'cl2',
+    caller: '01899887766',
+    customer_name: 'Rafiqul Islam',
+    agent: 'Auto IVR Voice Broadcast',
+    type: 'Voice Broadcast',
+    duration: '45s',
+    status: 'Answered',
+    timestamp: '2026-09-01 10:15 AM',
+  },
+  {
+    id: 'cl3',
+    caller: '01622334455',
+    customer_name: 'Kazi Mahbub Alam',
+    agent: 'Kamrul Ahsan',
+    type: 'Inbound',
+    duration: '1m 15s',
+    status: 'Answered',
+    timestamp: '2026-09-01 01:05 PM',
+  },
+];
+
+export interface TaskItem {
+  id: string;
+  title: string;
+  assigned_to: string;
+  priority: 'Low' | 'Medium' | 'High';
+  status: 'Pending' | 'In_Progress' | 'Completed';
+  due_date: string;
+}
+
+export const mockTasks: TaskItem[] = [
+  {
+    id: 'tsk1',
+    title: 'Splice Fiber Joint Closure at Banani Road 11 Box #3',
+    assigned_to: 'Sajidul Islam (Field Tech)',
+    priority: 'High',
+    status: 'In_Progress',
+    due_date: '2026-09-01',
+  },
+  {
+    id: 'tsk2',
+    title: 'Install 2-Core Drop cable for new corporate subscriber at Gulshan',
+    assigned_to: 'Sajidul Islam (Field Tech)',
+    priority: 'Medium',
+    status: 'Pending',
+    due_date: '2026-09-02',
+  },
+  {
+    id: 'tsk3',
+    title: 'Monthly MikroTik backup & configuration audit for Core-CCR1036',
+    assigned_to: 'Mahmudul Hasan (NOC)',
+    priority: 'Low',
+    status: 'Completed',
+    due_date: '2026-09-01',
+  },
+];

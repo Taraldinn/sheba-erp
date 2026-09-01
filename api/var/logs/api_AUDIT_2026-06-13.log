@@ -1,7 +1,0 @@
-[2026-06-13 23:00:05] [AUDIT] API Pay Bill Processed: TRX=ABC123456 Amount=800 Customer=TF18@0746 Gateway=bkash
-[2026-06-13 23:05:30] [AUDIT] API Pay Bill Processed: TRX=ABC123457 Amount=525 Customer=ashik1125 Gateway=bkash
-[2026-06-13 23:07:30] [AUDIT] API Pay Bill Processed: TRX=ABC123459 Amount=525 Customer=ashik1125 Gateway=bkash
-[2026-06-13 23:20:16] [AUDIT] API Pay Bill Processed: TRX=ABC123439 Amount=525 Customer=ashik1125 Gateway=bkash
-[2026-06-13 23:35:18] [AUDIT] API Pay Bill Processed: TRX=ABC633456 Amount=525 Customer=TF18@0746 Gateway=bkash
-[2026-06-13 23:36:02] [AUDIT] API Pay Bill Processed: TRX=ABC633256 Amount=525 Customer=ashik1125 Gateway=bkash
-[2026-06-13 23:45:11] [AUDIT] API Pay Bill Processed: TRX=ABC633356 Amount=525 Customer=ashik1125 Gateway=bkash

@@ -1,1 +1,0 @@
-[2026-08-14 14:21:57] [ERROR] Uncaught Exception: SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry 'DHE3GD6QSJ' for key 'payment_gateway_logs.uq_gateway_trx' in /home/shebafi/public_html/classes/PaymentMatchingEngine.php on line 186

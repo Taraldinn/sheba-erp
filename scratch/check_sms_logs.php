@@ -1,1 +1,0 @@
-<?php require_once '../includes/config.php'; require_once '../includes/functions.php'; $stmt = $pdo->query('SELECT id, phone, status, DATE(created_at) as cd, created_at, message FROM '.TBL_SMS_LOGS.' ORDER BY id DESC LIMIT 5'); print_r($stmt->fetchAll(PDO::FETCH_ASSOC)); ?>

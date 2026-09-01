@@ -1,6 +1,0 @@
-[2026-07-03 12:45:31] [INFO] Router Dispatch - Method: GET, Path: /api/config
-[2026-07-03 12:45:31] [INFO] Router Dispatch - Method: GET, Path: /api/env
-[2026-07-03 13:06:53] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms
-[2026-07-03 15:08:34] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms
-[2026-07-03 22:41:05] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms
-[2026-07-03 22:41:05] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms

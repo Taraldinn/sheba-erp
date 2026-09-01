@@ -1,7 +1,0 @@
-Options -Indexes
-
-# Deny execution of scripts in upload directory
-<FilesMatch "\.(php|php[3-6]|phtml|pl|py|jsp|asp|sh|cgi)$">
-    Order Deny,Allow
-    Deny from all
-</FilesMatch>
