@@ -1,0 +1,57 @@
+[
+    {
+        "type": "vsol_epon",
+        "ip": "172.25.31.86",
+        "username": "ashik",
+        "password": "ashik@123",
+        "snmp_community": "public",
+        "port": "23",
+        "timeout": "10",
+        "enabled": true,
+        "added_date": "2026-05-15 10:59:54"
+    },
+    {
+        "type": "vsol_epon",
+        "ip": "10.10.10.18",
+        "username": "admin",
+        "password": "Xpon@Olt9417#",
+        "snmp_community": "public",
+        "port": "23",
+        "timeout": "10",
+        "enabled": true,
+        "added_date": "2026-05-15 12:44:20"
+    },
+    {
+        "type": "bdcom_epon",
+        "ip": "172.25.29.18",
+        "username": "admin",
+        "password": "bntc@321",
+        "snmp_community": "public",
+        "port": "23",
+        "timeout": "10",
+        "enabled": true,
+        "added_date": "2026-05-15 15:06:51"
+    },
+    {
+        "type": "vsol_gpon",
+        "ip": "10.10.10.10",
+        "username": "ashik",
+        "password": "ashik@321",
+        "snmp_community": "public",
+        "port": "23",
+        "timeout": "10",
+        "enabled": true,
+        "added_date": "2026-05-15 17:36:22"
+    },
+    {
+        "type": "vsol_gpon",
+        "ip": "172.16.16.2",
+        "username": "admin",
+        "password": "Xpon@Olt9417#",
+        "snmp_community": "public",
+        "port": "23",
+        "timeout": "10",
+        "enabled": true,
+        "added_date": "2026-05-18 13:14:24"
+    }
+]

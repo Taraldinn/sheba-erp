@@ -1,0 +1,34 @@
+Total: 133
+Status:
+Array
+(
+    [0] => Array
+        (
+            [status] => Active
+            [count] => 132
+        )
+
+    [1] => Array
+        (
+            [status] => Expire
+            [count] => 1
+        )
+
+)
+
+Router:
+Array
+(
+    [0] => Array
+        (
+            [router_id] => 0
+            [count] => 119
+        )
+
+    [1] => Array
+        (
+            [router_id] => 1
+            [count] => 14
+        )
+
+)

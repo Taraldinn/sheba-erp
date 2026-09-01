@@ -1,0 +1,11 @@
+[2026-06-29 01:59:24] [INFO] Router Dispatch - Method: POST, Path: /api/graphql
+[2026-06-29 01:59:24] [INFO] Router Dispatch - Method: POST, Path: /api/graphql
+[2026-06-29 01:59:24] [INFO] Router Dispatch - Method: POST, Path: /api/graphql
+[2026-06-29 01:59:24] [INFO] Router Dispatch - Method: POST, Path: /api/graphql
+[2026-06-29 01:59:24] [INFO] Router Dispatch - Method: POST, Path: /api/gql
+[2026-06-29 01:59:25] [INFO] Router Dispatch - Method: POST, Path: /api/gql
+[2026-06-29 01:59:25] [INFO] Router Dispatch - Method: POST, Path: /api/gql
+[2026-06-29 01:59:25] [INFO] Router Dispatch - Method: POST, Path: /api/gql
+[2026-06-29 03:21:33] [INFO] Router Dispatch - Method: GET, Path: /api/jolokia/version
+[2026-06-29 09:00:07] [INFO] Router Dispatch - Method: GET, Path: /api/jolokia/version
+[2026-06-29 09:06:53] [INFO] Router Dispatch - Method: GET, Path: /api/config

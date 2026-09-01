@@ -1,0 +1,9 @@
+[2026-07-09 04:25:06] [INFO] Router Dispatch - Method: GET, Path: /api/application.all
+[2026-07-09 04:25:06] [INFO] Router Dispatch - Method: GET, Path: /api/settings.one
+[2026-07-09 04:25:06] [INFO] Router Dispatch - Method: GET, Path: /api/compose.all
+[2026-07-09 05:39:59] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms
+[2026-07-09 05:47:40] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms
+[2026-07-09 05:51:00] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms
+[2026-07-09 14:41:51] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms
+[2026-07-09 15:09:45] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms
+[2026-07-09 16:26:12] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms

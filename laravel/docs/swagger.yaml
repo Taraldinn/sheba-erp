@@ -1,0 +1,171 @@
+openapi: 3.0.3
+info:
+  title: bKash Pay Bill Integration Module API
+  description: OpenAPI 3.0 specification for bKash Outbound Pay Bill API endpoints inside Sheba-Fi ISP Billing system.
+  version: 1.0.0
+paths:
+  /api/v1/bkash/check-bill:
+    post:
+      summary: Check Bill Details
+      description: Verifies customer credentials and retrieves current due amount.
+      parameters:
+        - name: X-Tenant-ID
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Tenant identifier (subdomain or key)
+        - name: X-Signature
+          in: header
+          required: false
+          schema:
+            type: string
+          description: SHA-256 HMAC signature of the request body
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - UserName
+                - Password
+                - CustomerNo
+                - BillMonth
+              properties:
+                UserName:
+                  type: string
+                Password:
+                  type: string
+                CustomerNo:
+                  type: string
+                BillMonth:
+                  type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ErrorCode:
+                    type: string
+                  ErrorMsg:
+                    type: string
+                  ConsumerName:
+                    type: string
+                  BillMonth:
+                    type: string
+                  BillAmount:
+                    type: string
+                  BillDueDate:
+                    type: string
+        '403':
+          description: Authentication Failed
+        '404':
+          description: Customer Not Found
+        '406':
+          description: Mandatory Field Missing
+
+  /api/v1/bkash/pay-bill:
+    post:
+      summary: Pay Customer Bill
+      description: Posts real-time bill payments from bKash app and extends customer subscription expiry.
+      parameters:
+        - name: X-Tenant-ID
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-Signature
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - UserName
+                - Password
+                - CustomerNo
+                - Amount
+                - TrxId
+                - PayTime
+              properties:
+                UserName:
+                  type: string
+                Password:
+                  type: string
+                CustomerNo:
+                  type: string
+                Amount:
+                  type: number
+                TrxId:
+                  type: string
+                UserMobileNumber:
+                  type: string
+                PayTime:
+                  type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ErrorCode:
+                    type: string
+                  ErrorMsg:
+                    type: string
+                  TotalAmount:
+                    type: string
+                  TrxId:
+                    type: string
+                  RefNumber:
+                    type: string
+        '436':
+          description: Already Paid / Duplicate Transaction
+        '438':
+          description: Minimum Amount Not Paid
+
+  /api/v1/bkash/search-transaction:
+    post:
+      summary: Search Transaction Status
+      description: Queries local system ledger for a transaction status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - TrxId
+              properties:
+                TrxId:
+                  type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ErrorCode:
+                    type: string
+                  ErrorMsg:
+                    type: string
+                  TotalAmount:
+                    type: string
+                  TrxId:
+                    type: string
+                  MiddlewarePayTime:
+                    type: string
+        '404':
+          description: Transaction Not Found

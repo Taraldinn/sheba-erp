@@ -1,0 +1,11 @@
+[2026-08-09 04:22:42] [INFO] Router Dispatch - Method: POST, Path: /api/graphql
+[2026-08-09 04:25:07] [INFO] Router Dispatch - Method: POST, Path: /api/graphql
+[2026-08-09 04:26:11] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms
+[2026-08-09 05:12:27] [INFO] Router Dispatch - Method: GET, Path: /api/.aws/credentials
+[2026-08-09 05:12:29] [INFO] Router Dispatch - Method: GET, Path: /api/v1/credentials
+[2026-08-09 05:12:41] [INFO] Router Dispatch - Method: GET, Path: /api/config
+[2026-08-09 05:12:42] [INFO] Router Dispatch - Method: GET, Path: /api/v1/settings
+[2026-08-09 05:12:43] [INFO] Router Dispatch - Method: GET, Path: /api/env
+[2026-08-09 06:01:09] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms
+[2026-08-09 06:01:09] [INFO] Router Dispatch - Method: POST, Path: /api/v1/payment/sms
+[2026-08-09 08:08:59] [INFO] Router Dispatch - Method: POST, Path: /api/graphql
