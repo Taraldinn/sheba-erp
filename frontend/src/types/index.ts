@@ -1,4 +1,4 @@
-export type CustomerStatus = 'Active' | 'Expired' | 'Suspended' | 'Left';
+export type CustomerStatus = 'Active' | 'Expired' | 'Suspended' | 'Left' | 'Due';
 
 export interface Customer {
   id: string;
@@ -8,6 +8,11 @@ export interface Customer {
   email: string;
   address: string;
   area_zone: string;
+  check_in_time: string;
+  // optional fields used by UI components
+  salary?: number;
+  join_date?: string;
+  status?: string;
   connection_type: string;
   router: string | null;
   router_name?: string;
@@ -70,7 +75,11 @@ export interface OLT {
   online_onus: number;
   status: 'Online' | 'Offline';
   last_sync: string | null;
-}
+  // optional extended fields used in UI pages
+  model?: string;
+  type?: string;
+  pon_ports?: number;
+  warning_onus?: number;
 
 export interface ONU {
   id: string;
