@@ -301,17 +301,39 @@ export function Sidebar() {
 
   const isSubItemActive = (item: SubMenuItem) => {
     const [itemPath, itemQuery] = item.href.split("?");
-    if (itemQuery && item.statusParam) {
-      return pathname === itemPath && currentStatus === item.statusParam;
+
+    if (pathname !== itemPath) {
+      return false;
     }
-    if (itemPath === "/") return pathname === "/";
-    return pathname === itemPath || pathname.startsWith(itemPath + "/");
+
+    if (itemQuery) {
+      const itemParams = new URLSearchParams(itemQuery);
+      for (const [key, val] of itemParams.entries()) {
+        if (searchParams?.get(key) !== val) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // When item has no query parameters (e.g. /settings for Payment Gateways):
+    if (itemPath === "/settings") {
+      const currentTab = searchParams?.get("tab") || "";
+      return currentTab === "";
+    }
+
+    if (item.statusParam || itemPath === "/customers") {
+      const currentStatus = searchParams?.get("status") || "";
+      return currentStatus === (item.statusParam || "");
+    }
+
+    return true;
   };
 
   const isSingleActive = (href: string) => {
     const [itemPath] = href.split("?");
     if (itemPath === "/") return pathname === "/" && !searchParams?.toString();
-    return pathname === itemPath || pathname.startsWith(itemPath + "/");
+    return pathname === itemPath;
   };
 
   return (

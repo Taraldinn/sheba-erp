@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   CreditCard, Bell, Phone, Save, CheckCircle2, RefreshCw, Eye, EyeOff,
   Wifi, WifiOff, Upload, Plus, Trash2, MessageSquare, Volume2, Settings,
@@ -65,15 +65,26 @@ const TABS = ["Payment Gateways", "SMS Configuration", "SMS Templates", "Voice C
 type Tab = typeof TABS[number];
 
 const TAB_PARAM_MAP: Record<string, Tab> = {
+  // Mapping from URL param to tab name
+
   "": "Payment Gateways",
   "sms": "SMS Configuration",
   "templates": "SMS Templates",
   "voice": "Voice Call Reminder",
 };
 
+// Reverse mapping for updating URL when tab changes
+const TAB_TO_PARAM: Record<Tab, string> = {
+  "Payment Gateways": "",
+  "SMS Configuration": "sms",
+  "SMS Templates": "templates",
+  "Voice Call Reminder": "voice",
+};
+
 const SMS_SHORTCODES = ["[NAME]", "[ID]", "[PASS]", "[AMOUNT]", "[DAYS]", "[DATE]"];
 
 export default function GatewaysSettingsPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams?.get("tab") || "";
   const [activeTab, setActiveTab] = useState<Tab>(
@@ -260,7 +271,11 @@ export default function GatewaysSettingsPage() {
           <button
             key={tab}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+              setActiveTab(tab);
+              const param = TAB_TO_PARAM[tab];
+              router.push(param ? `/settings?tab=${param}` : "/settings");
+            }}
             className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold whitespace-nowrap border-b-2 transition-all -mb-px ${
               activeTab === tab
                 ? "border-indigo-500 text-indigo-400"
