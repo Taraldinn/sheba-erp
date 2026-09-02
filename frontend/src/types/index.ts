@@ -8,7 +8,7 @@ export interface Customer {
   email: string;
   address: string;
   area_zone: string;
-  check_in_time: string;
+  check_in_time?: string;
   // optional fields used by UI components
   salary?: number;
   join_date?: string;
@@ -50,6 +50,22 @@ export interface Package {
   subscribers_count?: number;
 }
 
+export interface EmployeeItem {
+  id: string;
+  code: string;
+  name: string;
+  designation: string;
+  department: string;
+  phone: string;
+  basic_salary: number;
+  attendance_status: 'Present' | 'Late' | 'Absent' | 'On Leave';
+  check_in_time: string;
+  // optional UI fields
+  salary?: number;
+  join_date?: string;
+  status?: string;
+}
+
 export interface Router {
   id: string;
   name: string;
@@ -57,7 +73,15 @@ export interface Router {
   api_port: number;
   username: string;
   location: string;
-  status: 'Online' | 'Offline' | 'Error';
+  model?: string;
+  active_sessions?: number;
+  cpu_load?: number;
+  ros_version?: string;
+  free_memory_mb?: number;
+  uptime?: string;
+  status: 'Online' | 'Offline';
+  // Existing fields remain unchanged
+
   cpu_usage: number;
   memory_usage: number;
   active_pppoe_count: number;
