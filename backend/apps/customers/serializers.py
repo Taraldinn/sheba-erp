@@ -29,6 +29,8 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = '__all__'
+        read_only_fields = ('tenant',)
+
 
 
 class CustomerRechargeSerializer(serializers.Serializer):

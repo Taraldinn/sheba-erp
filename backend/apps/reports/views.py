@@ -8,31 +8,24 @@ from apps.billing.models import Recharge, Invoice
 from apps.payments.models import PaymentTransaction
 from apps.network.models import Router, ONU
 from apps.support.models import Ticket
+from apps.core.permissions import IsTenantMember
+from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 
 
-@extend_schema(tags=['13. Reports & Analytics'], description='Real-time aggregated KPIs, monthly collection trends, and bandwidth distribution.')
+@extend_schema(tags=['13. Reports & Analytics'], description='Real-time aggregated KPIs, monthly collection trends, and bandwidth distribution scoped strictly to request.tenant.')
 class DashboardAnalyticsView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember]
 
     def get(self, request):
-        tenant = getattr(request, 'tenant', None)
         today = timezone.now().date()
         first_day_month = today.replace(day=1)
 
-        customer_qs = Customer.objects.all()
-        recharge_qs = Recharge.objects.all()
-        payment_qs = PaymentTransaction.objects.all()
-        ticket_qs = Ticket.objects.all()
-        router_qs = Router.objects.all()
-        onu_qs = ONU.objects.all()
-
-        if tenant:
-            customer_qs = customer_qs.filter(tenant=tenant)
-            recharge_qs = recharge_qs.filter(tenant=tenant)
-            payment_qs = payment_qs.filter(tenant=tenant)
-            ticket_qs = ticket_qs.filter(tenant=tenant)
-            router_qs = router_qs.filter(tenant=tenant)
-            onu_qs = onu_qs.filter(tenant=tenant)
+        customer_qs = get_scoped_queryset(request, Customer)
+        recharge_qs = get_scoped_queryset(request, Recharge)
+        payment_qs = get_scoped_queryset(request, PaymentTransaction)
+        ticket_qs = get_scoped_queryset(request, Ticket)
+        router_qs = get_scoped_queryset(request, Router)
+        onu_qs = get_scoped_queryset(request, ONU)
 
         total_customers = customer_qs.count()
         active_customers = customer_qs.filter(status=CustomerStatus.ACTIVE).count()
@@ -53,7 +46,6 @@ class DashboardAnalyticsView(views.APIView):
 
         open_tickets = ticket_qs.filter(status__in=['Open', 'In_Progress']).count()
 
-        # Monthly collection trend (last 6 months)
         monthly_trend = [
             {'month': 'Apr', 'collection': 320000, 'target': 300000},
             {'month': 'May', 'collection': 345000, 'target': 320000},
@@ -63,7 +55,6 @@ class DashboardAnalyticsView(views.APIView):
             {'month': 'Sep', 'collection': float(month_collection) if month_collection else 465000, 'target': 420000},
         ]
 
-        # Bandwidth peak distribution
         traffic_distribution = [
             {'time': '00:00', 'download': 420, 'upload': 110},
             {'time': '04:00', 'download': 180, 'upload': 60},

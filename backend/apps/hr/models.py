@@ -16,7 +16,7 @@ class Employee(models.Model):
     phone = models.CharField(max_length=50)
     email = models.EmailField(blank=True)
     basic_salary = models.DecimalField(max_digits=10, decimal_places=2, default=15000.00)
-    joining_date = models.DateField(default=timezone.now)
+    joining_date = models.DateField(default=timezone.localdate)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -28,7 +28,7 @@ class Attendance(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='attendance_records')
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='attendance')
-    date = models.DateField(default=timezone.now)
+    date = models.DateField(default=timezone.localdate)
     check_in = models.TimeField(null=True, blank=True)
     check_out = models.TimeField(null=True, blank=True)
     status = models.CharField(max_length=20, default='Present', choices=[
@@ -79,7 +79,7 @@ class AdvanceSalary(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='advance_salaries')
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='advance_salaries')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    request_date = models.DateField(default=timezone.now)
+    request_date = models.DateField(default=timezone.localdate)
     deduction_month = models.CharField(max_length=20, default='September 2026')
     reason = models.TextField(blank=True)
     status = models.CharField(max_length=20, default='Approved', choices=[

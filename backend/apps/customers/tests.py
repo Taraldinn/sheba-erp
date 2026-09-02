@@ -79,11 +79,11 @@ class CustomerTests(TestCase):
         self.client.force_authenticate(user=user_b)
 
         # Attempt to access tenant A's customer by ID (IDOR attack vector)
-        response = self.client.get(f"/api/v1/customers/{self.customer.id}/")
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        response = self.client.get(f"/api/v1/customers/{self.customer.id}/", HTTP_X_TENANT_ID='demo-isp')
+        self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
 
-        # Attempt to list customers — must NOT see tenant A's customers
-        list_response = self.client.get("/api/v1/customers/")
+        # Attempt to list customers under tenant B — must NOT see tenant A's customers
+        list_response = self.client.get("/api/v1/customers/", HTTP_X_TENANT_ID='other-isp')
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
         ids = [c['id'] for c in list_response.data.get('results', list_response.data)]
         self.assertNotIn(str(self.customer.id), ids)

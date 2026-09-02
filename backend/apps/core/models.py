@@ -16,8 +16,46 @@ class Tenant(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ['-created_at']
+
     def __str__(self):
         return f"{self.name} ({self.slug})"
+
+
+class TenantDomain(models.Model):
+    """Proper multi-domain management (Plan Phase 4).
+    Replaces the single nullable Tenant.domain field.
+    """
+
+    class DomainType(models.TextChoices):
+        PRIMARY = 'primary', 'Primary'
+        ALIAS = 'alias', 'Alias'
+        API = 'api', 'API Subdomain'
+        PORTAL = 'portal', 'Customer Portal'
+        CONTROL = 'control', 'Control Plane'
+
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='tenant_domains'
+    )
+    hostname = models.CharField(max_length=255, unique=True, db_index=True)
+    is_primary = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    verified = models.BooleanField(default=False)
+    domain_type = models.CharField(
+        max_length=20, choices=DomainType.choices, default=DomainType.PRIMARY
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['hostname']
+        indexes = [
+            models.Index(fields=['hostname', 'is_active'], name='domain_hostname_active_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.hostname} → {self.tenant.slug} ({'primary' if self.is_primary else self.domain_type})"
 
 
 class TenantApiToken(models.Model):
@@ -139,18 +177,33 @@ class CompanySetting(models.Model):
 
 
 class AuditLog(models.Model):
+    """Structured audit trail (Plan Phase 33)."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='audit_logs', null=True, blank=True)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='audit_logs', null=True, blank=True
+    )
     actor_username = models.CharField(max_length=150, default='system')
-    action = models.CharField(max_length=100)
-    module = models.CharField(max_length=100)
-    target_id = models.CharField(max_length=100, blank=True)
+    action = models.CharField(max_length=100)  # e.g. 'recharge', 'login', 'update'
+    module = models.CharField(max_length=100)  # e.g. 'customers', 'payments'
+    # Phase 33 additions
+    resource_type = models.CharField(max_length=100, blank=True)  # e.g. 'Customer'
+    resource_id = models.CharField(max_length=100, blank=True)    # UUID or PK
+    request_id = models.CharField(max_length=64, blank=True)      # X-Request-ID
+    user_agent = models.TextField(blank=True)
+    before = models.JSONField(default=dict, blank=True)            # state before change
+    after = models.JSONField(default=dict, blank=True)             # state after change
+    # Legacy fields kept
+    target_id = models.CharField(max_length=100, blank=True)      # alias for resource_id
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     details = models.JSONField(default=dict, blank=True)
     timestamp = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['tenant', 'timestamp'], name='audit_tenant_ts_idx'),
+            models.Index(fields=['tenant', 'module', 'action'], name='audit_tenant_module_idx'),
+        ]
 
     def __str__(self):
         return f"[{self.timestamp.strftime('%Y-%m-%d %H:%M')}] {self.actor_username}: {self.action} on {self.module}"

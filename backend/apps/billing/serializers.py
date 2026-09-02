@@ -33,6 +33,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 
 class RechargeSerializer(serializers.ModelSerializer):
@@ -44,9 +45,12 @@ class RechargeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recharge
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 
 class OfferSerializer(serializers.ModelSerializer):
     class Meta:
         model = Offer
         fields = '__all__'
+        read_only_fields = ('tenant',)
+

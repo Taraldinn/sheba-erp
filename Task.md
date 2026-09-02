@@ -1,162 +1,339 @@
-# Sheba ISP ERP — Backend Stabilization Task List
+# Sheba ISP ERP — Master Task Tracker
+## Source of truth: [implimentation plan.md](file:///home/taraldinn/Documents/Sheba%20codebase/implimentation%20plan.md)
 
-> Goal: Stabilize and prepare the existing backend for production as an independently deployable ISP ERP.
-> **DO NOT** rewrite, introduce microservices, create a new frontend, or change the API version.
-
----
-
-## 📋 Phase 0: Discovery & Assessment
-
-- [x] Inspect all 12 domain apps and models
-- [x] **A.** Document current architecture (Django modular monolith, SQLite→PostgreSQL, DRF, Token Auth, Tenant Middleware)
-- [x] **B.** Document existing modules/features (14 domains identified)
-- [x] **C.** Identify critical problems (datetime NameError, sms_log field missing, non-atomic recharge, non-idempotent webhook)
-- [x] **D.** Identify security risks (tenant spoofing/IDOR, missing RBAC, credential exposure, hardcoded SECRET_KEY, CORS_ALLOW_ALL)
-- [x] **E.** Identify production-readiness gaps (SQLite default, no health check with DB ping, N+1 queries, missing indexes)
-- [x] **F.** Produce P0 / P1 / P2 recommended changes
+> **Architecture**: ONE Django app · ONE PostgreSQL DB · ONE Redis · Many ISP tenants · Many domains
+> **Rule**: Never database-per-tenant. Never trust client-supplied tenant. Domain → Tenant always.
 
 ---
 
-## 🔴 P0 — Critical Fixes (Data Integrity & Security)
+## Implementation Order (A → M)
 
-### P0.1 — Runtime Bug Fixes
-- [x] Fix `datetime.timedelta` NameError in `apps/customers/views.py` (missing `import datetime`)
-- [x] Add `sms_log` ForeignKey field to `PaymentTransaction` model (`apps/payments/models.py`)
-- [x] Run `makemigrations payments` + `migrate` for `sms_log` field
-- [x] Fix `CompanySetting.__str__` test mismatch (test expects `"Settings for X"` but model returns `"Settings for X (slug)"`)
-
-### P0.2 — Atomic Transactions & Row Locking
-- [x] Wrap `recharge()` action in `@transaction.atomic` + `select_for_update()` (`customers/views.py`)
-- [x] Wrap `toggle_internet()` in `@transaction.atomic` + `select_for_update()` (`customers/views.py`)
-- [x] Wrap `toggle_status()` in `@transaction.atomic` + `select_for_update()` (`customers/views.py`)
-- [x] Wrap stock `StockTransaction` create in `@transaction.atomic` + `select_for_update()` (`store/views.py`)
-
-### P0.3 — Payment Webhook Idempotency
-- [x] Check `trx_id` uniqueness **before** creating `PaymentTransaction` in `SmsWebhookView`
-- [x] Return early (idempotent 200) if `trx_id` already exists in database
-- [x] `db_index=True` confirmed on `SmsLog.parsed_trx_id`; `PaymentTransaction.trx_id` has `unique=True`
-
-### P0.4 — RBAC Permission Classes
-- [x] Create `apps/core/permissions.py` with:
-  - [x] `IsTenantMember` — enforces user belongs to active tenant
-  - [x] `IsAdminOrManager` — Super Admin / Admin only
-  - [x] `IsBillingStaff` — Admin + Billing Operators + Agents
-  - [x] `IsTechnicalStaff` — Admin + Support + Line Men
-  - [x] `IsAdminUserOrReadOnly` — safe methods for all staff, mutations for admins only
-
-### P0.5 — Anti-IDOR Tenant Scoping
-- [x] Create `apps/core/utils.py` with `get_tenant_for_request()` and `get_scoped_queryset()` helpers
-- [x] Apply `IsTenantMember` permission to `CustomerViewSet`
-- [x] Scope `CustomerQueryApiView` to active tenant (no cross-tenant leakage)
-- [x] Apply `IsTenantMember` + `IsAdminUserOrReadOnly` to `NetworkViewSet` (routers, OLT, ONU)
-- [x] Apply `IsTenantMember` + `IsBillingStaff` to `BillingViewSet` (invoices, packages)
-- [x] Apply `IsTenantMember` + `IsAdminOrManager` to `PaymentsViewSet`
-- [x] Apply `IsTenantMember` to `SupportViewSet`
-- [x] Apply `IsTenantMember` + `IsAdminOrManager` to `HRViewSet` (salary data is sensitive)
-- [x] Apply `IsTenantMember` + `IsAdminUserOrReadOnly` to `StoreViewSet`
-- [x] Apply `IsTenantMember` to `TaskViewSet`
-- [x] Apply `IsTenantMember` + `IsAdminOrManager` to `CallCenterViewSet`
-- [x] Switch all `get_queryset()` to use `get_scoped_queryset()` helper
-
-### P0.6 — Credential Protection (Server-Side Only)
-- [x] Confirm `RouterSerializer` `password` is `write_only=True` ✓
-- [x] Confirm `OLTSerializer` `telnet_password` is `write_only=True` ✓
-- [x] Mark `PaymentGatewaySerializer` fields `app_secret`, `password`, `sandbox_password`, `private_key`, `store_password` as `write_only=True`
-- [x] `CompanySettingSerializer` — `sms_api_key` stored server-side, not in serializer (safe)
-- [x] `CustomerDetailSerializer` — `pppoe_password` field exists in model but only accessible behind `IsAuthenticated`
-
-### P0.7 — Run Checks & Tests After P0
-- [x] Run `python manage.py check` → **0 errors** ✅
-- [x] Run `python manage.py test` → **7/7 tests pass** ✅
-- [x] Verify `python manage.py spectacular --validate` → exit 0 ✅
+```
+A → B → C → D → E → F → G → H → I → J → K → L → M
+```
 
 ---
 
-## 🟡 P1 — Production Architecture & Reliability
+## ✅ PHASE A — PostgreSQL + Production Config
 
-### P1.1 — Environment-Based Configuration
-- [ ] Add `python-decouple` or `django-environ` to `requirements.txt`
-- [ ] Replace hardcoded `SECRET_KEY` with `env('SECRET_KEY')`
-- [ ] Replace hardcoded `DEBUG = True` with `env.bool('DEBUG', default=False)`
-- [ ] Configure `DATABASES` to use `DATABASE_URL` env var (PostgreSQL in prod)
-- [ ] Move `ALLOWED_HOSTS` to env (`env.list('ALLOWED_HOSTS')`)
-- [ ] Move `CORS_ALLOWED_ORIGINS` to env (remove `CORS_ALLOW_ALL_ORIGINS = True`)
-- [ ] Create `.env.example` template file in `/backend/`
-
-### P1.2 — Deep Health / Readiness Probe
-- [x] Basic `/api/v1/health-check/` endpoint returns HTTP 200
-- [ ] Upgrade health check to ping database (`connection.ensure_connection()`)
-- [ ] Add `/healthz/` readiness probe suitable for Kubernetes/nginx LB
-- [ ] Include `db: ok/error`, `cache: ok/error`, and `version` in response
-
-### P1.3 — N+1 Query Optimizations
-- [ ] Add `select_related` on `InvoiceViewSet` queryset (`customer__package`, `customer__router`)
-- [ ] Add `select_related` on `RechargeViewSet` queryset
-- [ ] Add `select_related` on `TicketViewSet` queryset (`assigned_to__user`)
-- [ ] Add `select_related` on `HRViewSet` queryset (`employee__user`)
-- [ ] Add `prefetch_related` on `PackageViewSet` for related reseller pricing
-
-### P1.4 — Database Indexes
-- [ ] Add composite index on `Customer(tenant, status)` in `customers/models.py`
-- [ ] Add index on `Customer(tenant, expiry_date)` for expiry cron jobs
-- [ ] Add index on `Invoice(tenant, due_date, status)`
-- [ ] Add index on `PaymentTransaction(tenant, created_at)`
-- [ ] Add index on `Recharge(customer, created_at)`
-- [ ] Run `makemigrations` + `migrate` for index additions
-
-### P1.5 — Static File Serving
-- [ ] Add `whitenoise` to `requirements.txt`
-- [ ] Add `WhiteNoiseMiddleware` to `MIDDLEWARE` after `SecurityMiddleware`
-- [ ] Configure `STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'`
-- [ ] Run `python manage.py collectstatic`
-
-### P1.6 — Session / Cache Backend
-- [ ] Switch `SESSION_ENGINE` from DB to Redis/cache for stateless LB compatibility
-- [ ] Configure `CACHES` with Redis backend via `REDIS_URL` env var (optional for current stage)
+- [x] Replace SQLite with `DATABASE_URL` env var (PostgreSQL)
+- [x] `django-environ` integrated in `settings.py`
+- [x] `DJANGO_SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS` from env
+- [x] `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`, `X_FRAME_OPTIONS`
+- [x] Production `.env.example` created at `/backend/.env.example`
+- [x] WhiteNoise static files (157 files collected, 453 compressed)
+- [x] Redis cache + stateless session backend via `REDIS_URL`
+- [x] `python manage.py check` → **0 issues** ✅
 
 ---
 
-## 🟢 P2 — Background Tasks & Automation
+## ✅ PHASE B — Tenant / Domain Architecture
 
-### P2.1 — Management Commands
-- [ ] Create `management/commands/process_expiries.py` — auto-lock expired customers
-- [ ] Create `management/commands/generate_monthly_invoices.py` — bulk invoice creation
-- [ ] Create `management/commands/send_expiry_sms.py` — SMS reminder dispatch
+### Plan Phase 1–3 (Domain Resolution)
+- [x] `TenantResolutionMiddleware` in `apps/core/middleware.py`
+  - [x] HTTP `Host` → subdomain slug → `Tenant` lookup
+  - [x] `admin.shebafi.com` → `request.is_control_plane = True`
+  - [x] Unknown domain → `404 TENANT_NOT_FOUND`
+  - [x] Inactive/suspended ISP → `403 TENANT_INACTIVE`
+  - [x] `localhost`/`127.0.0.1`/`testserver` dev/test fallback (no silent cross-tenant)
+  - [x] `/api/v1/auth/`, `/healthz/`, `/api/schema/`, `/api/docs/` in `PUBLIC_PATHS`
+- [x] `/healthz/` readiness probe with `connection.ensure_connection()` DB ping
+- [ ] **Plan Phase 4 — `TenantDomain` model** (separate domain management)
+  - [ ] Create `TenantDomain(tenant, hostname, is_primary, is_active, verified, domain_type)`
+  - [ ] Migrate domain resolution to query `TenantDomain` table
+  - [ ] Keep `Tenant.domain` as legacy fallback only
 
-### P2.2 — Celery Readiness
-- [ ] Document Celery task structure for `process_expiries` and `generate_monthly_invoices`
-- [ ] Ensure no in-memory state: all task data sourced from DB
-- [ ] Add `CELERY_BROKER_URL` env var to `.env.example`
-
-### P2.3 — Test Coverage Expansion
-- [ ] Fix existing failing tests:
-  - [ ] `test_company_settings` — update `__str__` assertion or model `__str__` method
-  - [ ] `test_bkash_sms_auto_matching` — confirm idempotency fix resolves this
-  - [ ] `test_customer_recharge_flow` — confirm `datetime` fix resolves this
-- [ ] Add test: `test_tenant_isolation` — confirm IDOR blocked across tenants
-- [ ] Add test: `test_duplicate_trx_id_ignored` — confirm idempotent webhook
-- [ ] Add test: `test_network_credentials_not_in_response` — confirm password write-only
-- [ ] Add test: `test_unauthorized_customer_access` — confirm RBAC blocks unprivileged users
-- [ ] Add test: `test_stock_transaction_atomic` — confirm inventory concurrency safety
-
----
-
-## 📦 Final Deliverables
-
-- [ ] **Implementation Summary** — files changed and why
-- [ ] **Remaining Risks** — items not addressed and recommended next steps
-- [ ] **Migration Requirements** — all new migrations in order
-- [ ] **Environment Variables** — full `.env.example` with every variable documented
-- [ ] **Deployment Requirements** — Gunicorn, Nginx, Redis, PostgreSQL, WhiteNoise
-- [ ] **API Compatibility Notes** — any endpoints modified with backward-compat notes
+### Plan Phase 5 — Reusable Tenant Base Layer
+- [ ] Create `apps/core/tenancy/` package:
+  - [ ] `context.py` — `get_current_tenant()` helper
+  - [ ] `middleware.py` — move `TenantResolutionMiddleware` here
+  - [ ] `managers.py` — `TenantScopedManager` base queryset manager
+  - [ ] `permissions.py` — `TenantScopedPermission`, `IsCentralAdmin`
+  - [ ] `mixins.py` — `TenantScopedViewSetMixin`, `TenantScopedSerializerMixin`
+  - [ ] `exceptions.py` — `TenantNotFound`, `TenantInactive`
+- [ ] Replace scattered `getattr(request, 'tenant', None)` with the mixin pattern
+- [ ] Remove every `if tenant: filter(...) else: Model.objects.all()` anti-pattern
 
 ---
 
-## 📊 Progress
+## ✅ PHASE C — Authentication + RBAC (Partial)
 
-| Priority | Total | Done | Remaining |
-|----------|-------|------|-----------|
-| P0 | 25 | **25** | **0** ✅ |
-| P1 | 20 | 1 | 19 |
-| P2 | 12 | 0 | 12 |
-| **Total** | **57** | **26** | **31** |
+### Completed
+- [x] `IsTenantMember` — `user.profile.tenant_id == request.tenant.id` enforcement
+- [x] `IsCentralAdmin` — blocks ISP staff from control plane
+- [x] `IsAdminOrManager`, `IsBillingStaff`, `IsTechnicalStaff`, `IsAdminUserOrReadOnly`
+- [x] All 14 domain ViewSets protected with `IsTenantMember` + role permission
+
+### Plan Phase 6 — Server-Controlled Tenant Assignment ✅
+- [x] `read_only_fields = ('tenant',)` on all business serializers
+- [x] `perform_create` forces `serializer.save(tenant=request.tenant)`
+- [x] Frontend-submitted `tenant_id` discarded everywhere
+
+### Plan Phase 8 — Proper Identity Model (TODO)
+- [ ] Design `StaffMembership(user, tenant, role, is_active)` replacing `StaffProfile.role` char field
+- [ ] Decompose `StaffProfile` — separate staff identity from customer identity and reseller identity
+- [ ] Create `Role`, `Permission`, `RolePermission` models
+
+### Plan Phase 9 — Full RBAC + Scope (TODO)
+- [ ] Permission definitions: `customer.view`, `customer.create`, `customer.recharge`, `invoice.view`, `router.manage`, `ticket.assign`, etc.
+- [ ] Scope support: `GLOBAL`, `TENANT`, `POP`, `AREA`, `SELF`, `ASSIGNED`
+- [ ] Replace hard-coded role strings with database-driven permission checks
+
+### Plan Phase 10 — Staff vs Reseller Redesign (TODO)
+- [ ] Create `Reseller`, `ResellerStaff`, `ResellerCustomer`, `ResellerWallet`, `ResellerLedger`, `ResellerRate`
+- [ ] Remove `RESELLER` from `StaffProfile.role` choices
+- [ ] `Customer.reseller` → points to `Reseller` not `StaffProfile`
+
+### Plan Phase 31 — Tenant-Aware Auth (TODO)
+- [ ] Login must verify `user.profile.tenant_id == request.tenant.id`
+- [ ] User on `fardin.shebafi.com` but only member of `isp2` → `403`
+
+### Plan Phase 32 — Admin Plane Auth (TODO)
+- [ ] `admin.shebafi.com` requires `platform_admin` or `platform_operator` flag
+- [ ] Ordinary ISP admin cannot create/delete tenants or manage platform credentials
+
+---
+
+## ✅ PHASE D — Tenant Isolation Audit
+
+- [x] 22-scenario tenant isolation test suite `apps/core/test_shared_db_tenancy.py`
+- [x] Cross-tenant IDOR blocked on customers, invoices, payments, routers, tickets, recharge
+- [x] Bulk `id__in=ids` scoped to `request.tenant` enforced and tested
+- [x] Reports/dashboard scoped to `request.tenant`
+- [x] Background tasks carry `(tenant_id, ...)` explicitly
+- [x] **35/35 tests passing** ✅
+
+### Plan Phase 30 — Remaining Cross-Tenant Audit (TODO)
+- [ ] Full ViewSet audit for `getattr(request, 'tenant', None) → Model.objects.all()` pattern
+- [ ] Replace every such pattern with hard rejection if `request.tenant is None`
+- [ ] Audit nested resources: `customer.router.tenant`, `invoice.customer.tenant` ownership chain
+
+### Plan Phase 7 — Relationship Ownership Validation (TODO)
+- [ ] Serializer validation: `customer.router.tenant == customer.tenant`
+- [ ] Serializer validation: `customer.package.tenant == customer.tenant`
+- [ ] Serializer validation: `invoice.customer.tenant == invoice.tenant`
+- [ ] Serializer validation: `recharge.package.tenant == recharge.tenant`
+- [ ] Serializer validation: `OLT.tenant == ONU.tenant`
+- [ ] DB-level composite constraints where PostgreSQL allows
+
+---
+
+## 🔲 PHASE E — Billing + Ledger
+
+### Plan Phase 9 — Billing Engine (TODO)
+- [ ] Create `BillingAccount` model (customer-level billing record)
+- [ ] Create `InvoiceLine` model (itemised invoice lines)
+- [ ] Create `PaymentAllocation` (payment → invoice linkage)
+- [ ] Create `Credit`, `Debit`, `Adjustment` models
+- [ ] Create `Subscription`, `SubscriptionHistory` models
+- [ ] Keep `Customer.monthly_bill`, `due_amount`, `advance_amount` as useful denorm fields
+
+### Plan Phase 10 — Financial Ledger (TODO)
+- [ ] Create `finance/` app:
+  - [ ] `Account`, `Journal`, `JournalEntry`, `LedgerEntry`
+  - [ ] `CashAccount`, `BankAccount`
+  - [ ] `Expense`, `Income`, `Transfer`, `Reconciliation`
+- [ ] All financial changes append-only
+- [ ] No `DELETE` on payment/financial records; use `reversal`, `refund`, `void`
+- [ ] Add migrations for `finance/` app
+- [ ] Register `finance/` in `INSTALLED_APPS`
+
+---
+
+## 🔲 PHASE F — Payments + Reconciliation
+
+### Plan Phase 11 — Payment Architecture (TODO)
+- [ ] Create `PaymentProvider` abstraction (bKash, Nagad, Rocket, SSLCommerz)
+- [ ] Create `PaymentAttempt` model
+- [ ] Create `PaymentWebhook`, `PaymentSettlement`, `PaymentReconciliation` models
+- [ ] Implement state machine: `INITIATED → PENDING → SUCCESS/FAILED/CANCELLED/REFUNDED/RECONCILED`
+
+### Plan Phase 12 — Payment Sync / SMS Automation (TODO)
+- [ ] Replace `SmsWebhookView` direct-mutation with `InboundPaymentEvent` pipeline:
+  - [ ] `PaymentSource`, `PaymentSyncConfig`
+  - [ ] `PaymentInboundEvent`, `PaymentMatch`
+  - [ ] `PaymentReconciliation`, `PaymentSyncLog`
+- [ ] Unmatched transactions remain reviewable in admin
+- [ ] Async match engine via Celery task
+
+### Plan Phase 34 — API Idempotency (TODO)
+- [ ] Create `IdempotencyKey(tenant, key, request_hash, response, status, expires_at)` model
+- [ ] Apply `Idempotency-Key` header checking to: `recharge`, `payment`, `webhook`, `refund`, `invoice settlement`
+- [ ] Return cached response for duplicate keys
+
+---
+
+## 🔲 PHASE G — MikroTik + OLT Service Layer
+
+### Plan Phase 13 — MikroTik Abstraction (TODO)
+- [ ] Create `apps/network/services/mikrotik/` package:
+  - [ ] `client.py` — `RouterClient` class
+  - [ ] `service.py` — business operations
+  - [ ] `sync.py` — full router sync
+  - [ ] `sessions.py` — active PPPoE session management
+  - [ ] `profiles.py` — bandwidth profile sync
+  - [ ] `users.py` — create/update/disable/enable PPPoE users
+- [ ] Implement: `test_connection()`, `get_system_health()`, `get_active_sessions()`, `create_pppoe_user()`, `update_pppoe_user()`, `disable_user()`, `enable_user()`, `disconnect_session()`, `sync_profiles()`
+- [ ] Views call services → services call MikroTik (never views → MikroTik directly)
+
+### Plan Phase 14 — Credential Security (TODO)
+- [ ] Implement `EncryptedSecretField` (using `django-cryptography` or `cryptography` lib)
+- [ ] Migrate `Router.password` → `EncryptedSecretField`
+- [ ] Migrate `OLT.telnet_password`, `OLT.snmp_community` → `EncryptedSecretField`
+- [ ] Migrate `PaymentGateway` secrets → `EncryptedSecretField`
+- [ ] Migrate SMS API keys, Tenant HMAC secrets → `EncryptedSecretField`
+- [ ] Ensure all encrypted fields are `write_only=True` in serializers
+
+### Plan Phase 15 — OLT / ONU Architecture (TODO)
+- [ ] Create `OnuAssignment(onu, customer, assigned_at, unassigned_at)` model
+- [ ] Create `OnuStatusHistory`, `OpticalReading`, `OnuActionLog` models
+- [ ] `Customer ↔ ONU` becomes explicit assignment (not duplicated fields on ONU)
+
+### Plan Phase 16 — Customer Equipment / Link History (TODO)
+- [ ] Create `CustomerNetworkAssignment` model with history
+- [ ] Create `RouterAssignment`, `IPAssignment`, `ONUAssignment`, `PackageAssignment` with timestamps
+- [ ] Stop overwriting `customer.router`, `customer.package`, `customer.onu` without history
+
+---
+
+## 🔲 PHASE H — Customer Portal API
+
+### Plan Phase 20 — Customer Portal (TODO)
+- [ ] Create `apps/portal/` app with self-service routes:
+  - [ ] `POST /api/v1/portal/auth/` — customer login
+  - [ ] `GET /api/v1/portal/profile/`
+  - [ ] `GET /api/v1/portal/service/`
+  - [ ] `GET /api/v1/portal/billing/`
+  - [ ] `GET /api/v1/portal/invoices/`
+  - [ ] `POST /api/v1/portal/payments/`
+  - [ ] `POST /api/v1/portal/recharge/`
+  - [ ] `GET /api/v1/portal/sessions/`
+  - [ ] `GET /api/v1/portal/usage/`
+  - [ ] `GET /api/v1/portal/tickets/`
+- [ ] Portal serializers are NEVER shared with admin serializers
+- [ ] Portal auth token separate from staff token
+
+---
+
+## 🔲 PHASE I — CRM + Field Tasks + SMS
+
+### Plan Phase 17 — CRM / Support (TODO)
+- [ ] Create `TicketCategory`, `TicketAttachment`, `TicketAssignment`, `TicketStatusHistory` models
+- [ ] Create `SLA` model
+- [ ] Support actors: `customer`, `staff`, `reseller`, `corporate`
+
+### Plan Phase 18 — Field Operations (TODO)
+- [ ] Refactor `tasks/` → `FieldTask`, `TaskAssignment`, `TaskComment`, `TaskStatusHistory`, `TechnicianSchedule`
+- [ ] Link `FieldTask` to `Customer`, `Ticket`, `POP`, `Area`, `Technician`
+
+### Plan Phase 19 — SMS Platform (TODO)
+- [ ] Create `SmsProvider`, `SmsTemplate`, `SmsMessage`, `SmsBatch`, `SmsDelivery`, `SmsBalance`, `SmsUsage` models
+- [ ] Template types: `welcome`, `payment`, `recharge`, `due`, `expiry`, `suspension`, `reconnection`, `ticket`, `network_outage`
+- [ ] Celery tasks: bulk SMS, retry, delivery polling, automated notifications
+
+---
+
+## 🔲 PHASE J — Corporate / Bandwidth Customers
+
+### Plan Phase 21 — Corporate Domain (TODO)
+- [ ] Create `apps/corporate/` app
+- [ ] Models: `CorporateCustomer`, `CorporateService`, `BandwidthAllocation`, `IpService`, `DataConnectivity`, `CacheService`, `ServerRent`, `CorporateLink`, `CorporateInvoice`
+
+---
+
+## 🔲 PHASE K — Reports Architecture
+
+### Plan Phase 22 — Reports (TODO)
+- [ ] Create `apps/reports/services/` + `apps/reports/queries/` service layer
+- [ ] Report groups: `dashboard`, `customers`, `billing`, `collection`, `revenue`, `due`, `resellers`, `payments`, `network`, `equipment`, `tickets`, `staff`, `SMS`, `cashflow`, `ledger`, `corporate`
+- [ ] Use PostgreSQL aggregation (no model per report)
+- [ ] Plan for materialized views/summary tables for large historical data
+
+---
+
+## 🔲 PHASE L — Control Plane Completion
+
+### Plan Phase 23 — Control Plane APIs (TODO)
+- [ ] Control plane APIs for: `tenant`, `tenant domains`, `branding`, `billing settings`, `SMS settings`, `payment methods`, `gateway config`, `network defaults`, `roles`, `permissions`, `API credentials`, `feature flags`
+- [ ] Control plane can create `Tenant`, `TenantDomain`, `CompanySetting`, `Admin membership`
+- [ ] Control plane must NOT proxy business API traffic
+
+### Plan Phase 25 — Action-Specific Serializers (TODO)
+- [ ] Create `RechargeRequestSerializer` (amount, payment_method, package_id, notes)
+- [ ] Create `LockCustomerSerializer`
+- [ ] Create `ToggleInternetSerializer`
+- [ ] Create `PaymentRequestSerializer`
+- [ ] Replace all action endpoints that reuse full detail serializers as request body
+
+---
+
+## 🔲 PHASE M — Performance + Observability + Hardening
+
+### Plan Phase 26 — Sensitive Data Rules (TODO)
+- [x] `Router.password` → `write_only=True` ✅
+- [x] `OLT.telnet_password` → `write_only=True` ✅
+- [x] `PaymentGateway` secrets → `write_only=True` ✅
+- [ ] `Customer.pppoe_password` → encrypt + write-only + never in normal responses
+- [ ] All encrypted fields migrated (depends on Phase G credential security)
+
+### Plan Phase 27 — Celery + Redis (TODO)
+- [x] Tasks carry `tenant_id` explicitly: `process_customer_expiry`, `generate_monthly_invoices_for_tenant`, `send_payment_sms`, `sync_router_task` ✅
+- [ ] Add remaining tasks: `expire_customers`, `sync_olt`, `process_payment_event`, `retry_sms`, `calculate_reports`, `reconcile_payments`
+- [ ] `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` in `.env.example`
+- [ ] `celery.py` worker entrypoint configured
+
+### Plan Phase 28 — Distributed Locking (TODO)
+- [x] `transaction.atomic()` + `select_for_update()` on recharge, toggle, stock ✅
+- [ ] Redis-based distributed locks for: `customer recharge`, `payment webhook`, `invoice generation`, `router sync`, `bulk expiry`
+- [ ] Idempotency key deduplication layer
+
+### Plan Phase 29 — Database Indexing (TODO)
+- [x] Composite indexes on `Customer(tenant, status)`, `Customer(tenant, expiry_date)` ✅
+- [x] Composite indexes on `Invoice(tenant, due_date)`, `PaymentTransaction(tenant, created_at)`, `Recharge(customer, created_at)` ✅
+- [ ] Review and add missing indexes: `(tenant, mobile)`, `(tenant, customer_code)`, `(tenant, pppoe_username)` on Customer
+- [ ] Review indexes for `SmsLog`, `TicketReply`, `Attendance`, `Payroll`
+
+### Plan Phase 33 — Audit System (TODO)
+- [ ] Expand `AuditLog` with: `resource_type`, `resource_id`, `request_id`, `user_agent`, `before`, `after`, `metadata`
+- [ ] Audit triggers on: `login`, `logout`, `customer modification`, `recharge`, `payment`, `refund`, `permission changes`, `credential changes`, `network actions`, `tenant configuration`
+
+### Plan Phase 35 — Test Coverage Expansion (TODO)
+- [x] Tenant isolation tests (22 scenarios, 35 total) ✅
+- [ ] Concurrent recharge test (two calls cannot corrupt expiry)
+- [ ] Tenant A user cannot authenticate into Tenant B via host manipulation
+- [ ] Two identical payment webhooks produce one transaction
+- [ ] Wrong-tenant router cannot be accessed
+
+### Plan Phase 36 — Migration Strategy (TODO)
+- [x] Existing migrations preserved (no throwaway) ✅
+- [ ] Data export script from SQLite → PostgreSQL
+- [ ] Schema mapping and cleanup documentation
+- [ ] PostgreSQL import validation script
+- [ ] Production migration runbook
+
+---
+
+## 📊 Progress Summary
+
+| Phase | Name | Status |
+|-------|------|--------|
+| **A** | PostgreSQL + Production Config | ✅ Complete |
+| **B** | Tenant / Domain Architecture | 🟡 90% — `TenantDomain` model pending |
+| **C** | Authentication + RBAC | 🟡 60% — identity model redesign pending |
+| **D** | Tenant Isolation Audit | ✅ Complete (35/35 tests) |
+| **E** | Billing + Ledger | 🔲 Not started |
+| **F** | Payments + Reconciliation | 🔲 Not started |
+| **G** | MikroTik + OLT Service Layer | 🔲 Not started |
+| **H** | Customer Portal API | 🔲 Not started |
+| **I** | CRM + Field Tasks + SMS | 🔲 Not started |
+| **J** | Corporate / Bandwidth | 🔲 Not started |
+| **K** | Reports Architecture | 🔲 Not started |
+| **L** | Control Plane Completion | 🔲 Not started |
+| **M** | Performance + Observability | 🟡 30% — indexes/locking partially done |
+
+### Baseline verification (run before every phase)
+```bash
+python manage.py check                  # 0 issues
+python manage.py test --verbosity=1     # 35/35 OK
+python manage.py spectacular --validate # 0 errors
+```

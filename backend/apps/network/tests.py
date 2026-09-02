@@ -33,7 +33,7 @@ class NetworkSecurityTests(TestCase):
             tenant=self.tenant,
             name='Huawei OLT MA5608T',
             ip_address='10.10.10.1',
-            telnet_username='root',
+            telnet_user='root',
             telnet_password='UltraSecretOltPassword456'
         )
 

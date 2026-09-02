@@ -6,6 +6,7 @@ class PaymentGatewaySerializer(serializers.ModelSerializer):
     class Meta:
         model = PaymentGateway
         fields = '__all__'
+        read_only_fields = ('tenant',)
         extra_kwargs = {
             # Live credentials — never returned in responses
             'app_secret': {'write_only': True},
@@ -18,7 +19,6 @@ class PaymentGatewaySerializer(serializers.ModelSerializer):
         }
 
 
-
 class PaymentTransactionSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.full_name', read_only=True)
     customer_username = serializers.CharField(source='customer.pppoe_username', read_only=True)
@@ -26,6 +26,7 @@ class PaymentTransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaymentTransaction
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 
 class SmsLogSerializer(serializers.ModelSerializer):
@@ -34,3 +35,5 @@ class SmsLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = SmsLog
         fields = '__all__'
+        read_only_fields = ('tenant',)
+

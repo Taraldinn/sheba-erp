@@ -3,39 +3,40 @@ from django.db.models import QuerySet
 
 def get_tenant_for_request(request):
     """
-    Safely resolves the authoritative tenant for a given request.
-    If the user is authenticated with a profile tenant, that takes precedence over headers to prevent IDOR.
-    Superusers can query across tenants or specify a target tenant via header/parameter.
+    Returns the authoritative tenant resolved by Domain-Based TenantResolutionMiddleware.
+    Client-provided headers/parameters cannot override this on public domains.
     """
     if not request:
         return None
-
-    user = getattr(request, 'user', None)
-    profile = getattr(user, 'profile', None) if user and user.is_authenticated else None
-
-    # For non-superuser staff, their assigned tenant is authoritative
-    if profile and profile.tenant and not user.is_superuser:
-        return profile.tenant
-
-    # For superusers or public endpoints, use request.tenant resolved by middleware
     return getattr(request, 'tenant', None)
 
 
 def get_scoped_queryset(request, queryset_or_model):
     """
-    Scopes a model queryset to the authoritative tenant.
+    Scopes a model queryset strictly to request.tenant.
+    Central control plane superusers can query across tenants.
+    All other requests are filtered by request.tenant or return qs.none().
     """
     if isinstance(queryset_or_model, QuerySet):
         qs = queryset_or_model
     else:
         qs = queryset_or_model.objects.all()
 
-    tenant = get_tenant_for_request(request)
+    # Central control plane superuser access
+    if getattr(request, 'is_control_plane', False):
+        user = getattr(request, 'user', None)
+        if user and user.is_superuser:
+            return qs
+
+    tenant = getattr(request, 'tenant', None)
     if tenant:
         return qs.filter(tenant=tenant)
 
+    # Superuser on localhost/testserver without tenant bound
     user = getattr(request, 'user', None)
     if user and user.is_superuser:
-        return qs
+        raw_host = request.get_host().split(':')[0].lower() if hasattr(request, 'get_host') else ''
+        if raw_host in ('localhost', '127.0.0.1', 'testserver'):
+            return qs
 
     return qs.none()

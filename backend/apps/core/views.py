@@ -3,6 +3,8 @@ from rest_framework.response import Response
 from django.db import connection
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import Tenant, TenantApiToken, CompanySetting, AuditLog
+from .permissions import IsCentralAdmin, IsTenantMember, IsAdminOrManager
+from .utils import get_scoped_queryset, get_tenant_for_request
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -34,7 +36,10 @@ class AuditLogSerializer(serializers.ModelSerializer):
     destroy=extend_schema(tags=['14. Core & Tenant Settings']),
 )
 class TenantViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAdminUser]
+    """
+    Central Control Plane endpoint. Only central administrators on the control plane can manage tenants.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
     queryset = Tenant.objects.all()
     serializer_class = TenantSerializer
 
@@ -48,18 +53,14 @@ class TenantViewSet(viewsets.ModelViewSet):
     destroy=extend_schema(tags=['14. Core & Tenant Settings']),
 )
 class CompanySettingViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsAdminOrManager]
     serializer_class = CompanySettingSerializer
 
     def get_queryset(self):
-        tenant = getattr(self.request, 'tenant', None)
-        if tenant:
-            return CompanySetting.objects.filter(tenant=tenant)
-        return CompanySetting.objects.all()
+        return get_scoped_queryset(self.request, CompanySetting)
 
     def perform_create(self, serializer):
-        tenant = getattr(self.request, 'tenant', None)
-        serializer.save(tenant=tenant)
+        serializer.save(tenant=get_tenant_for_request(self.request))
 
 
 @extend_schema_view(
@@ -67,14 +68,11 @@ class CompanySettingViewSet(viewsets.ModelViewSet):
     retrieve=extend_schema(tags=['14. Core & Tenant Settings']),
 )
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember]
     serializer_class = AuditLogSerializer
 
     def get_queryset(self):
-        tenant = getattr(self.request, 'tenant', None)
-        if tenant:
-            return AuditLog.objects.filter(tenant=tenant)
-        return AuditLog.objects.all()
+        return get_scoped_queryset(self.request, AuditLog)
 
 
 @extend_schema(tags=['14. Core & Tenant Settings'], description='Public health check and tenant status endpoint.')
@@ -87,6 +85,7 @@ class HealthCheckView(views.APIView):
             'system': 'Sheba ISP ERP API',
             'version': '2.0.0',
             'tenant_detected': request.tenant.slug if getattr(request, 'tenant', None) else 'main',
+            'is_control_plane': getattr(request, 'is_control_plane', False),
         })
 
 

@@ -106,3 +106,101 @@ class PaymentTransaction(models.Model):
 
     def __str__(self):
         return f"{self.payment_method} ৳{self.amount} - Trx: {self.trx_id} ({self.status})"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PaymentAttempt — state machine (Plan Phase F / 11)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PaymentAttemptStatus(models.TextChoices):
+    INITIATED   = 'INITIATED',   'Initiated'
+    PENDING     = 'PENDING',     'Pending confirmation'
+    SUCCESS     = 'SUCCESS',     'Confirmed success'
+    FAILED      = 'FAILED',      'Failed'
+    CANCELLED   = 'CANCELLED',   'Cancelled'
+    REFUNDED    = 'REFUNDED',    'Refunded'
+    RECONCILED  = 'RECONCILED',  'Reconciled'
+
+
+class PaymentAttempt(models.Model):
+    """Tracks each payment initiation with full state machine."""
+    id                  = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant              = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='payment_attempts')
+    customer            = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='payment_attempts')
+    gateway             = models.ForeignKey(PaymentGateway, on_delete=models.SET_NULL, null=True, blank=True)
+    amount              = models.DecimalField(max_digits=12, decimal_places=2)
+    currency            = models.CharField(max_length=10, default='BDT')
+    provider            = models.CharField(max_length=50, choices=GatewayProvider.choices, default=GatewayProvider.BKASH)
+    status              = models.CharField(max_length=20, choices=PaymentAttemptStatus.choices, default=PaymentAttemptStatus.INITIATED)
+    idempotency_key     = models.CharField(max_length=255, blank=True, db_index=True)
+    provider_reference  = models.CharField(max_length=200, blank=True)
+    transaction         = models.OneToOneField(PaymentTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='attempt')
+    raw_request         = models.JSONField(default=dict, blank=True)
+    raw_response        = models.JSONField(default=dict, blank=True)
+    failure_reason      = models.TextField(blank=True)
+    initiated_at        = models.DateTimeField(auto_now_add=True)
+    completed_at        = models.DateTimeField(null=True, blank=True)
+    updated_at          = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-initiated_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status'],                    name='pattempt_tenant_status_idx'),
+            models.Index(fields=['tenant', 'customer', 'initiated_at'],  name='pattempt_tenant_cust_ts_idx'),
+            models.Index(fields=['idempotency_key'],                     name='pattempt_idem_idx'),
+        ]
+
+    def __str__(self):
+        return f"Attempt ৳{self.amount} [{self.provider}] → {self.status}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# InboundPaymentEvent — async pipeline replacing direct SMS webhook (Plan Phase F / 12)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class InboundPaymentEvent(models.Model):
+    """
+    Stores incoming payment notifications for async processing.
+    Flow: receive → store → Celery process_payment_event() → match → recharge
+    """
+
+    class EventStatus(models.TextChoices):
+        RECEIVED   = 'RECEIVED',   'Received'
+        PROCESSING = 'PROCESSING', 'Processing'
+        MATCHED    = 'MATCHED',    'Matched'
+        UNMATCHED  = 'UNMATCHED',  'Unmatched (needs review)'
+        DUPLICATE  = 'DUPLICATE',  'Duplicate (skipped)'
+        FAILED     = 'FAILED',     'Failed'
+
+    class EventSource(models.TextChoices):
+        SMS     = 'SMS',     'SMS forwarding'
+        WEBHOOK = 'WEBHOOK', 'Provider webhook'
+        MANUAL  = 'MANUAL',  'Manual entry'
+        API     = 'API',     'API push'
+
+    id                  = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant              = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='inbound_payment_events')
+    source              = models.CharField(max_length=20, choices=EventSource.choices, default=EventSource.SMS)
+    raw_payload         = models.TextField()
+    provider            = models.CharField(max_length=50, blank=True)
+    amount              = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    trx_id              = models.CharField(max_length=100, blank=True, db_index=True)
+    sender_account      = models.CharField(max_length=100, blank=True)
+    status              = models.CharField(max_length=20, choices=EventStatus.choices, default=EventStatus.RECEIVED)
+    matched_customer    = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True, blank=True, related_name='inbound_events')
+    matched_transaction = models.ForeignKey(PaymentTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='inbound_event')
+    sms_log             = models.ForeignKey(SmsLog, on_delete=models.SET_NULL, null=True, blank=True, related_name='event')
+    processing_error    = models.TextField(blank=True)
+    received_at         = models.DateTimeField(auto_now_add=True)
+    processed_at        = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-received_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status'],      name='inevent_tenant_status_idx'),
+            models.Index(fields=['tenant', 'trx_id'],      name='inevent_tenant_trx_idx'),
+            models.Index(fields=['tenant', 'received_at'], name='inevent_tenant_ts_idx'),
+        ]
+
+    def __str__(self):
+        return f"InboundEvent[{self.source}] ৳{self.amount} trx={self.trx_id} → {self.status}"

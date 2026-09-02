@@ -57,7 +57,7 @@ class Customer(models.Model):
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
     # Lifecycles
-    bill_date = models.DateField(default=timezone.now)
+    bill_date = models.DateField(default=timezone.localdate)
     expiry_date = models.DateField(null=True, blank=True, db_index=True)
     promise_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=30, choices=CustomerStatus.choices, default=CustomerStatus.ACTIVE, db_index=True)
