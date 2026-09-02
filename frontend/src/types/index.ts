@@ -12,7 +12,7 @@ export interface Customer {
   // optional fields used by UI components
   salary?: number;
   join_date?: string;
-  status?: string;
+
   connection_type: string;
   router: string | null;
   router_name?: string;
@@ -80,6 +80,7 @@ export interface OLT {
   type?: string;
   pon_ports?: number;
   warning_onus?: number;
+}
 
 export interface ONU {
   id: string;
