@@ -62,26 +62,6 @@ class PaymentGateway(models.Model):
         return f"{self.get_provider_display()} ({'Sandbox' if self.is_sandbox else 'Live'})"
 
 
-class PaymentTransaction(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='transactions')
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='payments')
-    gateway = models.ForeignKey(PaymentGateway, on_delete=models.SET_NULL, null=True, blank=True)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    trx_id = models.CharField(max_length=100, unique=True, db_index=True)
-    payment_method = models.CharField(max_length=50, default='bKash')
-    status = models.CharField(max_length=30, choices=TransactionStatus.choices, default=TransactionStatus.SUCCESS)
-    customer_account = models.CharField(max_length=50, blank=True)
-    raw_payload = models.JSONField(default=dict, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"{self.payment_method} ৳{self.amount} - Trx: {self.trx_id} ({self.status})"
-
-
 class SmsLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='sms_logs')
@@ -100,3 +80,29 @@ class SmsLog(models.Model):
 
     def __str__(self):
         return f"SMS from {self.sender}: Trx {self.parsed_trx_id} (৳{self.parsed_amount}) - {'Matched' if self.is_matched else 'Unmatched'}"
+
+
+class PaymentTransaction(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='transactions')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='payments')
+    gateway = models.ForeignKey(PaymentGateway, on_delete=models.SET_NULL, null=True, blank=True)
+    sms_log = models.ForeignKey(SmsLog, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    trx_id = models.CharField(max_length=100, unique=True, db_index=True)
+    payment_method = models.CharField(max_length=50, default='bKash')
+    status = models.CharField(max_length=30, choices=TransactionStatus.choices, default=TransactionStatus.SUCCESS)
+    customer_account = models.CharField(max_length=50, blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'created_at'], name='tx_tenant_created_idx'),
+            models.Index(fields=['customer', 'created_at'], name='tx_customer_created_idx'),
+            models.Index(fields=['tenant', 'status'], name='tx_tenant_status_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.payment_method} ৳{self.amount} - Trx: {self.trx_id} ({self.status})"

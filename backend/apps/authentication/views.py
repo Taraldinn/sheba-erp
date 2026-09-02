@@ -3,11 +3,13 @@ from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import StaffProfile, UserRole
 from .serializers import StaffProfileSerializer, UserDetailSerializer, LoginSerializer
 from apps.core.models import Tenant, AuditLog
 
 
+@extend_schema(tags=['1. Authentication & Users'], description='Authenticate staff user and receive API Token with tenant information.')
 class LoginView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -47,6 +49,7 @@ class LoginView(views.APIView):
         })
 
 
+@extend_schema(tags=['1. Authentication & Users'], description='Get currently authenticated user details, roles, and profile settings.')
 class CurrentUserView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -54,6 +57,14 @@ class CurrentUserView(views.APIView):
         return Response(UserDetailSerializer(request.user).data)
 
 
+@extend_schema_view(
+    list=extend_schema(tags=['1. Authentication & Users']),
+    retrieve=extend_schema(tags=['1. Authentication & Users']),
+    create=extend_schema(tags=['1. Authentication & Users']),
+    update=extend_schema(tags=['1. Authentication & Users']),
+    partial_update=extend_schema(tags=['1. Authentication & Users']),
+    destroy=extend_schema(tags=['1. Authentication & Users']),
+)
 class StaffProfileViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = StaffProfileSerializer

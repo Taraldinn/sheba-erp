@@ -109,19 +109,19 @@ export default function NetworkPage() {
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-[11px] text-muted-foreground font-medium">
                     <span>CPU Load:</span>
-                    <span className="text-foreground font-mono">{router.cpu_usage}%</span>
+                    <span className="text-foreground font-mono">{router.cpu_usage || router.cpu_load || 0}%</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                     <div
-                      className={`h-full ${router.cpu_usage > 70 ? 'bg-red-500' : 'bg-indigo-500'}`}
-                      style={{ width: `${router.cpu_usage}%` }}
+                      className={`h-full ${(router.cpu_usage || router.cpu_load || 0) > 70 ? 'bg-red-500' : 'bg-indigo-500'}`}
+                      style={{ width: `${router.cpu_usage || router.cpu_load || 0}%` }}
                     ></div>
                   </div>
                 </div>
 
                 <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Active PPPoE:</span>
-                  <span className="font-bold text-foreground">{router.active_pppoe_count} lines</span>
+                  <span className="font-bold text-foreground">{router.active_pppoe_count || router.active_sessions || 0} lines</span>
                 </div>
 
                 <Button

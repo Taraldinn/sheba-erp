@@ -74,6 +74,11 @@ class Customer(models.Model):
     class Meta:
         unique_together = ('tenant', 'pppoe_username')
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status'], name='cust_tenant_status_idx'),
+            models.Index(fields=['tenant', 'expiry_date'], name='cust_tenant_expiry_idx'),
+            models.Index(fields=['tenant', 'created_at'], name='cust_tenant_created_idx'),
+        ]
 
     def __str__(self):
         return f"{self.full_name} ({self.pppoe_username}) - {self.status}"

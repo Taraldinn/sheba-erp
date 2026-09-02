@@ -9,7 +9,6 @@ export interface Customer {
   address: string;
   area_zone: string;
   check_in_time?: string;
-  // optional fields used by UI components
   salary?: number;
   join_date?: string;
 
@@ -31,6 +30,7 @@ export interface Customer {
   promise_date: string | null;
   status: CustomerStatus;
   auto_lock_enabled: boolean;
+  internet_active?: boolean;
   reseller?: string | null;
   reseller_name?: string;
   created_at: string;
@@ -52,18 +52,23 @@ export interface Package {
 
 export interface EmployeeItem {
   id: string;
-  code: string;
-  name: string;
+  code?: string;
+  name?: string;
+  full_name?: string;
   designation: string;
   department: string;
-  phone: string;
-  basic_salary: number;
-  attendance_status: 'Present' | 'Late' | 'Absent' | 'On Leave';
-  check_in_time: string;
-  // optional UI fields
+  phone?: string;
+  mobile?: string;
+  email?: string;
+  basic_salary?: number;
   salary?: number;
+  attendance_status?: 'Present' | 'Late' | 'Absent' | 'On Leave';
+  check_in_time?: string;
   join_date?: string;
+  joining_date?: string;
   status?: string;
+  nid?: string;
+  address?: string;
 }
 
 export interface Router {
@@ -71,7 +76,8 @@ export interface Router {
   name: string;
   ip_address: string;
   api_port: number;
-  username: string;
+  winbox_port?: number;
+  username?: string;
   location: string;
   model?: string;
   active_sessions?: number;
@@ -80,13 +86,13 @@ export interface Router {
   free_memory_mb?: number;
   uptime?: string;
   status: 'Online' | 'Offline';
-  // Existing fields remain unchanged
+  is_active?: boolean;
 
-  cpu_usage: number;
-  memory_usage: number;
-  active_pppoe_count: number;
-  total_customers_count: number;
-  last_ping: string | null;
+  cpu_usage?: number;
+  memory_usage?: number;
+  active_pppoe_count?: number;
+  total_customers_count?: number;
+  last_ping?: string | null;
 }
 
 export interface OLT {
@@ -94,12 +100,11 @@ export interface OLT {
   name: string;
   brand: string;
   ip_address: string;
-  pon_ports_count: number;
-  total_onus: number;
-  online_onus: number;
+  pon_ports_count?: number;
+  total_onus?: number;
+  online_onus?: number;
   status: 'Online' | 'Offline';
-  last_sync: string | null;
-  // optional extended fields used in UI pages
+  last_sync?: string | null;
   model?: string;
   type?: string;
   pon_ports?: number;
@@ -120,8 +125,8 @@ export interface ONU {
   tx_power: number;
   status: 'Online' | 'Offline' | 'DyingGasp' | 'Los';
   signal_status?: 'good' | 'warning' | 'critical';
-  distance_meters: number;
-  last_sync: string;
+  distance_meters?: number;
+  last_sync?: string;
 }
 
 export interface PaymentTransaction {
@@ -156,11 +161,13 @@ export interface Ticket {
   customer: string;
   customer_name?: string;
   customer_phone?: string;
+  pppoe_username?: string;
   category: string;
   subject: string;
   description: string;
   priority: 'Low' | 'Medium' | 'High' | 'Critical';
   status: 'Open' | 'In_Progress' | 'Resolved' | 'Closed';
+  assigned_to?: string;
   assigned_to_name?: string;
   created_at: string;
   replies?: Array<{

@@ -86,7 +86,7 @@ export default function HRPage() {
               <DollarSign className="h-4 w-4 text-indigo-400" />
             </div>
             <p className="text-2xl font-bold text-foreground mt-1">
-              {formatCurrency(employees.reduce((acc, e) => acc + e.basic_salary, 0))}
+              {formatCurrency(employees.reduce((acc, e) => acc + (e.basic_salary || e.salary || 0), 0))}
             </p>
             <p className="text-[11px] text-indigo-400 mt-1 font-medium">Disbursed on 1st</p>
           </CardContent>

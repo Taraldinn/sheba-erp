@@ -26,4 +26,13 @@ class CoreAndHealthTest(TestCase):
             tenant=self.tenant,
             company_name='Test Sheba Fi'
         )
-        self.assertEqual(str(setting), "Settings for Test Sheba Fi")
+        self.assertEqual(str(setting), "Settings for Test Sheba Fi (testisp)")
+
+    def test_readiness_probe(self):
+        url = reverse('readiness')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['status'], 'ready')
+        self.assertEqual(response.data['db'], 'ok')
+        self.assertEqual(response.data['version'], '2.0.0')
+

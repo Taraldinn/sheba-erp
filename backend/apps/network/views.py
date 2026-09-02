@@ -3,44 +3,61 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import Router, OLT, ONU, UserSession, POPBranch
 from .serializers import RouterSerializer, OLTSerializer, ONUSerializer, UserSessionSerializer, POPBranchSerializer
+from apps.core.permissions import IsTenantMember, IsAdminOrManager, IsTechnicalStaff, IsAdminUserOrReadOnly
+from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 
 
+@extend_schema_view(
+    list=extend_schema(tags=['4. Network & Core Routers']),
+    retrieve=extend_schema(tags=['4. Network & Core Routers']),
+    create=extend_schema(tags=['4. Network & Core Routers']),
+    update=extend_schema(tags=['4. Network & Core Routers']),
+    partial_update=extend_schema(tags=['4. Network & Core Routers']),
+    destroy=extend_schema(tags=['4. Network & Core Routers']),
+)
 class POPBranchViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsAdminUserOrReadOnly]
     serializer_class = POPBranchSerializer
 
     def get_queryset(self):
-        tenant = getattr(self.request, 'tenant', None)
-        qs = POPBranch.objects.all()
-        if tenant:
-            qs = qs.filter(tenant=tenant)
+        qs = get_scoped_queryset(self.request, POPBranch)
         status_param = self.request.query_params.get('status')
         if status_param:
             qs = qs.filter(status=status_param)
         return qs
 
     def perform_create(self, serializer):
-        tenant = getattr(self.request, 'tenant', None)
-        serializer.save(tenant=tenant)
+        serializer.save(tenant=get_tenant_for_request(self.request))
 
 
+@extend_schema_view(
+    list=extend_schema(tags=['4. Network & Core Routers']),
+    retrieve=extend_schema(tags=['4. Network & Core Routers']),
+    create=extend_schema(tags=['4. Network & Core Routers']),
+    update=extend_schema(tags=['4. Network & Core Routers']),
+    partial_update=extend_schema(tags=['4. Network & Core Routers']),
+    destroy=extend_schema(tags=['4. Network & Core Routers']),
+    sync_pppoe=extend_schema(tags=['4. Network & Core Routers']),
+    live_traffic=extend_schema(tags=['4. Network & Core Routers']),
+)
 class RouterViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    """
+    MikroTik Router management. Passwords are WRITE-ONLY and never returned in responses.
+    Only Admin/Manager roles can create/update/delete routers.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsAdminUserOrReadOnly]
     serializer_class = RouterSerializer
 
     def get_queryset(self):
-        tenant = getattr(self.request, 'tenant', None)
-        if tenant:
-            return Router.objects.filter(tenant=tenant)
-        return Router.objects.all()
+        return get_scoped_queryset(self.request, Router)
 
     def perform_create(self, serializer):
-        tenant = getattr(self.request, 'tenant', None)
-        serializer.save(tenant=tenant)
+        serializer.save(tenant=get_tenant_for_request(self.request))
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
     def sync_pppoe(self, request, pk=None):
         router = self.get_object()
         router.last_ping = timezone.now()
@@ -68,30 +85,44 @@ class RouterViewSet(viewsets.ModelViewSet):
         })
 
 
+@extend_schema_view(
+    list=extend_schema(tags=['5. OLT & Optical ONUs']),
+    retrieve=extend_schema(tags=['5. OLT & Optical ONUs']),
+    create=extend_schema(tags=['5. OLT & Optical ONUs']),
+    update=extend_schema(tags=['5. OLT & Optical ONUs']),
+    partial_update=extend_schema(tags=['5. OLT & Optical ONUs']),
+    destroy=extend_schema(tags=['5. OLT & Optical ONUs']),
+)
 class OLTViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    """
+    OLT device management. Telnet password is WRITE-ONLY and never returned.
+    Admin-only write access.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsAdminUserOrReadOnly]
     serializer_class = OLTSerializer
 
     def get_queryset(self):
-        tenant = getattr(self.request, 'tenant', None)
-        if tenant:
-            return OLT.objects.filter(tenant=tenant)
-        return OLT.objects.all()
+        return get_scoped_queryset(self.request, OLT)
 
     def perform_create(self, serializer):
-        tenant = getattr(self.request, 'tenant', None)
-        serializer.save(tenant=tenant)
+        serializer.save(tenant=get_tenant_for_request(self.request))
 
 
+@extend_schema_view(
+    list=extend_schema(tags=['5. OLT & Optical ONUs']),
+    retrieve=extend_schema(tags=['5. OLT & Optical ONUs']),
+    create=extend_schema(tags=['5. OLT & Optical ONUs']),
+    update=extend_schema(tags=['5. OLT & Optical ONUs']),
+    partial_update=extend_schema(tags=['5. OLT & Optical ONUs']),
+    destroy=extend_schema(tags=['5. OLT & Optical ONUs']),
+    reboot=extend_schema(tags=['5. OLT & Optical ONUs']),
+)
 class ONUViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff]
     serializer_class = ONUSerializer
 
     def get_queryset(self):
-        tenant = getattr(self.request, 'tenant', None)
-        qs = ONU.objects.all()
-        if tenant:
-            qs = qs.filter(tenant=tenant)
+        qs = get_scoped_queryset(self.request, ONU)
         olt_id = self.request.query_params.get('olt')
         if olt_id:
             qs = qs.filter(olt_id=olt_id)
@@ -108,15 +139,16 @@ class ONUViewSet(viewsets.ModelViewSet):
         return Response({'message': f'Reboot command sent to ONU on {onu.pon_port}:{onu.onu_index}'})
 
 
+@extend_schema_view(
+    list=extend_schema(tags=['4. Network & Core Routers']),
+    retrieve=extend_schema(tags=['4. Network & Core Routers']),
+)
 class UserSessionViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff]
     serializer_class = UserSessionSerializer
 
     def get_queryset(self):
-        tenant = getattr(self.request, 'tenant', None)
-        qs = UserSession.objects.all()
-        if tenant:
-            qs = qs.filter(tenant=tenant)
+        qs = get_scoped_queryset(self.request, UserSession)
         router_id = self.request.query_params.get('router')
         if router_id:
             qs = qs.filter(router_id=router_id)

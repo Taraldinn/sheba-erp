@@ -1,13 +1,18 @@
+import uuid
 from rest_framework import serializers, viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import Ticket, TicketReply
+from apps.core.permissions import IsTenantMember
+from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 
 
 class TicketReplySerializer(serializers.ModelSerializer):
     class Meta:
         model = TicketReply
         fields = '__all__'
+        read_only_fields = ('sender',)
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -19,26 +24,31 @@ class TicketSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
         fields = '__all__'
+        read_only_fields = ('tenant', 'ticket_no')
 
 
+@extend_schema_view(
+    list=extend_schema(tags=['8. Support Desk & NOC Tickets']),
+    retrieve=extend_schema(tags=['8. Support Desk & NOC Tickets']),
+    create=extend_schema(tags=['8. Support Desk & NOC Tickets']),
+    update=extend_schema(tags=['8. Support Desk & NOC Tickets']),
+    partial_update=extend_schema(tags=['8. Support Desk & NOC Tickets']),
+    destroy=extend_schema(tags=['8. Support Desk & NOC Tickets']),
+    reply=extend_schema(tags=['8. Support Desk & NOC Tickets'], description='Post staff reply to support ticket thread.'),
+)
 class TicketViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember]
     serializer_class = TicketSerializer
 
     def get_queryset(self):
-        tenant = getattr(self.request, 'tenant', None)
-        qs = Ticket.objects.all()
-        if tenant:
-            qs = qs.filter(tenant=tenant)
+        qs = get_scoped_queryset(self.request, Ticket)
         status_filter = self.request.query_params.get('status')
         if status_filter:
             qs = qs.filter(status=status_filter)
         return qs.select_related('customer', 'assigned_to').prefetch_related('replies')
 
     def perform_create(self, serializer):
-        tenant = getattr(self.request, 'tenant', None)
-        # Generate ticket no if empty
-        import uuid
+        tenant = get_tenant_for_request(self.request)
         ticket_no = serializer.validated_data.get('ticket_no') or f"TCK-{str(uuid.uuid4())[:6].upper()}"
         serializer.save(tenant=tenant, ticket_no=ticket_no)
 
@@ -51,8 +61,8 @@ class TicketViewSet(viewsets.ModelViewSet):
 
         reply = TicketReply.objects.create(
             ticket=ticket,
-            sender=request.user,
-            sender_name=request.user.get_full_name() or request.user.username,
+            sender=request.user if request.user.is_authenticated else None,
+            sender_name=request.user.get_full_name() or getattr(request.user, 'username', 'Staff Support'),
             is_staff=True,
             message=message
         )

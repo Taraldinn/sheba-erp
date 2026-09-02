@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Sidebar } from "@/components/layouts/Sidebar";
-import { Header } from "@/components/layouts/Header";
+import { AppShell } from "@/components/layouts/AppShell";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Space_Grotesk } from "next/font/google";
 import { cn } from "@/lib/utils";
@@ -32,13 +31,9 @@ export default function RootLayout({
       </head>
       <body className="bg-background text-foreground min-h-screen flex antialiased selection:bg-indigo-500 selection:text-white">
         <ThemeProvider defaultTheme="dark" storageKey="sheba-theme">
-          <Sidebar />
-          <div className="flex-1 flex flex-col min-w-0">
-            <Header />
-            <main className="flex-1 overflow-y-auto">
-              {children}
-            </main>
-          </div>
+          <AppShell>
+            {children}
+          </AppShell>
         </ThemeProvider>
       </body>
     </html>

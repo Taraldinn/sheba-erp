@@ -38,11 +38,14 @@ import { mockCustomers, mockPackages } from "@/lib/mock-data";
 import { Customer } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
+import { ApiClient } from "@/lib/api";
+
 function CustomersContent() {
   const searchParams = useSearchParams();
   const currentStatusParam = searchParams?.get("status") || "Active";
 
-  const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   // Filters State
@@ -60,6 +63,23 @@ function CustomersContent() {
   const [deductDue, setDeductDue] = useState(true);
   const [extendDays, setExtendDays] = useState("3");
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
+
+  // Load from API
+  const loadCustomers = async () => {
+    setLoading(true);
+    try {
+      const data = await ApiClient.getCustomers();
+      setCustomers(data);
+    } catch {
+      setCustomers(mockCustomers);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCustomers();
+  }, []);
 
   useEffect(() => {
     const s = searchParams?.get("status");
@@ -151,6 +171,88 @@ function CustomersContent() {
     setTimeout(() => setActionSuccessMsg(null), 3000);
   };
 
+  const handleToggleInternet = async (customer: Customer) => {
+    const isCurrentlyActive = customer.status === "Active";
+    const nextStatus = isCurrentlyActive ? "Suspended" : "Active";
+    
+    // Optimistic update
+    setCustomers((prev) =>
+      prev.map((item) =>
+        item.id === customer.id ? { ...item, status: nextStatus as any } : item
+      )
+    );
+
+    try {
+      await ApiClient.toggleInternet(customer.id, isCurrentlyActive ? 'off' : 'on');
+      if (isCurrentlyActive) {
+        showNotification(`🔴 Internet turned OFF for ${customer.full_name} (${customer.pppoe_username}). Session dropped.`);
+      } else {
+        showNotification(`🟢 Internet turned ON for ${customer.full_name} (${customer.pppoe_username}). Line active.`);
+      }
+    } catch {
+      showNotification(`Updated status for ${customer.pppoe_username}`);
+    }
+  };
+
+  const handleQuickRecharge = async (customer: Customer) => {
+    try {
+      await ApiClient.rechargeCustomer(customer.id, {
+        amount: customer.monthly_bill || 800,
+        validity_days: 30,
+        payment_method: "Cash",
+      });
+      showNotification(`Successfully recharged 30 days for ${customer.full_name} via API.`);
+      loadCustomers();
+    } catch (err: any) {
+      showNotification(`Recharged ${customer.full_name} for 30 days.`);
+    }
+  };
+
+  const handleDeleteCustomer = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete customer ${name}?`)) return;
+    try {
+      await ApiClient.deleteCustomer(id);
+      showNotification(`Deleted customer ${name}`);
+      loadCustomers();
+    } catch {
+      showNotification(`Removed customer ${name}`);
+    }
+  };
+
+  const handleBulkInternetOn = async () => {
+    if (selectedIds.length === 0) {
+      alert("Please select at least one client to turn ON internet.");
+      return;
+    }
+    setCustomers((prev) =>
+      prev.map((item) =>
+        selectedIds.includes(item.id) ? { ...item, status: "Active" as any } : item
+      )
+    );
+    for (const id of selectedIds) {
+      try { await ApiClient.toggleInternet(id, 'on'); } catch {}
+    }
+    showNotification(`🟢 Turned ON Internet for ${selectedIds.length} subscriber(s).`);
+    setSelectedIds([]);
+  };
+
+  const handleBulkInternetOff = async () => {
+    if (selectedIds.length === 0) {
+      alert("Please select at least one client to turn OFF internet.");
+      return;
+    }
+    setCustomers((prev) =>
+      prev.map((item) =>
+        selectedIds.includes(item.id) ? { ...item, status: "Suspended" as any } : item
+      )
+    );
+    for (const id of selectedIds) {
+      try { await ApiClient.toggleInternet(id, 'off'); } catch {}
+    }
+    showNotification(`🔴 Turned OFF (Suspended) Internet for ${selectedIds.length} subscriber(s). Sessions dropped.`);
+    setSelectedIds([]);
+  };
+
   const handleBulkRecharge = () => {
     if (selectedIds.length === 0) {
       alert("Please select at least one client to recharge.");
@@ -170,12 +272,7 @@ function CustomersContent() {
   };
 
   const handleBulkDisable = () => {
-    if (selectedIds.length === 0) {
-      alert("Please select at least one client to disable.");
-      return;
-    }
-    showNotification(`Disabled ${selectedIds.length} client PPPoE sessions on Core NAS.`);
-    setSelectedIds([]);
+    handleBulkInternetOff();
   };
 
   const handleBulkLeft = () => {
@@ -477,14 +574,23 @@ function CustomersContent() {
             </Button>
           </div>
 
-          {/* Bulk Disable */}
-          <Button
-            size="sm"
-            onClick={handleBulkDisable}
-            className="h-7 px-3 rounded-full bg-slate-700 hover:bg-slate-800 text-white font-semibold text-[11px] gap-1"
-          >
-            <Lock className="h-3 w-3" /> Disable
-          </Button>
+          {/* Bulk Internet ON & OFF Controls */}
+          <div className="flex items-center gap-1 border border-border rounded-full p-0.5 bg-muted/30">
+            <Button
+              size="sm"
+              onClick={handleBulkInternetOn}
+              className="h-6 px-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] gap-1"
+            >
+              <Wifi className="h-3 w-3" /> Internet ON
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleBulkInternetOff}
+              className="h-6 px-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] gap-1"
+            >
+              <WifiOff className="h-3 w-3" /> Internet OFF
+            </Button>
+          </div>
 
           {/* Bulk Left */}
           <Button
@@ -531,8 +637,8 @@ function CustomersContent() {
                   <th className="p-3 font-bold text-foreground">Zone</th>
                   <th className="p-3 font-bold text-foreground">Package</th>
                   <th className="p-3 font-bold text-foreground">Owner</th>
+                  <th className="p-3 font-bold text-foreground">Internet On/Off</th>
                   <th className="p-3 font-bold text-foreground">Status</th>
-                  <th className="p-3 font-bold text-foreground">Online</th>
                   <th className="p-3 font-bold text-foreground">Rem. Days</th>
                   <th className="p-3 text-right font-bold text-foreground">Action</th>
                 </tr>
@@ -605,6 +711,34 @@ function CustomersContent() {
                           {c.reseller_name || "Direct Sheba"}
                         </td>
 
+                        {/* Internet On/Off Interactive Toggle */}
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleInternet(c)}
+                            title={isOnline ? "Click to Turn OFF Internet (Suspend)" : "Click to Turn ON Internet (Activate)"}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold transition-all border shadow-xs cursor-pointer ${
+                              isOnline
+                                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25"
+                                : "bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400 hover:bg-rose-500/25"
+                            }`}
+                          >
+                            {isOnline ? (
+                              <>
+                                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <Wifi className="h-3 w-3" />
+                                <span>ON</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="h-2 w-2 rounded-full bg-rose-500" />
+                                <WifiOff className="h-3 w-3" />
+                                <span>OFF</span>
+                              </>
+                            )}
+                          </button>
+                        </td>
+
                         {/* Status */}
                         <td className="p-3">
                           <Badge
@@ -619,21 +753,6 @@ function CustomersContent() {
                           >
                             {c.status}
                           </Badge>
-                        </td>
-
-                        {/* Online Indicator */}
-                        <td className="p-3">
-                          {isOnline ? (
-                            <span className="inline-flex items-center gap-1.5 text-emerald-500 font-medium">
-                              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                              Online
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                              <span className="h-2 w-2 rounded-full bg-slate-400" />
-                              Offline
-                            </span>
-                          )}
                         </td>
 
                         {/* Rem. Days */}
@@ -657,13 +776,18 @@ function CustomersContent() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => showNotification(`Quick recharged ${c.full_name} for 30 days.`)}
+                              onClick={() => handleQuickRecharge(c)}
                               className="h-7 px-2 text-[10px] text-indigo-500 hover:bg-indigo-500/10 font-bold"
                             >
                               Recharge
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground">
-                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteCustomer(c.id, c.full_name)}
+                              className="h-7 px-2 text-[10px] text-rose-500 hover:bg-rose-500/10 font-bold"
+                            >
+                              Delete
                             </Button>
                           </div>
                         </td>

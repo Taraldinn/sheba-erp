@@ -3,7 +3,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
-from apps.core.views import TenantViewSet, CompanySettingViewSet, AuditLogViewSet, HealthCheckView
+from apps.core.views import TenantViewSet, CompanySettingViewSet, AuditLogViewSet, HealthCheckView, ReadinessView
 from apps.authentication.views import LoginView, CurrentUserView, StaffProfileViewSet
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
@@ -49,6 +49,10 @@ router.register(r'call-logs', CallLogViewSet, basename='call-log')
 router.register(r'voice-settings', VoiceSettingViewSet, basename='voice-setting')
 router.register(r'voice-templates', VoiceTemplateViewSet, basename='voice-template')
 
+admin.site.site_header = "Sheba ERP Administration"
+admin.site.site_title = "Sheba ERP Admin Portal"
+admin.site.index_title = "ISP Operations & Billing Management"
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     
@@ -58,6 +62,7 @@ urlpatterns = [
     
     # Public & Customer Query endpoints
     path('api/v1/health-check/', HealthCheckView.as_view(), name='health-check'),
+    path('healthz/', ReadinessView.as_view(), name='readiness'),    # LB / K8s readiness probe
     path('api/v1/customer/query/', CustomerQueryApiView.as_view(), name='customer-query'),
     
     # Payment Ingestion Webhooks

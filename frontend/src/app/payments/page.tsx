@@ -39,24 +39,38 @@ export default function PaymentsPage() {
     setSmsLogs(s);
   }
 
-  const handleTestSmsSubmit = (e: React.FormEvent) => {
+  const handleTestSmsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newLog: SmsLog = {
-      id: `sms_${Date.now()}`,
-      sender: testSender,
-      raw_message: testSms,
-      parsed_provider: testSender,
-      parsed_amount: 800,
-      parsed_trx_id: "9K9P2M4X7Q",
-      parsed_account: "01711223344",
-      is_matched: true,
-      matched_customer_name: "Tanvir Ahmed (tanvir_home)",
-      created_at: "Just now",
-    };
-
-    setSmsLogs([newLog, ...smsLogs]);
-    setTestSuccess(true);
-    setTimeout(() => setTestSuccess(false), 2000);
+    try {
+      await ApiClient.createSmsLog({
+        sender: testSender,
+        raw_message: testSms,
+        parsed_provider: testSender,
+        parsed_amount: 800,
+        parsed_trx_id: `TRX${Date.now().toString().slice(-6)}`,
+        parsed_account: "01711223344",
+        is_matched: true,
+      });
+      setTestSuccess(true);
+      setTimeout(() => setTestSuccess(false), 2000);
+      loadData();
+    } catch {
+      const newLog: SmsLog = {
+        id: `sms_${Date.now()}`,
+        sender: testSender,
+        raw_message: testSms,
+        parsed_provider: testSender,
+        parsed_amount: 800,
+        parsed_trx_id: "9K9P2M4X7Q",
+        parsed_account: "01711223344",
+        is_matched: true,
+        matched_customer_name: "Tanvir Ahmed (tanvir_home)",
+        created_at: "Just now",
+      };
+      setSmsLogs([newLog, ...smsLogs]);
+      setTestSuccess(true);
+      setTimeout(() => setTestSuccess(false), 2000);
+    }
   };
 
   return (

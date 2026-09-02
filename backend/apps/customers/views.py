@@ -2,16 +2,33 @@ import datetime
 from rest_framework import viewsets, status, permissions, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import Customer, CustomerStatus
 from .serializers import CustomerListSerializer, CustomerDetailSerializer, CustomerRechargeSerializer
 from apps.billing.models import Package, Recharge, Invoice
 from apps.core.models import AuditLog
+from apps.core.permissions import IsTenantMember, IsBillingStaff
+from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 
 
+@extend_schema_view(
+    list=extend_schema(tags=['2. Customers & Subscribers']),
+    retrieve=extend_schema(tags=['2. Customers & Subscribers']),
+    create=extend_schema(tags=['2. Customers & Subscribers']),
+    update=extend_schema(tags=['2. Customers & Subscribers']),
+    partial_update=extend_schema(tags=['2. Customers & Subscribers']),
+    destroy=extend_schema(tags=['2. Customers & Subscribers']),
+    recharge=extend_schema(tags=['2. Customers & Subscribers']),
+    toggle_internet=extend_schema(tags=['2. Customers & Subscribers']),
+    lock=extend_schema(tags=['2. Customers & Subscribers']),
+    unlock=extend_schema(tags=['2. Customers & Subscribers']),
+    toggle_status=extend_schema(tags=['2. Customers & Subscribers']),
+)
 class CustomerViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember]
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -19,10 +36,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
         return CustomerDetailSerializer
 
     def get_queryset(self):
-        tenant = getattr(self.request, 'tenant', None)
-        qs = Customer.objects.all()
-        if tenant:
-            qs = qs.filter(tenant=tenant)
+        qs = get_scoped_queryset(self.request, Customer)
 
         # Filters
         status_filter = self.request.query_params.get('status')
@@ -49,12 +63,15 @@ class CustomerViewSet(viewsets.ModelViewSet):
         return qs.select_related('package', 'router', 'reseller__user')
 
     def perform_create(self, serializer):
-        tenant = getattr(self.request, 'tenant', None)
+        tenant = get_tenant_for_request(self.request)
         serializer.save(tenant=tenant)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsBillingStaff])
+    @transaction.atomic
     def recharge(self, request, pk=None):
-        customer = self.get_object()
+        customer_id = self.get_object().id
+        # Acquire row lock to prevent race condition
+        customer = Customer.objects.select_for_update().get(id=customer_id)
         serializer = CustomerRechargeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -136,17 +153,79 @@ class CustomerViewSet(viewsets.ModelViewSet):
             'new_expiry': new_expiry
         })
 
+    @action(detail=True, methods=['post'], url_path='toggle-internet')
+    @transaction.atomic
+    def toggle_internet(self, request, pk=None):
+        customer_id = self.get_object().id
+        customer = Customer.objects.select_for_update().get(id=customer_id)
+        action_type = request.data.get('state')  # 'on', 'off', or toggle
+
+        if action_type == 'on' or (not action_type and customer.status != CustomerStatus.ACTIVE):
+            customer.status = CustomerStatus.ACTIVE
+            customer.save(update_fields=['status', 'updated_at'])
+            
+            AuditLog.objects.create(
+                tenant=customer.tenant,
+                actor_username=request.user.username if request.user.is_authenticated else 'system',
+                action='INTERNET_ENABLE',
+                module='CUSTOMERS',
+                target_id=str(customer.id),
+                details={'pppoe_username': customer.pppoe_username, 'status': 'Active'}
+            )
+            return Response({
+                'success': True,
+                'message': f'Internet turned ON for {customer.pppoe_username}. Line is active.',
+                'status': customer.status,
+                'is_active': True
+            })
+        else:
+            customer.status = CustomerStatus.SUSPENDED
+            customer.save(update_fields=['status', 'updated_at'])
+            
+            # Disconnect active PPPoE user session from router
+            from apps.network.models import UserSession
+            UserSession.objects.filter(username=customer.pppoe_username).delete()
+
+            AuditLog.objects.create(
+                tenant=customer.tenant,
+                actor_username=request.user.username if request.user.is_authenticated else 'system',
+                action='INTERNET_DISABLE',
+                module='CUSTOMERS',
+                target_id=str(customer.id),
+                details={'pppoe_username': customer.pppoe_username, 'status': 'Suspended'}
+            )
+            return Response({
+                'success': True,
+                'message': f'Internet turned OFF (Suspended) for {customer.pppoe_username}. Router sessions disconnected.',
+                'status': customer.status,
+                'is_active': False
+            })
+
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def toggle_status(self, request, pk=None):
-        customer = self.get_object()
+        customer_id = self.get_object().id
+        customer = Customer.objects.select_for_update().get(id=customer_id)
         target_status = request.data.get('status')
         if target_status in CustomerStatus.values:
             customer.status = target_status
-            customer.save()
+            customer.save(update_fields=['status', 'updated_at'])
             return Response({'message': f'Status updated to {target_status}', 'status': target_status})
         return Response({'error': 'Invalid status provided'}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['post'])
+    @transaction.atomic
+    def lock(self, request, pk=None):
+        return self.toggle_internet(request, pk=pk)
 
+    @action(detail=True, methods=['post'])
+    @transaction.atomic
+    def unlock(self, request, pk=None):
+        request.data['state'] = 'on'
+        return self.toggle_internet(request, pk=pk)
+
+
+@extend_schema(tags=['2. Customers & Subscribers'], description='Public / Self-Care endpoint to lookup subscriber profile by phone, username or customer code.')
 class CustomerQueryApiView(views.APIView):
     """
     Public / Mobile App compatible customer query endpoint
@@ -159,7 +238,12 @@ class CustomerQueryApiView(views.APIView):
         if not query:
             return Response({'error': 'Missing query parameter'}, status=status.HTTP_400_BAD_REQUEST)
 
-        customer = Customer.objects.filter(
+        tenant = get_tenant_for_request(request)
+        qs = Customer.objects.all()
+        if tenant:
+            qs = qs.filter(tenant=tenant)
+
+        customer = qs.filter(
             Q(pppoe_username=query) | Q(mobile=query) | Q(customer_code=query)
         ).select_related('package').first()
 
@@ -179,4 +263,5 @@ class CustomerQueryApiView(views.APIView):
             'advance_amount': customer.advance_amount,
             'expiry_date': customer.expiry_date,
             'status': customer.status,
+            'internet_active': customer.status == CustomerStatus.ACTIVE,
         })

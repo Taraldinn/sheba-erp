@@ -62,6 +62,14 @@ class Invoice(models.Model):
     due_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status', 'due_date'], name='inv_tenant_status_due_idx'),
+            models.Index(fields=['tenant', 'created_at'], name='inv_tenant_created_idx'),
+            models.Index(fields=['customer', 'status'], name='inv_customer_status_idx'),
+        ]
+
     def __str__(self):
         return f"Invoice #{self.invoice_no} ({self.customer.full_name}) - ৳{self.total_payable}"
 
@@ -85,6 +93,10 @@ class Recharge(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'created_at'], name='rech_tenant_created_idx'),
+            models.Index(fields=['customer', 'created_at'], name='rech_customer_created_idx'),
+        ]
 
     def __str__(self):
         return f"Recharge ৳{self.amount} for {self.customer.pppoe_username} (Exp: {self.new_expiry})"

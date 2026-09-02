@@ -6,13 +6,15 @@ class POPBranchSerializer(serializers.ModelSerializer):
     class Meta:
         model = POPBranch
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
 
 class RouterSerializer(serializers.ModelSerializer):
     class Meta:
         model = Router
         fields = '__all__'
-        extra_kwargs = {'password': {'write_only': True}}
+        read_only_fields = ('tenant',)
+        extra_kwargs = {'password': {'write_only': True, 'required': False}}
 
 
 class ONUSerializer(serializers.ModelSerializer):
@@ -22,6 +24,7 @@ class ONUSerializer(serializers.ModelSerializer):
     class Meta:
         model = ONU
         fields = '__all__'
+        read_only_fields = ('tenant',)
 
     def get_signal_status(self, obj):
         rx = float(obj.rx_power)
@@ -37,7 +40,8 @@ class OLTSerializer(serializers.ModelSerializer):
     class Meta:
         model = OLT
         fields = '__all__'
-        extra_kwargs = {'telnet_password': {'write_only': True}}
+        read_only_fields = ('tenant',)
+        extra_kwargs = {'telnet_password': {'write_only': True, 'required': False}}
 
 
 class UserSessionSerializer(serializers.ModelSerializer):

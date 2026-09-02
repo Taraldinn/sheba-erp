@@ -6,7 +6,17 @@ class PaymentGatewaySerializer(serializers.ModelSerializer):
     class Meta:
         model = PaymentGateway
         fields = '__all__'
-        extra_kwargs = {'app_secret': {'write_only': True}, 'password': {'write_only': True}}
+        extra_kwargs = {
+            # Live credentials — never returned in responses
+            'app_secret': {'write_only': True},
+            'password': {'write_only': True},
+            'private_key': {'write_only': True},
+            'store_password': {'write_only': True},
+            # Sandbox credentials — also write-only
+            'sandbox_app_secret': {'write_only': True},
+            'sandbox_password': {'write_only': True},
+        }
+
 
 
 class PaymentTransactionSerializer(serializers.ModelSerializer):

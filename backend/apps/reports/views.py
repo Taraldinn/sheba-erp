@@ -1,8 +1,8 @@
-import datetime
 from rest_framework import views, permissions
 from rest_framework.response import Response
 from django.db.models import Sum, Count
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema
 from apps.customers.models import Customer, CustomerStatus
 from apps.billing.models import Recharge, Invoice
 from apps.payments.models import PaymentTransaction
@@ -10,6 +10,7 @@ from apps.network.models import Router, ONU
 from apps.support.models import Ticket
 
 
+@extend_schema(tags=['13. Reports & Analytics'], description='Real-time aggregated KPIs, monthly collection trends, and bandwidth distribution.')
 class DashboardAnalyticsView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 

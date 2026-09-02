@@ -42,7 +42,7 @@ class Router(models.Model):
     api_port = models.PositiveIntegerField(default=8728)
     api_ssl = models.BooleanField(default=False)
     username = models.CharField(max_length=100, default='admin')
-    password = models.CharField(max_length=255)
+    password = models.CharField(max_length=255, blank=True, default='')
     winbox_port = models.PositiveIntegerField(default=8291)
     location = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True)

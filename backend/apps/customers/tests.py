@@ -62,3 +62,29 @@ class CustomerTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['pppoe_username'], 'anis_test')
         self.assertEqual(response.data['name'], 'Anisur Rahman')
+
+    def test_unauthorized_customer_access(self):
+        self.client.logout()
+        response = self.client.get(f"/api/v1/customers/{self.customer.id}/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_tenant_isolation(self):
+        # Create second isolated tenant and user
+        tenant_b = Tenant.objects.create(name='Other ISP', slug='other-isp')
+        user_b = User.objects.create_user(username='other_staff', password='password123')
+        from apps.authentication.models import StaffProfile, UserRole
+        StaffProfile.objects.create(user=user_b, tenant=tenant_b, role=UserRole.ADMIN)
+
+        # Authenticate as user_b belonging to tenant B
+        self.client.force_authenticate(user=user_b)
+
+        # Attempt to access tenant A's customer by ID (IDOR attack vector)
+        response = self.client.get(f"/api/v1/customers/{self.customer.id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # Attempt to list customers — must NOT see tenant A's customers
+        list_response = self.client.get("/api/v1/customers/")
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        ids = [c['id'] for c in list_response.data.get('results', list_response.data)]
+        self.assertNotIn(str(self.customer.id), ids)
+
