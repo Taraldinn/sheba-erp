@@ -5,6 +5,8 @@ import { Header } from "@/components/layouts/Header";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Space_Grotesk } from "next/font/google";
 import { cn } from "@/lib/utils";
+export const dynamic = "force-dynamic";
+
 
 const spaceGrotesk = Space_Grotesk({subsets:['latin'],variable:'--font-sans'});
 
