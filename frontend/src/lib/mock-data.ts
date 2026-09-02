@@ -1,5 +1,5 @@
 import { Customer, Package, Router, OLT, ONU, PaymentTransaction, SmsLog, Ticket, DashboardKPIs, EmployeeItem } from '@/types';
-
+export { EmployeeItem };
 export const mockKPIs: DashboardKPIs = {
   total_customers: 2840,
   active_customers: 2490,
