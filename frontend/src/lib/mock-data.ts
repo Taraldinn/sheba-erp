@@ -1,4 +1,4 @@
-import { Customer, Package, Router, OLT, ONU, PaymentTransaction, SmsLog, Ticket, DashboardKPIs } from '@/types';
+import { Customer, Package, Router, OLT, ONU, PaymentTransaction, SmsLog, Ticket, DashboardKPIs, EmployeeItem } from '@/types';
 
 export const mockKPIs: DashboardKPIs = {
   total_customers: 2840,
@@ -616,17 +616,7 @@ export const mockOnlineSessions: OnlineSession[] = [
   },
 ];
 
-export interface EmployeeItem {
-  id: string;
-  code: string;
-  name: string;
-  designation: string;
-  department: string;
-  phone: string;
-  basic_salary: number;
-  attendance_status: 'Present' | 'Late' | 'Absent' | 'On Leave';
-  check_in_time: string;
-}
+
 
 export const mockEmployees: EmployeeItem[] = [
   {
@@ -639,6 +629,9 @@ export const mockEmployees: EmployeeItem[] = [
     basic_salary: 35000,
     attendance_status: 'Present',
     check_in_time: '09:02 AM',
+    salary: 35000,
+    join_date: '2022-01-01',
+    status: 'Present',
   },
   {
     id: 'emp2',
@@ -650,6 +643,9 @@ export const mockEmployees: EmployeeItem[] = [
     basic_salary: 22000,
     attendance_status: 'Present',
     check_in_time: '09:14 AM',
+    salary: 22000,
+    join_date: '2022-02-15',
+    status: 'Present',
   },
   {
     id: 'emp3',
@@ -661,6 +657,9 @@ export const mockEmployees: EmployeeItem[] = [
     basic_salary: 28000,
     attendance_status: 'Late',
     check_in_time: '09:42 AM',
+    salary: 28000,
+    join_date: '2022-03-01',
+    status: 'Late',
   },
   {
     id: 'emp4',
@@ -672,6 +671,9 @@ export const mockEmployees: EmployeeItem[] = [
     basic_salary: 18000,
     attendance_status: 'Present',
     check_in_time: '08:55 AM',
+    salary: 18000,
+    join_date: '2022-04-10',
+    status: 'Present',
   },
 ];
 
