@@ -1,4 +1,4 @@
-from rest_framework import views, permissions
+from rest_framework import views, permissions, status
 from rest_framework.response import Response
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
@@ -27,7 +27,43 @@ class DashboardAnalyticsView(views.APIView):
     permission_classes = [permissions.IsAuthenticated, IsTenantMember]
 
     def get(self, request):
-        role = request.query_params.get('role', 'admin').lower()
+        profile = getattr(request.user, 'profile', None) if request.user.is_authenticated else None
+        user_role = profile.role if profile else ('SUPER_ADMIN' if getattr(request.user, 'is_superuser', False) else 'ADMIN')
+
+        # Map UserRole to permitted dashboard role keys
+        ROLE_ACCESS_MAP = {
+            'SUPER_ADMIN': ['admin', 'billing', 'sales', 'demo', 'technician', 'staff', 'reseller_l1', 'reseller_l2', 'distributor', 'bandwidth_reseller'],
+            'ADMIN': ['admin', 'billing', 'sales', 'demo', 'technician', 'staff', 'reseller_l1', 'reseller_l2', 'distributor', 'bandwidth_reseller'],
+            'BILLING': ['billing'],
+            'BILLING_OPERATOR': ['billing'],
+            'SALES': ['sales'],
+            'DEMO': ['demo'],
+            'TECHNICIAN': ['technician'],
+            'LINE_MAN': ['technician'],
+            'STAFF': ['staff'],
+            'SUPPORT_STAFF': ['staff'],
+            'RESELLER_L1': ['reseller_l1'],
+            'RESELLER': ['reseller_l1'],
+            'RESELLER_L2': ['reseller_l2'],
+            'AGENT': ['reseller_l2'],
+            'DISTRIBUTOR': ['distributor'],
+            'BANDWIDTH_RESELLER': ['bandwidth_reseller'],
+        }
+
+        allowed_dashboard_roles = ROLE_ACCESS_MAP.get(str(user_role), ['admin'])
+        requested_role = request.query_params.get('role')
+
+        if requested_role:
+            role = requested_role.lower()
+            if role not in allowed_dashboard_roles:
+                return Response(
+                    {'error': 'Access Denied: You are not authorized to access this operational dashboard.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        else:
+            # Default to the primary role of the user
+            role = allowed_dashboard_roles[0]
+
         today = timezone.now().date()
         first_day_month = today.replace(day=1)
 
@@ -89,11 +125,15 @@ class DashboardAnalyticsView(views.APIView):
             'role': role,
             'kpis': {
                 'total_customers': total_customers,
+                'total_subscribers': total_customers,
                 'active_customers': active_customers,
+                'active_subscribers': active_customers,
                 'expired_customers': expired_customers,
                 'suspended_customers': suspended_customers,
                 'today_collection': float(today_collection),
+                'today_collections': float(today_collection),
                 'month_collection': float(month_collection),
+                'monthly_revenue': float(month_collection),
                 'total_due': float(total_due),
                 'total_advance': float(total_advance),
                 'online_routers': online_routers,

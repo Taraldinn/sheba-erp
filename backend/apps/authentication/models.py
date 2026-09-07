@@ -11,6 +11,16 @@ from apps.core.models import Tenant
 class UserRole(models.TextChoices):
     SUPER_ADMIN = 'SUPER_ADMIN', 'Super Admin'
     ADMIN = 'ADMIN', 'Admin / Managing Director'
+    BILLING = 'BILLING', 'Billing Operator'
+    SALES = 'SALES', 'Sales Executive'
+    DEMO = 'DEMO', 'Demo Accounts Manager'
+    TECHNICIAN = 'TECHNICIAN', 'NOC / Field Technician'
+    STAFF = 'STAFF', 'General Staff'
+    RESELLER_L1 = 'RESELLER_L1', 'Reseller (Level 1 POP)'
+    RESELLER_L2 = 'RESELLER_L2', 'Sub Reseller (Level 2 POP)'
+    DISTRIBUTOR = 'DISTRIBUTOR', 'Hardware / Card Distributor'
+    BANDWIDTH_RESELLER = 'BANDWIDTH_RESELLER', 'Bandwidth Carrier Reseller'
+    # Backward compatibility for legacy code/tests
     BILLING_OPERATOR = 'BILLING_OPERATOR', 'Billing Operator'
     SUPPORT_STAFF = 'SUPPORT_STAFF', 'Support Staff'
     LINE_MAN = 'LINE_MAN', 'Line Man / Field Tech'

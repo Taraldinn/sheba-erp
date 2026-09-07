@@ -38,9 +38,34 @@ class LoginView(views.APIView):
             details={'user_id': user.id, 'role': profile.role}
         )
 
+        ROLE_DASHBOARDS = {
+            UserRole.SUPER_ADMIN: '/',
+            UserRole.ADMIN: '/',
+            UserRole.BILLING: '/dashboards/billing',
+            UserRole.BILLING_OPERATOR: '/dashboards/billing',
+            UserRole.SALES: '/dashboards/sales',
+            UserRole.DEMO: '/dashboards/demo',
+            UserRole.TECHNICIAN: '/dashboards/technician',
+            UserRole.LINE_MAN: '/dashboards/technician',
+            UserRole.STAFF: '/dashboards/staff',
+            UserRole.SUPPORT_STAFF: '/dashboards/staff',
+            UserRole.RESELLER_L1: '/dashboards/reseller-l1',
+            UserRole.RESELLER: '/dashboards/reseller-l1',
+            UserRole.RESELLER_L2: '/dashboards/reseller-l2',
+            UserRole.DISTRIBUTOR: '/dashboards/distributor',
+            UserRole.BANDWIDTH_RESELLER: '/dashboards/bandwidth-reseller',
+            UserRole.AGENT: '/dashboards/reseller-l2',
+            UserRole.CUSTOMER: '/portal',
+        }
+
+        user_role = profile.role if profile else (UserRole.SUPER_ADMIN if user.is_superuser else UserRole.STAFF)
+        dashboard_url = ROLE_DASHBOARDS.get(user_role, '/')
+
         return Response({
             'token': token.key,
             'user': UserDetailSerializer(user).data,
+            'role': user_role,
+            'dashboard_url': dashboard_url,
             'tenant': {
                 'id': str(profile.tenant.id) if profile.tenant else None,
                 'name': profile.tenant.name if profile.tenant else 'Sheba Master',

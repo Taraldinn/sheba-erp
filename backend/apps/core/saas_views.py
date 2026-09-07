@@ -1,0 +1,725 @@
+import os
+import shutil
+import hashlib
+import json
+from datetime import datetime
+from rest_framework import views, viewsets, permissions, status, serializers
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from django.contrib.auth.models import User
+from django.db.models import Count, Sum
+from django.utils import timezone
+from django.conf import settings
+from django.http import FileResponse, Http404
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework.authtoken.models import Token
+
+from .models import (
+    Tenant, TenantDomain, CompanySetting, AuditLog,
+    TenantOnboardingRequest, SaaSPackage, TenantSubscription, SaaSPayment, DatabaseBackup
+)
+from .permissions import IsCentralAdmin
+from apps.authentication.models import StaffProfile, UserRole
+from apps.customers.models import Customer
+from apps.network.models import Router, ONU
+from apps.billing.models import Recharge, Package, Invoice
+from apps.support.models import Ticket
+
+
+# ════════════════════════ SERIALIZERS ════════════════════════
+
+class SaaSTenantSerializer(serializers.ModelSerializer):
+    subscriber_count = serializers.SerializerMethodField()
+    router_count = serializers.SerializerMethodField()
+    primary_domain = serializers.SerializerMethodField()
+    domains_count = serializers.SerializerMethodField()
+    admin_username = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Tenant
+        fields = [
+            'id', 'name', 'slug', 'domain', 'contact_phone', 'contact_email',
+            'address', 'is_active', 'plan', 'max_subscribers', 'max_routers',
+            'subscription_status', 'subscription_expires_at', 'notes',
+            'created_at', 'updated_at',
+            'subscriber_count', 'router_count', 'primary_domain', 'domains_count', 'admin_username'
+        ]
+        read_only_fields = ('created_at', 'updated_at')
+
+    def get_subscriber_count(self, obj):
+        try:
+            return Customer.objects.filter(tenant=obj).count()
+        except Exception:
+            return 0
+
+    def get_router_count(self, obj):
+        try:
+            return Router.objects.filter(tenant=obj).count()
+        except Exception:
+            return 0
+
+    def get_primary_domain(self, obj):
+        try:
+            primary = TenantDomain.objects.filter(tenant=obj, is_primary=True).first()
+            return primary.hostname if primary else (obj.domain or f"{obj.slug}.shebafi.xyz")
+        except Exception:
+            return obj.domain or f"{obj.slug}.shebafi.xyz"
+
+    def get_domains_count(self, obj):
+        try:
+            return TenantDomain.objects.filter(tenant=obj).count()
+        except Exception:
+            return 0
+
+    def get_admin_username(self, obj):
+        try:
+            staff = StaffProfile.objects.filter(tenant=obj, role__in=[UserRole.ADMIN, UserRole.SUPER_ADMIN]).first()
+            return staff.user.username if staff and staff.user else f"{obj.slug}_admin"
+        except Exception:
+            return f"{obj.slug}_admin"
+
+
+class SaaSDomainSerializer(serializers.ModelSerializer):
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    tenant_slug = serializers.CharField(source='tenant.slug', read_only=True)
+
+    class Meta:
+        model = TenantDomain
+        fields = [
+            'id', 'tenant', 'tenant_name', 'tenant_slug',
+            'hostname', 'is_primary', 'is_active', 'verified',
+            'domain_type', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ('created_at', 'updated_at')
+
+
+class TenantOnboardingRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TenantOnboardingRequest
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+
+class SaaSPackageSerializer(serializers.ModelSerializer):
+    subscribers_enrolled = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SaaSPackage
+        fields = [
+            'id', 'name', 'code', 'description', 'monthly_price', 'yearly_price',
+            'max_subscribers', 'max_routers', 'max_custom_domains', 'features',
+            'is_active', 'is_public', 'created_at', 'updated_at', 'subscribers_enrolled'
+        ]
+        read_only_fields = ('created_at', 'updated_at')
+
+    def get_subscribers_enrolled(self, obj):
+        try:
+            return Tenant.objects.filter(plan__iexact=obj.name).count() + Tenant.objects.filter(plan__iexact=obj.code).count()
+        except Exception:
+            return 0
+
+
+class TenantSubscriptionSerializer(serializers.ModelSerializer):
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    tenant_slug = serializers.CharField(source='tenant.slug', read_only=True)
+    package_name = serializers.CharField(source='package.name', read_only=True)
+
+    class Meta:
+        model = TenantSubscription
+        fields = [
+            'id', 'tenant', 'tenant_name', 'tenant_slug', 'package', 'package_name',
+            'billing_cycle', 'price', 'status', 'start_date', 'end_date',
+            'next_billing_date', 'auto_renew', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ('created_at', 'updated_at')
+
+
+class SaaSPaymentSerializer(serializers.ModelSerializer):
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+
+    class Meta:
+        model = SaaSPayment
+        fields = [
+            'id', 'tenant', 'tenant_name', 'subscription', 'amount',
+            'payment_method', 'trx_id', 'status', 'notes', 'paid_at', 'created_at'
+        ]
+        read_only_fields = ('created_at',)
+
+
+class DatabaseBackupSerializer(serializers.ModelSerializer):
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    file_size_formatted = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DatabaseBackup
+        fields = [
+            'id', 'backup_name', 'filename', 'file_size_bytes', 'file_size_formatted',
+            'backup_type', 'status', 'storage_path', 'tenant', 'tenant_name',
+            'triggered_by', 'checksum', 'created_at'
+        ]
+        read_only_fields = ('created_at', 'checksum', 'file_size_bytes')
+
+    def get_file_size_formatted(self, obj):
+        bytes_val = obj.file_size_bytes or 0
+        if bytes_val < 1024:
+            return f"{bytes_val} B"
+        elif bytes_val < 1024 * 1024:
+            return f"{bytes_val / 1024:.1f} KB"
+        else:
+            return f"{bytes_val / (1024 * 1024):.2f} MB"
+
+
+# ════════════════════════ VIEWSETS & VIEWS ════════════════════════
+
+class SaaSOverviewView(views.APIView):
+    """
+    Central SaaS Control Plane telemetry and aggregate business metrics.
+    Accessible exclusively by Central Super Administrators on admin.shebafi.xyz.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+
+    def get(self, request):
+        total_tenants = Tenant.objects.count()
+        active_tenants = Tenant.objects.filter(is_active=True).count()
+        suspended_tenants = Tenant.objects.filter(is_active=False).count()
+        pending_requests = TenantOnboardingRequest.objects.filter(status='pending').count()
+
+        total_subscribers = Customer.objects.count()
+        active_subscribers = Customer.objects.filter(status='Active').count()
+        
+        total_routers = Router.objects.count()
+        online_routers = Router.objects.filter(status='Online').count()
+
+        total_packages = SaaSPackage.objects.count()
+        active_packages = SaaSPackage.objects.filter(is_active=True).count()
+        total_backups = DatabaseBackup.objects.count()
+
+        # Calculate estimated SaaS platform MRR based on active tenant subscriptions or packages
+        plan_pricing = {
+            'Starter': 5000,
+            'Growth': 15000,
+            'Enterprise': 35000,
+        }
+        for pkg in SaaSPackage.objects.all():
+            plan_pricing[pkg.name] = float(pkg.monthly_price)
+            plan_pricing[pkg.code] = float(pkg.monthly_price)
+
+        platform_mrr = sum(
+            plan_pricing.get(t.plan, 15000) for t in Tenant.objects.filter(is_active=True)
+        )
+
+        return Response({
+            'platform': {
+                'name': 'ShebaFi SaaS Multi-Tenant Control Plane',
+                'control_domain': 'admin.shebafi.xyz',
+                'version': 'v2.4-ControlPlane',
+                'environment': 'Production',
+                'system_status': 'Healthy',
+                'database_cluster': 'Online',
+            },
+            'kpis': {
+                'total_tenants': total_tenants,
+                'active_tenants': active_tenants,
+                'suspended_tenants': suspended_tenants,
+                'pending_requests': pending_requests,
+                'total_subscribers': total_subscribers,
+                'active_subscribers': active_subscribers,
+                'total_routers': total_routers,
+                'online_routers': online_routers,
+                'total_packages': total_packages,
+                'active_packages': active_packages,
+                'total_backups': total_backups,
+                'platform_mrr': platform_mrr,
+            },
+        })
+
+
+class SaaSTenantViewSet(viewsets.ModelViewSet):
+    """
+    Control Plane Tenant Management: Onboard new ISPs, modify quotas, activate/suspend, delete, and impersonate.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    queryset = Tenant.objects.all().order_by('-created_at')
+    serializer_class = SaaSTenantSerializer
+
+    def create(self, request, *args, **kwargs):
+        data = request.data
+        name = data.get('name')
+        slug = data.get('slug')
+        if not name or not slug:
+            return Response({'error': 'Name and slug are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        slug = slug.strip().lower()
+        if Tenant.objects.filter(slug=slug).exists():
+            return Response({'error': f'A tenant with slug "{slug}" already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        plan = data.get('plan', 'Growth')
+        max_subs = int(data.get('max_subscribers', 2500 if plan == 'Growth' else (500 if plan == 'Starter' else 10000)))
+        max_rtrs = int(data.get('max_routers', 10 if plan == 'Growth' else (3 if plan == 'Starter' else 50)))
+        domain = data.get('domain', f"{slug}.shebafi.xyz").strip().lower()
+
+        # 1. Create Tenant
+        tenant = Tenant.objects.create(
+            name=name,
+            slug=slug,
+            domain=domain,
+            contact_email=data.get('contact_email', f'admin@{slug}.net'),
+            contact_phone=data.get('contact_phone', '+880 1700-000000'),
+            address=data.get('address', 'Dhaka, Bangladesh'),
+            plan=plan,
+            max_subscribers=max_subs,
+            max_routers=max_rtrs,
+            subscription_status='active',
+            is_active=True,
+            notes=data.get('notes', 'Provisioned via SaaS Control Plane')
+        )
+
+        # 2. Create CompanySetting
+        CompanySetting.objects.create(
+            tenant=tenant,
+            company_name=name,
+            tagline=f"High-Speed Fiber Internet by {name}",
+            support_email=tenant.contact_email,
+            support_phone=tenant.contact_phone,
+            address=tenant.address,
+        )
+
+        # 3. Create TenantDomain
+        TenantDomain.objects.create(
+            tenant=tenant,
+            hostname=domain,
+            is_primary=True,
+            is_active=True,
+            verified=True,
+            domain_type=TenantDomain.DomainType.PRIMARY
+        )
+
+        local_host = f"{slug}.localhost"
+        if not TenantDomain.objects.filter(hostname=local_host).exists():
+            TenantDomain.objects.create(
+                tenant=tenant,
+                hostname=local_host,
+                is_primary=False,
+                is_active=True,
+                verified=True,
+                domain_type=TenantDomain.DomainType.ALIAS
+            )
+
+        # 4. Create Initial Tenant Admin User
+        admin_username = data.get('admin_username') or f"{slug}_admin"
+        admin_password = data.get('admin_password') or "sheba1234"
+        admin_email = tenant.contact_email
+
+        user, created = User.objects.get_or_create(
+            username=admin_username,
+            defaults={'email': admin_email, 'is_staff': True}
+        )
+        user.set_password(admin_password)
+        user.save()
+
+        StaffProfile.objects.update_or_create(
+            user=user,
+            defaults={'tenant': tenant, 'role': UserRole.ADMIN, 'phone': tenant.contact_phone}
+        )
+
+        token, _ = Token.objects.get_or_create(user=user)
+
+        # 5. Create SaaS Subscription Link
+        pkg = SaaSPackage.objects.filter(name__iexact=plan).first() or SaaSPackage.objects.filter(code__iexact=plan).first()
+        if pkg:
+            TenantSubscription.objects.create(
+                tenant=tenant,
+                package=pkg,
+                billing_cycle='monthly',
+                price=pkg.monthly_price,
+                status='active',
+                start_date=timezone.now().date(),
+            )
+
+        # 6. Log audit
+        AuditLog.objects.create(
+            tenant=None,
+            actor_username=request.user.username,
+            action='onboard_tenant',
+            module='saas_control_plane',
+            resource_type='Tenant',
+            resource_id=str(tenant.id),
+            details={'tenant_name': name, 'slug': slug, 'plan': plan, 'domain': domain}
+        )
+
+        serializer = self.get_serializer(tenant)
+        return Response({
+            'message': f'Tenant "{name}" successfully provisioned and onboarded.',
+            'tenant': serializer.data,
+            'admin_credentials': {
+                'username': admin_username,
+                'password': admin_password,
+                'token': token.key,
+                'dashboard_url': f"http://{domain}:3000/" if 'localhost' not in domain else f"http://{local_host}:3000/",
+            }
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='toggle-status')
+    def toggle_status(self, request, pk=None):
+        tenant = self.get_object()
+        tenant.is_active = not tenant.is_active
+        tenant.subscription_status = 'active' if tenant.is_active else 'suspended'
+        tenant.save()
+
+        AuditLog.objects.create(
+            tenant=None,
+            actor_username=request.user.username,
+            action='toggle_tenant_status',
+            module='saas_control_plane',
+            resource_type='Tenant',
+            resource_id=str(tenant.id),
+            details={'new_status': 'active' if tenant.is_active else 'suspended'}
+        )
+        return Response({
+            'id': str(tenant.id),
+            'name': tenant.name,
+            'is_active': tenant.is_active,
+            'subscription_status': tenant.subscription_status,
+            'message': f'Tenant "{tenant.name}" is now {"Active" if tenant.is_active else "Suspended"}.'
+        })
+
+    @action(detail=True, methods=['post'], url_path='impersonate')
+    def impersonate(self, request, pk=None):
+        tenant = self.get_object()
+        staff = StaffProfile.objects.filter(tenant=tenant, role__in=[UserRole.ADMIN, UserRole.SUPER_ADMIN]).first()
+        if not staff or not staff.user:
+            return Response({'error': f'No administrative staff profile found for {tenant.name}.'}, status=status.HTTP_404_NOT_FOUND)
+
+        token, _ = Token.objects.get_or_create(user=staff.user)
+        return Response({
+            'message': f'Impersonation session granted for {tenant.name}',
+            'tenant_id': str(tenant.id),
+            'tenant_slug': tenant.slug,
+            'tenant_name': tenant.name,
+            'impersonated_user': staff.user.username,
+            'token': token.key,
+            'role': staff.role,
+            'redirect_url': '/',
+        })
+
+
+class SaaSTenantRequestViewSet(viewsets.ModelViewSet):
+    """
+    Incoming Tenant Onboarding Signup Requests Queue.
+    Platform owners review, approve (auto-deploy), or reject requests.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    queryset = TenantOnboardingRequest.objects.all().order_by('-created_at')
+    serializer_class = TenantOnboardingRequestSerializer
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        req_obj = self.get_object()
+        if req_obj.status == 'approved':
+            return Response({'error': 'Request has already been approved and provisioned.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Deploy tenant using request details
+        slug = req_obj.requested_slug.strip().lower()
+        if Tenant.objects.filter(slug=slug).exists():
+            slug = f"{slug}{Tenant.objects.count() + 1}"
+
+        domain = req_obj.requested_domain or f"{slug}.shebafi.xyz"
+        plan = req_obj.requested_plan or "Growth"
+
+        tenant = Tenant.objects.create(
+            name=req_obj.organization_name,
+            slug=slug,
+            domain=domain,
+            contact_email=req_obj.contact_email,
+            contact_phone=req_obj.contact_phone,
+            address=req_obj.address or "Dhaka, Bangladesh",
+            plan=plan,
+            max_subscribers=2500 if plan == 'Growth' else (500 if plan == 'Starter' else 10000),
+            max_routers=10 if plan == 'Growth' else (3 if plan == 'Starter' else 50),
+            subscription_status='active',
+            is_active=True,
+            notes=f"Approved from Signup Request ID {req_obj.id}"
+        )
+
+        CompanySetting.objects.create(
+            tenant=tenant,
+            company_name=tenant.name,
+            support_email=tenant.contact_email,
+            support_phone=tenant.contact_phone,
+            address=tenant.address,
+        )
+
+        TenantDomain.objects.create(
+            tenant=tenant,
+            hostname=domain,
+            is_primary=True,
+            is_active=True,
+            verified=True,
+        )
+
+        admin_username = f"{slug}_admin"
+        admin_pass = "sheba1234"
+        user, _ = User.objects.get_or_create(username=admin_username, defaults={'email': tenant.contact_email, 'is_staff': True})
+        user.set_password(admin_pass)
+        user.save()
+
+        StaffProfile.objects.update_or_create(user=user, defaults={'tenant': tenant, 'role': UserRole.ADMIN, 'phone': tenant.contact_phone})
+        token, _ = Token.objects.get_or_create(user=user)
+
+        req_obj.status = 'approved'
+        req_obj.admin_notes = f"Approved & provisioned tenant ID {tenant.id} by {request.user.username}"
+        req_obj.save()
+
+        return Response({
+            'message': f'Request approved! Tenant "{tenant.name}" provisioned.',
+            'tenant_id': str(tenant.id),
+            'admin_username': admin_username,
+            'admin_password': admin_pass,
+            'token': token.key,
+        })
+
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject(self, request, pk=None):
+        req_obj = self.get_object()
+        req_obj.status = 'rejected'
+        reason = request.data.get('reason', 'Application rejected by platform administrator.')
+        req_obj.admin_notes = reason
+        req_obj.save()
+        return Response({'message': f'Request rejected.', 'status': req_obj.status})
+
+
+class SaaSPackageViewSet(viewsets.ModelViewSet):
+    """
+    Platform Owner SaaS Packages / Pricing Tiers Management.
+    Supports Create, Update, Delete, and Pause/Resume.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    queryset = SaaSPackage.objects.all().order_by('monthly_price')
+    serializer_class = SaaSPackageSerializer
+
+    @action(detail=True, methods=['post'], url_path='toggle-status')
+    def toggle_status(self, request, pk=None):
+        package = self.get_object()
+        package.is_active = not package.is_active
+        package.save()
+        return Response({
+            'id': str(package.id),
+            'name': package.name,
+            'is_active': package.is_active,
+            'message': f'Package "{package.name}" is now {"Active" if package.is_active else "Paused"}.'
+        })
+
+
+class SaaSSubscriptionViewSet(viewsets.ModelViewSet):
+    """Tenant active software licensing contracts."""
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    queryset = TenantSubscription.objects.select_related('tenant', 'package').all().order_by('-created_at')
+    serializer_class = TenantSubscriptionSerializer
+
+
+class SaaSPaymentViewSet(viewsets.ModelViewSet):
+    """Platform revenue transactions collected from tenants for software licenses."""
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    queryset = SaaSPayment.objects.select_related('tenant', 'subscription').all().order_by('-paid_at')
+    serializer_class = SaaSPaymentSerializer
+
+
+class SaaSBackupViewSet(viewsets.ModelViewSet):
+    """
+    Global Disaster Recovery Engine & Database Backup Management.
+    Trigger on-demand backups, list archives, download, and export single-tenant datasets.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    queryset = DatabaseBackup.objects.select_related('tenant').all().order_by('-created_at')
+    serializer_class = DatabaseBackupSerializer
+
+    @action(detail=False, methods=['post'], url_path='create-backup')
+    def create_backup(self, request):
+        backup_name = request.data.get('name') or f"Manual Backup {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        backup_type = request.data.get('backup_type', 'full_database')
+
+        backups_dir = os.path.join(settings.BASE_DIR, 'backups')
+        os.makedirs(backups_dir, exist_ok=True)
+
+        timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"sheba_db_{timestamp_str}.sqlite3"
+        dest_path = os.path.join(backups_dir, filename)
+
+        db_path = settings.DATABASES['default']['NAME']
+        try:
+            shutil.copy2(db_path, dest_path)
+            file_size = os.path.getsize(dest_path)
+
+            hasher = hashlib.sha256()
+            with open(dest_path, 'rb') as f:
+                for chunk in iter(lambda: f.read(65536), b''):
+                    hasher.update(chunk)
+            checksum = hasher.hexdigest()
+
+            backup_obj = DatabaseBackup.objects.create(
+                backup_name=backup_name,
+                filename=filename,
+                file_size_bytes=file_size,
+                backup_type=backup_type,
+                status='completed',
+                storage_path=dest_path,
+                triggered_by=request.user.username,
+                checksum=checksum,
+            )
+
+            AuditLog.objects.create(
+                tenant=None,
+                actor_username=request.user.username,
+                action='create_database_backup',
+                module='saas_disaster_recovery',
+                resource_type='DatabaseBackup',
+                resource_id=str(backup_obj.id),
+                details={'filename': filename, 'size_bytes': file_size}
+            )
+
+            serializer = self.get_serializer(backup_obj)
+            return Response({'message': 'Full database snapshot created successfully.', 'backup': serializer.data}, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': f'Backup failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'], url_path='download')
+    def download_backup(self, request, pk=None):
+        backup_obj = self.get_object()
+        if not os.path.exists(backup_obj.storage_path):
+            raise Http404("Backup archive file not found on disk.")
+        return FileResponse(open(backup_obj.storage_path, 'rb'), as_attachment=True, filename=backup_obj.filename)
+
+    @action(detail=False, methods=['post'], url_path='export-tenant')
+    def export_tenant_data(self, request):
+        tenant_id = request.data.get('tenant_id')
+        if not tenant_id:
+            return Response({'error': 'tenant_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            tenant = Tenant.objects.get(id=tenant_id)
+        except Tenant.DoesNotExist:
+            return Response({'error': 'Tenant not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Aggregate tenant records
+        data_dump = {
+            'metadata': {
+                'platform': 'ShebaFi SaaS Disaster Recovery',
+                'exported_at': datetime.now().isoformat(),
+                'tenant_name': tenant.name,
+                'tenant_slug': tenant.slug,
+                'plan': tenant.plan,
+            },
+            'tenant_profile': {
+                'id': str(tenant.id),
+                'name': tenant.name,
+                'slug': tenant.slug,
+                'domain': tenant.domain,
+                'contact_email': tenant.contact_email,
+                'contact_phone': tenant.contact_phone,
+                'address': tenant.address,
+            },
+            'domains': list(TenantDomain.objects.filter(tenant=tenant).values()),
+            'customers': list(Customer.objects.filter(tenant=tenant).values('id', 'name', 'account_no', 'phone', 'package__name', 'status', 'due_amount')),
+            'routers': list(Router.objects.filter(tenant=tenant).values('id', 'name', 'ip_address', 'status')),
+            'onus': list(ONU.objects.filter(tenant=tenant).values('id', 'mac_address', 'serial_number', 'status', 'rx_power')),
+            'packages': list(Package.objects.filter(tenant=tenant).values('id', 'name', 'speed_mbps', 'regular_price')),
+            'tickets': list(Ticket.objects.filter(tenant=tenant).values('id', 'ticket_no', 'subject', 'priority', 'status')),
+            'staff': list(StaffProfile.objects.filter(tenant=tenant).values('user__username', 'role', 'phone', 'is_active')),
+        }
+
+        backups_dir = os.path.join(settings.BASE_DIR, 'backups')
+        os.makedirs(backups_dir, exist_ok=True)
+        filename = f"tenant_{tenant.slug}_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        dest_path = os.path.join(backups_dir, filename)
+
+        with open(dest_path, 'w', encoding='utf-8') as f:
+            json.dump(data_dump, f, indent=2, default=str)
+
+        file_size = os.path.getsize(dest_path)
+        backup_obj = DatabaseBackup.objects.create(
+            backup_name=f"Data Export: {tenant.name}",
+            filename=filename,
+            file_size_bytes=file_size,
+            backup_type='tenant_data',
+            status='completed',
+            storage_path=dest_path,
+            tenant=tenant,
+            triggered_by=request.user.username,
+        )
+
+        return Response({
+            'message': f'Tenant data successfully exported for {tenant.name}.',
+            'backup': self.get_serializer(backup_obj).data,
+            'summary': {
+                'customers_count': len(data_dump['customers']),
+                'routers_count': len(data_dump['routers']),
+                'onus_count': len(data_dump['onus']),
+            }
+        })
+
+
+class SaaSDomainViewSet(viewsets.ModelViewSet):
+    """
+    Control plane domain management across all tenants: primary hostnames, aliases, DNS status.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    queryset = TenantDomain.objects.select_related('tenant').all().order_by('hostname')
+    serializer_class = SaaSDomainSerializer
+
+    @action(detail=True, methods=['post'], url_path='toggle-verify')
+    def toggle_verify(self, request, pk=None):
+        domain = self.get_object()
+        domain.verified = not domain.verified
+        domain.save()
+        return Response({
+            'id': domain.id,
+            'hostname': domain.hostname,
+            'verified': domain.verified,
+            'message': f'Domain {domain.hostname} verification marked as {domain.verified}.'
+        })
+
+
+class SaaSUserDirectoryView(views.APIView):
+    """
+    Global Software User Management: Directory of all Tenant Master Accounts and Platform Super Administrators.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+
+    def get(self, request):
+        # 1. Platform Super Admins
+        super_admins = []
+        for u in User.objects.filter(is_superuser=True):
+            super_admins.append({
+                'id': u.id,
+                'username': u.username,
+                'email': u.email,
+                'is_active': u.is_active,
+                'last_login': u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else 'Never',
+                'role': 'Platform Super Admin',
+                'tenant_name': 'Global Control Plane',
+                'is_platform_admin': True,
+            })
+
+        # 2. Tenant Master Owners / Admins
+        tenant_owners = []
+        for staff in StaffProfile.objects.select_related('user', 'tenant').filter(role__in=[UserRole.ADMIN, UserRole.SUPER_ADMIN]):
+            if staff.user and staff.tenant:
+                tenant_owners.append({
+                    'id': staff.user.id,
+                    'username': staff.user.username,
+                    'email': staff.user.email,
+                    'phone': staff.phone or staff.tenant.contact_phone,
+                    'is_active': staff.user.is_active and staff.is_active,
+                    'last_login': staff.user.last_login.strftime('%Y-%m-%d %H:%M') if staff.user.last_login else 'Never',
+                    'role': 'Tenant Master Owner',
+                    'tenant_id': str(staff.tenant.id),
+                    'tenant_name': staff.tenant.name,
+                    'tenant_slug': staff.tenant.slug,
+                    'is_platform_admin': False,
+                })
+
+        return Response({
+            'platform_admins': super_admins,
+            'tenant_owners': tenant_owners,
+            'total_users': len(super_admins) + len(tenant_owners),
+        })

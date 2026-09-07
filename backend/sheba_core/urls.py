@@ -4,6 +4,12 @@ from rest_framework.routers import DefaultRouter
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 from apps.core.views import TenantViewSet, TenantDomainViewSet, CompanySettingViewSet, AuditLogViewSet, HealthCheckView, ReadinessView
+from apps.core.saas_views import (
+    SaaSOverviewView, SaaSTenantViewSet, SaaSDomainViewSet,
+    SaaSTenantRequestViewSet,
+    SaaSPackageViewSet, SaaSSubscriptionViewSet, SaaSPaymentViewSet,
+    SaaSBackupViewSet, SaaSUserDirectoryView
+)
 from apps.authentication.views import LoginView, CurrentUserView, StaffProfileViewSet
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
@@ -20,6 +26,13 @@ from apps.reports.views import DashboardAnalyticsView
 router = DefaultRouter()
 router.register(r'tenants', TenantViewSet, basename='tenant')
 router.register(r'tenant-domains', TenantDomainViewSet, basename='tenant-domain')
+router.register(r'saas/tenants', SaaSTenantViewSet, basename='saas-tenant')
+router.register(r'saas/domains', SaaSDomainViewSet, basename='saas-domain')
+router.register(r'saas/requests', SaaSTenantRequestViewSet, basename='saas-request')
+router.register(r'saas/packages', SaaSPackageViewSet, basename='saas-package')
+router.register(r'saas/subscriptions', SaaSSubscriptionViewSet, basename='saas-subscription')
+router.register(r'saas/payments', SaaSPaymentViewSet, basename='saas-payment')
+router.register(r'saas/backups', SaaSBackupViewSet, basename='saas-backup')
 router.register(r'settings', CompanySettingViewSet, basename='setting')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 router.register(r'staff', StaffProfileViewSet, basename='staff')
@@ -71,6 +84,10 @@ urlpatterns = [
     
     # Analytics & Reports
     path('api/v1/reports/dashboard/', DashboardAnalyticsView.as_view(), name='reports-dashboard'),
+    
+    # SaaS Control Plane Endpoints (admin.shebafi.xyz)
+    path('api/v1/saas/overview/', SaaSOverviewView.as_view(), name='saas-overview'),
+    path('api/v1/saas/users/', SaaSUserDirectoryView.as_view(), name='saas-users'),
     
     # Master REST API
     path('api/v1/', include(router.urls)),

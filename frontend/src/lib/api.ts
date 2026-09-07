@@ -942,4 +942,267 @@ export class ApiClient {
     } catch {}
     return [];
   }
+
+  // ════════════════════════ SAAS MULTI-TENANT CONTROL PLANE (admin.shebafi.xyz) ════════════════════════
+  static async getSaaSOverview() {
+    try {
+      const res = await fetch(`${API_BASE}/saas/overview/`, { headers: this.getHeaders() });
+      if (res.ok) return await res.json();
+    } catch {}
+    return {
+      platform: {
+        name: 'ShebaFi SaaS Multi-Tenant Control Plane',
+        control_domain: 'admin.shebafi.xyz',
+        version: 'v2.4-ControlPlane',
+        system_status: 'Healthy',
+      },
+      kpis: {
+        total_tenants: 3,
+        active_tenants: 3,
+        suspended_tenants: 0,
+        total_subscribers: 13,
+        active_subscribers: 9,
+        total_routers: 6,
+        online_routers: 6,
+        total_onus: 10,
+        platform_mrr: 45000,
+      },
+      plan_breakdown: { Starter: 1, Growth: 2, Enterprise: 0 },
+      tenants: [],
+    };
+  }
+
+  static async getSaaSTenants() {
+    try {
+      const res = await fetch(`${API_BASE}/saas/tenants/`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data.results || data;
+      }
+    } catch {}
+    return [];
+  }
+
+  static async createSaaSTenant(payload: any) {
+    const res = await fetch(`${API_BASE}/saas/tenants/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to onboard tenant');
+    }
+    return await res.json();
+  }
+
+  static async toggleSaaSTenantStatus(tenantId: string) {
+    const res = await fetch(`${API_BASE}/saas/tenants/${tenantId}/toggle-status/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to toggle tenant status');
+    return await res.json();
+  }
+
+  static async impersonateTenant(tenantId: string) {
+    const res = await fetch(`${API_BASE}/saas/tenants/${tenantId}/impersonate/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to create impersonation session');
+    return await res.json();
+  }
+
+  static async getSaaSDomains() {
+    try {
+      const res = await fetch(`${API_BASE}/saas/domains/`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data.results || data;
+      }
+    } catch {}
+    return [];
+  }
+
+  static async createSaaSDomain(payload: { tenant: string; hostname: string; is_primary?: boolean; domain_type?: string }) {
+    const res = await fetch(`${API_BASE}/saas/domains/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.hostname?.[0] || 'Failed to register domain');
+    }
+    return await res.json();
+  }
+
+  static async toggleSaaSDomainVerify(domainId: string | number) {
+    const res = await fetch(`${API_BASE}/saas/domains/${domainId}/toggle-verify/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to toggle domain verification');
+    return await res.json();
+  }
+
+  // ── Tenant Onboarding Requests Queue ──
+  static async getSaaSTenantRequests() {
+    try {
+      const res = await fetch(`${API_BASE}/saas/requests/`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data.results || data;
+      }
+    } catch {}
+    return [];
+  }
+
+  static async approveSaaSTenantRequest(requestId: string) {
+    const res = await fetch(`${API_BASE}/saas/requests/${requestId}/approve/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to approve request');
+    }
+    return await res.json();
+  }
+
+  static async rejectSaaSTenantRequest(requestId: string, reason: string = '') {
+    const res = await fetch(`${API_BASE}/saas/requests/${requestId}/reject/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ reason }),
+    });
+    if (!res.ok) throw new Error('Failed to reject request');
+    return await res.json();
+  }
+
+  // ── SaaS Packages & Tiers ──
+  static async getSaaSPackages() {
+    try {
+      const res = await fetch(`${API_BASE}/saas/packages/`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data.results || data;
+      }
+    } catch {}
+    return [];
+  }
+
+  static async createSaaSPackage(payload: any) {
+    const res = await fetch(`${API_BASE}/saas/packages/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.name?.[0] || err.code?.[0] || 'Failed to create SaaS package');
+    }
+    return await res.json();
+  }
+
+  static async updateSaaSPackage(id: string, payload: any) {
+    const res = await fetch(`${API_BASE}/saas/packages/${id}/`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('Failed to update package');
+    return await res.json();
+  }
+
+  static async deleteSaaSPackage(id: string) {
+    const res = await fetch(`${API_BASE}/saas/packages/${id}/`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to delete package');
+    return true;
+  }
+
+  static async toggleSaaSPackageStatus(id: string) {
+    const res = await fetch(`${API_BASE}/saas/packages/${id}/toggle-status/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to toggle package status');
+    return await res.json();
+  }
+
+  // ── Tenant Subscriptions & Payments ──
+  static async getSaaSSubscriptions() {
+    try {
+      const res = await fetch(`${API_BASE}/saas/subscriptions/`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data.results || data;
+      }
+    } catch {}
+    return [];
+  }
+
+  static async getSaaSPayments() {
+    try {
+      const res = await fetch(`${API_BASE}/saas/payments/`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data.results || data;
+      }
+    } catch {}
+    return [];
+  }
+
+  // ── Disaster Recovery & Database Backups ──
+  static async getSaaSBackups() {
+    try {
+      const res = await fetch(`${API_BASE}/saas/backups/`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data.results || data;
+      }
+    } catch {}
+    return [];
+  }
+
+  static async createSaaSBackup(name?: string, backup_type: string = 'full_database') {
+    const res = await fetch(`${API_BASE}/saas/backups/create-backup/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ name, backup_type }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Database backup failed');
+    }
+    return await res.json();
+  }
+
+  static async exportSaaSTenantData(tenantId: string) {
+    const res = await fetch(`${API_BASE}/saas/backups/export-tenant/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ tenant_id: tenantId }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to export tenant data');
+    }
+    return await res.json();
+  }
+
+  // ── Software User Management ──
+  static async getSaaSUserDirectory() {
+    try {
+      const res = await fetch(`${API_BASE}/saas/users/`, { headers: this.getHeaders() });
+      if (res.ok) return await res.json();
+    } catch {}
+    return { platform_admins: [], tenant_owners: [], total_users: 0 };
+  }
 }
+
+

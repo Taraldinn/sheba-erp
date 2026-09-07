@@ -13,6 +13,22 @@ class Tenant(models.Model):
     address = models.TextField(blank=True)
     hmac_secret = models.CharField(max_length=255, default=uuid.uuid4)
     is_active = models.BooleanField(default=True)
+    # SaaS Plan & Quotas
+    plan = models.CharField(max_length=50, default='Growth', choices=[
+        ('Starter', 'Starter ISP (Up to 500 Subscribers)'),
+        ('Growth', 'Growth ISP (Up to 2,500 Subscribers)'),
+        ('Enterprise', 'Enterprise ISP (Unlimited Subscribers)'),
+    ])
+    max_subscribers = models.PositiveIntegerField(default=2500)
+    max_routers = models.PositiveIntegerField(default=10)
+    subscription_status = models.CharField(max_length=20, default='active', choices=[
+        ('active', 'Active'),
+        ('trial', 'Trial'),
+        ('past_due', 'Past Due'),
+        ('suspended', 'Suspended'),
+    ])
+    subscription_expires_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -207,3 +223,152 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"[{self.timestamp.strftime('%Y-%m-%d %H:%M')}] {self.actor_username}: {self.action} on {self.module}"
+
+
+class TenantOnboardingRequest(models.Model):
+    """Pending queue for new ISP tenant onboarding / signup requests."""
+    STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('approved', 'Approved & Deployed'),
+        ('rejected', 'Rejected'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization_name = models.CharField(max_length=150)
+    requested_slug = models.SlugField(max_length=100)
+    requested_domain = models.CharField(max_length=255, blank=True)
+    contact_name = models.CharField(max_length=120)
+    contact_email = models.EmailField()
+    contact_phone = models.CharField(max_length=30)
+    address = models.TextField(blank=True)
+    requested_plan = models.CharField(max_length=50, default='Growth')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    admin_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Request: {self.organization_name} ({self.status})"
+
+
+class SaaSPackage(models.Model):
+    """SaaS Software Subscription Tiers & Pricing managed by Platform Owner."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=50, unique=True)
+    description = models.TextField(blank=True)
+    monthly_price = models.DecimalField(max_digits=10, decimal_places=2, default=15000.00)
+    yearly_price = models.DecimalField(max_digits=10, decimal_places=2, default=150000.00)
+    max_subscribers = models.PositiveIntegerField(default=2500)
+    max_routers = models.PositiveIntegerField(default=10)
+    max_custom_domains = models.PositiveIntegerField(default=3)
+    features = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True, help_text="Pause or resume this package for new subscriptions")
+    is_public = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['monthly_price']
+
+    def __str__(self):
+        return f"{self.name} (৳{self.monthly_price}/mo - {'Active' if self.is_active else 'Paused'})"
+
+
+class TenantSubscription(models.Model):
+    """Active software licensing contracts per tenant."""
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('trial', 'Trial'),
+        ('past_due', 'Past Due'),
+        ('paused', 'Paused / Suspended'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='subscriptions')
+    package = models.ForeignKey(SaaSPackage, on_delete=models.SET_NULL, null=True, related_name='tenant_subscriptions')
+    billing_cycle = models.CharField(max_length=20, default='monthly', choices=[('monthly', 'Monthly'), ('yearly', 'Yearly')])
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    start_date = models.DateField(default=timezone.now)
+    end_date = models.DateField(null=True, blank=True)
+    next_billing_date = models.DateField(null=True, blank=True)
+    auto_renew = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.tenant.name} - {self.package.name if self.package else 'Custom'} ({self.status})"
+
+
+class SaaSPayment(models.Model):
+    """Platform revenue transactions collected from tenants for software licenses."""
+    STATUS_CHOICES = [
+        ('Completed', 'Completed'),
+        ('Pending', 'Pending Verification'),
+        ('Failed', 'Failed'),
+        ('Refunded', 'Refunded'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='saas_payments')
+    subscription = models.ForeignKey(TenantSubscription, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_method = models.CharField(max_length=50, default='bKash', choices=[
+        ('bKash', 'bKash Merchant'),
+        ('Nagad', 'Nagad Pay'),
+        ('Bank Transfer', 'Direct Bank Wire'),
+        ('Manual Cash', 'Cash Collection / Cheque'),
+        ('Stripe', 'Stripe Card'),
+    ])
+    trx_id = models.CharField(max_length=100, unique=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Completed')
+    notes = models.TextField(blank=True)
+    paid_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-paid_at']
+
+    def __str__(self):
+        return f"৳{self.amount} from {self.tenant.name} ({self.trx_id})"
+
+
+class DatabaseBackup(models.Model):
+    """Global disaster recovery snapshots & single-tenant backup archives."""
+    BACKUP_TYPES = [
+        ('full_database', 'Full Database Snapshot'),
+        ('tenant_data', 'Single-Tenant JSON Export'),
+        ('system_snapshot', 'Core System State'),
+    ]
+    STATUS_CHOICES = [
+        ('completed', 'Completed'),
+        ('in_progress', 'In Progress'),
+        ('failed', 'Failed'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    backup_name = models.CharField(max_length=200)
+    filename = models.CharField(max_length=255)
+    file_size_bytes = models.BigIntegerField(default=0)
+    backup_type = models.CharField(max_length=30, choices=BACKUP_TYPES, default='full_database')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='completed')
+    storage_path = models.CharField(max_length=500)
+    tenant = models.ForeignKey(Tenant, on_delete=models.SET_NULL, null=True, blank=True, related_name='backups', help_text="Null for global system backups")
+    triggered_by = models.CharField(max_length=150, default='super_admin')
+    checksum = models.CharField(max_length=64, blank=True, help_text="SHA-256 Checksum")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.backup_name} ({self.filename}) - {self.status}"
+

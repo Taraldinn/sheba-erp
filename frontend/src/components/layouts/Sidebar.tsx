@@ -260,20 +260,126 @@ const navSections: Section[] = [
 const footerItems: SingleNavItem[] = [
   { href: "/wallet", label: "Wallet & Deposit", icon: Wallet },
   { href: "/tasks", label: "Task Management", icon: ListTodo },
-  { href: "/login", label: "Logout", icon: LogOut },
 ];
+
+const ROLE_DASHBOARD_MAP: Record<string, { href: string; label: string }> = {
+  admin: { href: "/", label: "Admin Dashboard" },
+  super_admin: { href: "/", label: "Admin Dashboard" },
+  billing: { href: "/dashboards/billing", label: "Billing Dashboard" },
+  billing_operator: { href: "/dashboards/billing", label: "Billing Dashboard" },
+  sales: { href: "/dashboards/sales", label: "Sales Dashboard" },
+  demo: { href: "/dashboards/demo", label: "Demo Accounts Dashboard" },
+  technician: { href: "/dashboards/technician", label: "NOC Dashboard" },
+  line_man: { href: "/dashboards/technician", label: "NOC Dashboard" },
+  staff: { href: "/dashboards/staff", label: "Staff Dashboard" },
+  support_staff: { href: "/dashboards/staff", label: "Staff Dashboard" },
+  reseller_l1: { href: "/dashboards/reseller-l1", label: "Reseller L1 Dashboard" },
+  reseller: { href: "/dashboards/reseller-l1", label: "Reseller L1 Dashboard" },
+  reseller_l2: { href: "/dashboards/reseller-l2", label: "Reseller L2 Dashboard" },
+  agent: { href: "/dashboards/reseller-l2", label: "Reseller L2 Dashboard" },
+  distributor: { href: "/dashboards/distributor", label: "Distributor Dashboard" },
+  bandwidth_reseller: { href: "/dashboards/bandwidth-reseller", label: "Bandwidth Dashboard" },
+};
+
+const ROLE_DISPLAY_NAMES: Record<string, string> = {
+  admin: "Executive Admin",
+  super_admin: "Super Admin",
+  billing: "Billing Operator",
+  billing_operator: "Billing Operator",
+  sales: "Sales Executive",
+  demo: "Demo Manager",
+  technician: "NOC Technician",
+  line_man: "Field Technician",
+  staff: "General Staff",
+  support_staff: "Support Staff",
+  reseller_l1: "Reseller (L1 POP)",
+  reseller: "Reseller (L1 POP)",
+  reseller_l2: "Sub Reseller (L2)",
+  agent: "Agent Dealer (L2)",
+  distributor: "Distributor",
+  bandwidth_reseller: "Bandwidth Carrier",
+};
 
 export function Sidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const currentStatus = searchParams?.get("status") || "";
   const [collapsed, setCollapsed] = useState(false);
+  const [userRole, setUserRole] = useState<string>("admin");
+  const [userName, setUserName] = useState<string>("Admin");
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     clients: true,
     bandwidth: false,
     store: false,
     hr: false,
   });
+
+  useEffect(() => {
+    const role = (localStorage.getItem("sheba_user_role") || "admin").toLowerCase();
+    const name = localStorage.getItem("sheba_user_name") || "Operator";
+    setUserRole(role);
+    setUserName(name);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("sheba_auth_token");
+    localStorage.removeItem("sheba_user_role");
+    localStorage.removeItem("sheba_user_name");
+    window.location.href = "/login";
+  };
+
+  // Compute filtered sections based on userRole
+  const currentRoleDashboard = ROLE_DASHBOARD_MAP[userRole] || { href: "/", label: "Dashboard" };
+
+  const getFilteredNavSections = () => {
+    if (userRole === "admin" || userRole === "super_admin") {
+      return navSections;
+    }
+
+    const allowedTitlesByRole: Record<string, string[]> = {
+      billing: ["ISP Billing", "Reports"],
+      billing_operator: ["ISP Billing", "Reports"],
+      sales: ["ISP Billing", "Reports"],
+      demo: ["ISP Billing"],
+      technician: ["Network & Infrastructure", "Support Desk"],
+      line_man: ["Network & Infrastructure", "Support Desk"],
+      staff: ["HR & Payroll", "Support Desk"],
+      support_staff: ["HR & Payroll", "Support Desk"],
+      reseller_l1: ["Reseller Network", "ISP Billing"],
+      reseller: ["Reseller Network", "ISP Billing"],
+      reseller_l2: ["ISP Billing"],
+      agent: ["ISP Billing"],
+      distributor: ["Store & Inventory"],
+      bandwidth_reseller: ["Bandwidth Management"],
+    };
+
+    const allowedTitles = allowedTitlesByRole[userRole] || ["ISP Billing"];
+    const filtered = navSections.filter((sec) => !sec.title || allowedTitles.includes(sec.title));
+
+    // Replace first Dashboard entry with the role-specific dashboard link
+    return filtered.map((sec, idx) => {
+      if (idx === 0) {
+        return {
+          ...sec,
+          entries: sec.entries.map((entry) => {
+            if (entry.type === "single" && entry.data.href === "/") {
+              return {
+                type: "single",
+                data: {
+                  href: currentRoleDashboard.href,
+                  label: currentRoleDashboard.label,
+                  icon: LayoutDashboard,
+                },
+              } as NavEntry;
+            }
+            return entry;
+          }),
+        };
+      }
+      return sec;
+    });
+  };
+
+  const activeNavSections = getFilteredNavSections();
 
   // Auto-expand accordion if child path matches
   useEffect(() => {
@@ -358,8 +464,8 @@ export function Sidebar() {
             <span className="font-bold text-sm tracking-tight text-foreground truncate">
               Sheba ERP
             </span>
-            <span className="text-[10px] text-muted-foreground truncate leading-none">
-              ISP Operations & Billing
+            <span className="text-[10px] text-indigo-400 font-semibold truncate leading-none uppercase">
+              {ROLE_DISPLAY_NAMES[userRole] || "Operations"}
             </span>
           </div>
         )}
@@ -367,7 +473,7 @@ export function Sidebar() {
 
       {/* Navigation list */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-4 text-xs">
-        {navSections.map((section, sIdx) => (
+        {activeNavSections.map((section, sIdx) => (
           <div key={sIdx} className="space-y-1">
             {section.title && !collapsed && (
               <div className="px-3 py-1 font-semibold text-[10px] tracking-wider uppercase text-muted-foreground/70">
@@ -474,7 +580,6 @@ export function Sidebar() {
         {footerItems.map((item, fIdx) => {
           const active = isSingleActive(item.href);
           const Icon = item.icon;
-          const isLogout = item.label === "Logout";
           return (
             <Link
               key={fIdx}
@@ -482,9 +587,7 @@ export function Sidebar() {
               title={collapsed ? item.label : undefined}
               className={cn(
                 "flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                isLogout
-                  ? "text-red-500 hover:bg-red-500/10 dark:hover:bg-red-950/30"
-                  : active
+                active
                   ? "bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 font-semibold"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground",
                 collapsed && "justify-center px-0"
@@ -495,6 +598,20 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {/* Dedicated Logout */}
+        <button
+          type="button"
+          onClick={handleLogout}
+          title={collapsed ? "Logout" : undefined}
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/10 dark:hover:bg-red-950/30 transition-colors cursor-pointer",
+            collapsed && "justify-center px-0"
+          )}
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && <span>Logout ({ROLE_DISPLAY_NAMES[userRole] || "User"})</span>}
+        </button>
 
         {/* Sidebar Collapse/Expand button */}
         <button

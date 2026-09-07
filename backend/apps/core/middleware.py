@@ -27,13 +27,14 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         '/healthz/',
         '/api/v1/health-check/',
         '/api/v1/auth/',
+        '/api/v1/saas/',
         '/api/schema/',
         '/api/docs/',
         '/api/redoc/',
         '/admin/',
     )
 
-    CONTROL_PLANE_PREFIXES = ('admin.', 'control.')
+    CONTROL_PLANE_PREFIXES = ('admin.', 'control.', 'saas.')
 
     def process_request(self, request):
         path = request.path_info
@@ -43,8 +44,12 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         request.is_control_plane = False
 
         # 1. Central Control Plane identification
-        if (raw_host.startswith(self.CONTROL_PLANE_PREFIXES)
-                or raw_host in getattr(settings, 'CONTROL_PLANE_DOMAINS', ['admin.shebafi.com'])):
+        control_domains = getattr(
+            settings,
+            'CONTROL_PLANE_DOMAINS',
+            ['admin.shebafi.com', 'admin.shebafi.xyz', 'control.shebafi.xyz', 'admin.localhost', 'saas.localhost']
+        )
+        if raw_host.startswith(self.CONTROL_PLANE_PREFIXES) or raw_host in control_domains:
             request.is_control_plane = True
             return None
 

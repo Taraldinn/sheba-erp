@@ -1,0 +1,1239 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import {
+  Building2,
+  Users,
+  Server,
+  Globe,
+  ShieldCheck,
+  Plus,
+  RefreshCw,
+  Search,
+  ExternalLink,
+  Power,
+  Key,
+  Layers,
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  DollarSign,
+  ArrowRight,
+  Sparkles,
+  Lock,
+  Cpu,
+  Database,
+  Radio,
+  Sliders,
+  Inbox,
+  Clock,
+  Trash2,
+  DownloadCloud,
+  Check,
+  X,
+  CreditCard,
+  Receipt,
+  FileText,
+  AlertOctagon,
+  FileJson,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ApiClient } from "@/lib/api";
+import { formatCurrency } from "@/lib/utils";
+
+export default function SaaSAdminPage() {
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get("tab") || "overview";
+  const actionFromUrl = searchParams.get("action");
+
+  const [activeTab, setActiveTab] = useState<string>(tabFromUrl);
+  const [overview, setOverview] = useState<any>(null);
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [domains, setDomains] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [packages, setPackages] = useState<any[]>([]);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [backups, setBackups] = useState<any[]>([]);
+  const [usersDir, setUsersDir] = useState<any>({ platform_admins: [], tenant_owners: [] });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Filters
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [planFilter, setPlanFilter] = useState("ALL");
+
+  // Onboard Tenant Modal
+  const [isTenantModalOpen, setIsTenantModalOpen] = useState(actionFromUrl === "onboard");
+  const [creatingTenant, setCreatingTenant] = useState(false);
+  const [tenantFormError, setTenantFormError] = useState("");
+  const [tenantFormSuccess, setTenantFormSuccess] = useState<any>(null);
+  const [tenantFormData, setTenantFormData] = useState({
+    name: "",
+    slug: "",
+    domain: "",
+    plan: "Growth",
+    admin_email: "",
+    admin_password: "",
+    contact_phone: "+880 1700-000000",
+    address: "Dhaka, Bangladesh",
+    max_subscribers: 2500,
+    max_routers: 10,
+  });
+
+  // Create Package Modal
+  const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
+  const [packageFormData, setPackageFormData] = useState({
+    name: "",
+    code: "",
+    description: "",
+    monthly_price: 15000,
+    yearly_price: 150000,
+    max_subscribers: 2500,
+    max_routers: 10,
+    max_custom_domains: 3,
+    features: "Up to 2,500 Subscribers\n10 Core Routers & OLTs\nOptical Signal Diagnostics\nDaily SMS Gateway",
+  });
+
+  // Register Domain Modal
+  const [isDomainModalOpen, setIsDomainModalOpen] = useState(false);
+  const [domainTenantId, setDomainTenantId] = useState("");
+  const [domainHostname, setDomainHostname] = useState("");
+  const [domainType, setDomainType] = useState("alias");
+
+  // Disaster Recovery State
+  const [creatingBackup, setCreatingBackup] = useState(false);
+  const [backupName, setBackupName] = useState("");
+  const [exportTenantId, setExportTenantId] = useState("");
+  const [exportResult, setExportResult] = useState<any>(null);
+
+  useEffect(() => {
+    setActiveTab(tabFromUrl);
+  }, [tabFromUrl]);
+
+  const loadAllData = async (isManual = false) => {
+    if (isManual) setRefreshing(true);
+    try {
+      const [ov, tList, dList, rList, pList, sList, payList, bList, uDir] = await Promise.all([
+        ApiClient.getSaaSOverview(),
+        ApiClient.getSaaSTenants(),
+        ApiClient.getSaaSDomains(),
+        ApiClient.getSaaSTenantRequests(),
+        ApiClient.getSaaSPackages(),
+        ApiClient.getSaaSSubscriptions(),
+        ApiClient.getSaaSPayments(),
+        ApiClient.getSaaSBackups(),
+        ApiClient.getSaaSUserDirectory(),
+      ]);
+      setOverview(ov);
+      setTenants(tList || []);
+      setDomains(dList || []);
+      setRequests(rList || []);
+      setPackages(pList || []);
+      setSubscriptions(sList || []);
+      setPayments(payList || []);
+      setBackups(bList || []);
+      setUsersDir(uDir || { platform_admins: [], tenant_owners: [] });
+      if (tList?.length > 0 && !domainTenantId) {
+        setDomainTenantId(tList[0].id);
+        setExportTenantId(tList[0].id);
+      }
+    } catch (err) {
+      console.error("Failed to load SaaS Control Plane data:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAllData();
+  }, []);
+
+  // ── Tenant Handlers ──
+  const handleToggleTenantStatus = async (tenantId: string) => {
+    try {
+      await ApiClient.toggleSaaSTenantStatus(tenantId);
+      await loadAllData();
+    } catch (err: any) {
+      alert("Action failed: " + err.message);
+    }
+  };
+
+  const handleImpersonate = async (tenantId: string) => {
+    try {
+      const res = await ApiClient.impersonateTenant(tenantId);
+      if (res.token) {
+        localStorage.setItem("sheba_token", res.token);
+        localStorage.setItem("sheba_auth_token", res.token);
+        localStorage.setItem("sheba_user_role", res.role || "admin");
+        localStorage.setItem("sheba_user_name", res.impersonated_user || "admin");
+        window.location.href = "/";
+      }
+    } catch (err: any) {
+      alert("Impersonation failed: " + err.message);
+    }
+  };
+
+  const handleCreateTenant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTenantFormError("");
+    setTenantFormSuccess(null);
+    setCreatingTenant(true);
+    try {
+      const res = await ApiClient.createSaaSTenant(tenantFormData);
+      setTenantFormSuccess(res);
+      await loadAllData();
+      setTimeout(() => {
+        setIsTenantModalOpen(false);
+        setTenantFormSuccess(null);
+      }, 2000);
+    } catch (err: any) {
+      setTenantFormError(err.message || "Failed to onboard tenant");
+    } finally {
+      setCreatingTenant(false);
+    }
+  };
+
+  // ── Request Handlers ──
+  const handleApproveRequest = async (requestId: string) => {
+    try {
+      const res = await ApiClient.approveSaaSTenantRequest(requestId);
+      alert(`Tenant provisioned successfully! Admin username: ${res.admin_username}`);
+      await loadAllData();
+    } catch (err: any) {
+      alert("Approval failed: " + err.message);
+    }
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    const reason = prompt("Enter reason for rejection:", "Does not meet ISP verification requirements");
+    if (reason === null) return;
+    try {
+      await ApiClient.rejectSaaSTenantRequest(requestId, reason);
+      await loadAllData();
+    } catch (err: any) {
+      alert("Rejection failed: " + err.message);
+    }
+  };
+
+  // ── Package Handlers ──
+  const handleTogglePackageStatus = async (pkgId: string) => {
+    try {
+      await ApiClient.toggleSaaSPackageStatus(pkgId);
+      await loadAllData();
+    } catch (err: any) {
+      alert("Toggle failed: " + err.message);
+    }
+  };
+
+  const handleDeletePackage = async (pkgId: string) => {
+    if (!confirm("Are you sure you want to delete this SaaS package tier?")) return;
+    try {
+      await ApiClient.deleteSaaSPackage(pkgId);
+      await loadAllData();
+    } catch (err: any) {
+      alert("Delete failed: " + err.message);
+    }
+  };
+
+  const handleCreatePackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const featuresArray = packageFormData.features
+        .split("\n")
+        .map((f) => f.trim())
+        .filter((f) => f.length > 0);
+
+      await ApiClient.createSaaSPackage({
+        ...packageFormData,
+        features: featuresArray,
+      });
+      setIsPackageModalOpen(false);
+      await loadAllData();
+    } catch (err: any) {
+      alert("Package creation failed: " + err.message);
+    }
+  };
+
+  // ── Disaster Recovery Handlers ──
+  const handleTriggerBackup = async () => {
+    setCreatingBackup(true);
+    try {
+      const res = await ApiClient.createSaaSBackup(backupName || undefined);
+      alert(`Full Database Backup Created! Snapshot: ${res.backup.filename} (${res.backup.file_size_formatted})`);
+      setBackupName("");
+      await loadAllData();
+    } catch (err: any) {
+      alert("Backup creation failed: " + err.message);
+    } finally {
+      setCreatingBackup(false);
+    }
+  };
+
+  const handleExportTenant = async () => {
+    if (!exportTenantId) return;
+    try {
+      const res = await ApiClient.exportSaaSTenantData(exportTenantId);
+      setExportResult(res);
+      await loadAllData();
+    } catch (err: any) {
+      alert("Export failed: " + err.message);
+    }
+  };
+
+  // ── Domain Handlers ──
+  const handleCreateDomain = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await ApiClient.createSaaSDomain({
+        tenant: domainTenantId,
+        hostname: domainHostname.trim().toLowerCase(),
+        domain_type: domainType,
+      });
+      setIsDomainModalOpen(false);
+      setDomainHostname("");
+      await loadAllData();
+    } catch (err: any) {
+      alert("Domain registration failed: " + err.message);
+    }
+  };
+
+  const handleToggleDomainVerify = async (domainId: string | number) => {
+    try {
+      await ApiClient.toggleSaaSDomainVerify(domainId);
+      await loadAllData();
+    } catch (err: any) {
+      alert("Verification toggle failed: " + err.message);
+    }
+  };
+
+  const kpis = overview?.kpis || {
+    total_tenants: tenants.length,
+    active_tenants: tenants.filter((t) => t.is_active).length,
+    suspended_tenants: tenants.filter((t) => !t.is_active).length,
+    pending_requests: requests.filter((r) => r.status === "pending").length,
+    total_subscribers: 13,
+    active_subscribers: 9,
+    total_packages: packages.length,
+    total_backups: backups.length,
+    platform_mrr: 45000,
+  };
+
+  const filteredTenants = tenants.filter((t) => {
+    const matchesSearch =
+      t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.slug.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.primary_domain && t.primary_domain.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesStatus =
+      statusFilter === "ALL" || (statusFilter === "ACTIVE" ? t.is_active : !t.is_active);
+    const matchesPlan = planFilter === "ALL" || t.plan === planFilter;
+    return matchesSearch && matchesStatus && matchesPlan;
+  });
+
+  return (
+    <div className="p-6 space-y-6 max-w-[1600px] mx-auto w-full text-xs">
+      {/* ── Top Overview Banner ── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-violet-950/40 via-card to-indigo-950/30 p-6 rounded-2xl border border-border shadow-sm">
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-violet-500/10 text-violet-400 border border-violet-500/20 flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              CENTRAL SAAS OVERSEER
+            </span>
+            <span className="text-xs text-muted-foreground">• Software Operations & Multi-Tenant Recovery</span>
+          </div>
+          <h1 className="text-2xl font-black tracking-tight text-foreground">
+            ShebaFi Global Control Plane
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Manage multi-tenant ISP organizations, onboarding requests, subscription packages, software licensing payments, and database disaster recovery.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5 self-start md:self-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadAllData(true)}
+            disabled={refreshing}
+            className="text-xs gap-1.5 h-9"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-indigo-400" : ""}`} />
+            Refresh Telemetry
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={() => setIsTenantModalOpen(true)}
+            className="bg-violet-600 hover:bg-violet-700 text-white text-xs gap-1.5 h-9 shadow-md shadow-violet-600/20"
+          >
+            <Plus className="h-4 w-4" />
+            Onboard New ISP Tenant
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Global Platform Telemetry Cards ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card className="border-border bg-card/60 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-violet-500" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-semibold text-muted-foreground">TOTAL TENANTS</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center">
+              <Building2 className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black text-foreground">{kpis.total_tenants} ISPs</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              <span className="text-emerald-400 font-semibold">{kpis.active_tenants} Active</span> ·{" "}
+              <span className="text-rose-400 font-semibold">{kpis.suspended_tenants} Suspended</span>
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-card/60 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-semibold text-muted-foreground">PENDING REQUESTS</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+              <Inbox className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black text-amber-400">{kpis.pending_requests} Signups</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              New tenant onboarding requests awaiting approval
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-card/60 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-semibold text-muted-foreground">HOSTED END-USERS</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+              <Users className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black text-foreground">{Number(kpis.total_subscribers || 0).toLocaleString()} Lines</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              <span className="text-emerald-400 font-semibold">{kpis.active_subscribers} Active</span> PPPoE across all ISPs
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-card/60 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-sky-500" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-semibold text-muted-foreground">SOFTWARE MRR</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center">
+              <DollarSign className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black text-foreground">৳{Number(kpis.platform_mrr || 0).toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Monthly recurring SaaS license revenue
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-card/60 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-teal-500" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-semibold text-muted-foreground">DISASTER RECOVERY</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center">
+              <Database className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black text-emerald-400">{kpis.total_backups} Backups</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Full DB snapshots & isolation exports ready
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── MODULE 1: ACTIVE TENANTS DIRECTORY ── */}
+      {(activeTab === "tenants" || activeTab === "overview") && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-violet-400" />
+                Active ISP Tenants Directory ({tenants.length})
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                All deployed ISP tenant instances with resource quotas and live workspace launch actions.
+              </CardDescription>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Search tenant or domain..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-8 w-48 text-xs"
+              />
+              <Button size="sm" onClick={() => setIsTenantModalOpen(true)} className="h-8 text-xs gap-1 bg-violet-600 hover:bg-violet-700">
+                <Plus className="h-3.5 w-3.5" />
+                New Tenant
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
+                  <tr>
+                    <th className="p-3.5">ISP Organization</th>
+                    <th className="p-3.5">Hostname / FQDN</th>
+                    <th className="p-3.5">Package Tier</th>
+                    <th className="p-3.5">Subscribers Quota</th>
+                    <th className="p-3.5">Routers Quota</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredTenants.map((t) => (
+                    <tr key={t.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="p-3.5">
+                        <p className="font-bold text-foreground">{t.name}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">slug: {t.slug}</p>
+                      </td>
+                      <td className="p-3.5">
+                        <span className="font-mono text-indigo-400 font-semibold">{t.primary_domain}</span>
+                      </td>
+                      <td className="p-3.5">
+                        <Badge variant={t.plan === "Enterprise" ? "default" : "outline"} className="text-[10px]">
+                          {t.plan}
+                        </Badge>
+                      </td>
+                      <td className="p-3.5 font-semibold text-foreground">
+                        {t.subscriber_count} / {t.max_subscribers || 2500}
+                      </td>
+                      <td className="p-3.5 font-semibold text-foreground">
+                        {t.router_count} / {t.max_routers || 10}
+                      </td>
+                      <td className="p-3.5">
+                        <Badge variant={t.is_active ? "default" : "destructive"} className="text-[10px] gap-1">
+                          <span className={`h-1.5 w-1.5 rounded-full ${t.is_active ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
+                          {t.is_active ? "Active" : "Suspended"}
+                        </Badge>
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleToggleTenantStatus(t.id)}
+                            className="h-7 text-[11px] gap-1"
+                          >
+                            <Power className="h-3 w-3" />
+                            <span>{t.is_active ? "Suspend" : "Activate"}</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleImpersonate(t.id)}
+                            className="h-7 text-[11px] gap-1 bg-violet-600 hover:bg-violet-700"
+                          >
+                            <Key className="h-3 w-3" />
+                            <span>Launch Portal</span>
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── MODULE 2: ONBOARDING REQUESTS QUEUE ── */}
+      {activeTab === "requests" && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+              <Inbox className="h-4 w-4 text-amber-400" />
+              Tenant Onboarding Requests Queue ({requests.length})
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">
+              Prospective ISP customers requesting a new ShebaFi instance. Review, approve with automated deployment, or reject.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
+                  <tr>
+                    <th className="p-3.5">Requested Organization</th>
+                    <th className="p-3.5">Contact Person</th>
+                    <th className="p-3.5">Desired Hostname</th>
+                    <th className="p-3.5">Requested Plan</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5">Submitted Date</th>
+                    <th className="p-3.5 text-right">Decision Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {requests.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center p-8 text-muted-foreground">
+                        No pending onboarding requests found.
+                      </td>
+                    </tr>
+                  ) : (
+                    requests.map((r) => (
+                      <tr key={r.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="p-3.5">
+                          <p className="font-bold text-foreground">{r.organization_name}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono">slug: {r.requested_slug}</p>
+                        </td>
+                        <td className="p-3.5">
+                          <p className="font-semibold text-foreground">{r.contact_name}</p>
+                          <p className="text-[10px] text-muted-foreground">{r.contact_email} · {r.contact_phone}</p>
+                        </td>
+                        <td className="p-3.5 font-mono text-indigo-400 font-semibold">
+                          {r.requested_domain || `${r.requested_slug}.shebafi.xyz`}
+                        </td>
+                        <td className="p-3.5">
+                          <Badge variant="outline" className="text-[10px]">{r.requested_plan}</Badge>
+                        </td>
+                        <td className="p-3.5">
+                          <Badge
+                            variant={r.status === "approved" ? "default" : r.status === "rejected" ? "destructive" : "secondary"}
+                            className="text-[10px] uppercase"
+                          >
+                            {r.status}
+                          </Badge>
+                        </td>
+                        <td className="p-3.5 text-muted-foreground font-mono text-[11px]">
+                          {new Date(r.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="p-3.5 text-right">
+                          {r.status === "pending" ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                onClick={() => handleApproveRequest(r.id)}
+                                className="h-7 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                              >
+                                <Check className="h-3 w-3" />
+                                <span>Approve & Deploy</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRejectRequest(r.id)}
+                                className="h-7 text-[11px] gap-1 text-rose-400 hover:bg-rose-500/10"
+                              >
+                                <X className="h-3 w-3" />
+                                <span>Reject</span>
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground italic">Processed</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── MODULE 3: SAAS PACKAGES & PRICING TIERS ── */}
+      {activeTab === "packages" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between bg-card p-4 rounded-xl border border-border">
+            <div>
+              <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
+                <Layers className="h-4 w-4 text-violet-400" />
+                SaaS Subscription Packages & Pricing Tiers
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Define and manage commercial tiers, subscriber limits, router quotas, and pause/resume package availability.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setIsPackageModalOpen(true)}
+              className="h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Create Package Tier
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {packages.map((pkg) => (
+              <Card
+                key={pkg.id}
+                className={`border bg-card/60 relative overflow-hidden transition-all ${
+                  !pkg.is_active ? "opacity-60 border-dashed" : "border-border"
+                }`}
+              >
+                <div
+                  className={`absolute top-0 left-0 right-0 h-1.5 ${
+                    pkg.is_active ? "bg-violet-500" : "bg-muted-foreground"
+                  }`}
+                />
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <Badge variant={pkg.is_active ? "default" : "outline"} className="text-[10px]">
+                      {pkg.is_active ? "ACTIVE TIER" : "PAUSED"}
+                    </Badge>
+                    <span className="text-xs font-semibold text-muted-foreground">{pkg.subscribers_enrolled} Tenants</span>
+                  </div>
+                  <CardTitle className="text-lg font-black text-foreground mt-2">{pkg.name}</CardTitle>
+                  <div className="text-2xl font-black text-foreground mt-1">
+                    ৳{(Number(pkg.monthly_price) || 0).toLocaleString()}
+                    <span className="text-xs font-normal text-muted-foreground"> / mo</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 pt-2">
+                  <div className="space-y-1.5 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between text-foreground">
+                      <span>Max Subscribers Quota:</span>
+                      <span className="font-bold">{pkg.max_subscribers} Lines</span>
+                    </div>
+                    <div className="flex items-center justify-between text-foreground">
+                      <span>Max Routers Quota:</span>
+                      <span className="font-bold">{pkg.max_routers} NAS Gateways</span>
+                    </div>
+                    <div className="flex items-center justify-between text-foreground">
+                      <span>Custom Domains:</span>
+                      <span className="font-bold">{pkg.max_custom_domains} FQDNs</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-border flex items-center justify-between">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleTogglePackageStatus(pkg.id)}
+                      className="h-7 text-xs gap-1"
+                    >
+                      <Power className="h-3 w-3" />
+                      <span>{pkg.is_active ? "Pause Package" : "Resume"}</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDeletePackage(pkg.id)}
+                      className="h-7 text-xs text-rose-400 hover:bg-rose-500/10"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODULE 4: DISASTER RECOVERY & DATABASE BACKUP SYSTEM ── */}
+      {(activeTab === "backups" || activeTab === "exports") && (
+        <div className="space-y-6">
+          {/* Recovery Actions Bar */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="border-border bg-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Database className="h-4 w-4 text-emerald-400" />
+                  Trigger Full Database Snapshot
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">
+                  Captures an instantaneous, consistent physical database backup with SHA-256 integrity checksums.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Input
+                  placeholder="Optional custom snapshot label (e.g. Pre-Upgrade Backup)"
+                  value={backupName}
+                  onChange={(e) => setBackupName(e.target.value)}
+                  className="h-9 text-xs"
+                />
+                <Button
+                  onClick={handleTriggerBackup}
+                  disabled={creatingBackup}
+                  className="w-full h-9 text-xs gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Database className="h-3.5 w-3.5" />
+                  <span>{creatingBackup ? "Creating Physical Snapshot..." : "Create Full Backup Now"}</span>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border bg-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <DownloadCloud className="h-4 w-4 text-sky-400" />
+                  Single-Tenant Data Isolation Export
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">
+                  Extracts complete relational data for an isolated tenant as a portable JSON snapshot.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <select
+                  value={exportTenantId}
+                  onChange={(e) => setExportTenantId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs"
+                >
+                  {tenants.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.slug})
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  onClick={handleExportTenant}
+                  className="w-full h-9 text-xs gap-2 bg-sky-600 hover:bg-sky-700 text-white"
+                >
+                  <FileJson className="h-3.5 w-3.5" />
+                  <span>Export Tenant Dataset</span>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Backup Archives Table */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                <Database className="h-4 w-4 text-violet-400" />
+                Database Backup Archives & Recovery Checkpoints ({backups.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
+                    <tr>
+                      <th className="p-3.5">Backup Name / Label</th>
+                      <th className="p-3.5">Archive Filename</th>
+                      <th className="p-3.5">Type</th>
+                      <th className="p-3.5">File Size</th>
+                      <th className="p-3.5">SHA-256 Checksum</th>
+                      <th className="p-3.5">Created Timestamp</th>
+                      <th className="p-3.5 text-right">Download</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {backups.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center p-8 text-muted-foreground">
+                          No backup snapshots recorded yet. Trigger one above.
+                        </td>
+                      </tr>
+                    ) : (
+                      backups.map((b) => (
+                        <tr key={b.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="p-3.5 font-bold text-foreground">{b.backup_name}</td>
+                          <td className="p-3.5 font-mono text-[11px] text-indigo-400">{b.filename}</td>
+                          <td className="p-3.5">
+                            <Badge variant="outline" className="text-[10px] uppercase">{b.backup_type}</Badge>
+                          </td>
+                          <td className="p-3.5 font-semibold text-foreground">{b.file_size_formatted}</td>
+                          <td className="p-3.5 font-mono text-[10px] text-muted-foreground max-w-xs truncate">
+                            {b.checksum || "Verified"}
+                          </td>
+                          <td className="p-3.5 text-muted-foreground font-mono text-[11px]">
+                            {new Date(b.created_at).toLocaleString()}
+                          </td>
+                          <td className="p-3.5 text-right">
+                            <a
+                              href={`http://localhost:8000/api/v1/saas/backups/${b.id}/download/`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
+                                <DownloadCloud className="h-3 w-3" />
+                                <span>Download</span>
+                              </Button>
+                            </a>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── MODULE 5: SOFTWARE USER & TENANT OWNER DIRECTORY ── */}
+      {(activeTab === "users" || activeTab === "tenant-owners") && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+              <Users className="h-4 w-4 text-violet-400" />
+              Software User Management & Tenant Master Owners ({usersDir.total_users || 0})
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">
+              Directory of Central Platform Administrators and Tenant Managing Directors.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
+                  <tr>
+                    <th className="p-3.5">User / Account</th>
+                    <th className="p-3.5">Email & Phone</th>
+                    <th className="p-3.5">Assigned Organization</th>
+                    <th className="p-3.5">Platform Role</th>
+                    <th className="p-3.5">Last Login</th>
+                    <th className="p-3.5">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {/* Platform Super Admins */}
+                  {usersDir.platform_admins?.map((u: any) => (
+                    <tr key={`sa-${u.id}`} className="hover:bg-muted/30 transition-colors bg-violet-500/5">
+                      <td className="p-3.5 font-bold text-foreground flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-violet-400" />
+                        <span>{u.username}</span>
+                      </td>
+                      <td className="p-3.5 text-muted-foreground">{u.email || "admin@shebafi.xyz"}</td>
+                      <td className="p-3.5 font-semibold text-violet-400">Global Control Plane</td>
+                      <td className="p-3.5">
+                        <Badge className="bg-violet-600 text-white text-[10px]">PLATFORM ADMIN</Badge>
+                      </td>
+                      <td className="p-3.5 text-muted-foreground font-mono text-[11px]">{u.last_login}</td>
+                      <td className="p-3.5">
+                        <Badge variant="default" className="text-[10px]">Active</Badge>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {/* Tenant Owners */}
+                  {usersDir.tenant_owners?.map((o: any) => (
+                    <tr key={`to-${o.id}`} className="hover:bg-muted/30 transition-colors">
+                      <td className="p-3.5 font-bold text-foreground">{o.username}</td>
+                      <td className="p-3.5 text-muted-foreground">{o.email} · {o.phone}</td>
+                      <td className="p-3.5 font-semibold text-foreground">{o.tenant_name}</td>
+                      <td className="p-3.5">
+                        <Badge variant="outline" className="text-[10px]">Tenant Owner</Badge>
+                      </td>
+                      <td className="p-3.5 text-muted-foreground font-mono text-[11px]">{o.last_login}</td>
+                      <td className="p-3.5">
+                        <Badge variant={o.is_active ? "default" : "destructive"} className="text-[10px]">
+                          {o.is_active ? "Active" : "Suspended"}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── MODULE 6: DOMAIN ROUTING CENTER ── */}
+      {activeTab === "domains" && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                <Globe className="h-4 w-4 text-indigo-400" />
+                Global Domain Routing & DNS Directory ({domains.length})
+              </CardTitle>
+            </div>
+            <Button size="sm" onClick={() => setIsDomainModalOpen(true)} className="h-8 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700">
+              <Plus className="h-3.5 w-3.5" />
+              Register Domain
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
+                  <tr>
+                    <th className="p-3.5">Hostname</th>
+                    <th className="p-3.5">Target Tenant</th>
+                    <th className="p-3.5">Type</th>
+                    <th className="p-3.5">Verification</th>
+                    <th className="p-3.5">SSL Certificate</th>
+                    <th className="p-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {domains.map((d) => (
+                    <tr key={d.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="p-3.5 font-mono font-bold text-foreground">{d.hostname}</td>
+                      <td className="p-3.5">{d.tenant_name}</td>
+                      <td className="p-3.5"><Badge variant="outline" className="text-[10px] uppercase">{d.domain_type}</Badge></td>
+                      <td className="p-3.5">
+                        {d.verified ? (
+                          <span className="text-emerald-400 font-semibold inline-flex items-center gap-1">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Verified
+                          </span>
+                        ) : (
+                          <span className="text-amber-400 font-semibold inline-flex items-center gap-1">
+                            <AlertTriangle className="h-3.5 w-3.5" /> Pending
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3.5 text-sky-400 font-medium inline-flex items-center gap-1 mt-3">
+                        <Lock className="h-3 w-3" /> Let&apos;s Encrypt
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <Button size="sm" variant="ghost" onClick={() => handleToggleDomainVerify(d.id)} className="h-7 text-xs text-indigo-400">
+                          {d.verified ? "Mark Pending" : "Verify"}
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── MODAL: ONBOARD NEW ISP TENANT ── */}
+      {isTenantModalOpen && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div>
+                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-violet-400" />
+                  Onboard New ISP Tenant
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Provisions dedicated database scoping, company settings, domain mapping, and administrator login.
+                </p>
+              </div>
+              <button onClick={() => setIsTenantModalOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            {tenantFormError && <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-lg">{tenantFormError}</div>}
+            {tenantFormSuccess && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-lg">
+                <p className="font-bold">{tenantFormSuccess.message}</p>
+                <p className="mt-1">Admin Username: <span className="font-mono font-bold">{tenantFormSuccess.admin_credentials.username}</span></p>
+                <p>Initial Password: <span className="font-mono font-bold">{tenantFormSuccess.admin_credentials.password}</span></p>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateTenant} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Company / ISP Name *</label>
+                  <Input
+                    required
+                    placeholder="e.g. Apex Broadband Network"
+                    value={tenantFormData.name}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      const slug = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+                      setTenantFormData({ ...tenantFormData, name, slug, domain: `${slug}.shebafi.xyz` });
+                    }}
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Tenant Slug *</label>
+                  <Input
+                    required
+                    value={tenantFormData.slug}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
+                    className="h-9 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Primary Hostname *</label>
+                  <Input
+                    required
+                    value={tenantFormData.domain}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, domain: e.target.value })}
+                    className="h-9 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Subscription Plan</label>
+                  <select
+                    value={tenantFormData.plan}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, plan: e.target.value })}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs"
+                  >
+                    <option value="Starter">Starter (500 Subs, ৳5k/mo)</option>
+                    <option value="Growth">Growth (2,500 Subs, ৳15k/mo)</option>
+                    <option value="Enterprise">Enterprise (Unlimited, ৳35k/mo)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Admin Email *</label>
+                  <Input
+                    type="email"
+                    required
+                    value={tenantFormData.admin_email}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, admin_email: e.target.value })}
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Initial Password</label>
+                  <Input
+                    placeholder="Defaults to sheba1234"
+                    value={tenantFormData.admin_password}
+                    onChange={(e) => setTenantFormData({ ...tenantFormData, admin_password: e.target.value })}
+                    className="h-9 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsTenantModalOpen(false)}>Cancel</Button>
+                <Button type="submit" size="sm" disabled={creatingTenant} className="bg-violet-600 hover:bg-violet-700 text-white">
+                  {creatingTenant ? "Deploying Tenant..." : "Deploy Tenant Instance"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: CREATE SAAS PACKAGE ── */}
+      {isPackageModalOpen && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <Layers className="h-4 w-4 text-violet-400" />
+                Create SaaS Package Tier
+              </h3>
+              <button onClick={() => setIsPackageModalOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <form onSubmit={handleCreatePackage} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Tier Name *</label>
+                <Input
+                  required
+                  placeholder="e.g. Ultra Fiber Pro"
+                  value={packageFormData.name}
+                  onChange={(e) => setPackageFormData({ ...packageFormData, name: e.target.value, code: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "") })}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Monthly Price (৳) *</label>
+                  <Input
+                    type="number"
+                    required
+                    value={packageFormData.monthly_price}
+                    onChange={(e) => setPackageFormData({ ...packageFormData, monthly_price: Number(e.target.value) })}
+                    className="h-9 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Max Subscribers *</label>
+                  <Input
+                    type="number"
+                    required
+                    value={packageFormData.max_subscribers}
+                    onChange={(e) => setPackageFormData({ ...packageFormData, max_subscribers: Number(e.target.value) })}
+                    className="h-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Key Features (One per line)</label>
+                <textarea
+                  rows={4}
+                  value={packageFormData.features}
+                  onChange={(e) => setPackageFormData({ ...packageFormData, features: e.target.value })}
+                  className="w-full rounded-md border border-input bg-background p-2 text-xs font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsPackageModalOpen(false)}>Cancel</Button>
+                <Button type="submit" size="sm" className="bg-violet-600 hover:bg-violet-700 text-white">Create Tier</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: REGISTER DOMAIN ── */}
+      {isDomainModalOpen && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <Globe className="h-4 w-4 text-indigo-400" />
+                Register Custom Domain
+              </h3>
+              <button onClick={() => setIsDomainModalOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <form onSubmit={handleCreateDomain} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Target Tenant</label>
+                <select
+                  value={domainTenantId}
+                  onChange={(e) => setDomainTenantId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs"
+                >
+                  {tenants.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.slug})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Fully Qualified Hostname *</label>
+                <Input
+                  required
+                  placeholder="e.g. portal.ispbrand.com"
+                  value={domainHostname}
+                  onChange={(e) => setDomainHostname(e.target.value)}
+                  className="h-9 text-xs font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsDomainModalOpen(false)}>Cancel</Button>
+                <Button type="submit" size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">Map Domain</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

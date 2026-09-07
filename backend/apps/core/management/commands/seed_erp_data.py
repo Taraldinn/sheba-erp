@@ -67,7 +67,7 @@ class Command(BaseCommand):
             }
         )
 
-        # 3. Create Reseller User
+        # 3. Create Reseller User & 10 Persona Users for Separate Login Systems
         reseller_user, r_created = User.objects.get_or_create(
             username='reseller_uttara',
             defaults={
@@ -81,7 +81,7 @@ class Command(BaseCommand):
             reseller_user.set_password('reseller123')
             reseller_user.save()
 
-        reseller_profile, _ = StaffProfile.objects.get_or_create(
+        StaffProfile.objects.update_or_create(
             user=reseller_user,
             defaults={
                 'tenant': tenant,
@@ -91,6 +91,30 @@ class Command(BaseCommand):
                 'credit_limit': 100000.00
             }
         )
+
+        persona_users = [
+            ('billing_op', 'billing123', 'Billing', 'Manager', UserRole.BILLING, '+8801811000001'),
+            ('sales_lead', 'sales123', 'Sales', 'Lead', UserRole.SALES, '+8801811000002'),
+            ('demo_mgr', 'demo123', 'Demo', 'Officer', UserRole.DEMO, '+8801811000003'),
+            ('noc_tech', 'tech123', 'NOC', 'Technician', UserRole.TECHNICIAN, '+8801811000004'),
+            ('staff_ops', 'staff123', 'Staff', 'Operator', UserRole.STAFF, '+8801811000005'),
+            ('reseller_l1', 'reseller123', 'POP1', 'Master Reseller', UserRole.RESELLER_L1, '+8801811000006'),
+            ('reseller_l2', 'reseller123', 'POP2', 'Sub Reseller', UserRole.RESELLER_L2, '+8801811000007'),
+            ('distributor_main', 'dist123', 'Hardware', 'Distributor', UserRole.DISTRIBUTOR, '+8801811000008'),
+            ('bandwidth_carrier', 'bw123', 'Bandwidth', 'Carrier', UserRole.BANDWIDTH_RESELLER, '+8801811000009'),
+        ]
+
+        for u_name, u_pass, f_name, l_name, u_role, u_phone in persona_users:
+            p_user, p_created = User.objects.get_or_create(
+                username=u_name,
+                defaults={'email': f'{u_name}@shebafi.net', 'first_name': f_name, 'last_name': l_name, 'is_staff': True}
+            )
+            p_user.set_password(u_pass)
+            p_user.save()
+            StaffProfile.objects.update_or_create(
+                user=p_user,
+                defaults={'tenant': tenant, 'role': u_role, 'phone': u_phone}
+            )
 
         # 4. Create Routers
         r1, _ = Router.objects.get_or_create(
