@@ -21,7 +21,8 @@ from .models import (
     TenantOnboardingRequest, SaaSPackage, TenantSubscription, SaaSPayment, DatabaseBackup
 )
 from .permissions import IsCentralAdmin
-from apps.authentication.models import StaffProfile, UserRole
+from apps.authentication.models import StaffProfile, StaffMembership, UserRole
+
 from apps.customers.models import Customer
 from apps.network.models import POPBranch, Router, OLT, ONU
 from apps.billing.models import Recharge, Package, Invoice
@@ -1422,9 +1423,16 @@ class SaaSLoginView(views.APIView):
             return Response({'error': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
 
         profile = getattr(user, 'profile', None)
-        is_central_admin = user.is_superuser or (profile and profile.role == UserRole.SUPER_ADMIN and not profile.tenant)
+        has_tenant_membership = StaffMembership.objects.filter(user=user, is_active=True).exists()
+        is_central_admin = user.is_superuser or (
+            profile and profile.role == UserRole.SUPER_ADMIN and not profile.tenant and not has_tenant_membership
+        )
         if not is_central_admin:
-            return Response({'error': 'Access Denied: You do not have permissions to access the SaaS Global Control Plane.'}, status=status.HTTP_403_FORBIDDEN)
+            return Response({
+                'error': 'Access Denied: You do not have permissions to access the SaaS Global Control Plane.',
+                'code': 'CONTROL_PLANE_ACCESS_DENIED'
+            }, status=status.HTTP_403_FORBIDDEN)
+
 
         token, _ = Token.objects.get_or_create(user=user)
         return Response({

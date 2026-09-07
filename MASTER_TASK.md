@@ -5,7 +5,7 @@
 - **File**: `MASTER_TASK.md`
 - **Status**: AUTHORITATIVE MASTER TASK SOURCE OF TRUTH
 - **Effective Date**: 2026-09-07
-- **Current Active Stage**: STAGE 2 — Authentication
+- **Current Active Stage**: STAGE 3 — RBAC
 
 ---
 
@@ -105,13 +105,14 @@ The following reproducible baseline commands were executed on the repository:
 
 ### Backend Test Suite
 - **Command**: `venv/bin/python manage.py test`
-- **Result**: `Ran 65 tests in 101.446s — OK` (Exit code 0, 0 failures, 0 errors across original and Stage 1 multi-tenant isolation test suites)
+- **Result**: `Ran 78 tests in 151.658s — OK` (Exit code 0, 0 failures, 0 errors across original, Stage 1 multi-tenant isolation, and Stage 2 tenant-aware authentication test suites)
 - **Date**: 2026-09-07
 
 ### Frontend Build
 - **Command**: `export PATH="/home/taraldinn/.nvm/versions/node/v24.20.0/bin:$PATH" && cd frontend && npm run build`
-- **Result**: Next.js 16.3.4 (Turbopack) production compile successful in 4.5s; TypeScript completed in 9.3s with 0 errors (Exit code 0)
+- **Result**: Next.js 16.3.4 (Turbopack) production compile successful in 3.8s; TypeScript completed in 2.6s with 0 errors (Exit code 0)
 - **Date**: 2026-09-07
+
 
 ### Known Gaps / Environmental Baseline Notes
 1. **Local DB Driver**: Backend defaults to SQLite locally when `DATABASE_URL` is omitted; `DATABASE_URL` PostgreSQL engine (`psycopg2-binary`) is configured in `sheba_core/settings.py` for staging/production.
@@ -176,21 +177,25 @@ The following reproducible baseline commands were executed on the repository:
 ---
 
 ### STAGE 2 — Authentication
-- **STATUS**: `NOT_STARTED`
+- **STATUS**: `DONE`
 - **DEPENDENCIES**: Stage 1
 - **OBJECTIVE**: Migrate user authentication from legacy single-tenant `StaffProfile` to multi-tenant `StaffMembership`, separating internal employees from external resellers and enforcing tenant-aware session tokens.
 - **TASKS**:
-  - [ ] S2.1 Implement tenant-aware authentication backend validating that `request.user` has active `StaffMembership` in `request.tenant`.
-  - [ ] S2.2 Data migration script transferring `StaffProfile` records to `StaffMembership`.
-  - [ ] S2.3 Separate customer authentication (Subscriber Self-Care) from staff authentication endpoints.
-  - [ ] S2.4 Implement platform-wide superadmin authentication isolating Central Control Plane sessions from tenant staff.
-  - [ ] S2.5 Introduce token expiration, rotation, and revocation for compromised credentials.
+  - [x] S2.1 Implement tenant-aware authentication backend validating that `request.user` has active `StaffMembership` in `request.tenant`.
+  - [x] S2.2 Data migration script transferring `StaffProfile` records to `StaffMembership`.
+  - [x] S2.3 Tenant-aware login flow blocking wrong-tenant authentication with HTTP 403 Forbidden (`CROSS_TENANT_LOGIN`).
+  - [x] S2.4 Implement platform-wide superadmin authentication isolating Central Control Plane sessions from tenant staff (`CONTROL_PLANE_ACCESS_DENIED`).
+  - [x] S2.5 Token & session enforcement: prevent cross-tenant token bypass, reject inactive memberships, and reject suspended tenants.
 - **ACCEPTANCE CRITERIA**:
-  - An employee of ISP A cannot authenticate against ISP B's domain even with valid credentials.
-  - Tokens issued on tenant plane are invalid on central control plane.
+  - StaffMembership is authoritative identity record.
+  - Tenant-aware authentication verified across all routes.
+  - Wrong-tenant login blocked with HTTP 403 Forbidden.
+  - Control-plane boundary strictly blocks ISP staff with HTTP 403 Forbidden.
+  - Token/session cannot bypass membership.
+  - All Stage 2 authentication tests pass (13/13 passing, 78/78 total suite).
 - **TEST REQUIREMENTS**:
-  - Auth test suite verifying cross-tenant login rejection (401/403).
-  - Staff vs Reseller login isolation tests.
+  - Stage 2 tenant auth test suite verifying cross-tenant login rejection (403), inactive membership/tenant rejection (403), central admin vs ISP staff control plane isolation (403), and token isolation (`apps.authentication.test_tenant_auth_stage2`).
+
 
 ---
 

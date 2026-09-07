@@ -1,7 +1,10 @@
 import uuid
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.contrib.auth.models import User
 from apps.core.models import Tenant
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -160,6 +163,14 @@ class StaffMembership(models.Model):
             return False
         return self.role.has_permission(codename)
 
+    @classmethod
+    def get_active_membership(cls, user, tenant):
+        """Retrieve active membership for a user in a tenant."""
+        if not user or not user.is_authenticated or not tenant:
+            return None
+        return cls.objects.filter(user=user, tenant=tenant, is_active=True).select_related('role', 'tenant').first()
+
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # NEW: Reseller — separate from StaffProfile (Plan Phase 10)
@@ -235,3 +246,45 @@ class ResellerLedgerEntry(models.Model):
 
     def __str__(self):
         return f"{self.entry_type} ৳{self.amount} → {self.reseller.business_name}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage 2: StaffProfile -> StaffMembership Synchronization
+# ─────────────────────────────────────────────────────────────────────────────
+
+@receiver(post_save, sender=StaffProfile)
+def sync_staff_profile_to_membership(sender, instance, created, **kwargs):
+    """
+    Ensure StaffMembership stays synchronized with legacy StaffProfile during Stage 2.
+    """
+    if instance.tenant and instance.user:
+        role_obj = None
+        try:
+            role_obj, _ = Role.objects.get_or_create(
+                tenant=instance.tenant,
+                name=instance.role,
+                defaults={'description': f'Auto-synced role for {instance.role}'}
+            )
+        except Exception:
+            pass
+
+        membership, m_created = StaffMembership.objects.get_or_create(
+            user=instance.user,
+            tenant=instance.tenant,
+            defaults={
+                'role': role_obj,
+                'is_active': instance.is_active,
+                'scope': StaffMembership.Scope.GLOBAL if instance.role in [UserRole.ADMIN, UserRole.SUPER_ADMIN] else StaffMembership.Scope.TENANT,
+            }
+        )
+        if not m_created:
+            updated_fields = []
+            if membership.is_active != instance.is_active:
+                membership.is_active = instance.is_active
+                updated_fields.append('is_active')
+            if role_obj and membership.role_id != role_obj.id:
+                membership.role = role_obj
+                updated_fields.append('role')
+            if updated_fields:
+                membership.save(update_fields=updated_fields)
+
