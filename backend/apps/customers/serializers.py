@@ -4,6 +4,12 @@ from apps.billing.models import Package
 from apps.network.models import Router
 
 
+def _tenant_from_context(context):
+    """Extract request.tenant from serializer context."""
+    request = context.get('request')
+    return getattr(request, 'tenant', None) if request else None
+
+
 class CustomerListSerializer(serializers.ModelSerializer):
     package_name = serializers.CharField(source='package.name', read_only=True)
     package_speed = serializers.IntegerField(source='package.speed_mbps', read_only=True)
@@ -23,6 +29,13 @@ class CustomerListSerializer(serializers.ModelSerializer):
 
 
 class CustomerDetailSerializer(serializers.ModelSerializer):
+    """
+    Full customer serializer with cross-FK tenant ownership validation (Plan Phase 7).
+
+    Validates:
+      - customer.package.tenant == request.tenant
+      - customer.router.tenant  == request.tenant
+    """
     package_name = serializers.CharField(source='package.name', read_only=True)
     router_name = serializers.CharField(source='router.name', read_only=True)
 
@@ -31,9 +44,31 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('tenant',)
 
+    def validate_package(self, package):
+        """Ensure the assigned package belongs to this tenant (Plan Phase 7)."""
+        if package is None:
+            return package
+        tenant = _tenant_from_context(self.context)
+        if tenant and package.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Selected package does not belong to your ISP. Cross-tenant assignment is not allowed."
+            )
+        return package
+
+    def validate_router(self, router):
+        """Ensure the assigned router belongs to this tenant (Plan Phase 7)."""
+        if router is None:
+            return router
+        tenant = _tenant_from_context(self.context)
+        if tenant and router.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Selected router does not belong to your ISP. Cross-tenant assignment is not allowed."
+            )
+        return router
 
 
 class CustomerRechargeSerializer(serializers.Serializer):
+    """Action-specific serializer for the recharge endpoint (Plan Phase 25)."""
     amount = serializers.DecimalField(max_digits=10, decimal_places=2)
     package_id = serializers.UUIDField(required=False, allow_null=True)
     validity_days = serializers.IntegerField(default=30)

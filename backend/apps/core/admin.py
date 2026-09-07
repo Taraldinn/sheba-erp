@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Tenant, TenantApiToken, CompanySetting, AuditLog
+from .models import Tenant, TenantApiToken, CompanySetting, AuditLog, TenantDomain
 
 
 class TenantApiTokenInline(admin.TabularInline):
@@ -13,6 +13,13 @@ class CompanySettingInline(admin.StackedInline):
     can_delete = False
 
 
+class TenantDomainInline(admin.TabularInline):
+    model = TenantDomain
+    extra = 1
+    readonly_fields = ('created_at', 'updated_at')
+    fields = ('hostname', 'domain_type', 'is_primary', 'is_active', 'verified')
+
+
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
     list_display = ('name', 'slug', 'domain', 'contact_phone', 'contact_email', 'is_active', 'created_at')
@@ -20,7 +27,17 @@ class TenantAdmin(admin.ModelAdmin):
     search_fields = ('name', 'slug', 'domain', 'contact_phone', 'contact_email')
     ordering = ('name',)
     readonly_fields = ('id', 'hmac_secret', 'created_at', 'updated_at')
-    inlines = [CompanySettingInline, TenantApiTokenInline]
+    inlines = [TenantDomainInline, CompanySettingInline, TenantApiTokenInline]
+
+
+@admin.register(TenantDomain)
+class TenantDomainAdmin(admin.ModelAdmin):
+    list_display = ('hostname', 'tenant', 'domain_type', 'is_primary', 'is_active', 'verified', 'created_at')
+    list_filter = ('domain_type', 'is_primary', 'is_active', 'verified', 'tenant')
+    search_fields = ('hostname', 'tenant__name', 'tenant__slug')
+    ordering = ('hostname',)
+    readonly_fields = ('created_at', 'updated_at')
+    autocomplete_fields = ('tenant',)
 
 
 @admin.register(TenantApiToken)
@@ -65,11 +82,15 @@ class CompanySettingAdmin(admin.ModelAdmin):
 
 @admin.register(AuditLog)
 class AuditLogAdmin(admin.ModelAdmin):
-    list_display = ('timestamp', 'actor_username', 'action', 'module', 'target_id', 'ip_address', 'tenant')
+    list_display = ('timestamp', 'actor_username', 'action', 'module', 'resource_type', 'resource_id', 'ip_address', 'tenant')
     list_filter = ('module', 'action', 'tenant', 'timestamp')
-    search_fields = ('actor_username', 'action', 'module', 'target_id', 'ip_address')
+    search_fields = ('actor_username', 'action', 'module', 'resource_id', 'target_id', 'ip_address', 'request_id')
     ordering = ('-timestamp',)
-    readonly_fields = ('id', 'tenant', 'actor_username', 'action', 'module', 'target_id', 'ip_address', 'details', 'timestamp')
+    readonly_fields = (
+        'id', 'tenant', 'actor_username', 'action', 'module',
+        'resource_type', 'resource_id', 'request_id', 'user_agent',
+        'before', 'after', 'target_id', 'ip_address', 'details', 'timestamp',
+    )
 
     def has_add_permission(self, request):
         return False

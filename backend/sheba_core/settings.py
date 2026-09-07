@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'apps.tasks',
     'apps.callcenter',
     'apps.reports',
+    'apps.finance',     # Financial ledger, billing accounts, idempotency (Phase E/F/34)
 ]
 
 # ─── Middleware ───────────────────────────────────────────────────────────────

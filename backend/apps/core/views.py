@@ -2,7 +2,7 @@ from rest_framework import serializers, viewsets, permissions, views
 from rest_framework.response import Response
 from django.db import connection
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from .models import Tenant, TenantApiToken, CompanySetting, AuditLog
+from .models import Tenant, TenantApiToken, CompanySetting, AuditLog, TenantDomain
 from .permissions import IsCentralAdmin, IsTenantMember, IsAdminOrManager
 from .utils import get_scoped_queryset, get_tenant_for_request
 
@@ -11,6 +11,21 @@ class TenantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tenant
         fields = '__all__'
+
+
+class TenantDomainSerializer(serializers.ModelSerializer):
+    """Serializer for TenantDomain — proper multi-domain management (Plan Phase 4)."""
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    tenant_slug = serializers.CharField(source='tenant.slug', read_only=True)
+
+    class Meta:
+        model = TenantDomain
+        fields = [
+            'id', 'tenant', 'tenant_name', 'tenant_slug',
+            'hostname', 'is_primary', 'is_active', 'verified',
+            'domain_type', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ('created_at', 'updated_at')
 
 
 class CompanySettingSerializer(serializers.ModelSerializer):
@@ -42,6 +57,47 @@ class TenantViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
     queryset = Tenant.objects.all()
     serializer_class = TenantSerializer
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['14. Core & Tenant Settings']),
+    retrieve=extend_schema(tags=['14. Core & Tenant Settings']),
+    create=extend_schema(tags=['14. Core & Tenant Settings']),
+    update=extend_schema(tags=['14. Core & Tenant Settings']),
+    partial_update=extend_schema(tags=['14. Core & Tenant Settings']),
+    destroy=extend_schema(tags=['14. Core & Tenant Settings']),
+)
+class TenantDomainViewSet(viewsets.ModelViewSet):
+    """
+    Manages hostname-to-tenant domain mappings (Plan Phase 4).
+
+    - Central Admin (admin.shebafi.com): full CRUD on all domains.
+    - ISP Admin: read-only view of their own tenant's domains.
+
+    Resolution order in middleware:
+      TenantDomain (hostname match) → Tenant.domain (legacy) → slug match
+    """
+    serializer_class = TenantDomainSerializer
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            # ISP admins can read their own domains
+            return [permissions.IsAuthenticated(), IsTenantMember()]
+        # Only central admin can create/update/delete domains
+        return [permissions.IsAuthenticated(), IsCentralAdmin()]
+
+    def get_queryset(self):
+        qs = TenantDomain.objects.select_related('tenant').all()
+        # Central admin sees all; ISP member sees only their tenant's domains
+        if getattr(self.request, 'is_control_plane', False):
+            return qs
+        tenant = getattr(self.request, 'tenant', None)
+        if tenant:
+            return qs.filter(tenant=tenant)
+        return qs.none()
+
+    def perform_create(self, serializer):
+        serializer.save()
 
 
 @extend_schema_view(

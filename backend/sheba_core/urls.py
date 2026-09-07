@@ -3,7 +3,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
-from apps.core.views import TenantViewSet, CompanySettingViewSet, AuditLogViewSet, HealthCheckView, ReadinessView
+from apps.core.views import TenantViewSet, TenantDomainViewSet, CompanySettingViewSet, AuditLogViewSet, HealthCheckView, ReadinessView
 from apps.authentication.views import LoginView, CurrentUserView, StaffProfileViewSet
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
@@ -19,6 +19,7 @@ from apps.reports.views import DashboardAnalyticsView
 # API Router
 router = DefaultRouter()
 router.register(r'tenants', TenantViewSet, basename='tenant')
+router.register(r'tenant-domains', TenantDomainViewSet, basename='tenant-domain')
 router.register(r'settings', CompanySettingViewSet, basename='setting')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 router.register(r'staff', StaffProfileViewSet, basename='staff')
