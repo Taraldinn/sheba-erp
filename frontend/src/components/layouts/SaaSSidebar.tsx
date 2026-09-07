@@ -73,7 +73,7 @@ export function SaaSSidebar() {
           icon: Inbox,
           href: "/saas-admin?tab=requests",
           badge: pendingRequestsCount > 0 ? `${pendingRequestsCount} Pending` : undefined,
-          badgeColor: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+          badgeColor: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30",
         },
         {
           tab: "domains",
@@ -133,10 +133,10 @@ export function SaaSSidebar() {
           href: "/saas-admin?tab=backups",
         },
         {
-          tab: "exports",
+          tab: "export",
           label: "Single-Tenant Data Export",
           icon: DownloadCloud,
-          href: "/saas-admin?tab=exports",
+          href: "/saas-admin?tab=export",
         },
       ],
     },
@@ -154,8 +154,8 @@ export function SaaSSidebar() {
   ];
 
   const handleLogout = () => {
-    localStorage.removeItem("sheba_token");
-    localStorage.removeItem("sheba_auth_token");
+    localStorage.removeItem("sheba_access_token");
+    localStorage.removeItem("sheba_refresh_token");
     localStorage.removeItem("sheba_user_role");
     localStorage.removeItem("sheba_user_name");
     window.location.href = "/login";
@@ -179,7 +179,7 @@ export function SaaSSidebar() {
               <span className="font-black text-xs tracking-tight text-foreground truncate">
                 ShebaFi Global
               </span>
-              <span className="text-[10px] font-mono text-violet-400 font-semibold truncate">
+              <span className="text-[10px] font-mono text-violet-600 dark:text-violet-400 font-bold truncate">
                 admin.shebafi.xyz
               </span>
             </div>
@@ -198,12 +198,12 @@ export function SaaSSidebar() {
       {/* Overseer Badge */}
       {!collapsed && (
         <div className="p-3 pb-1">
-          <div className="px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold text-violet-300">
-              <Sparkles className="h-3 w-3 text-violet-400" />
+          <div className="px-3 py-1.5 rounded-lg bg-violet-100 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold text-violet-800 dark:text-violet-300">
+              <Sparkles className="h-3 w-3 text-violet-600 dark:text-violet-400" />
               <span>SaaS Platform Overseer</span>
             </div>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
           </div>
         </div>
       )}
@@ -213,7 +213,7 @@ export function SaaSSidebar() {
         {navSections.map((section, sIdx) => (
           <div key={sIdx} className="space-y-1">
             {!collapsed && (
-              <p className="px-2.5 text-[10px] font-bold tracking-wider text-muted-foreground/70 uppercase">
+              <p className="px-2.5 text-[10.5px] font-bold tracking-wider text-slate-500 dark:text-muted-foreground uppercase">
                 {section.title}
               </p>
             )}
@@ -228,11 +228,11 @@ export function SaaSSidebar() {
                     className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                       isActive
                         ? "bg-violet-600 text-white shadow-sm shadow-violet-600/20"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                        : "text-slate-700 dark:text-muted-foreground hover:text-slate-900 dark:hover:text-foreground hover:bg-slate-100 dark:hover:bg-muted/50"
                     } ${collapsed ? "justify-center px-0" : ""}`}
                     title={collapsed ? item.label : undefined}
                   >
-                    <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-white" : "text-muted-foreground"}`} />
+                    <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-white" : "text-slate-500 dark:text-muted-foreground"}`} />
 
                     {!collapsed && (
                       <div className="flex-1 flex items-center justify-between truncate">
@@ -262,7 +262,7 @@ export function SaaSSidebar() {
             <Button
               size="sm"
               variant="outline"
-              className="w-full text-[11px] justify-between h-8 bg-muted/30 border-dashed border-border text-indigo-300 hover:text-white"
+              className="w-full text-[11px] justify-between h-8 bg-slate-50 dark:bg-muted/30 border border-slate-200 dark:border-border text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-white"
             >
               <span>Launch ISP ERP</span>
               <ExternalLink className="h-3 w-3" />
@@ -274,7 +274,7 @@ export function SaaSSidebar() {
           size="sm"
           variant="ghost"
           onClick={handleLogout}
-          className={`w-full text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 h-8 gap-2 ${
+          className={`w-full text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 h-8 gap-2 ${
             collapsed ? "justify-center px-0" : "justify-start"
           }`}
           title="Logout from Control Plane"

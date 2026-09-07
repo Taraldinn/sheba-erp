@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Script from "next/script";
+import { headers } from "next/headers";
 import "./globals.css";
 import { AppShell } from "@/components/layouts/AppShell";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -14,16 +16,25 @@ export const metadata: Metadata = {
   description: "Enterprise ISP Subscriber Billing, Network Monitoring, OLT Management & Automated Multi-Tenant Platform",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headersList = await headers();
+  const host = (headersList.get("host") || "").toLowerCase();
+  const isControlPlaneDomain =
+    host.startsWith("admin.") ||
+    host.startsWith("control.") ||
+    host.startsWith("saas.");
+
   return (
     <html lang="en" className={cn("font-sans", spaceGrotesk.variable)} suppressHydrationWarning>
       <head>
         {/* Inline script: apply stored theme BEFORE first paint to avoid flash */}
-        <script
+        <Script
+          id="sheba-theme-init"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('sheba-theme')||'dark';if(t==='system'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.classList.add(t);}catch(e){}})();`,
           }}
@@ -31,7 +42,7 @@ export default function RootLayout({
       </head>
       <body className="bg-background text-foreground min-h-screen flex antialiased selection:bg-indigo-500 selection:text-white">
         <ThemeProvider defaultTheme="dark" storageKey="sheba-theme">
-          <AppShell>
+          <AppShell isControlPlaneDomain={isControlPlaneDomain}>
             {children}
           </AppShell>
         </ThemeProvider>

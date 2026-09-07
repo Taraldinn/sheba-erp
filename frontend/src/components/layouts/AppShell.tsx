@@ -6,7 +6,13 @@ import { Header } from "@/components/layouts/Header";
 import { SaaSSidebar } from "@/components/layouts/SaaSSidebar";
 import { SaaSHeader } from "@/components/layouts/SaaSHeader";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  isControlPlaneDomain = false,
+}: {
+  children: React.ReactNode;
+  isControlPlaneDomain?: boolean;
+}) {
   const pathname = usePathname();
 
   // Clean layout without Admin Sidebar/Header for Login and Client Portal
@@ -23,12 +29,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // Dedicated SaaS Control Plane Layout (admin.shebafi.xyz / /saas-admin)
   const isSaaSControlPlane =
+    isControlPlaneDomain ||
     pathname === "/saas-admin" ||
-    pathname.startsWith("/saas-admin/") ||
-    (typeof window !== "undefined" &&
-      (window.location.host.startsWith("admin.") ||
-        window.location.host.startsWith("control.") ||
-        window.location.host.startsWith("saas.")));
+    pathname.startsWith("/saas-admin/");
 
   if (isSaaSControlPlane) {
     return (

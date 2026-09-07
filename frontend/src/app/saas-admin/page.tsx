@@ -340,19 +340,19 @@ export default function SaaSAdminPage() {
   return (
     <div className="p-6 space-y-6 max-w-[1600px] mx-auto w-full text-xs">
       {/* ── Top Overview Banner ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-violet-950/40 via-card to-indigo-950/30 p-6 rounded-2xl border border-border shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-violet-50/90 via-white to-indigo-50/80 dark:from-violet-950/40 dark:via-card dark:to-indigo-950/30 p-6 rounded-2xl border border-slate-200 dark:border-border shadow-xs">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-violet-500/10 text-violet-400 border border-violet-500/20 flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5" />
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/20 flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
               CENTRAL SAAS OVERSEER
             </span>
-            <span className="text-xs text-muted-foreground">• Software Operations & Multi-Tenant Recovery</span>
+            <span className="text-xs text-slate-500 dark:text-muted-foreground font-medium">• Software Operations & Multi-Tenant Recovery</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-foreground">
             ShebaFi Global Control Plane
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs text-slate-600 dark:text-muted-foreground mt-0.5 max-w-3xl">
             Manage multi-tenant ISP organizations, onboarding requests, subscription packages, software licensing payments, and database disaster recovery.
           </p>
         </div>
@@ -363,16 +363,16 @@ export default function SaaSAdminPage() {
             size="sm"
             onClick={() => loadAllData(true)}
             disabled={refreshing}
-            className="text-xs gap-1.5 h-9"
+            className="text-xs gap-1.5 h-9 border-slate-300 dark:border-border text-slate-700 dark:text-foreground hover:bg-slate-100 dark:hover:bg-accent font-medium"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-indigo-400" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-indigo-500" : ""}`} />
             Refresh Telemetry
           </Button>
 
           <Button
             size="sm"
             onClick={() => setIsTenantModalOpen(true)}
-            className="bg-violet-600 hover:bg-violet-700 text-white text-xs gap-1.5 h-9 shadow-md shadow-violet-600/20"
+            className="bg-violet-600 hover:bg-violet-700 text-white text-xs gap-1.5 h-9 shadow-sm shadow-violet-600/20 font-semibold"
           >
             <Plus className="h-4 w-4" />
             Onboard New ISP Tenant
@@ -382,82 +382,82 @@ export default function SaaSAdminPage() {
 
       {/* ── Global Platform Telemetry Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card className="border-border bg-card/60 relative overflow-hidden">
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card/60 relative overflow-hidden shadow-xs">
           <div className="absolute top-0 left-0 right-0 h-1 bg-violet-500" />
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">TOTAL TENANTS</CardTitle>
-            <div className="h-8 w-8 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center">
+            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">TOTAL TENANTS</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-violet-100 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center">
               <Building2 className="h-4 w-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-foreground">{kpis.total_tenants} ISPs</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-emerald-400 font-semibold">{kpis.active_tenants} Active</span> ·{" "}
-              <span className="text-rose-400 font-semibold">{kpis.suspended_tenants} Suspended</span>
+            <div className="text-2xl font-black text-slate-900 dark:text-foreground">{kpis.total_tenants} ISPs</div>
+            <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1">
+              <span className="text-emerald-700 dark:text-emerald-400 font-bold">{kpis.active_tenants} Active</span> ·{" "}
+              <span className="text-rose-700 dark:text-rose-400 font-bold">{kpis.suspended_tenants} Suspended</span>
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-border bg-card/60 relative overflow-hidden">
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card/60 relative overflow-hidden shadow-xs">
           <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">PENDING REQUESTS</CardTitle>
-            <div className="h-8 w-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">PENDING REQUESTS</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
               <Inbox className="h-4 w-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-amber-400">{kpis.pending_requests} Signups</div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <div className="text-2xl font-black text-amber-600 dark:text-amber-400">{kpis.pending_requests} Signups</div>
+            <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1 font-medium">
               New tenant onboarding requests awaiting approval
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-border bg-card/60 relative overflow-hidden">
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card/60 relative overflow-hidden shadow-xs">
           <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">HOSTED END-USERS</CardTitle>
-            <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">HOSTED END-USERS</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <Users className="h-4 w-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-foreground">{Number(kpis.total_subscribers || 0).toLocaleString()} Lines</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-emerald-400 font-semibold">{kpis.active_subscribers} Active</span> PPPoE across all ISPs
+            <div className="text-2xl font-black text-slate-900 dark:text-foreground">{Number(kpis.total_subscribers || 0).toLocaleString()} Lines</div>
+            <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1 font-medium">
+              <span className="text-emerald-700 dark:text-emerald-400 font-bold">{kpis.active_subscribers} Active</span> PPPoE across all ISPs
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-border bg-card/60 relative overflow-hidden">
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card/60 relative overflow-hidden shadow-xs">
           <div className="absolute top-0 left-0 right-0 h-1 bg-sky-500" />
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">SOFTWARE MRR</CardTitle>
-            <div className="h-8 w-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center">
+            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">SOFTWARE MRR</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-sky-100 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
               <DollarSign className="h-4 w-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-foreground">৳{Number(kpis.platform_mrr || 0).toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <div className="text-2xl font-black text-slate-900 dark:text-foreground">৳{Number(kpis.platform_mrr || 0).toLocaleString()}</div>
+            <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1 font-medium">
               Monthly recurring SaaS license revenue
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-border bg-card/60 relative overflow-hidden">
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card/60 relative overflow-hidden shadow-xs">
           <div className="absolute top-0 left-0 right-0 h-1 bg-teal-500" />
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-semibold text-muted-foreground">DISASTER RECOVERY</CardTitle>
-            <div className="h-8 w-8 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center">
+            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">DISASTER RECOVERY</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-teal-100 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center">
               <Database className="h-4 w-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-emerald-400">{kpis.total_backups} Backups</div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <div className="text-2xl font-black text-teal-700 dark:text-emerald-400">{kpis.total_backups} Backups</div>
+            <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1 font-medium">
               Full DB snapshots & isolation exports ready
             </p>
           </CardContent>
@@ -466,14 +466,14 @@ export default function SaaSAdminPage() {
 
       {/* ── MODULE 1: ACTIVE TENANTS DIRECTORY ── */}
       {(activeTab === "tenants" || activeTab === "overview") && (
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between border-b border-slate-100 dark:border-border/60">
             <div>
-              <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-violet-400" />
+              <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                 Active ISP Tenants Directory ({tenants.length})
               </CardTitle>
-              <CardDescription className="text-xs text-muted-foreground">
+              <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
                 All deployed ISP tenant instances with resource quotas and live workspace launch actions.
               </CardDescription>
             </div>
@@ -483,9 +483,9 @@ export default function SaaSAdminPage() {
                 placeholder="Search tenant or domain..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-8 w-48 text-xs"
+                className="h-8 w-48 text-xs border-slate-300 dark:border-input bg-slate-50 dark:bg-muted/40 text-slate-900 dark:text-foreground placeholder:text-slate-400"
               />
-              <Button size="sm" onClick={() => setIsTenantModalOpen(true)} className="h-8 text-xs gap-1 bg-violet-600 hover:bg-violet-700">
+              <Button size="sm" onClick={() => setIsTenantModalOpen(true)} className="h-8 text-xs gap-1 bg-violet-600 hover:bg-violet-700 text-white font-medium">
                 <Plus className="h-3.5 w-3.5" />
                 New Tenant
               </Button>
@@ -494,41 +494,48 @@ export default function SaaSAdminPage() {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
+                <thead className="bg-slate-100 dark:bg-muted/50 text-slate-700 dark:text-muted-foreground font-bold border-b border-slate-200 dark:border-border text-[11px] uppercase tracking-wider">
                   <tr>
-                    <th className="p-3.5">ISP Organization</th>
-                    <th className="p-3.5">Hostname / FQDN</th>
-                    <th className="p-3.5">Package Tier</th>
-                    <th className="p-3.5">Subscribers Quota</th>
-                    <th className="p-3.5">Routers Quota</th>
-                    <th className="p-3.5">Status</th>
-                    <th className="p-3.5 text-right">Actions</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">ISP Organization</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Hostname / FQDN</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Package Tier</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Subscribers Quota</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Routers Quota</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Status</th>
+                    <th className="p-3.5 text-right text-slate-700 dark:text-slate-300">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-slate-100 dark:divide-border">
                   {filteredTenants.map((t) => (
-                    <tr key={t.id} className="hover:bg-muted/30 transition-colors">
+                    <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-muted/30 transition-colors">
                       <td className="p-3.5">
-                        <p className="font-bold text-foreground">{t.name}</p>
-                        <p className="text-[10px] text-muted-foreground font-mono">slug: {t.slug}</p>
+                        <p className="font-bold text-slate-900 dark:text-foreground">{t.name}</p>
+                        <p className="text-[11px] text-slate-500 dark:text-muted-foreground font-mono">slug: {t.slug}</p>
                       </td>
                       <td className="p-3.5">
-                        <span className="font-mono text-indigo-400 font-semibold">{t.primary_domain}</span>
+                        <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">{t.primary_domain}</span>
                       </td>
                       <td className="p-3.5">
-                        <Badge variant={t.plan === "Enterprise" ? "default" : "outline"} className="text-[10px]">
+                        <Badge variant="outline" className="text-[10px] font-semibold border-slate-300 dark:border-border text-slate-800 dark:text-slate-200">
                           {t.plan}
                         </Badge>
                       </td>
-                      <td className="p-3.5 font-semibold text-foreground">
+                      <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">
                         {t.subscriber_count} / {t.max_subscribers || 2500}
                       </td>
-                      <td className="p-3.5 font-semibold text-foreground">
+                      <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">
                         {t.router_count} / {t.max_routers || 10}
                       </td>
                       <td className="p-3.5">
-                        <Badge variant={t.is_active ? "default" : "destructive"} className="text-[10px] gap-1">
-                          <span className={`h-1.5 w-1.5 rounded-full ${t.is_active ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] gap-1 font-semibold ${
+                            t.is_active
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+                              : "bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
+                          }`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${t.is_active ? "bg-emerald-600 dark:bg-emerald-400 animate-pulse" : "bg-rose-600 dark:bg-rose-400"}`} />
                           {t.is_active ? "Active" : "Suspended"}
                         </Badge>
                       </td>
@@ -538,7 +545,7 @@ export default function SaaSAdminPage() {
                             size="sm"
                             variant="outline"
                             onClick={() => handleToggleTenantStatus(t.id)}
-                            className="h-7 text-[11px] gap-1"
+                            className="h-7 text-[11px] gap-1 border-slate-300 dark:border-border text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-accent font-medium"
                           >
                             <Power className="h-3 w-3" />
                             <span>{t.is_active ? "Suspend" : "Activate"}</span>
@@ -546,7 +553,7 @@ export default function SaaSAdminPage() {
                           <Button
                             size="sm"
                             onClick={() => handleImpersonate(t.id)}
-                            className="h-7 text-[11px] gap-1 bg-violet-600 hover:bg-violet-700"
+                            className="h-7 text-[11px] gap-1 bg-violet-600 hover:bg-violet-700 text-white font-medium"
                           >
                             <Key className="h-3 w-3" />
                             <span>Launch Portal</span>
@@ -564,63 +571,71 @@ export default function SaaSAdminPage() {
 
       {/* ── MODULE 2: ONBOARDING REQUESTS QUEUE ── */}
       {activeTab === "requests" && (
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
-              <Inbox className="h-4 w-4 text-amber-400" />
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
+          <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60">
+            <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+              <Inbox className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               Tenant Onboarding Requests Queue ({requests.length})
             </CardTitle>
-            <CardDescription className="text-xs text-muted-foreground">
+            <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
               Prospective ISP customers requesting a new ShebaFi instance. Review, approve with automated deployment, or reject.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
+                <thead className="bg-slate-100 dark:bg-muted/50 text-slate-700 dark:text-muted-foreground font-bold border-b border-slate-200 dark:border-border text-[11px] uppercase tracking-wider">
                   <tr>
-                    <th className="p-3.5">Requested Organization</th>
-                    <th className="p-3.5">Contact Person</th>
-                    <th className="p-3.5">Desired Hostname</th>
-                    <th className="p-3.5">Requested Plan</th>
-                    <th className="p-3.5">Status</th>
-                    <th className="p-3.5">Submitted Date</th>
-                    <th className="p-3.5 text-right">Decision Actions</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Requested Organization</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Contact Person</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Desired Hostname</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Requested Plan</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Status</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Submitted Date</th>
+                    <th className="p-3.5 text-right text-slate-700 dark:text-slate-300">Decision Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-slate-100 dark:divide-border">
                   {requests.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center p-8 text-muted-foreground">
+                      <td colSpan={7} className="text-center p-8 text-slate-500 dark:text-muted-foreground">
                         No pending onboarding requests found.
                       </td>
                     </tr>
                   ) : (
                     requests.map((r) => (
-                      <tr key={r.id} className="hover:bg-muted/30 transition-colors">
+                      <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-muted/30 transition-colors">
                         <td className="p-3.5">
-                          <p className="font-bold text-foreground">{r.organization_name}</p>
-                          <p className="text-[10px] text-muted-foreground font-mono">slug: {r.requested_slug}</p>
+                          <p className="font-bold text-slate-900 dark:text-foreground">{r.organization_name}</p>
+                          <p className="text-[11px] text-slate-500 dark:text-muted-foreground font-mono">slug: {r.requested_slug}</p>
                         </td>
                         <td className="p-3.5">
-                          <p className="font-semibold text-foreground">{r.contact_name}</p>
-                          <p className="text-[10px] text-muted-foreground">{r.contact_email} · {r.contact_phone}</p>
+                          <p className="font-semibold text-slate-800 dark:text-foreground">{r.contact_name}</p>
+                          <p className="text-[11px] text-slate-500 dark:text-muted-foreground">{r.contact_email} · {r.contact_phone}</p>
                         </td>
-                        <td className="p-3.5 font-mono text-indigo-400 font-semibold">
+                        <td className="p-3.5 font-mono text-indigo-600 dark:text-indigo-400 font-bold">
                           {r.requested_domain || `${r.requested_slug}.shebafi.xyz`}
                         </td>
                         <td className="p-3.5">
-                          <Badge variant="outline" className="text-[10px]">{r.requested_plan}</Badge>
+                          <Badge variant="outline" className="text-[10px] font-semibold border-slate-300 dark:border-border text-slate-800 dark:text-slate-200">
+                            {r.requested_plan}
+                          </Badge>
                         </td>
                         <td className="p-3.5">
                           <Badge
-                            variant={r.status === "approved" ? "default" : r.status === "rejected" ? "destructive" : "secondary"}
-                            className="text-[10px] uppercase"
+                            variant="outline"
+                            className={`text-[10px] uppercase font-semibold ${
+                              r.status === "approved"
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30"
+                                : r.status === "rejected"
+                                ? "bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30"
+                                : "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30"
+                            }`}
                           >
                             {r.status}
                           </Badge>
                         </td>
-                        <td className="p-3.5 text-muted-foreground font-mono text-[11px]">
+                        <td className="p-3.5 text-slate-600 dark:text-muted-foreground font-mono text-[11px]">
                           {new Date(r.created_at).toLocaleDateString()}
                         </td>
                         <td className="p-3.5 text-right">
@@ -629,7 +644,7 @@ export default function SaaSAdminPage() {
                               <Button
                                 size="sm"
                                 onClick={() => handleApproveRequest(r.id)}
-                                className="h-7 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                className="h-7 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
                               >
                                 <Check className="h-3 w-3" />
                                 <span>Approve & Deploy</span>
@@ -638,14 +653,14 @@ export default function SaaSAdminPage() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleRejectRequest(r.id)}
-                                className="h-7 text-[11px] gap-1 text-rose-400 hover:bg-rose-500/10"
+                                className="h-7 text-[11px] gap-1 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 font-medium"
                               >
                                 <X className="h-3 w-3" />
                                 <span>Reject</span>
                               </Button>
                             </div>
                           ) : (
-                            <span className="text-[11px] text-muted-foreground italic">Processed</span>
+                            <span className="text-[11px] text-slate-500 dark:text-muted-foreground italic font-medium">Processed</span>
                           )}
                         </td>
                       </tr>
@@ -661,20 +676,20 @@ export default function SaaSAdminPage() {
       {/* ── MODULE 3: SAAS PACKAGES & PRICING TIERS ── */}
       {activeTab === "packages" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between bg-card p-4 rounded-xl border border-border">
+          <div className="flex items-center justify-between bg-white dark:bg-card p-4 rounded-xl border border-slate-200/90 dark:border-border shadow-xs">
             <div>
-              <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
-                <Layers className="h-4 w-4 text-violet-400" />
+              <h3 className="font-bold text-slate-900 dark:text-foreground text-sm flex items-center gap-2">
+                <Layers className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                 SaaS Subscription Packages & Pricing Tiers
               </h3>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-slate-500 dark:text-muted-foreground">
                 Define and manage commercial tiers, subscriber limits, router quotas, and pause/resume package availability.
               </p>
             </div>
             <Button
               size="sm"
               onClick={() => setIsPackageModalOpen(true)}
-              className="h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700"
+              className="h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700 text-white font-medium"
             >
               <Plus className="h-3.5 w-3.5" />
               Create Package Tier
@@ -685,50 +700,57 @@ export default function SaaSAdminPage() {
             {packages.map((pkg) => (
               <Card
                 key={pkg.id}
-                className={`border bg-card/60 relative overflow-hidden transition-all ${
-                  !pkg.is_active ? "opacity-60 border-dashed" : "border-border"
+                className={`border bg-white dark:bg-card/60 relative overflow-hidden transition-all shadow-xs ${
+                  !pkg.is_active ? "opacity-60 border-dashed border-slate-300 dark:border-border" : "border-slate-200/90 dark:border-border"
                 }`}
               >
                 <div
                   className={`absolute top-0 left-0 right-0 h-1.5 ${
-                    pkg.is_active ? "bg-violet-500" : "bg-muted-foreground"
+                    pkg.is_active ? "bg-violet-600" : "bg-slate-400 dark:bg-muted-foreground"
                   }`}
                 />
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <Badge variant={pkg.is_active ? "default" : "outline"} className="text-[10px]">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-bold ${
+                        pkg.is_active
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30"
+                          : "bg-slate-100 text-slate-600 border-slate-300 dark:bg-muted dark:text-muted-foreground"
+                      }`}
+                    >
                       {pkg.is_active ? "ACTIVE TIER" : "PAUSED"}
                     </Badge>
-                    <span className="text-xs font-semibold text-muted-foreground">{pkg.subscribers_enrolled} Tenants</span>
+                    <span className="text-xs font-bold text-slate-600 dark:text-muted-foreground">{pkg.subscribers_enrolled} Tenants</span>
                   </div>
-                  <CardTitle className="text-lg font-black text-foreground mt-2">{pkg.name}</CardTitle>
-                  <div className="text-2xl font-black text-foreground mt-1">
+                  <CardTitle className="text-lg font-black text-slate-900 dark:text-foreground mt-2">{pkg.name}</CardTitle>
+                  <div className="text-2xl font-black text-slate-900 dark:text-foreground mt-1">
                     ৳{(Number(pkg.monthly_price) || 0).toLocaleString()}
-                    <span className="text-xs font-normal text-muted-foreground"> / mo</span>
+                    <span className="text-xs font-normal text-slate-500 dark:text-muted-foreground"> / mo</span>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 pt-2">
-                  <div className="space-y-1.5 text-xs text-muted-foreground">
-                    <div className="flex items-center justify-between text-foreground">
+                  <div className="space-y-1.5 text-xs text-slate-600 dark:text-muted-foreground">
+                    <div className="flex items-center justify-between text-slate-800 dark:text-foreground">
                       <span>Max Subscribers Quota:</span>
-                      <span className="font-bold">{pkg.max_subscribers} Lines</span>
+                      <span className="font-bold text-slate-900 dark:text-foreground">{pkg.max_subscribers} Lines</span>
                     </div>
-                    <div className="flex items-center justify-between text-foreground">
+                    <div className="flex items-center justify-between text-slate-800 dark:text-foreground">
                       <span>Max Routers Quota:</span>
-                      <span className="font-bold">{pkg.max_routers} NAS Gateways</span>
+                      <span className="font-bold text-slate-900 dark:text-foreground">{pkg.max_routers} NAS Gateways</span>
                     </div>
-                    <div className="flex items-center justify-between text-foreground">
+                    <div className="flex items-center justify-between text-slate-800 dark:text-foreground">
                       <span>Custom Domains:</span>
-                      <span className="font-bold">{pkg.max_custom_domains} FQDNs</span>
+                      <span className="font-bold text-slate-900 dark:text-foreground">{pkg.max_custom_domains} FQDNs</span>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-border flex items-center justify-between">
+                  <div className="pt-2 border-t border-slate-100 dark:border-border flex items-center justify-between">
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => handleTogglePackageStatus(pkg.id)}
-                      className="h-7 text-xs gap-1"
+                      className="h-7 text-xs gap-1 border-slate-300 dark:border-border text-slate-700 dark:text-foreground hover:bg-slate-100 dark:hover:bg-accent font-medium"
                     >
                       <Power className="h-3 w-3" />
                       <span>{pkg.is_active ? "Pause Package" : "Resume"}</span>
@@ -737,7 +759,7 @@ export default function SaaSAdminPage() {
                       size="sm"
                       variant="ghost"
                       onClick={() => handleDeletePackage(pkg.id)}
-                      className="h-7 text-xs text-rose-400 hover:bg-rose-500/10"
+                      className="h-7 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -750,31 +772,31 @@ export default function SaaSAdminPage() {
       )}
 
       {/* ── MODULE 4: DISASTER RECOVERY & DATABASE BACKUP SYSTEM ── */}
-      {(activeTab === "backups" || activeTab === "exports") && (
+      {(activeTab === "backups" || activeTab === "export") && (
         <div className="space-y-6">
           {/* Recovery Actions Bar */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="border-border bg-card">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <Database className="h-4 w-4 text-emerald-400" />
+            <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
+              <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60">
+                <CardTitle className="text-sm font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+                  <Database className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                   Trigger Full Database Snapshot
                 </CardTitle>
-                <CardDescription className="text-xs text-muted-foreground">
+                <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
                   Captures an instantaneous, consistent physical database backup with SHA-256 integrity checksums.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-3 pt-4">
                 <Input
                   placeholder="Optional custom snapshot label (e.g. Pre-Upgrade Backup)"
                   value={backupName}
                   onChange={(e) => setBackupName(e.target.value)}
-                  className="h-9 text-xs"
+                  className="h-9 text-xs border-slate-300 dark:border-input bg-slate-50 dark:bg-muted/40 text-slate-900 dark:text-foreground placeholder:text-slate-400"
                 />
                 <Button
                   onClick={handleTriggerBackup}
                   disabled={creatingBackup}
-                  className="w-full h-9 text-xs gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="w-full h-9 text-xs gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs"
                 >
                   <Database className="h-3.5 w-3.5" />
                   <span>{creatingBackup ? "Creating Physical Snapshot..." : "Create Full Backup Now"}</span>
@@ -782,21 +804,21 @@ export default function SaaSAdminPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-border bg-card">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <DownloadCloud className="h-4 w-4 text-sky-400" />
+            <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
+              <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60">
+                <CardTitle className="text-sm font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+                  <DownloadCloud className="h-4 w-4 text-sky-600 dark:text-sky-400" />
                   Single-Tenant Data Isolation Export
                 </CardTitle>
-                <CardDescription className="text-xs text-muted-foreground">
+                <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
                   Extracts complete relational data for an isolated tenant as a portable JSON snapshot.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-3 pt-4">
                 <select
                   value={exportTenantId}
                   onChange={(e) => setExportTenantId(e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs"
+                  className="w-full h-9 rounded-md border border-slate-300 dark:border-input bg-slate-50 dark:bg-background px-3 py-1 text-xs shadow-xs text-slate-900 dark:text-foreground"
                 >
                   {tenants.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -806,7 +828,7 @@ export default function SaaSAdminPage() {
                 </select>
                 <Button
                   onClick={handleExportTenant}
-                  className="w-full h-9 text-xs gap-2 bg-sky-600 hover:bg-sky-700 text-white"
+                  className="w-full h-9 text-xs gap-2 bg-sky-600 hover:bg-sky-700 text-white font-medium shadow-xs"
                 >
                   <FileJson className="h-3.5 w-3.5" />
                   <span>Export Tenant Dataset</span>
@@ -816,47 +838,49 @@ export default function SaaSAdminPage() {
           </div>
 
           {/* Backup Archives Table */}
-          <Card className="border-border bg-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
-                <Database className="h-4 w-4 text-violet-400" />
+          <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
+            <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60">
+              <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+                <Database className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                 Database Backup Archives & Recovery Checkpoints ({backups.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
+                  <thead className="bg-slate-100 dark:bg-muted/50 text-slate-700 dark:text-muted-foreground font-bold border-b border-slate-200 dark:border-border text-[11px] uppercase tracking-wider">
                     <tr>
-                      <th className="p-3.5">Backup Name / Label</th>
-                      <th className="p-3.5">Archive Filename</th>
-                      <th className="p-3.5">Type</th>
-                      <th className="p-3.5">File Size</th>
-                      <th className="p-3.5">SHA-256 Checksum</th>
-                      <th className="p-3.5">Created Timestamp</th>
-                      <th className="p-3.5 text-right">Download</th>
+                      <th className="p-3.5 text-slate-700 dark:text-slate-300">Backup Name / Label</th>
+                      <th className="p-3.5 text-slate-700 dark:text-slate-300">Archive Filename</th>
+                      <th className="p-3.5 text-slate-700 dark:text-slate-300">Type</th>
+                      <th className="p-3.5 text-slate-700 dark:text-slate-300">File Size</th>
+                      <th className="p-3.5 text-slate-700 dark:text-slate-300">SHA-256 Checksum</th>
+                      <th className="p-3.5 text-slate-700 dark:text-slate-300">Created Timestamp</th>
+                      <th className="p-3.5 text-right text-slate-700 dark:text-slate-300">Download</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border">
+                  <tbody className="divide-y divide-slate-100 dark:divide-border">
                     {backups.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="text-center p-8 text-muted-foreground">
+                        <td colSpan={7} className="text-center p-8 text-slate-500 dark:text-muted-foreground font-medium">
                           No backup snapshots recorded yet. Trigger one above.
                         </td>
                       </tr>
                     ) : (
                       backups.map((b) => (
-                        <tr key={b.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-3.5 font-bold text-foreground">{b.backup_name}</td>
-                          <td className="p-3.5 font-mono text-[11px] text-indigo-400">{b.filename}</td>
+                        <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-muted/30 transition-colors">
+                          <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">{b.backup_name}</td>
+                          <td className="p-3.5 font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-bold">{b.filename}</td>
                           <td className="p-3.5">
-                            <Badge variant="outline" className="text-[10px] uppercase">{b.backup_type}</Badge>
+                            <Badge variant="outline" className="text-[10px] uppercase font-semibold border-slate-300 dark:border-border text-slate-800 dark:text-slate-200">
+                              {b.backup_type}
+                            </Badge>
                           </td>
-                          <td className="p-3.5 font-semibold text-foreground">{b.file_size_formatted}</td>
-                          <td className="p-3.5 font-mono text-[10px] text-muted-foreground max-w-xs truncate">
+                          <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">{b.file_size_formatted}</td>
+                          <td className="p-3.5 font-mono text-[10px] text-slate-500 dark:text-muted-foreground max-w-xs truncate">
                             {b.checksum || "Verified"}
                           </td>
-                          <td className="p-3.5 text-muted-foreground font-mono text-[11px]">
+                          <td className="p-3.5 text-slate-600 dark:text-muted-foreground font-mono text-[11px]">
                             {new Date(b.created_at).toLocaleString()}
                           </td>
                           <td className="p-3.5 text-right">
@@ -865,7 +889,7 @@ export default function SaaSAdminPage() {
                               target="_blank"
                               rel="noreferrer"
                             >
-                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
+                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-slate-300 dark:border-border text-slate-700 dark:text-foreground hover:bg-slate-100 dark:hover:bg-accent font-medium">
                                 <DownloadCloud className="h-3 w-3" />
                                 <span>Download</span>
                               </Button>
@@ -884,61 +908,72 @@ export default function SaaSAdminPage() {
 
       {/* ── MODULE 5: SOFTWARE USER & TENANT OWNER DIRECTORY ── */}
       {(activeTab === "users" || activeTab === "tenant-owners") && (
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
-              <Users className="h-4 w-4 text-violet-400" />
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
+          <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60">
+            <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+              <Users className="h-4 w-4 text-violet-600 dark:text-violet-400" />
               Software User Management & Tenant Master Owners ({usersDir.total_users || 0})
             </CardTitle>
-            <CardDescription className="text-xs text-muted-foreground">
+            <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
               Directory of Central Platform Administrators and Tenant Managing Directors.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
+                <thead className="bg-slate-100 dark:bg-muted/50 text-slate-700 dark:text-muted-foreground font-bold border-b border-slate-200 dark:border-border text-[11px] uppercase tracking-wider">
                   <tr>
-                    <th className="p-3.5">User / Account</th>
-                    <th className="p-3.5">Email & Phone</th>
-                    <th className="p-3.5">Assigned Organization</th>
-                    <th className="p-3.5">Platform Role</th>
-                    <th className="p-3.5">Last Login</th>
-                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">User / Account</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Email & Phone</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Assigned Organization</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Platform Role</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Last Login</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-slate-100 dark:divide-border">
                   {/* Platform Super Admins */}
                   {usersDir.platform_admins?.map((u: any) => (
-                    <tr key={`sa-${u.id}`} className="hover:bg-muted/30 transition-colors bg-violet-500/5">
-                      <td className="p-3.5 font-bold text-foreground flex items-center gap-2">
-                        <ShieldCheck className="h-4 w-4 text-violet-400" />
+                    <tr key={`sa-${u.id}`} className="hover:bg-slate-50 dark:hover:bg-muted/30 transition-colors bg-violet-50/40 dark:bg-violet-500/5">
+                      <td className="p-3.5 font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                         <span>{u.username}</span>
                       </td>
-                      <td className="p-3.5 text-muted-foreground">{u.email || "admin@shebafi.xyz"}</td>
-                      <td className="p-3.5 font-semibold text-violet-400">Global Control Plane</td>
+                      <td className="p-3.5 text-slate-600 dark:text-muted-foreground">{u.email || "admin@shebafi.xyz"}</td>
+                      <td className="p-3.5 font-bold text-violet-700 dark:text-violet-400">Global Control Plane</td>
                       <td className="p-3.5">
-                        <Badge className="bg-violet-600 text-white text-[10px]">PLATFORM ADMIN</Badge>
+                        <Badge className="bg-violet-600 text-white text-[10px] font-bold">PLATFORM ADMIN</Badge>
                       </td>
-                      <td className="p-3.5 text-muted-foreground font-mono text-[11px]">{u.last_login}</td>
+                      <td className="p-3.5 text-slate-600 dark:text-muted-foreground font-mono text-[11px]">{u.last_login}</td>
                       <td className="p-3.5">
-                        <Badge variant="default" className="text-[10px]">Active</Badge>
+                        <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 font-bold">
+                          Active
+                        </Badge>
                       </td>
                     </tr>
                   ))}
 
                   {/* Tenant Owners */}
                   {usersDir.tenant_owners?.map((o: any) => (
-                    <tr key={`to-${o.id}`} className="hover:bg-muted/30 transition-colors">
-                      <td className="p-3.5 font-bold text-foreground">{o.username}</td>
-                      <td className="p-3.5 text-muted-foreground">{o.email} · {o.phone}</td>
-                      <td className="p-3.5 font-semibold text-foreground">{o.tenant_name}</td>
+                    <tr key={`to-${o.id}`} className="hover:bg-slate-50 dark:hover:bg-muted/30 transition-colors">
+                      <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">{o.username}</td>
+                      <td className="p-3.5 text-slate-600 dark:text-muted-foreground">{o.email} · {o.phone}</td>
+                      <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">{o.tenant_name}</td>
                       <td className="p-3.5">
-                        <Badge variant="outline" className="text-[10px]">Tenant Owner</Badge>
+                        <Badge variant="outline" className="text-[10px] font-semibold border-slate-300 dark:border-border text-slate-800 dark:text-slate-200">
+                          Tenant Owner
+                        </Badge>
                       </td>
-                      <td className="p-3.5 text-muted-foreground font-mono text-[11px]">{o.last_login}</td>
+                      <td className="p-3.5 text-slate-600 dark:text-muted-foreground font-mono text-[11px]">{o.last_login}</td>
                       <td className="p-3.5">
-                        <Badge variant={o.is_active ? "default" : "destructive"} className="text-[10px]">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-bold ${
+                            o.is_active
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+                              : "bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
+                          }`}
+                        >
                           {o.is_active ? "Active" : "Suspended"}
                         </Badge>
                       </td>
@@ -953,15 +988,15 @@ export default function SaaSAdminPage() {
 
       {/* ── MODULE 6: DOMAIN ROUTING CENTER ── */}
       {activeTab === "domains" && (
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between border-b border-slate-100 dark:border-border/60">
             <div>
-              <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
-                <Globe className="h-4 w-4 text-indigo-400" />
+              <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+                <Globe className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                 Global Domain Routing & DNS Directory ({domains.length})
               </CardTitle>
             </div>
-            <Button size="sm" onClick={() => setIsDomainModalOpen(true)} className="h-8 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700">
+            <Button size="sm" onClick={() => setIsDomainModalOpen(true)} className="h-8 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium">
               <Plus className="h-3.5 w-3.5" />
               Register Domain
             </Button>
@@ -969,43 +1004,169 @@ export default function SaaSAdminPage() {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
+                <thead className="bg-slate-100 dark:bg-muted/50 text-slate-700 dark:text-muted-foreground font-bold border-b border-slate-200 dark:border-border text-[11px] uppercase tracking-wider">
                   <tr>
-                    <th className="p-3.5">Hostname</th>
-                    <th className="p-3.5">Target Tenant</th>
-                    <th className="p-3.5">Type</th>
-                    <th className="p-3.5">Verification</th>
-                    <th className="p-3.5">SSL Certificate</th>
-                    <th className="p-3.5 text-right">Actions</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Hostname</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Target Tenant</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Type</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Verification</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">SSL Certificate</th>
+                    <th className="p-3.5 text-right text-slate-700 dark:text-slate-300">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-slate-100 dark:divide-border">
                   {domains.map((d) => (
-                    <tr key={d.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="p-3.5 font-mono font-bold text-foreground">{d.hostname}</td>
-                      <td className="p-3.5">{d.tenant_name}</td>
-                      <td className="p-3.5"><Badge variant="outline" className="text-[10px] uppercase">{d.domain_type}</Badge></td>
+                    <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-muted/30 transition-colors">
+                      <td className="p-3.5 font-mono font-bold text-indigo-600 dark:text-indigo-400">{d.hostname}</td>
+                      <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">{d.tenant_name}</td>
+                      <td className="p-3.5"><Badge variant="outline" className="text-[10px] uppercase font-semibold border-slate-300 dark:border-border text-slate-800 dark:text-slate-200">{d.domain_type}</Badge></td>
                       <td className="p-3.5">
                         {d.verified ? (
-                          <span className="text-emerald-400 font-semibold inline-flex items-center gap-1">
+                          <span className="text-emerald-700 dark:text-emerald-400 font-bold inline-flex items-center gap-1">
                             <CheckCircle2 className="h-3.5 w-3.5" /> Verified
                           </span>
                         ) : (
-                          <span className="text-amber-400 font-semibold inline-flex items-center gap-1">
+                          <span className="text-amber-700 dark:text-amber-400 font-bold inline-flex items-center gap-1">
                             <AlertTriangle className="h-3.5 w-3.5" /> Pending
                           </span>
                         )}
                       </td>
-                      <td className="p-3.5 text-sky-400 font-medium inline-flex items-center gap-1 mt-3">
+                      <td className="p-3.5 text-sky-700 dark:text-sky-400 font-semibold inline-flex items-center gap-1 mt-3">
                         <Lock className="h-3 w-3" /> Let&apos;s Encrypt
                       </td>
                       <td className="p-3.5 text-right">
-                        <Button size="sm" variant="ghost" onClick={() => handleToggleDomainVerify(d.id)} className="h-7 text-xs text-indigo-400">
+                        <Button size="sm" variant="ghost" onClick={() => handleToggleDomainVerify(d.id)} className="h-7 text-xs text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 font-medium">
                           {d.verified ? "Mark Pending" : "Verify"}
                         </Button>
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── MODULE 7: TENANT SUBSCRIPTIONS ── */}
+      {activeTab === "subscriptions" && (
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
+          <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60">
+            <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+              Tenant Software Licenses & Active Subscriptions ({subscriptions.length})
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
+              Software licensing agreements, subscription tiers, renewal terms, and recurring billing schedules.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 dark:bg-muted/50 text-slate-700 dark:text-muted-foreground font-bold border-b border-slate-200 dark:border-border text-[11px] uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Tenant / Organization</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">SaaS Package</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Billing Interval</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Contract Amount</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Starts At</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Renews / Expires</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">License Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-border">
+                  {subscriptions.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center p-8 text-slate-500 dark:text-muted-foreground font-medium">
+                        No subscription contracts logged yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    subscriptions.map((s) => (
+                      <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-muted/30 transition-colors">
+                        <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">{s.tenant_name || "Active Tenant"}</td>
+                        <td className="p-3.5 font-semibold text-violet-700 dark:text-violet-400">{s.package_name || "Growth Tier"}</td>
+                        <td className="p-3.5 font-semibold capitalize text-slate-800 dark:text-foreground">{s.billing_cycle || "Monthly"}</td>
+                        <td className="p-3.5 font-black text-slate-900 dark:text-foreground">৳{(Number(s.amount) || 0).toLocaleString()}</td>
+                        <td className="p-3.5 font-mono text-[11px] text-slate-600 dark:text-muted-foreground">{s.starts_at ? new Date(s.starts_at).toLocaleDateString() : "—"}</td>
+                        <td className="p-3.5 font-mono text-[11px] text-slate-600 dark:text-muted-foreground">{s.expires_at ? new Date(s.expires_at).toLocaleDateString() : "—"}</td>
+                        <td className="p-3.5">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] uppercase font-bold ${
+                              s.status === "active"
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+                                : "bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
+                            }`}
+                          >
+                            {s.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── MODULE 8: SOFTWARE PAYMENT LEDGER ── */}
+      {activeTab === "payments" && (
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
+          <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60">
+            <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              SaaS Software Payment Ledger & Revenue Transactions ({payments.length})
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
+              Complete audit ledger of incoming SaaS platform subscription payments, gateway receipts, and bank wires.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 dark:bg-muted/50 text-slate-700 dark:text-muted-foreground font-bold border-b border-slate-200 dark:border-border text-[11px] uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Transaction Ref</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Paying Organization</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Payment Gateway</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Amount Paid</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Receipt Timestamp</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Verification</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-border">
+                  {payments.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center p-8 text-slate-500 dark:text-muted-foreground font-medium">
+                        No payment transactions recorded yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    payments.map((p) => (
+                      <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-muted/30 transition-colors">
+                        <td className="p-3.5 font-mono font-bold text-indigo-600 dark:text-indigo-400">{p.transaction_ref || p.id.slice(0, 8)}</td>
+                        <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">{p.tenant_name || "Sheba Broadband Network"}</td>
+                        <td className="p-3.5 font-semibold text-slate-800 dark:text-foreground capitalize">{p.payment_method || "Bank Wire"}</td>
+                        <td className="p-3.5 font-black text-slate-900 dark:text-foreground">৳{(Number(p.amount) || 0).toLocaleString()}</td>
+                        <td className="p-3.5 font-mono text-[11px] text-slate-600 dark:text-muted-foreground">{new Date(p.created_at).toLocaleString()}</td>
+                        <td className="p-3.5">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] uppercase font-bold ${
+                              p.status === "completed"
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+                                : "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
+                            }`}
+                          >
+                            {p.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
