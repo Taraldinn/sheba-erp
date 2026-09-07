@@ -619,7 +619,7 @@ class SaaSBackupViewSet(viewsets.ModelViewSet):
                 'address': tenant.address,
             },
             'domains': list(TenantDomain.objects.filter(tenant=tenant).values()),
-            'customers': list(Customer.objects.filter(tenant=tenant).values('id', 'name', 'account_no', 'phone', 'package__name', 'status', 'due_amount')),
+            'customers': list(Customer.objects.filter(tenant=tenant).values('id', 'full_name', 'customer_code', 'mobile', 'email', 'package__name', 'status', 'due_amount')),
             'routers': list(Router.objects.filter(tenant=tenant).values('id', 'name', 'ip_address', 'status')),
             'onus': list(ONU.objects.filter(tenant=tenant).values('id', 'mac_address', 'serial_number', 'status', 'rx_power')),
             'packages': list(Package.objects.filter(tenant=tenant).values('id', 'name', 'speed_mbps', 'regular_price')),
