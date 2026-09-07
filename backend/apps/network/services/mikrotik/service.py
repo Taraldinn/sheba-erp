@@ -1,63 +1,79 @@
 """
-MikroTikService — business-level operations on a RouterOS device (Plan Phase G).
+MikroTikService — High-level business operations on a RouterOS device.
 
-Views call MikroTikService methods.
-MikroTikService uses RouterClient internally.
-No view should ever import RouterClient directly.
-
-All methods are tenant-aware: the Router object carries the tenant FK,
-so credentials are always scoped to the correct ISP.
+Supports RouterOS v7 REST API (default) with fallback to binary API.
+Views and Celery tasks call MikroTikService methods.
+Frontend never connects to MikroTik directly.
+All methods are tenant-scoped through router.tenant.
 """
 import logging
-from datetime import datetime
 from typing import Any, Optional
 from django.utils import timezone
-from .client import RouterClient, RouterConnectionError, RouterCommandError
+from .client import (
+    MikroTikRESTClient,
+    RouterClient,
+    RouterConnectionError,
+    RouterCommandError,
+    MikroTikClientError,
+)
+from .system import MikroTikSystemService
+from .interfaces import MikroTikInterfaceService
+from .sessions import MikroTikSessionService
+from .pppoe import MikroTikPPPoEService
+from .traffic import MikroTikTrafficService
 
 logger = logging.getLogger(__name__)
 
 
 class MikroTikService:
     """
-    High-level MikroTik operations for the Sheba ISP ERP.
-
-    Usage:
-        svc = MikroTikService(router)  # router is a Router model instance
-        ok, msg = svc.test_connection()
-        health = svc.get_system_health()
-        sessions = svc.get_active_sessions()
-        svc.create_pppoe_user(username='fardin001', password='pass', profile='10Mbps')
+    High-level MikroTik operations for Sheba ISP ERP.
+    Automatically selects REST or binary API based on router.api_protocol.
     """
 
     def __init__(self, router):
         self.router = router
-        self._client = RouterClient.from_router(router)
+        self.is_rest = (getattr(router, 'api_protocol', 'REST') == 'REST')
+        self.system = MikroTikSystemService(router)
+        self.interfaces = MikroTikInterfaceService(router)
+        self.sessions = MikroTikSessionService(router)
+        self.pppoe = MikroTikPPPoEService(router)
+        self.traffic = MikroTikTrafficService(router)
 
-    # ─── Connection ───────────────────────────────────────────────────────────
+    # ─── Connection Diagnostics ──────────────────────────────────────────────
 
-    def test_connection(self) -> tuple[bool, str]:
-        """Test connectivity to the router. Returns (success, message)."""
+    def test_connection(self) -> tuple[bool, str, dict[str, Any]]:
+        """
+        Tests connectivity to the router.
+        Returns: (success: bool, message: str, details: dict)
+        """
+        if self.is_rest:
+            return self.system.test_connection()
+
+        # Legacy binary API fallback
         try:
             with RouterClient.from_router(self.router) as client:
                 result = client.run_command('/system/identity/print')
                 identity = result[0].get('name', 'unknown') if result else 'unknown'
-            # Update router status in DB
             self.router.status = 'Online'
             self.router.last_ping = timezone.now()
             self.router.save(update_fields=['status', 'last_ping'])
-            return True, f"Connected. Identity: {identity}"
+            return True, f"Connected to {identity} (API)", {'identity': identity}
         except (RouterConnectionError, RouterCommandError) as exc:
             self.router.status = 'Error'
             self.router.save(update_fields=['status'])
-            return False, str(exc)
+            return False, str(exc), {'error': 'ROUTER_ERROR'}
 
     # ─── System Health ────────────────────────────────────────────────────────
 
     def get_system_health(self) -> dict[str, Any]:
         """
-        Retrieve system resource metrics from the router.
-        Updates Router.cpu_usage and Router.memory_usage in DB.
+        Retrieves system resource metrics from the router and updates Router model in DB.
         """
+        if self.is_rest:
+            return self.system.get_full_health()
+
+        # Legacy binary API fallback
         with RouterClient.from_router(self.router) as client:
             resources = client.run_command('/system/resource/print')
         if not resources:
@@ -66,7 +82,7 @@ class MikroTikService:
         cpu = int(r.get('cpu-load', 0))
         total_mem = int(r.get('total-memory', 1))
         free_mem = int(r.get('free-memory', 0))
-        mem_pct = int(((total_mem - free_mem) / total_mem) * 100)
+        mem_pct = int(((total_mem - free_mem) / max(1, total_mem)) * 100)
 
         self.router.cpu_usage = cpu
         self.router.memory_usage = mem_pct
@@ -77,15 +93,30 @@ class MikroTikService:
         return {
             'cpu_load': cpu,
             'memory_pct': mem_pct,
-            'uptime': r.get('uptime'),
-            'version': r.get('version'),
-            'board': r.get('board-name'),
+            'uptime': r.get('uptime', ''),
+            'version': r.get('version', ''),
+            'board': r.get('board-name', ''),
         }
 
     # ─── Active PPPoE Sessions ────────────────────────────────────────────────
 
-    def get_active_sessions(self) -> list[dict]:
+    def get_active_sessions(self) -> list[dict[str, Any]]:
         """Return list of active PPPoE sessions on the router."""
+        if self.is_rest:
+            raw_sessions = self.sessions.get_active_sessions()
+            return [
+                {
+                    'username': s.get('name'),
+                    'ip_address': s.get('address'),
+                    'mac_address': s.get('caller-id', ''),
+                    'uptime': s.get('uptime', ''),
+                    'bytes_in': int(s.get('bytes-in', 0)),
+                    'bytes_out': int(s.get('bytes-out', 0)),
+                    'service': s.get('service', 'pppoe'),
+                }
+                for s in raw_sessions
+            ]
+
         with RouterClient.from_router(self.router) as client:
             sessions = client.run_command('/ppp/active/print')
         return [
@@ -111,6 +142,9 @@ class MikroTikService:
         comment: str = '',
     ) -> bool:
         """Create a PPPoE secret (user) on the router."""
+        if self.is_rest:
+            return self.pppoe.create_user(username, password, profile, comment)
+
         with RouterClient.from_router(self.router) as client:
             client.run_command(
                 '/ppp/secret/add',
@@ -150,15 +184,12 @@ class MikroTikService:
         return True
 
     def disable_user(self, username: str) -> bool:
-        """Disable a PPPoE user (blocks login without deleting the account)."""
         return self.update_pppoe_user(username, disabled=True)
 
     def enable_user(self, username: str) -> bool:
-        """Re-enable a previously disabled PPPoE user."""
         return self.update_pppoe_user(username, disabled=False)
 
     def disconnect_session(self, username: str) -> bool:
-        """Forcefully terminate an active PPPoE session for the given username."""
         try:
             with RouterClient.from_router(self.router) as client:
                 active = client.run_command('/ppp/active/print')
@@ -168,31 +199,24 @@ class MikroTikService:
                         logger.info("Disconnected session for '%s' on %s", username, self.router.name)
                         return True
             return False
-        except RouterCommandError:
+        except (RouterCommandError, Exception) as exc:
+            logger.warning("Failed to disconnect session for '%s': %s", username, exc)
             return False
 
-    # ─── Profile / Queue Sync ─────────────────────────────────────────────────
-
     def sync_profiles(self) -> list[str]:
-        """
-        Read all PPPoE profiles from the router.
-        Returns a list of profile names.
-        """
         with RouterClient.from_router(self.router) as client:
             profiles = client.run_command('/ppp/profile/print')
         return [p.get('name', '') for p in profiles if p.get('name')]
 
     def sync_active_sessions_to_db(self) -> int:
-        """
-        Fetch active sessions and upsert them into the UserSession model.
-        Returns count of sessions synced.
-        """
         from apps.network.models import UserSession
         from django.utils import timezone as tz
 
         sessions = self.get_active_sessions()
         synced = 0
         for s in sessions:
+            if not s.get('username'):
+                continue
             UserSession.objects.update_or_create(
                 tenant=self.router.tenant,
                 router=self.router,
@@ -207,8 +231,8 @@ class MikroTikService:
                 }
             )
             synced += 1
-        # Remove stale sessions no longer active
-        active_usernames = {s['username'] for s in sessions}
+
+        active_usernames = {s['username'] for s in sessions if s.get('username')}
         UserSession.objects.filter(
             tenant=self.router.tenant,
             router=self.router,

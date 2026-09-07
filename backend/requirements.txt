@@ -19,3 +19,5 @@ uritemplate==4.2.0
 # Networking & Utilities
 requests==2.34.2
 python-dotenv==1.2.3
+cryptography>=42.0.0
+

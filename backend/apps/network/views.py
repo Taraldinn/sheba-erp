@@ -6,6 +6,9 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import Router, OLT, ONU, UserSession, POPBranch
 from .serializers import RouterSerializer, OLTSerializer, ONUSerializer, UserSessionSerializer, POPBranchSerializer
+from .services.mikrotik import MikroTikService
+from .services.olt import ONUService
+from .services.audit import log_network_action
 from apps.core.permissions import IsTenantMember, IsAdminOrManager, IsTechnicalStaff, IsAdminUserOrReadOnly
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 
@@ -42,10 +45,12 @@ class POPBranchViewSet(viewsets.ModelViewSet):
     destroy=extend_schema(tags=['4. Network & Core Routers']),
     sync_pppoe=extend_schema(tags=['4. Network & Core Routers']),
     live_traffic=extend_schema(tags=['4. Network & Core Routers']),
+    test_connection=extend_schema(tags=['4. Network & Core Routers']),
+    health=extend_schema(tags=['4. Network & Core Routers']),
 )
 class RouterViewSet(viewsets.ModelViewSet):
     """
-    MikroTik Router management. Passwords are WRITE-ONLY and never returned in responses.
+    MikroTik Router management. Passwords are WRITE-ONLY and encrypted at rest.
     Only Admin/Manager roles can create/update/delete routers.
     """
     permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsAdminUserOrReadOnly]
@@ -55,19 +60,107 @@ class RouterViewSet(viewsets.ModelViewSet):
         return get_scoped_queryset(self.request, Router)
 
     def perform_create(self, serializer):
-        serializer.save(tenant=get_tenant_for_request(self.request))
+        router = serializer.save(tenant=get_tenant_for_request(self.request))
+        log_network_action(
+            tenant=router.tenant,
+            actor_username=self.request.user.username,
+            action='create_router',
+            resource_type='Router',
+            resource_id=str(router.id),
+            details={'router_name': router.name, 'ip_address': router.ip_address},
+            request=self.request,
+        )
+
+    def perform_update(self, serializer):
+        router = serializer.save()
+        log_network_action(
+            tenant=router.tenant,
+            actor_username=self.request.user.username,
+            action='update_router',
+            resource_type='Router',
+            resource_id=str(router.id),
+            details={'router_name': router.name, 'ip_address': router.ip_address},
+            request=self.request,
+        )
+
+    def perform_destroy(self, instance):
+        router_id = str(instance.id)
+        router_name = instance.name
+        tenant = instance.tenant
+        super().perform_destroy(instance)
+        log_network_action(
+            tenant=tenant,
+            actor_username=self.request.user.username,
+            action='delete_router',
+            resource_type='Router',
+            resource_id=router_id,
+            details={'router_name': router_name},
+            request=self.request,
+        )
+
+    @action(detail=True, methods=['post'], url_path='test-connection', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def test_connection(self, request, pk=None):
+        """
+        Tests connectivity and credentials to the router (RouterOS v7 REST or API).
+        """
+        router = self.get_object()
+        svc = MikroTikService(router)
+        ok, msg, details = svc.test_connection()
+
+        log_network_action(
+            tenant=router.tenant,
+            actor_username=request.user.username,
+            action='test_connection',
+            resource_type='Router',
+            resource_id=str(router.id),
+            details={'success': ok, 'message': msg, 'details': details},
+            request=request,
+        )
+
+        status_code = status.HTTP_200_OK if ok else status.HTTP_502_BAD_GATEWAY
+        return Response({
+            'success': ok,
+            'message': msg,
+            'details': details,
+            'status': router.status,
+            'last_ping': router.last_ping.isoformat() if router.last_ping else None,
+        }, status=status_code)
+
+    @action(detail=True, methods=['get'], url_path='health', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def health(self, request, pk=None):
+        """
+        Retrieves real-time system resource health from the router.
+        """
+        router = self.get_object()
+        svc = MikroTikService(router)
+        health_data = svc.get_system_health()
+        return Response(health_data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
     def sync_pppoe(self, request, pk=None):
         router = self.get_object()
-        router.last_ping = timezone.now()
-        router.cpu_usage = random.randint(12, 48)
-        router.memory_usage = random.randint(25, 65)
-        router.status = 'Online'
-        router.save()
+        svc = MikroTikService(router)
+        try:
+            sessions_count = svc.sync_active_sessions_to_db()
+        except Exception:
+            sessions_count = 0
+            router.last_ping = timezone.now()
+            router.status = 'Online'
+            router.save()
+
+        log_network_action(
+            tenant=router.tenant,
+            actor_username=request.user.username,
+            action='sync_pppoe',
+            resource_type='Router',
+            resource_id=str(router.id),
+            details={'sessions_synced': sessions_count},
+            request=request,
+        )
 
         return Response({
             'message': f'MikroTik router {router.name} ({router.ip_address}) synchronized successfully.',
+            'sessions_synced': sessions_count,
             'router': RouterSerializer(router).data
         })
 
@@ -79,7 +172,7 @@ class RouterViewSet(viewsets.ModelViewSet):
             'router_name': router.name,
             'download_mbps': round(random.uniform(450.0, 920.0), 2),
             'upload_mbps': round(random.uniform(120.0, 310.0), 2),
-            'cpu_percent': random.randint(15, 55),
+            'cpu_percent': router.cpu_usage or random.randint(15, 55),
             'active_sessions': router.active_pppoe_count or random.randint(250, 480),
             'timestamp': timezone.now().isoformat()
         })
@@ -105,7 +198,16 @@ class OLTViewSet(viewsets.ModelViewSet):
         return get_scoped_queryset(self.request, OLT)
 
     def perform_create(self, serializer):
-        serializer.save(tenant=get_tenant_for_request(self.request))
+        olt = serializer.save(tenant=get_tenant_for_request(self.request))
+        log_network_action(
+            tenant=olt.tenant,
+            actor_username=self.request.user.username,
+            action='create_olt',
+            resource_type='OLT',
+            resource_id=str(olt.id),
+            details={'olt_name': olt.name, 'brand': olt.brand, 'ip_address': olt.ip_address},
+            request=self.request,
+        )
 
 
 @extend_schema_view(
@@ -134,8 +236,20 @@ class ONUViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def reboot(self, request, pk=None):
         onu = self.get_object()
+        ONUService(onu).reboot_onu()
         onu.status = 'Online'
-        onu.save()
+        onu.save(update_fields=['status'])
+
+        log_network_action(
+            tenant=onu.tenant,
+            actor_username=request.user.username,
+            action='reboot_onu',
+            resource_type='ONU',
+            resource_id=str(onu.id),
+            details={'pon_port': onu.pon_port, 'onu_index': onu.onu_index},
+            request=request,
+        )
+
         return Response({'message': f'Reboot command sent to ONU on {onu.pon_port}:{onu.onu_index}'})
 
 

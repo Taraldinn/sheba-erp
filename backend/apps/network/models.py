@@ -2,6 +2,8 @@ import uuid
 from django.db import models
 from django.utils import timezone
 from apps.core.models import Tenant
+from apps.core.fields import EncryptedCharField
+from .validators import validate_router_host, validate_port
 
 
 class OLTBrand(models.TextChoices):
@@ -35,20 +37,44 @@ class POPBranch(models.Model):
 
 
 class Router(models.Model):
+    class ProtocolChoices(models.TextChoices):
+        REST = 'REST', 'RouterOS REST API (HTTPS)'
+        API = 'API', 'RouterOS Binary API (Port 8728)'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='routers')
     name = models.CharField(max_length=150)
     ip_address = models.GenericIPAddressField()
-    api_port = models.PositiveIntegerField(default=8728)
+    hostname = models.CharField(max_length=255, blank=True, default='', help_text="Router hostname / FQDN")
+    
+    # Protocols and Ports
+    api_protocol = models.CharField(
+        max_length=20, choices=ProtocolChoices.choices, default=ProtocolChoices.REST,
+        help_text="Protocol used for automated device management"
+    )
+    https_port = models.PositiveIntegerField(default=443, help_text="RouterOS HTTPS REST API port")
+    api_port = models.PositiveIntegerField(default=8728, help_text="Legacy RouterOS binary API port")
     api_ssl = models.BooleanField(default=False)
-    username = models.CharField(max_length=100, default='admin')
-    password = models.CharField(max_length=255, blank=True, default='')
     winbox_port = models.PositiveIntegerField(default=8291)
+    ssl_verify = models.BooleanField(default=False, help_text="Verify SSL certificate on HTTPS connection")
+
+    # Connection and retry policy
+    connection_timeout = models.PositiveIntegerField(default=10, help_text="Connection timeout in seconds")
+    retry_count = models.PositiveIntegerField(default=2, help_text="Number of retry attempts on network error")
+
+    # Authentication (Encrypted at rest)
+    username = models.CharField(max_length=100, default='admin')
+    password = EncryptedCharField(max_length=500, blank=True, default='')
+
+    # Device Metadata & Telemetry
     location = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, default='Online', choices=[('Online', 'Online'), ('Offline', 'Offline'), ('Error', 'Error')])
+    routeros_version = models.CharField(max_length=50, blank=True, default='', help_text="RouterOS Version (e.g. 7.14.3)")
     cpu_usage = models.PositiveIntegerField(default=0, help_text="CPU load %")
     memory_usage = models.PositiveIntegerField(default=0, help_text="Memory load %")
+    disk_usage = models.PositiveIntegerField(default=0, help_text="Disk usage %")
+    uptime = models.CharField(max_length=50, blank=True, default='')
     active_pppoe_count = models.PositiveIntegerField(default=0)
     total_customers_count = models.PositiveIntegerField(default=0)
     last_ping = models.DateTimeField(null=True, blank=True)
@@ -56,8 +82,24 @@ class Router(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def clean(self):
+        super().clean()
+        if self.ip_address:
+            validate_router_host(self.ip_address)
+        if self.hostname:
+            validate_router_host(self.hostname)
+        if self.https_port:
+            validate_port(self.https_port)
+        if self.api_port:
+            validate_port(self.api_port)
+
+    @property
+    def effective_host(self) -> str:
+        """Returns the hostname if present, otherwise the IP address."""
+        return self.hostname.strip() if self.hostname else self.ip_address
+
     def __str__(self):
-        return f"{self.name} ({self.ip_address})"
+        return f"{self.name} ({self.effective_host})"
 
 
 class OLT(models.Model):
@@ -66,17 +108,26 @@ class OLT(models.Model):
     name = models.CharField(max_length=150)
     brand = models.CharField(max_length=50, choices=OLTBrand.choices, default=OLTBrand.VSOL)
     ip_address = models.GenericIPAddressField()
-    snmp_community = models.CharField(max_length=100, default='public')
+    snmp_community = EncryptedCharField(max_length=500, default='public')
     snmp_port = models.PositiveIntegerField(default=161)
     telnet_port = models.PositiveIntegerField(default=23)
     telnet_user = models.CharField(max_length=100, blank=True)
-    telnet_password = models.CharField(max_length=255, blank=True)
+    telnet_password = EncryptedCharField(max_length=500, blank=True, default='')
     pon_ports_count = models.PositiveIntegerField(default=8)
     total_onus = models.PositiveIntegerField(default=0)
     online_onus = models.PositiveIntegerField(default=0)
     status = models.CharField(max_length=20, default='Online', choices=[('Online', 'Online'), ('Offline', 'Offline')])
     last_sync = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        super().clean()
+        if self.ip_address:
+            validate_router_host(self.ip_address)
+        if self.snmp_port:
+            validate_port(self.snmp_port)
+        if self.telnet_port:
+            validate_port(self.telnet_port)
 
     def __str__(self):
         return f"{self.name} [{self.get_brand_display()}] ({self.ip_address})"

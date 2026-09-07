@@ -1,19 +1,35 @@
 """
-MikroTik service layer (Plan Phase G / Phase 13).
-
-Package structure:
-  client.py   — RouterClient: low-level connection wrapper
-  service.py  — MikroTikService: business operations
-  sync.py     — Full router sync (PPPoE users, profiles, sessions)
-  sessions.py — Active session management
-  profiles.py — Bandwidth profile / queue management
-  users.py    — PPPoE user CRUD
-
-Views call MikroTikService.
-MikroTikService calls RouterClient.
-Frontend NEVER talks to MikroTik directly.
+MikroTik Service Layer — Sheba ISP ERP.
+Supports RouterOS v7 HTTPS REST API and legacy binary API.
 """
-from .client import RouterClient
+from .client import (
+    MikroTikRESTClient,
+    RouterClient,
+    MikroTikClientError,
+    MikroTikConnectionError,
+    MikroTikTimeoutError,
+    MikroTikAuthError,
+    MikroTikResponseError,
+)
 from .service import MikroTikService
+from .system import MikroTikSystemService
+from .interfaces import MikroTikInterfaceService
+from .sessions import MikroTikSessionService
+from .pppoe import MikroTikPPPoEService
+from .traffic import MikroTikTrafficService
 
-__all__ = ['RouterClient', 'MikroTikService']
+__all__ = [
+    'MikroTikRESTClient',
+    'RouterClient',
+    'MikroTikClientError',
+    'MikroTikConnectionError',
+    'MikroTikTimeoutError',
+    'MikroTikAuthError',
+    'MikroTikResponseError',
+    'MikroTikService',
+    'MikroTikSystemService',
+    'MikroTikInterfaceService',
+    'MikroTikSessionService',
+    'MikroTikPPPoEService',
+    'MikroTikTrafficService',
+]
