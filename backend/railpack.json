@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "python",
+  "packages": {
+    "python": "3.13"
+  },
+  "buildAptPackages": [
+    "libpq-dev",
+    "gcc",
+    "python3-dev"
+  ],
+  "steps": {
+    "build": {
+      "commands": [
+        "...",
+        "python manage.py collectstatic --noinput"
+      ]
+    }
+  },
+  "deploy": {
+    "aptPackages": [
+      "libpq5",
+      "curl"
+    ],
+    "variables": {
+      "PORT": "8000",
+      "PYTHONUNBUFFERED": "1",
+      "LANG": "en_US.UTF-8",
+      "LC_ALL": "en_US.UTF-8"
+    },
+    "startCommand": "python manage.py migrate --noinput && gunicorn sheba_core.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers ${WEB_CONCURRENCY:-3} --timeout 120 --access-logfile - --error-logfile -"
+  },
+  "exclude": [
+    "venv",
+    ".venv",
+    "*.sqlite3",
+    "db.sqlite3",
+    ".git",
+    "backups",
+    "staticfiles",
+    "__pycache__",
+    "*.pyc"
+  ]
+}

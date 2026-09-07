@@ -255,18 +255,33 @@ class ResellerLedgerEntry(models.Model):
 @receiver(post_save, sender=StaffProfile)
 def sync_staff_profile_to_membership(sender, instance, created, **kwargs):
     """
-    Ensure StaffMembership stays synchronized with legacy StaffProfile during Stage 2.
+    Ensure StaffMembership stays synchronized with legacy StaffProfile.
     """
     if instance.tenant and instance.user:
         role_obj = None
         try:
-            role_obj, _ = Role.objects.get_or_create(
-                tenant=instance.tenant,
-                name=instance.role,
-                defaults={'description': f'Auto-synced role for {instance.role}'}
-            )
+            from apps.authentication.services.rbac import seed_default_roles_for_tenant
+            if not instance.tenant.roles.filter(permissions__isnull=False).exists():
+                seed_default_roles_for_tenant(instance.tenant)
+            role_obj = instance.tenant.roles.filter(name=instance.role).first()
+            if not role_obj:
+                role_obj, _ = Role.objects.get_or_create(
+                    tenant=instance.tenant,
+                    name=instance.role,
+                    defaults={'description': f'Auto-synced role for {instance.role}'}
+                )
         except Exception:
             pass
+
+        # Determine scope
+        if instance.role in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+            scope = StaffMembership.Scope.GLOBAL
+        elif instance.role in [UserRole.LINE_MAN, UserRole.TECHNICIAN]:
+            scope = StaffMembership.Scope.ASSIGNED
+        elif instance.role in [UserRole.RESELLER, UserRole.RESELLER_L1, UserRole.RESELLER_L2]:
+            scope = StaffMembership.Scope.SELF
+        else:
+            scope = StaffMembership.Scope.TENANT
 
         membership, m_created = StaffMembership.objects.get_or_create(
             user=instance.user,
@@ -274,7 +289,7 @@ def sync_staff_profile_to_membership(sender, instance, created, **kwargs):
             defaults={
                 'role': role_obj,
                 'is_active': instance.is_active,
-                'scope': StaffMembership.Scope.GLOBAL if instance.role in [UserRole.ADMIN, UserRole.SUPER_ADMIN] else StaffMembership.Scope.TENANT,
+                'scope': scope,
             }
         )
         if not m_created:
@@ -287,4 +302,5 @@ def sync_staff_profile_to_membership(sender, instance, created, **kwargs):
                 updated_fields.append('role')
             if updated_fields:
                 membership.save(update_fields=updated_fields)
+
 
