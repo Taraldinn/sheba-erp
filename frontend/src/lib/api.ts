@@ -1014,6 +1014,14 @@ export class ApiClient {
     return await res.json();
   }
 
+  static async getSaaSTenantTelemetry(tenantId: string) {
+    const res = await fetch(`${API_BASE}/saas/tenants/${tenantId}/telemetry/`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch ISP operational telemetry');
+    return await res.json();
+  }
+
   static async getSaaSDomains() {
     try {
       const res = await fetch(`${API_BASE}/saas/domains/`, { headers: this.getHeaders() });

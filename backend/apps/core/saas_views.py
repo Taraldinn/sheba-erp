@@ -21,7 +21,7 @@ from .models import (
 from .permissions import IsCentralAdmin
 from apps.authentication.models import StaffProfile, UserRole
 from apps.customers.models import Customer
-from apps.network.models import Router, ONU
+from apps.network.models import POPBranch, Router, OLT, ONU
 from apps.billing.models import Recharge, Package, Invoice
 from apps.support.models import Ticket
 
@@ -30,7 +30,17 @@ from apps.support.models import Ticket
 
 class SaaSTenantSerializer(serializers.ModelSerializer):
     subscriber_count = serializers.SerializerMethodField()
+    active_subscribers_count = serializers.SerializerMethodField()
+    expired_subscribers_count = serializers.SerializerMethodField()
     router_count = serializers.SerializerMethodField()
+    online_router_count = serializers.SerializerMethodField()
+    pop_count = serializers.SerializerMethodField()
+    active_pop_count = serializers.SerializerMethodField()
+    olt_count = serializers.SerializerMethodField()
+    onu_count = serializers.SerializerMethodField()
+    staff_count = serializers.SerializerMethodField()
+    package_count = serializers.SerializerMethodField()
+    monthly_billing_volume = serializers.SerializerMethodField()
     primary_domain = serializers.SerializerMethodField()
     domains_count = serializers.SerializerMethodField()
     admin_username = serializers.SerializerMethodField()
@@ -42,7 +52,12 @@ class SaaSTenantSerializer(serializers.ModelSerializer):
             'address', 'is_active', 'plan', 'max_subscribers', 'max_routers',
             'subscription_status', 'subscription_expires_at', 'notes',
             'created_at', 'updated_at',
-            'subscriber_count', 'router_count', 'primary_domain', 'domains_count', 'admin_username'
+            'subscriber_count', 'active_subscribers_count', 'expired_subscribers_count',
+            'router_count', 'online_router_count',
+            'pop_count', 'active_pop_count',
+            'olt_count', 'onu_count',
+            'staff_count', 'package_count', 'monthly_billing_volume',
+            'primary_domain', 'domains_count', 'admin_username'
         ]
         read_only_fields = ('created_at', 'updated_at')
 
@@ -52,11 +67,72 @@ class SaaSTenantSerializer(serializers.ModelSerializer):
         except Exception:
             return 0
 
+    def get_active_subscribers_count(self, obj):
+        try:
+            return Customer.objects.filter(tenant=obj, status='Active').count()
+        except Exception:
+            return 0
+
+    def get_expired_subscribers_count(self, obj):
+        try:
+            return Customer.objects.filter(tenant=obj, status='Expired').count()
+        except Exception:
+            return 0
+
     def get_router_count(self, obj):
         try:
             return Router.objects.filter(tenant=obj).count()
         except Exception:
             return 0
+
+    def get_online_router_count(self, obj):
+        try:
+            return Router.objects.filter(tenant=obj, status='Online').count()
+        except Exception:
+            return 0
+
+    def get_pop_count(self, obj):
+        try:
+            return POPBranch.objects.filter(tenant=obj).count()
+        except Exception:
+            return 0
+
+    def get_active_pop_count(self, obj):
+        try:
+            return POPBranch.objects.filter(tenant=obj, status='Active').count()
+        except Exception:
+            return 0
+
+    def get_olt_count(self, obj):
+        try:
+            return OLT.objects.filter(tenant=obj).count()
+        except Exception:
+            return 0
+
+    def get_onu_count(self, obj):
+        try:
+            return ONU.objects.filter(tenant=obj).count()
+        except Exception:
+            return 0
+
+    def get_staff_count(self, obj):
+        try:
+            return StaffProfile.objects.filter(tenant=obj).count()
+        except Exception:
+            return 0
+
+    def get_package_count(self, obj):
+        try:
+            return Package.objects.filter(tenant=obj).count()
+        except Exception:
+            return 0
+
+    def get_monthly_billing_volume(self, obj):
+        try:
+            res = Customer.objects.filter(tenant=obj).aggregate(total=Sum('monthly_bill'))
+            return float(res['total'] or 0)
+        except Exception:
+            return 0.0
 
     def get_primary_domain(self, obj):
         try:
@@ -190,6 +266,13 @@ class SaaSOverviewView(views.APIView):
         total_routers = Router.objects.count()
         online_routers = Router.objects.filter(status='Online').count()
 
+        total_pops = POPBranch.objects.count()
+        active_pops = POPBranch.objects.filter(status='Active').count()
+        total_olts = OLT.objects.count()
+        total_onus = ONU.objects.count()
+        online_onus = ONU.objects.filter(status='Online').count()
+        total_staff = StaffProfile.objects.count()
+
         total_packages = SaaSPackage.objects.count()
         active_packages = SaaSPackage.objects.filter(is_active=True).count()
         total_backups = DatabaseBackup.objects.count()
@@ -226,6 +309,12 @@ class SaaSOverviewView(views.APIView):
                 'active_subscribers': active_subscribers,
                 'total_routers': total_routers,
                 'online_routers': online_routers,
+                'total_pops': total_pops,
+                'active_pops': active_pops,
+                'total_olts': total_olts,
+                'total_onus': total_onus,
+                'online_onus': online_onus,
+                'total_staff': total_staff,
                 'total_packages': total_packages,
                 'active_packages': active_packages,
                 'total_backups': total_backups,
@@ -400,6 +489,161 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
             'token': token.key,
             'role': staff.role,
             'redirect_url': '/',
+        })
+
+    @action(detail=True, methods=['get'], url_path='telemetry')
+    def telemetry(self, request, pk=None):
+        """
+        Detailed operational ISP telemetry for the central control plane.
+        Aggregates onboarded subscribers, POP branches, routers, optical plant, and staff.
+        """
+        tenant = self.get_object()
+
+        # 1. Subscribers
+        subs_qs = Customer.objects.filter(tenant=tenant)
+        total_subscribers = subs_qs.count()
+        active_subscribers = subs_qs.filter(status='Active').count()
+        expired_subscribers = subs_qs.filter(status='Expired').count()
+        suspended_subscribers = subs_qs.filter(status='Suspended').count()
+        left_subscribers = subs_qs.filter(status='Left').count()
+        monthly_billing_volume = float(subs_qs.aggregate(total=Sum('monthly_bill'))['total'] or 0)
+        total_due_amount = float(subs_qs.aggregate(total=Sum('due_amount'))['total'] or 0)
+
+        conn_pppoe = subs_qs.filter(connection_type='PPPoE').count()
+        conn_static = subs_qs.filter(connection_type='Static_IP').count()
+        conn_dhcp = subs_qs.filter(connection_type='DHCP').count()
+
+        # 2. POP Branches
+        pops = []
+        for pop in POPBranch.objects.filter(tenant=tenant).order_by('name'):
+            pops.append({
+                'id': str(pop.id),
+                'name': pop.name,
+                'code': pop.code or '',
+                'location': pop.location or '',
+                'in_charge': pop.in_charge or '',
+                'contact': pop.contact or '',
+                'total_capacity': pop.total_capacity,
+                'power_backup': pop.power_backup or '',
+                'status': pop.status,
+            })
+
+        # 3. Core Routers & Gateways
+        routers = []
+        for rtr in Router.objects.filter(tenant=tenant).order_by('name'):
+            routers.append({
+                'id': str(rtr.id),
+                'name': rtr.name,
+                'ip_address': rtr.ip_address,
+                'hostname': rtr.hostname or '',
+                'api_protocol': rtr.api_protocol,
+                'status': rtr.status,
+                'cpu_usage': rtr.cpu_usage,
+                'memory_usage': rtr.memory_usage,
+                'uptime': rtr.uptime or '',
+                'active_pppoe_count': rtr.active_pppoe_count,
+                'routeros_version': rtr.routeros_version or '',
+            })
+
+        # 4. Optical Network (OLTs & ONUs)
+        olts = []
+        for olt in OLT.objects.filter(tenant=tenant).order_by('name'):
+            olts.append({
+                'id': str(olt.id),
+                'name': olt.name,
+                'brand': olt.get_brand_display() if hasattr(olt, 'get_brand_display') else olt.brand,
+                'ip_address': olt.ip_address,
+                'pon_ports_count': olt.pon_ports_count,
+                'total_onus': olt.total_onus,
+                'online_onus': olt.online_onus,
+                'status': olt.status,
+            })
+        onu_count = ONU.objects.filter(tenant=tenant).count()
+        online_onu_count = ONU.objects.filter(tenant=tenant, status='Online').count()
+
+        # 5. Operations Staff & Team
+        staff_members = []
+        roles_summary = {}
+        for sp in StaffProfile.objects.filter(tenant=tenant).select_related('user'):
+            role_code = sp.role
+            roles_summary[role_code] = roles_summary.get(role_code, 0) + 1
+            staff_members.append({
+                'id': str(sp.id),
+                'username': sp.user.username if sp.user else 'N/A',
+                'full_name': f"{sp.user.first_name} {sp.user.last_name}".strip() if sp.user else (sp.user.username if sp.user else ''),
+                'role': sp.role,
+                'phone': sp.phone or '',
+                'email': sp.user.email if sp.user else '',
+            })
+
+        # 6. Retail Packages
+        packages = []
+        for pkg in Package.objects.filter(tenant=tenant).order_by('regular_price'):
+            packages.append({
+                'id': str(pkg.id),
+                'name': pkg.name,
+                'speed_desc': f"{pkg.speed_mbps} Mbps / {pkg.upload_speed_mbps} Mbps",
+                'price': float(pkg.regular_price),
+                'validity_days': pkg.validity_days,
+                'is_active': pkg.is_active,
+                'subscribers_count': subs_qs.filter(package=pkg).count(),
+            })
+
+        return Response({
+            'tenant': {
+                'id': str(tenant.id),
+                'name': tenant.name,
+                'slug': tenant.slug,
+                'domain': tenant.domain,
+                'plan': tenant.plan,
+                'max_subscribers': tenant.max_subscribers,
+                'max_routers': tenant.max_routers,
+                'is_active': tenant.is_active,
+                'subscription_status': tenant.subscription_status,
+                'contact_email': tenant.contact_email,
+                'contact_phone': tenant.contact_phone,
+                'address': tenant.address,
+                'created_at': tenant.created_at,
+            },
+            'subscribers': {
+                'total': total_subscribers,
+                'active': active_subscribers,
+                'expired': expired_subscribers,
+                'suspended': suspended_subscribers,
+                'left': left_subscribers,
+                'monthly_billing_volume': monthly_billing_volume,
+                'total_due_amount': total_due_amount,
+                'connection_types': {
+                    'pppoe': conn_pppoe,
+                    'static': conn_static,
+                    'dhcp': conn_dhcp,
+                },
+            },
+            'pops': {
+                'total': len(pops),
+                'active': sum(1 for p in pops if p['status'] == 'Active'),
+                'branches': pops,
+            },
+            'routers': {
+                'total': len(routers),
+                'online': sum(1 for r in routers if r['status'] == 'Online'),
+                'devices': routers,
+            },
+            'optical': {
+                'olt_count': len(olts),
+                'onu_count': onu_count,
+                'online_onu_count': online_onu_count,
+                'olts': olts,
+            },
+            'staff': {
+                'total': len(staff_members),
+                'roles_summary': roles_summary,
+                'members': staff_members,
+            },
+            'packages': {
+                'total': len(packages),
+                'items': packages,
+            },
         })
 
 

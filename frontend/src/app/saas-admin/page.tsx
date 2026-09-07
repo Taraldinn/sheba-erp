@@ -38,6 +38,15 @@ import {
   FileText,
   AlertOctagon,
   FileJson,
+  Eye,
+  Network,
+  Wifi,
+  MapPin,
+  Cable,
+  Phone,
+  Mail,
+  BarChart3,
+  HelpCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +77,12 @@ export default function SaaSAdminPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [planFilter, setPlanFilter] = useState("ALL");
+
+  // ISP Telemetry Modal State
+  const [isTelemetryModalOpen, setIsTelemetryModalOpen] = useState(false);
+  const [loadingTelemetry, setLoadingTelemetry] = useState(false);
+  const [selectedTelemetry, setSelectedTelemetry] = useState<any>(null);
+  const [telemetryTab, setTelemetryTab] = useState<string>("overview");
 
   // Onboard Tenant Modal
   const [isTenantModalOpen, setIsTenantModalOpen] = useState(actionFromUrl === "onboard");
@@ -314,6 +329,22 @@ export default function SaaSAdminPage() {
     }
   };
 
+  const handleInspectTenant = async (tenantId: string) => {
+    setIsTelemetryModalOpen(true);
+    setLoadingTelemetry(true);
+    setTelemetryTab("overview");
+    setSelectedTelemetry(null);
+    try {
+      const data = await ApiClient.getSaaSTenantTelemetry(tenantId);
+      setSelectedTelemetry(data);
+    } catch (err: any) {
+      alert("Failed to load ISP operational telemetry: " + err.message);
+      setIsTelemetryModalOpen(false);
+    } finally {
+      setLoadingTelemetry(false);
+    }
+  };
+
   const kpis = overview?.kpis || {
     total_tenants: tenants.length,
     active_tenants: tenants.filter((t) => t.is_active).length,
@@ -321,9 +352,17 @@ export default function SaaSAdminPage() {
     pending_requests: requests.filter((r) => r.status === "pending").length,
     total_subscribers: 13,
     active_subscribers: 9,
+    total_routers: 3,
+    online_routers: 3,
+    total_pops: 6,
+    active_pops: 4,
+    total_olts: 5,
+    total_onus: 10,
+    online_onus: 8,
+    total_staff: 18,
     total_packages: packages.length,
     total_backups: backups.length,
-    platform_mrr: 45000,
+    platform_mrr: 50000,
   };
 
   const filteredTenants = tenants.filter((t) => {
@@ -347,13 +386,13 @@ export default function SaaSAdminPage() {
               <ShieldCheck className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
               CENTRAL SAAS OVERSEER
             </span>
-            <span className="text-xs text-slate-500 dark:text-muted-foreground font-medium">• Software Operations & Multi-Tenant Recovery</span>
+            <span className="text-xs text-slate-500 dark:text-muted-foreground font-medium">• ISP Operations & Multi-Tenant Telemetry</span>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-foreground">
             ShebaFi Global Control Plane
           </h1>
           <p className="text-xs text-slate-600 dark:text-muted-foreground mt-0.5 max-w-3xl">
-            Manage multi-tenant ISP organizations, onboarding requests, subscription packages, software licensing payments, and database disaster recovery.
+            Monitor and oversee multi-tenant ISP operations, onboarded subscriber lines, POP branches, core MikroTik routers, optical plants, and software recovery.
           </p>
         </div>
 
@@ -380,8 +419,8 @@ export default function SaaSAdminPage() {
         </div>
       </div>
 
-      {/* ── Global Platform Telemetry Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* ── Global Platform Telemetry Cards (6-Grid) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3.5">
         <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card/60 relative overflow-hidden shadow-xs">
           <div className="absolute top-0 left-0 right-0 h-1 bg-violet-500" />
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -400,25 +439,9 @@ export default function SaaSAdminPage() {
         </Card>
 
         <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card/60 relative overflow-hidden shadow-xs">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">PENDING REQUESTS</CardTitle>
-            <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <Inbox className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-amber-600 dark:text-amber-400">{kpis.pending_requests} Signups</div>
-            <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1 font-medium">
-              New tenant onboarding requests awaiting approval
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card/60 relative overflow-hidden shadow-xs">
           <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">HOSTED END-USERS</CardTitle>
+            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">HOSTED SUBSCRIBERS</CardTitle>
             <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <Users className="h-4 w-4" />
             </div>
@@ -426,7 +449,7 @@ export default function SaaSAdminPage() {
           <CardContent>
             <div className="text-2xl font-black text-slate-900 dark:text-foreground">{Number(kpis.total_subscribers || 0).toLocaleString()} Lines</div>
             <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1 font-medium">
-              <span className="text-emerald-700 dark:text-emerald-400 font-bold">{kpis.active_subscribers} Active</span> PPPoE across all ISPs
+              <span className="text-emerald-700 dark:text-emerald-400 font-bold">{kpis.active_subscribers} Active</span> PPPoE lines
             </p>
           </CardContent>
         </Card>
@@ -434,15 +457,31 @@ export default function SaaSAdminPage() {
         <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card/60 relative overflow-hidden shadow-xs">
           <div className="absolute top-0 left-0 right-0 h-1 bg-sky-500" />
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">SOFTWARE MRR</CardTitle>
+            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">CORE ROUTERS & NAS</CardTitle>
             <div className="h-8 w-8 rounded-lg bg-sky-100 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-              <DollarSign className="h-4 w-4" />
+              <Server className="h-4 w-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-slate-900 dark:text-foreground">৳{Number(kpis.platform_mrr || 0).toLocaleString()}</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-foreground">{kpis.total_routers || 0} Routers</div>
             <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1 font-medium">
-              Monthly recurring SaaS license revenue
+              <span className="text-emerald-700 dark:text-emerald-400 font-bold">{kpis.online_routers || 0} Online</span> gateways
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card/60 relative overflow-hidden shadow-xs">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">POP DISTRIBUTION</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+              <Network className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black text-slate-900 dark:text-foreground">{kpis.total_pops || 0} POPs</div>
+            <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1 font-medium">
+              <span className="text-emerald-700 dark:text-emerald-400 font-bold">{kpis.active_pops || 0} Active</span> POP nodes
             </p>
           </CardContent>
         </Card>
@@ -450,15 +489,31 @@ export default function SaaSAdminPage() {
         <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card/60 relative overflow-hidden shadow-xs">
           <div className="absolute top-0 left-0 right-0 h-1 bg-teal-500" />
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">DISASTER RECOVERY</CardTitle>
+            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">OPTICAL FTTH</CardTitle>
             <div className="h-8 w-8 rounded-lg bg-teal-100 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center">
-              <Database className="h-4 w-4" />
+              <Radio className="h-4 w-4" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-teal-700 dark:text-emerald-400">{kpis.total_backups} Backups</div>
+            <div className="text-2xl font-black text-slate-900 dark:text-foreground">{kpis.total_olts || 0} OLTs</div>
             <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1 font-medium">
-              Full DB snapshots & isolation exports ready
+              <span className="text-emerald-700 dark:text-emerald-400 font-bold">{kpis.online_onus || 0}</span> / {kpis.total_onus || 0} ONUs
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card/60 relative overflow-hidden shadow-xs">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground tracking-wider uppercase">SOFTWARE MRR</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <DollarSign className="h-4 w-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black text-slate-900 dark:text-foreground">৳{Number(kpis.platform_mrr || 0).toLocaleString()}</div>
+            <p className="text-xs text-slate-500 dark:text-muted-foreground mt-1 font-medium">
+              <span className="text-amber-700 dark:text-amber-400 font-bold">{kpis.pending_requests}</span> Signups pending
             </p>
           </CardContent>
         </Card>
@@ -498,9 +553,12 @@ export default function SaaSAdminPage() {
                   <tr>
                     <th className="p-3.5 text-slate-700 dark:text-slate-300">ISP Organization</th>
                     <th className="p-3.5 text-slate-700 dark:text-slate-300">Hostname / FQDN</th>
-                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Package Tier</th>
-                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Subscribers Quota</th>
-                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Routers Quota</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Plan Tier</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Onboarded Users</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">POP Branches</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Routers & NAS</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Optical FTTH</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Operations Team</th>
                     <th className="p-3.5 text-slate-700 dark:text-slate-300">Status</th>
                     <th className="p-3.5 text-right text-slate-700 dark:text-slate-300">Actions</th>
                   </tr>
@@ -520,11 +578,56 @@ export default function SaaSAdminPage() {
                           {t.plan}
                         </Badge>
                       </td>
-                      <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">
-                        {t.subscriber_count} / {t.max_subscribers || 2500}
+                      <td className="p-3.5">
+                        <div className="font-bold text-slate-900 dark:text-foreground">
+                          {t.subscriber_count} <span className="text-slate-400 dark:text-muted-foreground font-normal text-[11px]">/ {t.max_subscribers || 2500}</span>
+                        </div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+                            {t.active_subscribers_count || 0} Active
+                          </span>
+                          {(t.expired_subscribers_count || 0) > 0 && (
+                            <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
+                              {t.expired_subscribers_count} Exp
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">
-                        {t.router_count} / {t.max_routers || 10}
+                      <td className="p-3.5">
+                        <div className="font-bold text-slate-900 dark:text-foreground flex items-center gap-1">
+                          <Network className="h-3 w-3 text-indigo-500" />
+                          <span>{t.pop_count || 0} POPs</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-muted-foreground mt-0.5 font-medium">
+                          <span className="text-emerald-700 dark:text-emerald-400 font-bold">{t.active_pop_count || 0}</span> Active nodes
+                        </p>
+                      </td>
+                      <td className="p-3.5">
+                        <div className="font-bold text-slate-900 dark:text-foreground flex items-center gap-1">
+                          <Server className="h-3 w-3 text-sky-500" />
+                          <span>{t.router_count || 0} <span className="text-slate-400 dark:text-muted-foreground font-normal text-[11px]">/ {t.max_routers || 10}</span></span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-muted-foreground mt-0.5 font-medium">
+                          <span className="text-emerald-700 dark:text-emerald-400 font-bold">{t.online_router_count || 0}</span> Online
+                        </p>
+                      </td>
+                      <td className="p-3.5">
+                        <div className="font-bold text-slate-900 dark:text-foreground flex items-center gap-1">
+                          <Radio className="h-3 w-3 text-teal-500" />
+                          <span>{t.olt_count || 0} OLTs</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-muted-foreground mt-0.5 font-medium">
+                          {t.onu_count || 0} ONUs registered
+                        </p>
+                      </td>
+                      <td className="p-3.5">
+                        <div className="font-bold text-slate-900 dark:text-foreground flex items-center gap-1">
+                          <Users className="h-3 w-3 text-violet-500" />
+                          <span>{t.staff_count || 0} Staff</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-muted-foreground mt-0.5 font-medium">
+                          {t.package_count || 0} Retail Plans
+                        </p>
                       </td>
                       <td className="p-3.5">
                         <Badge
@@ -541,6 +644,15 @@ export default function SaaSAdminPage() {
                       </td>
                       <td className="p-3.5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleInspectTenant(t.id)}
+                            className="h-7 text-[11px] gap-1 border-violet-300 dark:border-violet-500/30 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-500/10 font-medium"
+                          >
+                            <Eye className="h-3 w-3 text-violet-600 dark:text-violet-400" />
+                            <span>Inspect</span>
+                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
@@ -1346,6 +1458,537 @@ export default function SaaSAdminPage() {
                 <Button type="submit" size="sm" className="bg-violet-600 hover:bg-violet-700 text-white">Create Tier</Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: ISP OPERATIONAL TELEMETRY & INFRASTRUCTURE INSPECTION ── */}
+      {isTelemetryModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white dark:bg-card border border-slate-200 dark:border-border rounded-2xl max-w-5xl w-full p-6 shadow-2xl space-y-5 my-auto max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-200 dark:border-border/60">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-violet-100 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center font-black">
+                  <Activity className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-foreground">
+                      {loadingTelemetry ? "Loading ISP Telemetry..." : selectedTelemetry?.tenant?.name || "ISP Operational Telemetry"}
+                    </h3>
+                    {selectedTelemetry?.tenant && (
+                      <Badge variant="outline" className="text-[10px] font-semibold border-slate-300 dark:border-border text-slate-700 dark:text-slate-200">
+                        {selectedTelemetry.tenant.plan} Plan
+                      </Badge>
+                    )}
+                    {selectedTelemetry?.tenant?.is_active !== undefined && (
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] gap-1 font-semibold ${
+                          selectedTelemetry.tenant.is_active
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+                            : "bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
+                        }`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${selectedTelemetry.tenant.is_active ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+                        {selectedTelemetry.tenant.is_active ? "Active Instance" : "Suspended"}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-muted-foreground mt-0.5 font-mono">
+                    slug: {selectedTelemetry?.tenant?.slug || "..."} • domain: {selectedTelemetry?.tenant?.domain || "..."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedTelemetry?.tenant?.id && (
+                  <Button
+                    size="sm"
+                    onClick={() => handleImpersonate(selectedTelemetry.tenant.id)}
+                    className="h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700 text-white font-medium shadow-xs"
+                  >
+                    <Key className="h-3.5 w-3.5" />
+                    <span>Launch Portal</span>
+                  </Button>
+                )}
+                <button
+                  onClick={() => setIsTelemetryModalOpen(false)}
+                  className="h-8 w-8 rounded-lg hover:bg-slate-100 dark:hover:bg-accent flex items-center justify-center text-slate-500 dark:text-muted-foreground hover:text-slate-900 dark:hover:text-foreground text-sm font-bold transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {loadingTelemetry ? (
+              <div className="py-16 flex flex-col items-center justify-center text-center space-y-3">
+                <RefreshCw className="h-8 w-8 text-violet-600 dark:text-violet-400 animate-spin" />
+                <p className="text-sm font-semibold text-slate-800 dark:text-foreground">Gathering live ISP operational telemetry...</p>
+                <p className="text-xs text-slate-500 dark:text-muted-foreground">Aggregating subscriber quotas, POP branches, MikroTik core gateways, optical OLTs, and staff.</p>
+              </div>
+            ) : selectedTelemetry ? (
+              <div className="space-y-4 overflow-y-auto pr-1 flex-1 text-xs">
+                {/* ── KPI Metric Bar ── */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-muted/40 border border-slate-200/90 dark:border-border">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 dark:text-muted-foreground">Onboarded Users</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-foreground mt-0.5">
+                      {selectedTelemetry.subscribers.total} <span className="text-[11px] font-normal text-slate-500 dark:text-muted-foreground">/ {selectedTelemetry.tenant.max_subscribers}</span>
+                    </p>
+                    <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold mt-0.5">
+                      {selectedTelemetry.subscribers.active} Active Lines
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-muted/40 border border-slate-200/90 dark:border-border">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 dark:text-muted-foreground">Monthly Billing</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-foreground mt-0.5">
+                      ৳{selectedTelemetry.subscribers.monthly_billing_volume.toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-muted-foreground mt-0.5">
+                      Due: ৳{selectedTelemetry.subscribers.total_due_amount.toLocaleString()}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-muted/40 border border-slate-200/90 dark:border-border">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 dark:text-muted-foreground">POP Branches</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-foreground mt-0.5">
+                      {selectedTelemetry.pops.total} Nodes
+                    </p>
+                    <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold mt-0.5">
+                      {selectedTelemetry.pops.active} Active POPs
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-muted/40 border border-slate-200/90 dark:border-border">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 dark:text-muted-foreground">Core Routers</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-foreground mt-0.5">
+                      {selectedTelemetry.routers.total} NAS
+                    </p>
+                    <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold mt-0.5">
+                      {selectedTelemetry.routers.online} Online
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-muted/40 border border-slate-200/90 dark:border-border">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 dark:text-muted-foreground">Optical Network</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-foreground mt-0.5">
+                      {selectedTelemetry.optical.olt_count} OLTs
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-muted-foreground mt-0.5">
+                      <span className="text-emerald-700 dark:text-emerald-400 font-bold">{selectedTelemetry.optical.online_onu_count}</span> / {selectedTelemetry.optical.onu_count} ONUs
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-muted/40 border border-slate-200/90 dark:border-border">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 dark:text-muted-foreground">Operations Team</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-foreground mt-0.5">
+                      {selectedTelemetry.staff.total} Staff
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-muted-foreground mt-0.5">
+                      {selectedTelemetry.packages.total} Retail Packages
+                    </p>
+                  </div>
+                </div>
+
+                {/* ── Sub-navigation Tabs ── */}
+                <div className="flex items-center gap-1.5 border-b border-slate-200 dark:border-border/60 pb-1">
+                  {[
+                    { key: "overview", label: "Overview & Subscribers", icon: Users },
+                    { key: "pops", label: `POP Branches (${selectedTelemetry.pops.total})`, icon: Network },
+                    { key: "routers", label: `Core Routers (${selectedTelemetry.routers.total})`, icon: Server },
+                    { key: "optical", label: `Optical FTTH (${selectedTelemetry.optical.olt_count})`, icon: Radio },
+                    { key: "staff", label: `Staff Team (${selectedTelemetry.staff.total})`, icon: ShieldCheck },
+                    { key: "packages", label: `Internet Packages (${selectedTelemetry.packages.total})`, icon: Layers },
+                  ].map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = telemetryTab === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => setTelemetryTab(tab.key)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                          isActive
+                            ? "bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-300 border border-violet-200 dark:border-violet-500/30"
+                            : "text-slate-600 dark:text-muted-foreground hover:bg-slate-100 dark:hover:bg-accent hover:text-slate-900 dark:hover:text-foreground"
+                        }`}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* ── Tab 1: Overview & Subscribers ── */}
+                {telemetryTab === "overview" && (
+                  <div className="space-y-4 pt-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Subscriber Status Breakdown */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-border bg-slate-50/50 dark:bg-card/50 space-y-3">
+                        <h4 className="font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+                          <Users className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                          Subscriber Status Breakdown
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
+                            <p className="text-[10px] font-bold text-emerald-800 dark:text-emerald-400 uppercase">Active Subscribers</p>
+                            <p className="text-xl font-black text-emerald-900 dark:text-emerald-300">{selectedTelemetry.subscribers.active}</p>
+                            <p className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-0.5">Online & transmitting</p>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
+                            <p className="text-[10px] font-bold text-amber-800 dark:text-amber-400 uppercase">Expired Subscribers</p>
+                            <p className="text-xl font-black text-amber-900 dark:text-amber-300">{selectedTelemetry.subscribers.expired}</p>
+                            <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5">Awaiting recharge</p>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20">
+                            <p className="text-[10px] font-bold text-rose-800 dark:text-rose-400 uppercase">Suspended / Locked</p>
+                            <p className="text-xl font-black text-rose-900 dark:text-rose-300">{selectedTelemetry.subscribers.suspended}</p>
+                            <p className="text-[10px] text-rose-700 dark:text-rose-400 mt-0.5">Administrative hold</p>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-muted/40 border border-slate-200 dark:border-border">
+                            <p className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase">Left / Terminated</p>
+                            <p className="text-xl font-black text-slate-900 dark:text-foreground">{selectedTelemetry.subscribers.left}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-muted-foreground mt-0.5">Service discontinued</p>
+                          </div>
+                        </div>
+
+                        {/* Quota Gauge */}
+                        <div className="pt-2 border-t border-slate-200 dark:border-border">
+                          <div className="flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            <span>Subscriber Quota Utilization</span>
+                            <span>{Math.round((selectedTelemetry.subscribers.total / (selectedTelemetry.tenant.max_subscribers || 2500)) * 100)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-200 dark:bg-muted rounded-full h-2 overflow-hidden">
+                            <div
+                              className="bg-violet-600 h-2 rounded-full transition-all"
+                              style={{ width: `${Math.min(100, Math.round((selectedTelemetry.subscribers.total / (selectedTelemetry.tenant.max_subscribers || 2500)) * 100))}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Connection Protocol & Financials */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-border bg-slate-50/50 dark:bg-card/50 space-y-3">
+                        <h4 className="font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+                          <Network className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                          Connection Protocols & Billing Health
+                        </h4>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-card border border-slate-200/80 dark:border-border">
+                            <span className="font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                              <Radio className="h-3.5 w-3.5 text-indigo-500" />
+                              PPPoE Authenticated
+                            </span>
+                            <span className="font-bold text-slate-900 dark:text-foreground font-mono">
+                              {selectedTelemetry.subscribers.connection_types.pppoe} Lines
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-card border border-slate-200/80 dark:border-border">
+                            <span className="font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                              <Server className="h-3.5 w-3.5 text-sky-500" />
+                              Static IP Lease
+                            </span>
+                            <span className="font-bold text-slate-900 dark:text-foreground font-mono">
+                              {selectedTelemetry.subscribers.connection_types.static} Lines
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-card border border-slate-200/80 dark:border-border">
+                            <span className="font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                              <Wifi className="h-3.5 w-3.5 text-teal-500" />
+                              DHCP / IPoE Access
+                            </span>
+                            <span className="font-bold text-slate-900 dark:text-foreground font-mono">
+                              {selectedTelemetry.subscribers.connection_types.dhcp} Lines
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-200 dark:border-border grid grid-cols-2 gap-2">
+                          <div className="p-2 rounded-lg bg-white dark:bg-card border border-slate-200/80 dark:border-border">
+                            <p className="text-[10px] text-slate-500 dark:text-muted-foreground uppercase font-semibold">Monthly ARPU / Volume</p>
+                            <p className="text-base font-black text-slate-900 dark:text-foreground mt-0.5">৳{selectedTelemetry.subscribers.monthly_billing_volume.toLocaleString()}</p>
+                          </div>
+                          <div className="p-2 rounded-lg bg-white dark:bg-card border border-slate-200/80 dark:border-border">
+                            <p className="text-[10px] text-slate-500 dark:text-muted-foreground uppercase font-semibold">Outstanding Due</p>
+                            <p className="text-base font-black text-amber-700 dark:text-amber-400 mt-0.5">৳{selectedTelemetry.subscribers.total_due_amount.toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Tab 2: POP Branches ── */}
+                {telemetryTab === "pops" && (
+                  <div className="space-y-3 pt-1">
+                    {selectedTelemetry.pops.branches.length === 0 ? (
+                      <div className="text-center py-10 text-slate-500 dark:text-muted-foreground">
+                        No POP distribution branches recorded for this ISP.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-border">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-100 dark:bg-muted/50 text-slate-700 dark:text-muted-foreground font-bold border-b border-slate-200 dark:border-border uppercase tracking-wider text-[10px]">
+                            <tr>
+                              <th className="p-3">POP Branch</th>
+                              <th className="p-3">Code</th>
+                              <th className="p-3">Location / Area</th>
+                              <th className="p-3">In-Charge & Contact</th>
+                              <th className="p-3">Port Capacity</th>
+                              <th className="p-3">Power Backup</th>
+                              <th className="p-3">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-border">
+                            {selectedTelemetry.pops.branches.map((pop: any) => (
+                              <tr key={pop.id} className="hover:bg-slate-50 dark:hover:bg-muted/30">
+                                <td className="p-3 font-bold text-slate-900 dark:text-foreground flex items-center gap-1.5">
+                                  <Network className="h-3.5 w-3.5 text-indigo-500" />
+                                  <span>{pop.name}</span>
+                                </td>
+                                <td className="p-3 font-mono text-indigo-600 dark:text-indigo-400 font-bold">{pop.code || "—"}</td>
+                                <td className="p-3 text-slate-700 dark:text-slate-300">{pop.location || "Central Hub"}</td>
+                                <td className="p-3">
+                                  <p className="font-semibold text-slate-900 dark:text-foreground">{pop.in_charge || "Branch Manager"}</p>
+                                  <p className="text-[11px] text-slate-500 dark:text-muted-foreground">{pop.contact || "—"}</p>
+                                </td>
+                                <td className="p-3 font-bold text-slate-900 dark:text-foreground">{pop.total_capacity} Subs</td>
+                                <td className="p-3 text-slate-600 dark:text-muted-foreground">{pop.power_backup || "UPS + Generator"}</td>
+                                <td className="p-3">
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[10px] font-semibold ${
+                                      pop.status === "Active"
+                                        ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+                                        : "bg-slate-100 text-slate-700 border-slate-300 dark:bg-muted dark:text-muted-foreground"
+                                    }`}
+                                  >
+                                    {pop.status}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Tab 3: Core Routers & NAS ── */}
+                {telemetryTab === "routers" && (
+                  <div className="space-y-3 pt-1">
+                    {selectedTelemetry.routers.devices.length === 0 ? (
+                      <div className="text-center py-10 text-slate-500 dark:text-muted-foreground">
+                        No MikroTik core routers connected for this ISP.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-border">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-100 dark:bg-muted/50 text-slate-700 dark:text-muted-foreground font-bold border-b border-slate-200 dark:border-border uppercase tracking-wider text-[10px]">
+                            <tr>
+                              <th className="p-3">Router Name</th>
+                              <th className="p-3">IP / Hostname</th>
+                              <th className="p-3">API Protocol</th>
+                              <th className="p-3">RouterOS Ver</th>
+                              <th className="p-3">CPU / Mem</th>
+                              <th className="p-3">Uptime</th>
+                              <th className="p-3">Active PPPoE</th>
+                              <th className="p-3">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-border">
+                            {selectedTelemetry.routers.devices.map((rtr: any) => (
+                              <tr key={rtr.id} className="hover:bg-slate-50 dark:hover:bg-muted/30">
+                                <td className="p-3 font-bold text-slate-900 dark:text-foreground flex items-center gap-1.5">
+                                  <Server className="h-3.5 w-3.5 text-sky-500" />
+                                  <span>{rtr.name}</span>
+                                </td>
+                                <td className="p-3 font-mono text-indigo-600 dark:text-indigo-400 font-bold">
+                                  {rtr.hostname || rtr.ip_address}
+                                </td>
+                                <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">
+                                  <Badge variant="outline" className="text-[10px]">{rtr.api_protocol}</Badge>
+                                </td>
+                                <td className="p-3 font-mono text-slate-600 dark:text-muted-foreground">{rtr.routeros_version || "v7.14"}</td>
+                                <td className="p-3 font-bold text-slate-900 dark:text-foreground">
+                                  {rtr.cpu_usage}% / {rtr.memory_usage}%
+                                </td>
+                                <td className="p-3 text-slate-600 dark:text-muted-foreground font-mono">{rtr.uptime || "14d 6h"}</td>
+                                <td className="p-3 font-bold text-slate-900 dark:text-foreground">{rtr.active_pppoe_count} Sessions</td>
+                                <td className="p-3">
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[10px] gap-1 font-semibold ${
+                                      rtr.status === "Online"
+                                        ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+                                        : "bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20"
+                                    }`}
+                                  >
+                                    <span className={`h-1.5 w-1.5 rounded-full ${rtr.status === "Online" ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+                                    {rtr.status}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Tab 4: Optical FTTH (OLTs & ONUs) ── */}
+                {telemetryTab === "optical" && (
+                  <div className="space-y-4 pt-1">
+                    <div className="flex items-center justify-between p-3.5 rounded-xl bg-teal-50/50 dark:bg-teal-500/10 border border-teal-200 dark:border-teal-500/20">
+                      <div>
+                        <h4 className="font-bold text-teal-900 dark:text-teal-300 flex items-center gap-2">
+                          <Radio className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                          Optical Fiber Plant Overview (PON / FTTH)
+                        </h4>
+                        <p className="text-[11px] text-teal-700 dark:text-teal-400 mt-0.5">
+                          Tracking GPON/EPON Optical Line Terminals (OLTs) and customer premise ONUs.
+                        </p>
+                      </div>
+                      <div className="text-right font-mono text-xs">
+                        <span className="font-bold text-teal-900 dark:text-teal-200">{selectedTelemetry.optical.online_onu_count} Online</span>
+                        <span className="text-teal-600 dark:text-teal-400"> / {selectedTelemetry.optical.onu_count} ONUs</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {selectedTelemetry.optical.olts.map((olt: any) => (
+                        <div key={olt.id} className="p-3.5 rounded-xl border border-slate-200 dark:border-border bg-slate-50/50 dark:bg-card/50 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-900 dark:text-foreground flex items-center gap-1.5">
+                              <Radio className="h-3.5 w-3.5 text-teal-500" />
+                              {olt.name}
+                            </span>
+                            <Badge variant="outline" className="text-[10px] font-semibold border-teal-300 text-teal-800 dark:border-teal-500/30 dark:text-teal-400">
+                              {olt.brand}
+                            </Badge>
+                          </div>
+                          <p className="font-mono text-[11px] text-slate-500 dark:text-muted-foreground">{olt.ip_address}</p>
+                          <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-border text-[11px]">
+                            <span className="text-slate-600 dark:text-muted-foreground">PON Ports: <strong>{olt.pon_ports_count}</strong></span>
+                            <span className="text-emerald-700 dark:text-emerald-400 font-bold">{olt.online_onus} / {olt.total_onus} ONUs Online</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Tab 5: Operations Staff & Roles ── */}
+                {telemetryTab === "staff" && (
+                  <div className="space-y-3 pt-1">
+                    <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-slate-50 dark:bg-muted/40 border border-slate-200 dark:border-border">
+                      <span className="font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase mr-1">Role Distribution:</span>
+                      {Object.entries(selectedTelemetry.staff.roles_summary || {}).map(([role, count]: any) => (
+                        <span key={role} className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white dark:bg-card border border-slate-200 dark:border-border text-slate-800 dark:text-slate-200">
+                          {role}: <strong className="text-indigo-600 dark:text-indigo-400">{count}</strong>
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-border">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100 dark:bg-muted/50 text-slate-700 dark:text-muted-foreground font-bold border-b border-slate-200 dark:border-border uppercase tracking-wider text-[10px]">
+                          <tr>
+                            <th className="p-3">Staff Name</th>
+                            <th className="p-3">Username</th>
+                            <th className="p-3">Operational Role</th>
+                            <th className="p-3">Contact Phone</th>
+                            <th className="p-3">Email</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-border">
+                          {selectedTelemetry.staff.members.map((staff: any) => (
+                            <tr key={staff.id} className="hover:bg-slate-50 dark:hover:bg-muted/30">
+                              <td className="p-3 font-bold text-slate-900 dark:text-foreground">{staff.full_name || staff.username}</td>
+                              <td className="p-3 font-mono text-indigo-600 dark:text-indigo-400">{staff.username}</td>
+                              <td className="p-3">
+                                <Badge variant="outline" className="text-[10px] font-semibold border-slate-300 dark:border-border">
+                                  {staff.role}
+                                </Badge>
+                              </td>
+                              <td className="p-3 text-slate-600 dark:text-muted-foreground">{staff.phone || "—"}</td>
+                              <td className="p-3 text-slate-600 dark:text-muted-foreground">{staff.email || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Tab 6: Retail Broadband Packages ── */}
+                {telemetryTab === "packages" && (
+                  <div className="space-y-3 pt-1">
+                    {selectedTelemetry.packages.items.length === 0 ? (
+                      <div className="text-center py-10 text-slate-500 dark:text-muted-foreground">
+                        No internet retail packages configured by this ISP.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-border">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-100 dark:bg-muted/50 text-slate-700 dark:text-muted-foreground font-bold border-b border-slate-200 dark:border-border uppercase tracking-wider text-[10px]">
+                            <tr>
+                              <th className="p-3">Package Name</th>
+                              <th className="p-3">Bandwidth Speed</th>
+                              <th className="p-3">Monthly Price</th>
+                              <th className="p-3">Validity</th>
+                              <th className="p-3">Subscribers Enrolled</th>
+                              <th className="p-3">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-border">
+                            {selectedTelemetry.packages.items.map((pkg: any) => (
+                              <tr key={pkg.id} className="hover:bg-slate-50 dark:hover:bg-muted/30">
+                                <td className="p-3 font-bold text-slate-900 dark:text-foreground flex items-center gap-1.5">
+                                  <Layers className="h-3.5 w-3.5 text-violet-500" />
+                                  <span>{pkg.name}</span>
+                                </td>
+                                <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">{pkg.speed_desc}</td>
+                                <td className="p-3 font-black text-slate-900 dark:text-foreground">৳{pkg.price.toLocaleString()}</td>
+                                <td className="p-3 text-slate-600 dark:text-muted-foreground">{pkg.validity_days} Days</td>
+                                <td className="p-3 font-bold text-emerald-700 dark:text-emerald-400">
+                                  {pkg.subscribers_count} Subscribers
+                                </td>
+                                <td className="p-3">
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[10px] font-semibold ${
+                                      pkg.is_active
+                                        ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
+                                        : "bg-slate-100 text-slate-700 border-slate-300"
+                                    }`}
+                                  >
+                                    {pkg.is_active ? "Active" : "Archived"}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-200 dark:border-border/60 flex items-center justify-between text-xs text-slate-500 dark:text-muted-foreground">
+              <span>ShebaFi Central SaaS Overseer • Read-Only Telemetry View</span>
+              <Button size="sm" variant="outline" onClick={() => setIsTelemetryModalOpen(false)}>
+                Close Telemetry
+              </Button>
+            </div>
           </div>
         </div>
       )}
