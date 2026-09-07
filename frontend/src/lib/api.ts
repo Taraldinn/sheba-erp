@@ -64,12 +64,12 @@ export class ApiClient {
     return mockKPIs;
   }
 
-  static async getDashboardAnalytics() {
+  static async getDashboardAnalytics(role: string = 'admin') {
     try {
-      const res = await fetch(`${API_BASE}/reports/dashboard/`, { headers: this.getHeaders() });
+      const res = await fetch(`${API_BASE}/reports/dashboard/?role=${role}`, { headers: this.getHeaders() });
       if (res.ok) return await res.json();
     } catch {}
-    return { kpis: mockKPIs, monthly_trend: [], traffic_distribution: [] };
+    return { kpis: mockKPIs, monthly_trend: [], traffic_distribution: [], role };
   }
 
   // ════════════════════════ CUSTOMERS (FULL CRUD) ════════════════════════
@@ -273,6 +273,29 @@ export class ApiClient {
       headers: this.getHeaders(),
     });
     return await res.json();
+  }
+
+  static async testRouterConnection(routerId: string) {
+    const res = await fetch(`${API_BASE}/routers/${routerId}/test-connection/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to connect to router');
+    }
+    return data;
+  }
+
+  static async getRouterHealth(routerId: string) {
+    const res = await fetch(`${API_BASE}/routers/${routerId}/health/`, {
+      headers: this.getHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to fetch router health');
+    }
+    return data;
   }
 
   static async getRouterLiveTraffic(routerId: string) {

@@ -106,24 +106,39 @@
 
 ---
 
-## ✅ PHASE G — MikroTik Service Layer
-- [x] `apps/network/services/mikrotik/` package created
-- [x] `RouterClient` — context manager, `RouterConnectionError`, `RouterCommandError`
-- [x] `MikroTikService`:
-  - [x] `test_connection()` — updates Router.status + last_ping
-  - [x] `get_system_health()` — updates cpu_usage, memory_usage
-  - [x] `get_active_sessions()` — structured PPPoE session list
-  - [x] `create_pppoe_user()`, `update_pppoe_user()`, `disable_user()`, `enable_user()`
-  - [x] `disconnect_session(username)`
-  - [x] `sync_profiles()`, `sync_active_sessions_to_db()`
-- [x] `sync_router_task()` upgraded to use `MikroTikService`
-
-### Plan Phase 14 — Credential Encryption (TODO)
-- [ ] `django-cryptography` added to `requirements.txt`
-- [ ] `EncryptedCharField` in `apps/core/fields.py`
-- [ ] `Router.password`, `OLT.telnet_password`, `OLT.snmp_community` → encrypted
+## ✅ PHASE N0 & N1 — Networking Foundation & MikroTik REST Connectivity
+- [x] Dedicated Network Service Layer structure created (`apps/network/services/` with `mikrotik/` and `olt/`)
+- [x] Modular service files: `client.py`, `system.py`, `interfaces.py`, `sessions.py`, `pppoe.py`, `traffic.py`
+- [x] OLT driver abstraction: `BaseOLTClient`, `OLTSystemService`, `ONUService`, `OpticalPowerService`
+- [x] Preserved existing `/api/v1/routers/`, `/api/v1/olts/`, `/api/v1/onus/`, `/api/v1/branches/`, `/api/v1/user-sessions/`
+- [x] `apps/network/urls.py` and `apps/network/permissions.py` implemented
+- [x] `sync_router_task(tenant_id, router_id)` in `apps/network/tasks.py` (strictly tenant-scoped)
+- [x] Credential Encryption at Rest:
+  - [x] `cryptography>=42.0.0` integrated
+  - [x] `apps/core/encryption.py` (Fernet symmetric key derived from SECRET_KEY)
+  - [x] `EncryptedCharField` in `apps/core/fields.py`
+  - [x] `Router.password`, `OLT.telnet_password`, `OLT.snmp_community` encrypted in DB (`enc:...`)
+- [x] SSRF Protection:
+  - [x] `apps/network/validators.py` prevents targeting cloud metadata (`169.254.169.254`), link-local, loopback, multicast
+  - [x] Applied to `Router` and `OLT` models and serializers
+- [x] RouterOS v7 REST Connectivity:
+  - [x] `MikroTikRESTClient` (HTTPS Basic Auth, timeouts, retries, SSL verify option)
+  - [x] `MikroTikSystemService` (`test_connection`, `get_system_resource`, `get_system_identity`, `get_router_version`, `get_uptime`, `get_cpu_usage`, `get_memory_usage`, `get_disk_usage`)
+  - [x] Router model enhanced with `hostname`, `routeros_version`, `api_protocol`, `https_port`, `connection_timeout`, `retry_count`, `disk_usage`, `uptime`, `ssl_verify`
+  - [x] Migration `0004_router_api_protocol_router_connection_timeout_and_more.py` applied
+- [x] REST API Endpoints:
+  - [x] `POST /api/v1/routers/{id}/test-connection/`
+  - [x] `GET /api/v1/routers/{id}/health/`
+  - [x] Preserved `POST /api/v1/routers/{id}/sync_pppoe/` and `GET /api/v1/routers/{id}/live_traffic/`
+- [x] Network Audit Logging:
+  - [x] `apps/network/services/audit.py` with automatic credential redaction
+- [x] Test Suite:
+  - [x] 10/10 network tests passing (`apps.network.tests`)
+  - [x] 22/22 tenancy tests passing (`apps.core.test_shared_db_tenancy`)
+  - [x] `manage.py check` → 0 issues
 
 ---
+
 
 ## 🟡 PHASE M — Performance + Observability + Hardening
 
@@ -168,17 +183,18 @@
 | **D** | Tenant Isolation Audit | ✅ Complete (35 tests) |
 | **E** | Billing + Ledger | ✅ Complete |
 | **F** | Payments + Reconciliation | 🟡 80% |
-| **G** | MikroTik Service Layer | ✅ Complete (credential encryption TODO) |
+| **G** | MikroTik v7 REST + OLT Service Layer + Credential Encryption | ✅ Complete (10/10 tests) |
 | **H** | Customer Portal API | 🔲 Not started |
 | **I** | CRM + Field Tasks + SMS | 🔲 Not started |
 | **J** | Corporate / Bandwidth | 🔲 Not started |
-| **K** | Reports Architecture | 🔲 Not started |
+| **K** | 10-Role Operational Dashboards & Reports API | ✅ Complete (Admin, Billing, Sales, Demo, Tech, Staff, L1 POP, L2 POP, Dist, Bandwidth) |
 | **L** | Control Plane Completion | 🔲 Not started |
 | **M** | Performance + Observability | 🟡 70% |
 
 ### Baseline verification
 ```bash
 python manage.py check                  # ✅ 0 issues
-python manage.py test apps.core.test_shared_db_tenancy
-python manage.py spectacular --validate
+python manage.py test apps.network.tests apps.core.test_shared_db_tenancy  # ✅ 32/32 tests pass
+npm run build                           # ✅ Next.js 16.3.4 Turbo clean compile
 ```
+

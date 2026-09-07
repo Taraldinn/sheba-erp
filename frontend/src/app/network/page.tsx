@@ -28,6 +28,7 @@ export default function NetworkPage() {
   const [selectedOlt, setSelectedOlt] = useState<string>("ALL");
   const [search, setSearch] = useState("");
   const [syncingRouterId, setSyncingRouterId] = useState<string | null>(null);
+  const [testingRouterId, setTestingRouterId] = useState<string | null>(null);
   const [rebootingOnuId, setRebootingOnuId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,29 +36,56 @@ export default function NetworkPage() {
   }, [selectedOlt, search]);
 
   async function loadNetworkData() {
-    const [r, o, on] = await Promise.all([
-      ApiClient.getRouters(),
-      ApiClient.getOLTs(),
-      ApiClient.getONUs({ olt: selectedOlt, search: search }),
-    ]);
-    setRouters(r);
-    setOlts(o);
-    setOnus(on);
+    try {
+      const [r, o, on] = await Promise.all([
+        ApiClient.getRouters(),
+        ApiClient.getOLTs(),
+        ApiClient.getONUs({ olt: selectedOlt, search: search }),
+      ]);
+      setRouters(r);
+      setOlts(o);
+      setOnus(on);
+    } catch (err) {
+      console.error("Failed to load network data:", err);
+    }
   }
 
   const handleSyncRouter = async (routerId: string) => {
     setSyncingRouterId(routerId);
-    setTimeout(() => {
+    try {
+      await ApiClient.syncRouter(routerId);
+      await loadNetworkData();
+    } catch (e) {
+      console.error("Router sync failed:", e);
+    } finally {
       setSyncingRouterId(null);
-    }, 1200);
+    }
+  };
+
+  const handleTestRouter = async (routerId: string) => {
+    setTestingRouterId(routerId);
+    try {
+      await ApiClient.testRouterConnection(routerId);
+      await loadNetworkData();
+    } catch (e) {
+      console.error("Router test failed:", e);
+    } finally {
+      setTestingRouterId(null);
+    }
   };
 
   const handleRebootOnu = async (onuId: string) => {
     setRebootingOnuId(onuId);
-    setTimeout(() => {
+    try {
+      await ApiClient.rebootONU(onuId);
+      await loadNetworkData();
+    } catch (e) {
+      console.error("ONU reboot failed:", e);
+    } finally {
       setRebootingOnuId(null);
-    }, 1500);
+    }
   };
+
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -93,23 +121,42 @@ export default function NetworkPage() {
             <Card key={router.id} className="border-border bg-card/60">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <Badge variant="success" className="gap-1 text-[10px]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <Badge
+                    variant={router.status === "Online" ? "default" : router.status === "Error" ? "destructive" : "secondary"}
+                    className="gap-1 text-[10px]"
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        router.status === "Online"
+                          ? "bg-emerald-400 animate-pulse"
+                          : router.status === "Error"
+                          ? "bg-red-400"
+                          : "bg-amber-400"
+                      }`}
+                    ></span>
                     {router.status}
                   </Badge>
-                  <span className="text-[10px] text-muted-foreground font-mono">Port {router.api_port}</span>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {router.api_protocol === "API" ? "API :8728" : "v7 REST :443"}
+                  </span>
                 </div>
-                <CardTitle className="text-base font-bold text-foreground mt-2">{router.name}</CardTitle>
+                <CardTitle className="text-base font-bold text-foreground mt-2 flex items-center justify-between">
+                  <span>{router.name}</span>
+                  {router.routeros_version && (
+                    <span className="text-[11px] font-normal text-muted-foreground">v{router.routeros_version}</span>
+                  )}
+                </CardTitle>
                 <CardDescription className="text-xs text-muted-foreground font-mono">
-                  {router.ip_address} • {router.location}
+                  {router.hostname || router.ip_address} • {router.location}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {/* CPU & RAM Bar */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-[11px] text-muted-foreground font-medium">
-                    <span>CPU Load:</span>
-                    <span className="text-foreground font-mono">{router.cpu_usage || router.cpu_load || 0}%</span>
+                    <span>CPU: {router.cpu_usage || router.cpu_load || 0}%</span>
+                    <span>RAM: {router.memory_usage || 0}%</span>
+                    <span>Disk: {router.disk_usage || 0}%</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                     <div
@@ -124,16 +171,29 @@ export default function NetworkPage() {
                   <span className="font-bold text-foreground">{router.active_pppoe_count || router.active_sessions || 0} lines</span>
                 </div>
 
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="w-full text-xs gap-1.5 h-8 mt-2"
-                  disabled={syncingRouterId === router.id}
-                  onClick={() => handleSyncRouter(router.id)}
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${syncingRouterId === router.id ? 'animate-spin' : ''}`} />
-                  {syncingRouterId === router.id ? 'Syncing...' : 'Sync Queues & Users'}
-                </Button>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="w-full text-xs gap-1 h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                    disabled={testingRouterId === router.id}
+                    onClick={() => handleTestRouter(router.id)}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${testingRouterId === router.id ? 'animate-spin' : ''}`} />
+                    {testingRouterId === router.id ? 'Testing...' : 'Test REST'}
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="w-full text-xs gap-1 h-8"
+                    disabled={syncingRouterId === router.id}
+                    onClick={() => handleSyncRouter(router.id)}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${syncingRouterId === router.id ? 'animate-spin' : ''}`} />
+                    {syncingRouterId === router.id ? 'Syncing...' : 'Sync Queues'}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}

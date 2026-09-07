@@ -75,25 +75,36 @@ export interface Router {
   id: string;
   name: string;
   ip_address: string;
-  api_port: number;
+  hostname?: string;
+  api_protocol?: 'REST' | 'API';
+  https_port?: number;
+  api_port?: number;
   winbox_port?: number;
   username?: string;
-  location: string;
+  password?: string;
+  location?: string;
+  description?: string;
   model?: string;
   active_sessions?: number;
   cpu_load?: number;
   ros_version?: string;
+  routeros_version?: string;
   free_memory_mb?: number;
   uptime?: string;
-  status: 'Online' | 'Offline';
+  status: 'Online' | 'Offline' | 'Error';
   is_active?: boolean;
+  ssl_verify?: boolean;
+  connection_timeout?: number;
+  retry_count?: number;
 
   cpu_usage?: number;
   memory_usage?: number;
+  disk_usage?: number;
   active_pppoe_count?: number;
   total_customers_count?: number;
   last_ping?: string | null;
 }
+
 
 export interface OLT {
   id: string;
@@ -179,6 +190,18 @@ export interface Ticket {
   }>;
 }
 
+export type DashboardRole =
+  | 'admin'
+  | 'billing'
+  | 'sales'
+  | 'demo'
+  | 'technician'
+  | 'staff'
+  | 'reseller_l1'
+  | 'reseller_l2'
+  | 'distributor'
+  | 'bandwidth_reseller';
+
 export interface DashboardKPIs {
   total_customers: number;
   active_customers: number;
@@ -193,8 +216,10 @@ export interface DashboardKPIs {
   total_onus: number;
   online_onus: number;
   warning_onus: number;
+  critical_onus?: number;
   open_tickets: number;
 }
+
 
 export interface Notification {
   id: string;
