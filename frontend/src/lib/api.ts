@@ -12,12 +12,13 @@ export class ApiClient {
     this.token = token;
     if (typeof window !== 'undefined') {
       localStorage.setItem('sheba_token', token);
+      localStorage.setItem('sheba_auth_token', token);
     }
   }
 
   static getToken(): string {
     if (!this.token && typeof window !== 'undefined') {
-      this.token = localStorage.getItem('sheba_token') || DEFAULT_SEED_TOKEN;
+      this.token = localStorage.getItem('sheba_token') || localStorage.getItem('sheba_auth_token') || DEFAULT_SEED_TOKEN;
     }
     return this.token || DEFAULT_SEED_TOKEN;
   }
@@ -1022,6 +1023,31 @@ export class ApiClient {
     return await res.json();
   }
 
+  static async updateSaaSTenant(tenantId: string, payload: any) {
+    const res = await fetch(`${API_BASE}/saas/tenants/${tenantId}/`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to update tenant configuration');
+    }
+    return await res.json();
+  }
+
+  static async deleteSaaSTenant(tenantId: string) {
+    const res = await fetch(`${API_BASE}/saas/tenants/${tenantId}/`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to delete tenant');
+    }
+    return true;
+  }
+
   static async getSaaSDomains() {
     try {
       const res = await fetch(`${API_BASE}/saas/domains/`, { headers: this.getHeaders() });
@@ -1154,6 +1180,43 @@ export class ApiClient {
     return [];
   }
 
+  static async createSaaSSubscription(payload: { tenant: string; package?: string; billing_cycle?: string; price?: number; auto_renew?: boolean }) {
+    const res = await fetch(`${API_BASE}/saas/subscriptions/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to create subscription');
+    }
+    return await res.json();
+  }
+
+  static async renewSaaSSubscription(subscriptionId: string) {
+    const res = await fetch(`${API_BASE}/saas/subscriptions/${subscriptionId}/renew/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to renew subscription');
+    }
+    return await res.json();
+  }
+
+  static async cancelSaaSSubscription(subscriptionId: string) {
+    const res = await fetch(`${API_BASE}/saas/subscriptions/${subscriptionId}/cancel/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to cancel subscription');
+    }
+    return await res.json();
+  }
+
   static async getSaaSPayments() {
     try {
       const res = await fetch(`${API_BASE}/saas/payments/`, { headers: this.getHeaders() });
@@ -1163,6 +1226,19 @@ export class ApiClient {
       }
     } catch {}
     return [];
+  }
+
+  static async createSaaSPayment(payload: { tenant: string; subscription?: string; amount: number; payment_method?: string; trx_id?: string; notes?: string }) {
+    const res = await fetch(`${API_BASE}/saas/payments/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to record payment');
+    }
+    return await res.json();
   }
 
   // ── Disaster Recovery & Database Backups ──
@@ -1203,6 +1279,18 @@ export class ApiClient {
     return await res.json();
   }
 
+  static async restoreSaaSBackup(backupId: string) {
+    const res = await fetch(`${API_BASE}/saas/backups/${backupId}/restore/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Database restoration failed');
+    }
+    return await res.json();
+  }
+
   // ── Software User Management ──
   static async getSaaSUserDirectory() {
     try {
@@ -1210,6 +1298,90 @@ export class ApiClient {
       if (res.ok) return await res.json();
     } catch {}
     return { platform_admins: [], tenant_owners: [], total_users: 0 };
+  }
+
+  static async createSaaSUser(payload: { username: string; password: string; email?: string; phone?: string; role: string; tenant_id?: string }) {
+    const res = await fetch(`${API_BASE}/saas/users/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to create software user');
+    }
+    return await res.json();
+  }
+
+  static async toggleSaaSUserStatus(userId: number | string) {
+    const res = await fetch(`${API_BASE}/saas/users/${userId}/toggle-status/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to toggle user status');
+    }
+    return await res.json();
+  }
+
+  static async resetSaaSUserPassword(userId: number | string, password?: string) {
+    const res = await fetch(`${API_BASE}/saas/users/${userId}/reset-password/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ password }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to reset password');
+    }
+    return await res.json();
+  }
+
+  static async deleteSaaSUser(userId: number | string) {
+    const res = await fetch(`${API_BASE}/saas/users/${userId}/`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to delete user');
+    }
+    return true;
+  }
+
+  // ── Global Platform Audit Stream ──
+  static async getSaaSAuditLogs() {
+    try {
+      const res = await fetch(`${API_BASE}/saas/audit-logs/`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data.results || data;
+      }
+    } catch {}
+    return [];
+  }
+
+  // ── Central Control Plane Authentication ──
+  static async saasLogin(username: string, password: string) {
+    const res = await fetch(`${API_BASE}/saas/auth/login/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Login failed');
+    }
+    const data = await res.json();
+    if (data.token) this.setToken(data.token);
+    return data;
+  }
+
+  static async getSaaSMe() {
+    const res = await fetch(`${API_BASE}/saas/auth/me/`, { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Session invalid');
+    return await res.json();
   }
 }
 

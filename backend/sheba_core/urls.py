@@ -8,7 +8,8 @@ from apps.core.saas_views import (
     SaaSOverviewView, SaaSTenantViewSet, SaaSDomainViewSet,
     SaaSTenantRequestViewSet,
     SaaSPackageViewSet, SaaSSubscriptionViewSet, SaaSPaymentViewSet,
-    SaaSBackupViewSet, SaaSUserDirectoryView
+    SaaSBackupViewSet, SaaSUserViewSet, SaaSAuditLogViewSet,
+    SaaSLoginView, SaaSMeView
 )
 from apps.authentication.views import LoginView, CurrentUserView, StaffProfileViewSet
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView
@@ -33,6 +34,8 @@ router.register(r'saas/packages', SaaSPackageViewSet, basename='saas-package')
 router.register(r'saas/subscriptions', SaaSSubscriptionViewSet, basename='saas-subscription')
 router.register(r'saas/payments', SaaSPaymentViewSet, basename='saas-payment')
 router.register(r'saas/backups', SaaSBackupViewSet, basename='saas-backup')
+router.register(r'saas/users', SaaSUserViewSet, basename='saas-user')
+router.register(r'saas/audit-logs', SaaSAuditLogViewSet, basename='saas-audit-log')
 router.register(r'settings', CompanySettingViewSet, basename='setting')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 router.register(r'staff', StaffProfileViewSet, basename='staff')
@@ -87,7 +90,8 @@ urlpatterns = [
     
     # SaaS Control Plane Endpoints (admin.shebafi.xyz)
     path('api/v1/saas/overview/', SaaSOverviewView.as_view(), name='saas-overview'),
-    path('api/v1/saas/users/', SaaSUserDirectoryView.as_view(), name='saas-users'),
+    path('api/v1/saas/auth/login/', SaaSLoginView.as_view(), name='saas-auth-login'),
+    path('api/v1/saas/auth/me/', SaaSMeView.as_view(), name='saas-auth-me'),
     
     # Master REST API
     path('api/v1/', include(router.urls)),

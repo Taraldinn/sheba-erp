@@ -1,3 +1,5 @@
+import uuid
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.conf import settings
 from django.utils.deprecation import MiddlewareMixin
@@ -43,17 +45,26 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         request.tenant = None
         request.is_control_plane = False
 
-        # 1. Central Control Plane identification
+        # 1. SaaS Control Plane API paths — always bypass tenant resolution
+        if path.startswith('/api/v1/saas/'):
+            request.is_control_plane = True
+            return None
+
+        # 2. Central Control Plane domain identification
         control_domains = getattr(
             settings,
             'CONTROL_PLANE_DOMAINS',
-            ['admin.shebafi.com', 'admin.shebafi.xyz', 'control.shebafi.xyz', 'admin.localhost', 'saas.localhost']
+            [
+                'admin.shebafi.com', 'admin.shebafi.xyz', 'control.shebafi.xyz',
+                'admin.localhost', 'saas.localhost', 'admin.localhost.com',
+                'control.localhost.com', 'saas.localhost.com'
+            ]
         )
         if raw_host.startswith(self.CONTROL_PLANE_PREFIXES) or raw_host in control_domains:
             request.is_control_plane = True
             return None
 
-        # 2. Domain-based resolution (multi-stage)
+        # 3. Domain-based resolution (multi-stage)
         tenant = None
 
         # A. TenantDomain table — preferred (Plan Phase 4)
@@ -85,15 +96,18 @@ class TenantResolutionMiddleware(MiddlewareMixin):
             # X-Tenant-ID header convenience for dev/test only
             test_header = request.headers.get('X-Tenant-ID') or request.headers.get('X-Tenant-Key')
             if test_header:
-                tenant = (
-                    Tenant.objects.filter(slug__iexact=test_header).first()
-                    or Tenant.objects.filter(id=test_header).first()
-                )
+                tenant = Tenant.objects.filter(slug__iexact=test_header).first()
+                if not tenant:
+                    try:
+                        uuid.UUID(str(test_header))
+                        tenant = Tenant.objects.filter(id=test_header).first()
+                    except (ValueError, TypeError, AttributeError, ValidationError):
+                        tenant = None
             # Absolute fallback to first active tenant for automated tests
             if not tenant:
                 tenant = Tenant.objects.filter(is_active=True).first()
 
-        # 3. Tenant status check
+        # 4. Tenant status check
         if tenant:
             if not tenant.is_active:
                 if not any(path.startswith(p) for p in self.PUBLIC_PATHS):
@@ -104,7 +118,7 @@ class TenantResolutionMiddleware(MiddlewareMixin):
             request.tenant = tenant
             return None
 
-        # 4. Unknown domain — allow public paths, reject business APIs
+        # 5. Unknown domain — allow public paths, reject business APIs
         if any(path.startswith(p) for p in self.PUBLIC_PATHS):
             return None
 

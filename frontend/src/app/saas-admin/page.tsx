@@ -47,6 +47,10 @@ import {
   Mail,
   BarChart3,
   HelpCircle,
+  RotateCcw,
+  Edit3,
+  UserPlus,
+  History,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -127,6 +131,62 @@ export default function SaaSAdminPage() {
   const [backupName, setBackupName] = useState("");
   const [exportTenantId, setExportTenantId] = useState("");
   const [exportResult, setExportResult] = useState<any>(null);
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+  const [restoringBackup, setRestoringBackup] = useState(false);
+  const [selectedBackupForRestore, setSelectedBackupForRestore] = useState<any>(null);
+  const [restoreConfirmText, setRestoreConfirmText] = useState("");
+
+  // Software User Management Modal State
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [userFormData, setUserFormData] = useState({
+    username: "",
+    password: "",
+    email: "",
+    phone: "",
+    role: "TENANT_OWNER",
+    tenant_id: "",
+  });
+
+  // Subscription Modal State
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [creatingSubscription, setCreatingSubscription] = useState(false);
+  const [subscriptionFormData, setSubscriptionFormData] = useState({
+    tenant: "",
+    package: "",
+    billing_cycle: "monthly",
+    price: 15000,
+    auto_renew: true,
+  });
+
+  // Payment Recording Modal State
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [recordingPayment, setRecordingPayment] = useState(false);
+  const [paymentFormData, setPaymentFormData] = useState({
+    tenant: "",
+    subscription: "",
+    amount: 15000,
+    payment_method: "bKash",
+    trx_id: "",
+    notes: "Subscription license renewal payment",
+  });
+
+  // Edit Tenant Quotas Modal State
+  const [isEditTenantModalOpen, setIsEditTenantModalOpen] = useState(false);
+  const [updatingTenant, setUpdatingTenant] = useState(false);
+  const [editTenantFormData, setEditTenantFormData] = useState({
+    id: "",
+    name: "",
+    plan: "Growth",
+    max_subscribers: 2500,
+    max_routers: 10,
+    contact_phone: "",
+    contact_email: "",
+    notes: "",
+  });
+
+  // Audit Logs State
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   useEffect(() => {
     setActiveTab(tabFromUrl);
@@ -135,7 +195,7 @@ export default function SaaSAdminPage() {
   const loadAllData = async (isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
-      const [ov, tList, dList, rList, pList, sList, payList, bList, uDir] = await Promise.all([
+      const [ov, tList, dList, rList, pList, sList, payList, bList, uDir, aLogs] = await Promise.all([
         ApiClient.getSaaSOverview(),
         ApiClient.getSaaSTenants(),
         ApiClient.getSaaSDomains(),
@@ -145,6 +205,7 @@ export default function SaaSAdminPage() {
         ApiClient.getSaaSPayments(),
         ApiClient.getSaaSBackups(),
         ApiClient.getSaaSUserDirectory(),
+        ApiClient.getSaaSAuditLogs(),
       ]);
       setOverview(ov);
       setTenants(tList || []);
@@ -155,9 +216,16 @@ export default function SaaSAdminPage() {
       setPayments(payList || []);
       setBackups(bList || []);
       setUsersDir(uDir || { platform_admins: [], tenant_owners: [] });
-      if (tList?.length > 0 && !domainTenantId) {
-        setDomainTenantId(tList[0].id);
-        setExportTenantId(tList[0].id);
+      setAuditLogs(aLogs || []);
+      if (tList?.length > 0) {
+        if (!domainTenantId) setDomainTenantId(tList[0].id);
+        if (!exportTenantId) setExportTenantId(tList[0].id);
+        if (!userFormData.tenant_id) setUserFormData((prev) => ({ ...prev, tenant_id: tList[0].id }));
+        if (!subscriptionFormData.tenant) setSubscriptionFormData((prev) => ({ ...prev, tenant: tList[0].id }));
+        if (!paymentFormData.tenant) setPaymentFormData((prev) => ({ ...prev, tenant: tList[0].id }));
+      }
+      if (pList?.length > 0 && !subscriptionFormData.package) {
+        setSubscriptionFormData((prev) => ({ ...prev, package: pList[0].id, price: Number(pList[0].monthly_price) || 15000 }));
       }
     } catch (err) {
       console.error("Failed to load SaaS Control Plane data:", err);
@@ -342,6 +410,188 @@ export default function SaaSAdminPage() {
       setIsTelemetryModalOpen(false);
     } finally {
       setLoadingTelemetry(false);
+    }
+  };
+
+  // ── Software User Handlers ──
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreatingUser(true);
+    try {
+      await ApiClient.createSaaSUser(userFormData);
+      setIsUserModalOpen(false);
+      setUserFormData({
+        username: "",
+        password: "",
+        email: "",
+        phone: "",
+        role: "TENANT_OWNER",
+        tenant_id: tenants[0]?.id || "",
+      });
+      await loadAllData();
+      alert("Software user created successfully.");
+    } catch (err: any) {
+      alert("Failed to create user: " + err.message);
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
+  const handleToggleUserStatus = async (userId: number | string, username: string) => {
+    try {
+      const res = await ApiClient.toggleSaaSUserStatus(userId);
+      await loadAllData();
+      alert(res.message || `Status updated for ${username}`);
+    } catch (err: any) {
+      alert("Failed to toggle status: " + err.message);
+    }
+  };
+
+  const handleResetUserPassword = async (userId: number | string, username: string) => {
+    const customPass = prompt(`Enter new password for ${username} (leave blank to auto-generate):`);
+    if (customPass === null) return;
+    try {
+      const res = await ApiClient.resetSaaSUserPassword(userId, customPass.trim() || undefined);
+      alert(`Password for ${username} reset successfully.\nNew Password: ${res.new_password}`);
+    } catch (err: any) {
+      alert("Failed to reset password: " + err.message);
+    }
+  };
+
+  const handleDeleteUser = async (userId: number | string, username: string) => {
+    if (!confirm(`Are you sure you want to permanently delete user "${username}"?`)) return;
+    try {
+      await ApiClient.deleteSaaSUser(userId);
+      await loadAllData();
+      alert(`User "${username}" deleted.`);
+    } catch (err: any) {
+      alert("Failed to delete user: " + err.message);
+    }
+  };
+
+  // ── Subscription Handlers ──
+  const handleCreateSubscription = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreatingSubscription(true);
+    try {
+      await ApiClient.createSaaSSubscription(subscriptionFormData);
+      setIsSubscriptionModalOpen(false);
+      await loadAllData();
+      alert("Subscription contract successfully created.");
+    } catch (err: any) {
+      alert("Failed to create subscription: " + err.message);
+    } finally {
+      setCreatingSubscription(false);
+    }
+  };
+
+  const handleRenewSubscription = async (subId: string, tenantName: string) => {
+    if (!confirm(`Renew subscription for ${tenantName} by 1 billing cycle?`)) return;
+    try {
+      const res = await ApiClient.renewSaaSSubscription(subId);
+      await loadAllData();
+      alert(res.message || "Subscription renewed successfully.");
+    } catch (err: any) {
+      alert("Renewal failed: " + err.message);
+    }
+  };
+
+  const handleCancelSubscription = async (subId: string, tenantName: string) => {
+    if (!confirm(`Cancel software subscription for ${tenantName}?`)) return;
+    try {
+      const res = await ApiClient.cancelSaaSSubscription(subId);
+      await loadAllData();
+      alert(res.message || "Subscription cancelled.");
+    } catch (err: any) {
+      alert("Cancellation failed: " + err.message);
+    }
+  };
+
+  // ── Payment Handlers ──
+  const handleRecordPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecordingPayment(true);
+    try {
+      await ApiClient.createSaaSPayment(paymentFormData);
+      setIsPaymentModalOpen(false);
+      await loadAllData();
+      alert("Subscription payment recorded and verified.");
+    } catch (err: any) {
+      alert("Payment recording failed: " + err.message);
+    } finally {
+      setRecordingPayment(false);
+    }
+  };
+
+  // ── Disaster Recovery Restore Handler ──
+  const handleRestoreBackup = async () => {
+    if (restoreConfirmText !== "RESTORE") {
+      alert('Please type "RESTORE" to confirm database snapshot overwrite.');
+      return;
+    }
+    setRestoringBackup(true);
+    try {
+      const res = await ApiClient.restoreSaaSBackup(selectedBackupForRestore.id);
+      setIsRestoreModalOpen(false);
+      setRestoreConfirmText("");
+      await loadAllData();
+      alert(res.message || "Database successfully restored from snapshot.");
+    } catch (err: any) {
+      alert("Restore failed: " + err.message);
+    } finally {
+      setRestoringBackup(false);
+    }
+  };
+
+  // ── Tenant Edit & Delete Handlers ──
+  const handleOpenEditTenant = (tenant: any) => {
+    setEditTenantFormData({
+      id: tenant.id,
+      name: tenant.name,
+      plan: tenant.plan || "Growth",
+      max_subscribers: tenant.max_subscribers || 2500,
+      max_routers: tenant.max_routers || 10,
+      contact_phone: tenant.contact_phone || "",
+      contact_email: tenant.contact_email || "",
+      notes: tenant.notes || "",
+    });
+    setIsEditTenantModalOpen(true);
+  };
+
+  const handleSaveTenantQuotas = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpdatingTenant(true);
+    try {
+      await ApiClient.updateSaaSTenant(editTenantFormData.id, {
+        plan: editTenantFormData.plan,
+        max_subscribers: editTenantFormData.max_subscribers,
+        max_routers: editTenantFormData.max_routers,
+        contact_phone: editTenantFormData.contact_phone,
+        contact_email: editTenantFormData.contact_email,
+        notes: editTenantFormData.notes,
+      });
+      setIsEditTenantModalOpen(false);
+      await loadAllData();
+      alert("Tenant quotas and configuration updated.");
+    } catch (err: any) {
+      alert("Update failed: " + err.message);
+    } finally {
+      setUpdatingTenant(false);
+    }
+  };
+
+  const handleDeleteTenant = async (tenantId: string, tenantName: string) => {
+    const confirmation = prompt(`Type "${tenantName}" to confirm deletion of this ISP tenant instance and its isolated dataset:`);
+    if (confirmation !== tenantName) {
+      if (confirmation !== null) alert("Confirmation mismatch. Tenant deletion aborted.");
+      return;
+    }
+    try {
+      await ApiClient.deleteSaaSTenant(tenantId);
+      await loadAllData();
+      alert(`Tenant "${tenantName}" successfully deleted.`);
+    } catch (err: any) {
+      alert("Failed to delete tenant: " + err.message);
     }
   };
 
@@ -643,7 +893,7 @@ export default function SaaSAdminPage() {
                         </Badge>
                       </td>
                       <td className="p-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
                           <Button
                             size="sm"
                             variant="outline"
@@ -652,6 +902,15 @@ export default function SaaSAdminPage() {
                           >
                             <Eye className="h-3 w-3 text-violet-600 dark:text-violet-400" />
                             <span>Inspect</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenEditTenant(t)}
+                            className="h-7 text-[11px] gap-1 border-slate-300 dark:border-border text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-accent font-medium"
+                          >
+                            <Edit3 className="h-3 w-3 text-indigo-500" />
+                            <span>Quotas</span>
                           </Button>
                           <Button
                             size="sm"
@@ -669,6 +928,15 @@ export default function SaaSAdminPage() {
                           >
                             <Key className="h-3 w-3" />
                             <span>Launch Portal</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteTenant(t.id, t.name)}
+                            className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                            title="Delete Tenant Instance"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </td>
@@ -996,16 +1264,33 @@ export default function SaaSAdminPage() {
                             {new Date(b.created_at).toLocaleString()}
                           </td>
                           <td className="p-3.5 text-right">
-                            <a
-                              href={`http://localhost:8000/api/v1/saas/backups/${b.id}/download/`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-slate-300 dark:border-border text-slate-700 dark:text-foreground hover:bg-slate-100 dark:hover:bg-accent font-medium">
-                                <DownloadCloud className="h-3 w-3" />
-                                <span>Download</span>
-                              </Button>
-                            </a>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {b.backup_type === "full_database" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSelectedBackupForRestore(b);
+                                    setRestoreConfirmText("");
+                                    setIsRestoreModalOpen(true);
+                                  }}
+                                  className="h-7 text-xs gap-1 border-rose-300 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 font-medium"
+                                >
+                                  <RotateCcw className="h-3 w-3" />
+                                  <span>Restore</span>
+                                </Button>
+                              )}
+                              <a
+                                href={`http://localhost:8000/api/v1/saas/backups/${b.id}/download/`}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-slate-300 dark:border-border text-slate-700 dark:text-foreground hover:bg-slate-100 dark:hover:bg-accent font-medium">
+                                  <DownloadCloud className="h-3 w-3" />
+                                  <span>Download</span>
+                                </Button>
+                              </a>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -1021,14 +1306,24 @@ export default function SaaSAdminPage() {
       {/* ── MODULE 5: SOFTWARE USER & TENANT OWNER DIRECTORY ── */}
       {(activeTab === "users" || activeTab === "tenant-owners") && (
         <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
-          <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60">
-            <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
-              <Users className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-              Software User Management & Tenant Master Owners ({usersDir.total_users || 0})
-            </CardTitle>
-            <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
-              Directory of Central Platform Administrators and Tenant Managing Directors.
-            </CardDescription>
+          <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+                <Users className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                Software User Management & Tenant Master Owners ({usersDir.total_users || 0})
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
+                Directory of Central Platform Administrators and Tenant Managing Directors.
+              </CardDescription>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setIsUserModalOpen(true)}
+              className="bg-violet-600 hover:bg-violet-700 text-white text-xs gap-1.5 h-8 font-semibold shadow-xs"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              <span>Add Software User</span>
+            </Button>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -1041,6 +1336,7 @@ export default function SaaSAdminPage() {
                     <th className="p-3.5 text-slate-700 dark:text-slate-300">Platform Role</th>
                     <th className="p-3.5 text-slate-700 dark:text-slate-300">Last Login</th>
                     <th className="p-3.5 text-slate-700 dark:text-slate-300">Status</th>
+                    <th className="p-3.5 text-right text-slate-700 dark:text-slate-300">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-border">
@@ -1061,6 +1357,28 @@ export default function SaaSAdminPage() {
                         <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 font-bold">
                           Active
                         </Badge>
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleResetUserPassword(u.id, u.username)}
+                            className="h-7 text-[11px] gap-1 border-slate-300 dark:border-border text-slate-700 dark:text-foreground hover:bg-slate-100 dark:hover:bg-accent font-medium"
+                          >
+                            <Key className="h-3 w-3" />
+                            <span>Reset Pass</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleToggleUserStatus(u.id, u.username)}
+                            className="h-7 text-[11px] gap-1 border-slate-300 dark:border-border text-slate-700 dark:text-foreground hover:bg-slate-100 dark:hover:bg-accent font-medium"
+                          >
+                            <Power className="h-3 w-3" />
+                            <span>{u.is_active ? "Suspend" : "Activate"}</span>
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1088,6 +1406,37 @@ export default function SaaSAdminPage() {
                         >
                           {o.is_active ? "Active" : "Suspended"}
                         </Badge>
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleResetUserPassword(o.id, o.username)}
+                            className="h-7 text-[11px] gap-1 border-slate-300 dark:border-border text-slate-700 dark:text-foreground hover:bg-slate-100 dark:hover:bg-accent font-medium"
+                          >
+                            <Key className="h-3 w-3" />
+                            <span>Reset Pass</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleToggleUserStatus(o.id, o.username)}
+                            className="h-7 text-[11px] gap-1 border-slate-300 dark:border-border text-slate-700 dark:text-foreground hover:bg-slate-100 dark:hover:bg-accent font-medium"
+                          >
+                            <Power className="h-3 w-3" />
+                            <span>{o.is_active ? "Suspend" : "Activate"}</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteUser(o.id, o.username)}
+                            className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                            title="Delete User"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1163,14 +1512,24 @@ export default function SaaSAdminPage() {
       {/* ── MODULE 7: TENANT SUBSCRIPTIONS ── */}
       {activeTab === "subscriptions" && (
         <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
-          <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60">
-            <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-              Tenant Software Licenses & Active Subscriptions ({subscriptions.length})
-            </CardTitle>
-            <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
-              Software licensing agreements, subscription tiers, renewal terms, and recurring billing schedules.
-            </CardDescription>
+          <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                Tenant Software Licenses & Active Subscriptions ({subscriptions.length})
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
+                Software licensing agreements, subscription tiers, renewal terms, and recurring billing schedules.
+              </CardDescription>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setIsSubscriptionModalOpen(true)}
+              className="bg-violet-600 hover:bg-violet-700 text-white text-xs gap-1.5 h-8 font-semibold shadow-xs"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Create Subscription</span>
+            </Button>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -1184,12 +1543,13 @@ export default function SaaSAdminPage() {
                     <th className="p-3.5 text-slate-700 dark:text-slate-300">Starts At</th>
                     <th className="p-3.5 text-slate-700 dark:text-slate-300">Renews / Expires</th>
                     <th className="p-3.5 text-slate-700 dark:text-slate-300">License Status</th>
+                    <th className="p-3.5 text-right text-slate-700 dark:text-slate-300">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-border">
                   {subscriptions.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center p-8 text-slate-500 dark:text-muted-foreground font-medium">
+                      <td colSpan={8} className="text-center p-8 text-slate-500 dark:text-muted-foreground font-medium">
                         No subscription contracts logged yet.
                       </td>
                     </tr>
@@ -1199,9 +1559,9 @@ export default function SaaSAdminPage() {
                         <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">{s.tenant_name || "Active Tenant"}</td>
                         <td className="p-3.5 font-semibold text-violet-700 dark:text-violet-400">{s.package_name || "Growth Tier"}</td>
                         <td className="p-3.5 font-semibold capitalize text-slate-800 dark:text-foreground">{s.billing_cycle || "Monthly"}</td>
-                        <td className="p-3.5 font-black text-slate-900 dark:text-foreground">৳{(Number(s.amount) || 0).toLocaleString()}</td>
-                        <td className="p-3.5 font-mono text-[11px] text-slate-600 dark:text-muted-foreground">{s.starts_at ? new Date(s.starts_at).toLocaleDateString() : "—"}</td>
-                        <td className="p-3.5 font-mono text-[11px] text-slate-600 dark:text-muted-foreground">{s.expires_at ? new Date(s.expires_at).toLocaleDateString() : "—"}</td>
+                        <td className="p-3.5 font-black text-slate-900 dark:text-foreground">৳{(Number(s.amount || s.price || 0)).toLocaleString()}</td>
+                        <td className="p-3.5 font-mono text-[11px] text-slate-600 dark:text-muted-foreground">{s.starts_at || s.start_date ? new Date(s.starts_at || s.start_date).toLocaleDateString() : "—"}</td>
+                        <td className="p-3.5 font-mono text-[11px] text-slate-600 dark:text-muted-foreground">{s.expires_at || s.end_date ? new Date(s.expires_at || s.end_date).toLocaleDateString() : "—"}</td>
                         <td className="p-3.5">
                           <Badge
                             variant="outline"
@@ -1213,6 +1573,32 @@ export default function SaaSAdminPage() {
                           >
                             {s.status}
                           </Badge>
+                        </td>
+                        <td className="p-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {s.status === "active" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRenewSubscription(s.id, s.tenant_name)}
+                                  className="h-7 text-[11px] gap-1 border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 font-medium"
+                                >
+                                  <RotateCcw className="h-3 w-3" />
+                                  <span>Renew</span>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleCancelSubscription(s.id, s.tenant_name)}
+                                  className="h-7 text-[11px] gap-1 border-rose-300 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 font-medium"
+                                >
+                                  <X className="h-3 w-3" />
+                                  <span>Cancel</span>
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -1227,14 +1613,24 @@ export default function SaaSAdminPage() {
       {/* ── MODULE 8: SOFTWARE PAYMENT LEDGER ── */}
       {activeTab === "payments" && (
         <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
-          <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60">
-            <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
-              <Receipt className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              SaaS Software Payment Ledger & Revenue Transactions ({payments.length})
-            </CardTitle>
-            <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
-              Complete audit ledger of incoming SaaS platform subscription payments, gateway receipts, and bank wires.
-            </CardDescription>
+          <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                SaaS Software Payment Ledger & Revenue Transactions ({payments.length})
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
+                Complete audit ledger of incoming SaaS platform subscription payments, gateway receipts, and bank wires.
+              </CardDescription>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setIsPaymentModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5 h-8 font-semibold shadow-xs"
+            >
+              <DollarSign className="h-3.5 w-3.5" />
+              <span>Record Software Payment</span>
+            </Button>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -1259,22 +1655,99 @@ export default function SaaSAdminPage() {
                   ) : (
                     payments.map((p) => (
                       <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-muted/30 transition-colors">
-                        <td className="p-3.5 font-mono font-bold text-indigo-600 dark:text-indigo-400">{p.transaction_ref || p.id.slice(0, 8)}</td>
+                        <td className="p-3.5 font-mono font-bold text-indigo-600 dark:text-indigo-400">{p.trx_id || p.transaction_ref || p.id.slice(0, 8)}</td>
                         <td className="p-3.5 font-bold text-slate-900 dark:text-foreground">{p.tenant_name || "Sheba Broadband Network"}</td>
-                        <td className="p-3.5 font-semibold text-slate-800 dark:text-foreground capitalize">{p.payment_method || "Bank Wire"}</td>
+                        <td className="p-3.5 font-semibold text-slate-800 dark:text-foreground capitalize">{p.payment_method || "bKash"}</td>
                         <td className="p-3.5 font-black text-slate-900 dark:text-foreground">৳{(Number(p.amount) || 0).toLocaleString()}</td>
-                        <td className="p-3.5 font-mono text-[11px] text-slate-600 dark:text-muted-foreground">{new Date(p.created_at).toLocaleString()}</td>
+                        <td className="p-3.5 font-mono text-[11px] text-slate-600 dark:text-muted-foreground">{new Date(p.paid_at || p.created_at).toLocaleString()}</td>
                         <td className="p-3.5">
                           <Badge
                             variant="outline"
                             className={`text-[10px] uppercase font-bold ${
-                              p.status === "completed"
+                              (p.status || "").toLowerCase() === "completed"
                                 ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
                                 : "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
                             }`}
                           >
                             {p.status}
                           </Badge>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── MODULE 9: GLOBAL AUDIT STREAM ── */}
+      {activeTab === "audit" && (
+        <Card className="border border-slate-200/90 dark:border-border bg-white dark:bg-card shadow-xs">
+          <CardHeader className="pb-3 border-b border-slate-100 dark:border-border/60 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground flex items-center gap-2">
+                <History className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                Global Platform Audit Stream ({auditLogs.length})
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500 dark:text-muted-foreground">
+                Central immutable event log recording all tenant creations, package changes, database snapshots, and administrative operations.
+              </CardDescription>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => loadAllData(true)}
+              className="text-xs gap-1.5 h-8 border-slate-300 dark:border-border font-medium"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-indigo-500" : ""}`} />
+              Refresh Log
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-100 dark:bg-muted/50 text-slate-700 dark:text-muted-foreground font-bold border-b border-slate-200 dark:border-border text-[11px] uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Timestamp</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Actor</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Action</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Module</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Tenant Target</th>
+                    <th className="p-3.5 text-slate-700 dark:text-slate-300">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-border">
+                  {auditLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center p-8 text-slate-500 dark:text-muted-foreground font-medium">
+                        No audit events recorded yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    auditLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-muted/30 transition-colors">
+                        <td className="p-3.5 font-mono text-[11px] text-slate-600 dark:text-muted-foreground whitespace-nowrap">
+                          {new Date(log.timestamp).toLocaleString()}
+                        </td>
+                        <td className="p-3.5 font-bold text-slate-900 dark:text-foreground flex items-center gap-1.5">
+                          <ShieldCheck className="h-3.5 w-3.5 text-violet-500" />
+                          <span>{log.actor_username || "system"}</span>
+                        </td>
+                        <td className="p-3.5">
+                          <Badge variant="outline" className="text-[10px] uppercase font-bold border-slate-300 dark:border-border text-slate-800 dark:text-slate-200">
+                            {log.action}
+                          </Badge>
+                        </td>
+                        <td className="p-3.5 font-mono text-[11px] text-slate-600 dark:text-muted-foreground">
+                          {log.module}
+                        </td>
+                        <td className="p-3.5 font-semibold text-violet-700 dark:text-violet-400">
+                          {log.tenant_name || "Global Control Plane"}
+                        </td>
+                        <td className="p-3.5 font-mono text-[10px] text-slate-500 dark:text-muted-foreground max-w-md truncate">
+                          {typeof log.details === "object" ? JSON.stringify(log.details) : String(log.details || "—")}
                         </td>
                       </tr>
                     ))
@@ -2033,6 +2506,442 @@ export default function SaaSAdminPage() {
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsDomainModalOpen(false)}>Cancel</Button>
                 <Button type="submit" size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">Map Domain</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: CREATE SOFTWARE USER ── */}
+      {isUserModalOpen && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <UserPlus className="h-4 w-4 text-violet-500" />
+                Add Software User Account
+              </h3>
+              <button onClick={() => setIsUserModalOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-foreground block mb-1">User Role Type *</label>
+                <select
+                  value={userFormData.role}
+                  onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value })}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs text-foreground"
+                >
+                  <option value="TENANT_OWNER">Tenant Master Owner / Managing Director</option>
+                  <option value="PLATFORM_ADMIN">Central Platform Super Administrator</option>
+                </select>
+              </div>
+
+              {userFormData.role === "TENANT_OWNER" && (
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Assign to Tenant Organization *</label>
+                  <select
+                    value={userFormData.tenant_id}
+                    onChange={(e) => setUserFormData({ ...userFormData, tenant_id: e.target.value })}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs text-foreground"
+                    required
+                  >
+                    {tenants.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.slug})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Username *</label>
+                <Input
+                  required
+                  placeholder="e.g. fardin_director"
+                  value={userFormData.username}
+                  onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Initial Password *</label>
+                <Input
+                  type="password"
+                  required
+                  placeholder="Min 6 characters"
+                  value={userFormData.password}
+                  onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Email Address</label>
+                <Input
+                  type="email"
+                  placeholder="owner@ispdomain.com"
+                  value={userFormData.email}
+                  onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Contact Phone</label>
+                <Input
+                  placeholder="+880 1700-000000"
+                  value={userFormData.phone}
+                  onChange={(e) => setUserFormData({ ...userFormData, phone: e.target.value })}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsUserModalOpen(false)}>Cancel</Button>
+                <Button type="submit" size="sm" disabled={creatingUser} className="bg-violet-600 hover:bg-violet-700 text-white">
+                  {creatingUser ? "Creating Account..." : "Create User"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: CREATE SUBSCRIPTION CONTRACT ── */}
+      {isSubscriptionModalOpen && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-violet-500" />
+                Create Software License Subscription
+              </h3>
+              <button onClick={() => setIsSubscriptionModalOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <form onSubmit={handleCreateSubscription} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Tenant Organization *</label>
+                <select
+                  value={subscriptionFormData.tenant}
+                  onChange={(e) => setSubscriptionFormData({ ...subscriptionFormData, tenant: e.target.value })}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs text-foreground"
+                  required
+                >
+                  {tenants.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.slug})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">SaaS Package Tier *</label>
+                <select
+                  value={subscriptionFormData.package}
+                  onChange={(e) => {
+                    const pkgId = e.target.value;
+                    const selectedPkg = packages.find((p) => p.id === pkgId);
+                    const price = selectedPkg
+                      ? (subscriptionFormData.billing_cycle === "yearly" ? selectedPkg.yearly_price : selectedPkg.monthly_price)
+                      : 15000;
+                    setSubscriptionFormData({ ...subscriptionFormData, package: pkgId, price: Number(price) || 15000 });
+                  }}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs text-foreground"
+                >
+                  {packages.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} (৳{Number(p.monthly_price).toLocaleString()}/mo)</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Billing Interval</label>
+                  <select
+                    value={subscriptionFormData.billing_cycle}
+                    onChange={(e) => {
+                      const cycle = e.target.value;
+                      const selectedPkg = packages.find((p) => p.id === subscriptionFormData.package);
+                      const price = selectedPkg
+                        ? (cycle === "yearly" ? selectedPkg.yearly_price : selectedPkg.monthly_price)
+                        : (cycle === "yearly" ? 150000 : 15000);
+                      setSubscriptionFormData({ ...subscriptionFormData, billing_cycle: cycle, price: Number(price) });
+                    }}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs text-foreground"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly (Annual)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Contract Amount (৳)</label>
+                  <Input
+                    type="number"
+                    value={subscriptionFormData.price}
+                    onChange={(e) => setSubscriptionFormData({ ...subscriptionFormData, price: Number(e.target.value) })}
+                    className="h-9 text-xs"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="auto_renew"
+                  checked={subscriptionFormData.auto_renew}
+                  onChange={(e) => setSubscriptionFormData({ ...subscriptionFormData, auto_renew: e.target.checked })}
+                  className="h-4 w-4 rounded border-input text-violet-600 focus:ring-violet-500"
+                />
+                <label htmlFor="auto_renew" className="font-medium text-foreground cursor-pointer">
+                  Auto-renew subscription at end of billing cycle
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsSubscriptionModalOpen(false)}>Cancel</Button>
+                <Button type="submit" size="sm" disabled={creatingSubscription} className="bg-violet-600 hover:bg-violet-700 text-white">
+                  {creatingSubscription ? "Generating License..." : "Save Contract"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: RECORD SOFTWARE PAYMENT ── */}
+      {isPaymentModalOpen && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-emerald-500" />
+                Record SaaS Platform Payment
+              </h3>
+              <button onClick={() => setIsPaymentModalOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <form onSubmit={handleRecordPayment} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Paying Organization *</label>
+                <select
+                  value={paymentFormData.tenant}
+                  onChange={(e) => setPaymentFormData({ ...paymentFormData, tenant: e.target.value })}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs text-foreground"
+                  required
+                >
+                  {tenants.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.slug})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Amount Received (৳) *</label>
+                  <Input
+                    type="number"
+                    value={paymentFormData.amount}
+                    onChange={(e) => setPaymentFormData({ ...paymentFormData, amount: Number(e.target.value) })}
+                    className="h-9 text-xs"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Payment Method</label>
+                  <select
+                    value={paymentFormData.payment_method}
+                    onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_method: e.target.value })}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs text-foreground"
+                  >
+                    <option value="bKash">bKash Merchant</option>
+                    <option value="Nagad">Nagad Pay</option>
+                    <option value="Bank Transfer">Direct Bank Wire</option>
+                    <option value="Manual Cash">Cash / Cheque</option>
+                    <option value="Stripe">Stripe Card</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Transaction Ref / Cheque No</label>
+                <Input
+                  placeholder="e.g. BKASH-9X87AB (optional auto-gen)"
+                  value={paymentFormData.trx_id}
+                  onChange={(e) => setPaymentFormData({ ...paymentFormData, trx_id: e.target.value })}
+                  className="h-9 text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Notes / Ledger Remarks</label>
+                <Input
+                  placeholder="e.g. Monthly software license fee"
+                  value={paymentFormData.notes}
+                  onChange={(e) => setPaymentFormData({ ...paymentFormData, notes: e.target.value })}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsPaymentModalOpen(false)}>Cancel</Button>
+                <Button type="submit" size="sm" disabled={recordingPayment} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+                  {recordingPayment ? "Verifying Ledger..." : "Record Payment"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: DATABASE RESTORE SAFEGUARD ── */}
+      {isRestoreModalOpen && selectedBackupForRestore && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-rose-500/50 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="text-base font-bold text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                <AlertOctagon className="h-5 w-5" />
+                Physical Database Snapshot Restoration
+              </h3>
+              <button onClick={() => setIsRestoreModalOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-xs text-rose-900 dark:text-rose-300 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                CRITICAL WARNING: DESTRUCTIVE RESTORE ACTION
+              </p>
+              <p>
+                Restoring this snapshot will overwrite the active operational database with the contents from snapshot <strong className="font-mono">{selectedBackupForRestore.filename}</strong>.
+              </p>
+              <p className="text-[11px] text-rose-700 dark:text-rose-400">
+                A pre-restore safety copy of your current active database will be automatically archived before the snapshot is applied.
+              </p>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-muted/40 rounded-xl space-y-1.5 text-xs">
+              <div className="flex justify-between"><span className="text-muted-foreground">Snapshot Name:</span> <strong className="text-foreground">{selectedBackupForRestore.backup_name}</strong></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Archive File:</span> <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{selectedBackupForRestore.filename}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">File Size:</span> <span className="text-foreground">{selectedBackupForRestore.file_size_formatted}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Captured At:</span> <span className="text-foreground font-mono">{new Date(selectedBackupForRestore.created_at).toLocaleString()}</span></div>
+            </div>
+
+            <div>
+              <label className="font-semibold text-foreground block mb-1 text-xs">
+                To confirm restoration, type <strong className="text-rose-600 dark:text-rose-400">RESTORE</strong> below:
+              </label>
+              <Input
+                placeholder='Type "RESTORE" to enable'
+                value={restoreConfirmText}
+                onChange={(e) => setRestoreConfirmText(e.target.value)}
+                className="h-9 text-xs font-mono font-bold text-center uppercase"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsRestoreModalOpen(false)}>Cancel</Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={restoreConfirmText !== "RESTORE" || restoringBackup}
+                onClick={handleRestoreBackup}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+              >
+                {restoringBackup ? "Restoring Database..." : "Confirm & Overwrite Database"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: EDIT TENANT QUOTAS & CONFIG ── */}
+      {isEditTenantModalOpen && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <Edit3 className="h-4 w-4 text-indigo-400" />
+                Edit Tenant Quotas ({editTenantFormData.name})
+              </h3>
+              <button onClick={() => setIsEditTenantModalOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <form onSubmit={handleSaveTenantQuotas} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Plan Tier</label>
+                <select
+                  value={editTenantFormData.plan}
+                  onChange={(e) => setEditTenantFormData({ ...editTenantFormData, plan: e.target.value })}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs text-foreground"
+                >
+                  <option value="Starter">Starter (Up to 500 Subs, 3 Routers)</option>
+                  <option value="Growth">Growth (Up to 2,500 Subs, 10 Routers)</option>
+                  <option value="Enterprise">Enterprise (Up to 10,000 Subs, 50 Routers)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Max Subscribers</label>
+                  <Input
+                    type="number"
+                    value={editTenantFormData.max_subscribers}
+                    onChange={(e) => setEditTenantFormData({ ...editTenantFormData, max_subscribers: Number(e.target.value) })}
+                    className="h-9 text-xs"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Max Core Routers</label>
+                  <Input
+                    type="number"
+                    value={editTenantFormData.max_routers}
+                    onChange={(e) => setEditTenantFormData({ ...editTenantFormData, max_routers: Number(e.target.value) })}
+                    className="h-9 text-xs"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Contact Phone</label>
+                  <Input
+                    value={editTenantFormData.contact_phone}
+                    onChange={(e) => setEditTenantFormData({ ...editTenantFormData, contact_phone: e.target.value })}
+                    className="h-9 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">Contact Email</label>
+                  <Input
+                    type="email"
+                    value={editTenantFormData.contact_email}
+                    onChange={(e) => setEditTenantFormData({ ...editTenantFormData, contact_email: e.target.value })}
+                    className="h-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-foreground block mb-1">Administrative Notes</label>
+                <Input
+                  value={editTenantFormData.notes}
+                  onChange={(e) => setEditTenantFormData({ ...editTenantFormData, notes: e.target.value })}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsEditTenantModalOpen(false)}>Cancel</Button>
+                <Button type="submit" size="sm" disabled={updatingTenant} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">
+                  {updatingTenant ? "Saving..." : "Save Quotas"}
+                </Button>
               </div>
             </form>
           </div>

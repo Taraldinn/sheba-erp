@@ -7,6 +7,9 @@ const CONTROL_PLANE_HOSTS = [
   "admin.shebaerp.com",
   "admin.localhost",
   "saas.localhost",
+  "admin.localhost.com",
+  "control.localhost.com",
+  "saas.localhost.com",
 ];
 
 export function proxy(request: NextRequest) {
