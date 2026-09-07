@@ -66,6 +66,17 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
             )
         return router
 
+    def validate_reseller(self, reseller):
+        """Ensure the assigned reseller belongs to this tenant."""
+        if reseller is None:
+            return reseller
+        tenant = _tenant_from_context(self.context)
+        if tenant and reseller.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Selected reseller does not belong to your ISP. Cross-tenant assignment is not allowed."
+            )
+        return reseller
+
 
 class CustomerRechargeSerializer(serializers.Serializer):
     """Action-specific serializer for the recharge endpoint (Plan Phase 25)."""

@@ -91,22 +91,6 @@ class TenantResolutionMiddleware(MiddlewareMixin):
                 subdomain = parts[0]
                 tenant = Tenant.objects.filter(slug__iexact=subdomain).first()
 
-        # D. Dev/test fallback — ONLY on bare localhost/127.0.0.1/testserver
-        if not tenant and raw_host in ('localhost', '127.0.0.1', 'testserver'):
-            # X-Tenant-ID header convenience for dev/test only
-            test_header = request.headers.get('X-Tenant-ID') or request.headers.get('X-Tenant-Key')
-            if test_header:
-                tenant = Tenant.objects.filter(slug__iexact=test_header).first()
-                if not tenant:
-                    try:
-                        uuid.UUID(str(test_header))
-                        tenant = Tenant.objects.filter(id=test_header).first()
-                    except (ValueError, TypeError, AttributeError, ValidationError):
-                        tenant = None
-            # Absolute fallback to first active tenant for automated tests
-            if not tenant:
-                tenant = Tenant.objects.filter(is_active=True).first()
-
         # 4. Tenant status check
         if tenant:
             if not tenant.is_active:
@@ -118,14 +102,11 @@ class TenantResolutionMiddleware(MiddlewareMixin):
             request.tenant = tenant
             return None
 
-        # 5. Unknown domain — allow public paths, reject business APIs
+        # 5. Unknown domain / missing tenant — allow public paths, reject business APIs
         if any(path.startswith(p) for p in self.PUBLIC_PATHS):
             return None
 
-        if path.startswith('/api/v1/'):
-            return JsonResponse({
-                'error': f'Unrecognized ISP domain: "{raw_host}". No active tenant configured.',
-                'code': 'TENANT_NOT_FOUND'
-            }, status=404)
-
-        return None
+        return JsonResponse({
+            'error': f'Unrecognized ISP domain: "{raw_host}". No active tenant configured.',
+            'code': 'TENANT_NOT_FOUND'
+        }, status=404)

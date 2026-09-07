@@ -71,9 +71,26 @@ class Customer(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.package_id and self.tenant_id and self.package.tenant_id != self.tenant_id:
+            raise ValidationError("Customer package must belong to the same tenant.")
+        if self.router_id and self.tenant_id and self.router.tenant_id != self.tenant_id:
+            raise ValidationError("Customer router must belong to the same tenant.")
+        if self.reseller_id and self.tenant_id and self.reseller.tenant_id != self.tenant_id:
+            raise ValidationError("Customer reseller must belong to the same tenant.")
+
     class Meta:
         unique_together = ('tenant', 'pppoe_username')
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'customer_code'],
+                condition=~models.Q(customer_code=''),
+                name='unique_tenant_customer_code'
+            ),
+        ]
         indexes = [
             models.Index(fields=['tenant', 'status'], name='cust_tenant_status_idx'),
             models.Index(fields=['tenant', 'expiry_date'], name='cust_tenant_expiry_idx'),

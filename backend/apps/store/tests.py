@@ -9,9 +9,10 @@ from apps.store.models import StoreItem, StockTransaction
 class StoreConcurrencyAndSecurityTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.tenant = Tenant.objects.create(name='Fiber Store ISP', slug='fiber-store')
+        self.tenant = Tenant.objects.create(name='Fiber Store ISP', slug='fiber-store', domain='fiber.shebafi.com')
         self.user = User.objects.create_superuser(username='storeadmin', password='storepassword')
         self.client.force_authenticate(user=self.user)
+        self.client.defaults['HTTP_HOST'] = 'fiber.shebafi.com'
 
         self.item = StoreItem.objects.create(
             tenant=self.tenant,

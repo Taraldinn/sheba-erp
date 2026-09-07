@@ -32,6 +32,26 @@ class ResellerPricingSerializer(serializers.ModelSerializer):
         fields = ['id', 'reseller', 'reseller_username', 'package', 'package_name', 'custom_price', 'created_at']
         read_only_fields = ('tenant',)
 
+    def validate_reseller(self, reseller):
+        if reseller is None:
+            return reseller
+        tenant = _tenant_from_context(self.context)
+        if tenant and reseller.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Selected reseller does not belong to your ISP. Cross-tenant pricing is not allowed."
+            )
+        return reseller
+
+    def validate_package(self, package):
+        if package is None:
+            return package
+        tenant = _tenant_from_context(self.context)
+        if tenant and package.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Selected package does not belong to your ISP. Cross-tenant pricing is not allowed."
+            )
+        return package
+
 
 class InvoiceSerializer(serializers.ModelSerializer):
     """

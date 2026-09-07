@@ -13,9 +13,10 @@ from apps.billing.models import Package, Recharge
 class CustomerTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.tenant = Tenant.objects.create(name='Demo ISP', slug='demo-isp')
+        self.tenant = Tenant.objects.create(name='Demo ISP', slug='demo-isp', domain='demo.shebafi.com')
         self.user = User.objects.create_superuser(username='superadmin', password='adminpassword')
         self.client.force_authenticate(user=self.user)
+        self.client.defaults['HTTP_HOST'] = 'demo.shebafi.com'
 
         self.package = Package.objects.create(
             tenant=self.tenant,
@@ -70,7 +71,7 @@ class CustomerTests(TestCase):
 
     def test_tenant_isolation(self):
         # Create second isolated tenant and user
-        tenant_b = Tenant.objects.create(name='Other ISP', slug='other-isp')
+        tenant_b = Tenant.objects.create(name='Other ISP', slug='other-isp', domain='other.shebafi.com')
         user_b = User.objects.create_user(username='other_staff', password='password123')
         from apps.authentication.models import StaffProfile, UserRole
         StaffProfile.objects.create(user=user_b, tenant=tenant_b, role=UserRole.ADMIN)
@@ -78,12 +79,12 @@ class CustomerTests(TestCase):
         # Authenticate as user_b belonging to tenant B
         self.client.force_authenticate(user=user_b)
 
-        # Attempt to access tenant A's customer by ID (IDOR attack vector)
-        response = self.client.get(f"/api/v1/customers/{self.customer.id}/", HTTP_X_TENANT_ID='demo-isp')
+        # Attempt to access tenant A's customer by ID under tenant B domain (IDOR attack vector)
+        response = self.client.get(f"/api/v1/customers/{self.customer.id}/", HTTP_HOST='other.shebafi.com')
         self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
 
         # Attempt to list customers under tenant B — must NOT see tenant A's customers
-        list_response = self.client.get("/api/v1/customers/", HTTP_X_TENANT_ID='other-isp')
+        list_response = self.client.get("/api/v1/customers/", HTTP_HOST='other.shebafi.com')
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
         ids = [c['id'] for c in list_response.data.get('results', list_response.data)]
         self.assertNotIn(str(self.customer.id), ids)

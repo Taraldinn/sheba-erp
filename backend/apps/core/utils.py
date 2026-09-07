@@ -32,11 +32,4 @@ def get_scoped_queryset(request, queryset_or_model):
     if tenant:
         return qs.filter(tenant=tenant)
 
-    # Superuser on localhost/testserver without tenant bound
-    user = getattr(request, 'user', None)
-    if user and user.is_superuser:
-        raw_host = request.get_host().split(':')[0].lower() if hasattr(request, 'get_host') else ''
-        if raw_host in ('localhost', '127.0.0.1', 'testserver'):
-            return qs
-
     return qs.none()

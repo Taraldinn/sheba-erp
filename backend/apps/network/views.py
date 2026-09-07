@@ -233,6 +233,9 @@ class ONUViewSet(viewsets.ModelViewSet):
             qs = qs.filter(mac_address__icontains=search) | qs.filter(customer_name__icontains=search)
         return qs.select_related('olt')
 
+    def perform_create(self, serializer):
+        serializer.save(tenant=get_tenant_for_request(self.request))
+
     @action(detail=True, methods=['post'])
     def reboot(self, request, pk=None):
         onu = self.get_object()

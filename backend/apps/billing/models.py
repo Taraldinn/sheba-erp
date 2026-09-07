@@ -20,6 +20,11 @@ class Package(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'name'], name='unique_tenant_package_name'),
+        ]
+
     def __str__(self):
         return f"{self.name} ({self.speed_mbps} Mbps - ৳{self.regular_price})"
 
@@ -61,6 +66,12 @@ class Invoice(models.Model):
     status = models.CharField(max_length=20, choices=InvoiceStatus.choices, default=InvoiceStatus.UNPAID)
     due_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if hasattr(self, 'customer') and self.customer and self.tenant_id and self.customer.tenant_id != self.tenant_id:
+            raise ValidationError("Invoice customer must belong to the same tenant.")
 
     class Meta:
         ordering = ['-created_at']

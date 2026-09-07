@@ -39,6 +39,11 @@ class RouterSerializer(serializers.ModelSerializer):
         return value
 
 
+def _tenant_from_context(context):
+    request = context.get('request')
+    return getattr(request, 'tenant', None) if request else None
+
+
 class ONUSerializer(serializers.ModelSerializer):
     olt_name = serializers.CharField(source='olt.name', read_only=True)
     signal_status = serializers.SerializerMethodField()
@@ -47,6 +52,16 @@ class ONUSerializer(serializers.ModelSerializer):
         model = ONU
         fields = '__all__'
         read_only_fields = ('tenant',)
+
+    def validate_olt(self, olt):
+        if olt is None:
+            return olt
+        tenant = _tenant_from_context(self.context)
+        if tenant and olt.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Selected OLT does not belong to your ISP. Cross-tenant assignment is not allowed."
+            )
+        return olt
 
     def get_signal_status(self, obj):
         rx = float(obj.rx_power)
@@ -80,3 +95,13 @@ class UserSessionSerializer(serializers.ModelSerializer):
         model = UserSession
         fields = '__all__'
         read_only_fields = ('tenant',)
+
+    def validate_router(self, router):
+        if router is None:
+            return router
+        tenant = _tenant_from_context(self.context)
+        if tenant and router.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Selected router does not belong to your ISP. Cross-tenant assignment is not allowed."
+            )
+        return router

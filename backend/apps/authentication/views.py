@@ -82,6 +82,10 @@ class CurrentUserView(views.APIView):
         return Response(UserDetailSerializer(request.user).data)
 
 
+from apps.core.permissions import IsTenantMember
+from apps.core.utils import get_scoped_queryset, get_tenant_for_request
+
+
 @extend_schema_view(
     list=extend_schema(tags=['1. Authentication & Users']),
     retrieve=extend_schema(tags=['1. Authentication & Users']),
@@ -91,11 +95,11 @@ class CurrentUserView(views.APIView):
     destroy=extend_schema(tags=['1. Authentication & Users']),
 )
 class StaffProfileViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember]
     serializer_class = StaffProfileSerializer
 
     def get_queryset(self):
-        tenant = getattr(self.request, 'tenant', None)
-        if tenant:
-            return StaffProfile.objects.filter(tenant=tenant)
-        return StaffProfile.objects.all()
+        return get_scoped_queryset(self.request, StaffProfile).select_related('user')
+
+    def perform_create(self, serializer):
+        serializer.save(tenant=get_tenant_for_request(self.request))

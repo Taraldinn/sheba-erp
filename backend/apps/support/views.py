@@ -26,6 +26,28 @@ class TicketSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('tenant', 'ticket_no')
 
+    def validate_customer(self, customer):
+        request = self.context.get('request')
+        tenant = getattr(request, 'tenant', None) if request else None
+        if tenant and customer.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Customer does not belong to your ISP. Cross-tenant ticket is not allowed."
+            )
+        return customer
+
+    def validate_assigned_to(self, user):
+        if user is None:
+            return user
+        request = self.context.get('request')
+        tenant = getattr(request, 'tenant', None) if request else None
+        if tenant:
+            from apps.authentication.models import StaffProfile
+            if not StaffProfile.objects.filter(user=user, tenant=tenant).exists() and not user.is_superuser:
+                raise serializers.ValidationError(
+                    "Assigned user does not belong to this ISP staff."
+                )
+        return user
+
 
 @extend_schema_view(
     list=extend_schema(tags=['8. Support Desk & NOC Tickets']),

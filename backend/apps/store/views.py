@@ -30,6 +30,15 @@ class StoreItemSerializer(serializers.ModelSerializer):
             'min_stock_alert': {'required': False},
         }
 
+    def validate_category(self, category):
+        if category is None:
+            return category
+        request = self.context.get('request')
+        tenant = getattr(request, 'tenant', None) if request else None
+        if tenant and category.tenant_id != tenant.id:
+            raise serializers.ValidationError("Category does not belong to your ISP.")
+        return category
+
 
 class StockTransactionSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source='item.name', read_only=True)
@@ -38,6 +47,15 @@ class StockTransactionSerializer(serializers.ModelSerializer):
         model = StockTransaction
         fields = '__all__'
         read_only_fields = ('tenant',)
+
+    def validate_item(self, item):
+        if item is None:
+            return item
+        request = self.context.get('request')
+        tenant = getattr(request, 'tenant', None) if request else None
+        if tenant and item.tenant_id != tenant.id:
+            raise serializers.ValidationError("Store item does not belong to your ISP.")
+        return item
 
 
 @extend_schema_view(

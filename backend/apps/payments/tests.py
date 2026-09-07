@@ -10,7 +10,8 @@ from apps.payments.models import SmsLog, PaymentTransaction
 class PaymentSmsWebhookTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.tenant = Tenant.objects.create(name='SMS Demo ISP', slug='sms-isp')
+        self.tenant = Tenant.objects.create(name='SMS Demo ISP', slug='sms-isp', domain='sms.shebafi.com')
+        self.client.defaults['HTTP_HOST'] = 'sms.shebafi.com'
         self.customer = Customer.objects.create(
             tenant=self.tenant,
             customer_code='CUST-200',
@@ -28,7 +29,7 @@ class PaymentSmsWebhookTests(TestCase):
         response = self.client.post(url, {
             'sender': 'bKash',
             'message': sample_sms
-        }, HTTP_X_TENANT_ID='sms-isp')
+        }, HTTP_HOST='sms.shebafi.com')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'success')
@@ -43,12 +44,12 @@ class PaymentSmsWebhookTests(TestCase):
         url = reverse('sms-webhook')
         sample_sms = "You have received Tk 800.00 from 01788776655. Fee Tk 0.00. Balance Tk 15400.00. TrxID UNIQUE999"
         # First attempt: succeeds
-        res1 = self.client.post(url, {'sender': 'bKash', 'message': sample_sms}, HTTP_X_TENANT_ID='sms-isp')
+        res1 = self.client.post(url, {'sender': 'bKash', 'message': sample_sms}, HTTP_HOST='sms.shebafi.com')
         self.assertEqual(res1.status_code, status.HTTP_200_OK)
         self.assertEqual(PaymentTransaction.objects.filter(trx_id='UNIQUE999').count(), 1)
 
         # Second attempt with same TrxID: must be idempotent and not create duplicate transaction
-        res2 = self.client.post(url, {'sender': 'bKash', 'message': sample_sms}, HTTP_X_TENANT_ID='sms-isp')
+        res2 = self.client.post(url, {'sender': 'bKash', 'message': sample_sms}, HTTP_HOST='sms.shebafi.com')
         self.assertEqual(res2.status_code, status.HTTP_200_OK)
         self.assertTrue(res2.data.get('idempotent'))
         self.assertEqual(PaymentTransaction.objects.filter(trx_id='UNIQUE999').count(), 1)

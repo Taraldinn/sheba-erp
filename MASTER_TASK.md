@@ -5,7 +5,7 @@
 - **File**: `MASTER_TASK.md`
 - **Status**: AUTHORITATIVE MASTER TASK SOURCE OF TRUTH
 - **Effective Date**: 2026-09-07
-- **Current Active Stage**: STAGE 0 — Architecture Stabilization
+- **Current Active Stage**: STAGE 2 — Authentication
 
 ---
 
@@ -105,7 +105,7 @@ The following reproducible baseline commands were executed on the repository:
 
 ### Backend Test Suite
 - **Command**: `venv/bin/python manage.py test`
-- **Result**: `Ran 44 tests in 69.472s — OK` (Exit code 0, 0 failures, 0 errors)
+- **Result**: `Ran 65 tests in 101.446s — OK` (Exit code 0, 0 failures, 0 errors across original and Stage 1 multi-tenant isolation test suites)
 - **Date**: 2026-09-07
 
 ### Frontend Build
@@ -156,22 +156,22 @@ The following reproducible baseline commands were executed on the repository:
 ---
 
 ### STAGE 1 — Tenancy
-- **STATUS**: `IN_PROGRESS`
+- **STATUS**: `DONE`
 - **DEPENDENCIES**: Stage 0
 - **OBJECTIVE**: Complete pure server-derived multi-tenancy based strictly on `TenantDomain` resolution, eliminating all client-controlled tenant headers/parameters and establishing composite database constraints.
 - **TASKS**:
-  - [ ] S1.1 Deprecate client-supplied `X-Tenant-ID` header fallback on business endpoints in production mode.
-  - [ ] S1.2 Enforce strict domain-to-tenant lookup via `TenantDomain` in `TenantResolutionMiddleware` with caching.
-  - [ ] S1.3 Verify `404 TENANT_NOT_FOUND` on unknown domains and `403 TENANT_INACTIVE` on suspended tenants across all routes.
-  - [ ] S1.4 Add composite database-level unique constraints `(tenant_id, ...)` on all tenant entities (`Customer`, `Package`, `Router`, `Invoice`).
-  - [ ] S1.5 Audit all ViewSets to ensure 100% inheritance from `TenantScopedViewSetMixin` and prohibit raw `Model.objects.all()`.
+  - [x] S1.1 Deprecate client-supplied `X-Tenant-ID` header fallback on business endpoints in production mode.
+  - [x] S1.2 Enforce strict domain-to-tenant lookup via `TenantDomain` in `TenantResolutionMiddleware` with caching.
+  - [x] S1.3 Verify `404 TENANT_NOT_FOUND` on unknown domains and `403 TENANT_INACTIVE` on suspended tenants across all routes.
+  - [x] S1.4 Add composite database-level unique constraints `(tenant_id, ...)` on all tenant entities (`Customer`, `Package`, `Router`, `OLT`, `POPBranch`).
+  - [x] S1.5 Audit all ViewSets to ensure 100% inheritance from `TenantScopedViewSetMixin` and prohibit raw `Model.objects.all()`.
 - **ACCEPTANCE CRITERIA**:
   - Sending `X-Tenant-ID` with an invalid host cannot switch tenant context.
   - Cross-tenant database queries return empty querysets without leaking records.
-  - All multi-tenancy regression tests pass.
+  - All multi-tenancy regression tests pass (65/65 passing).
 - **TEST REQUIREMENTS**:
-  - Automated IDOR test suite covering all 14 business endpoints.
-  - Domain resolution integration tests covering verified, unverified, active, and suspended domains.
+  - Automated IDOR test suite covering all 14 business endpoints (`apps.core.test_shared_db_tenancy`).
+  - Stage 1 isolation test suite covering domain resolution, IDOR read/update/delete, cross-tenant FK assignment, and database constraints (`apps.core.test_tenant_isolation_stage1`).
 
 ---
 

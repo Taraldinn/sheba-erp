@@ -32,6 +32,11 @@ class POPBranch(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'name'], name='unique_tenant_pop_name'),
+        ]
+
     def __str__(self):
         return f"{self.name} ({self.code})"
 
@@ -82,6 +87,13 @@ class Router(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'ip_address'], name='unique_tenant_router_ip'),
+            models.UniqueConstraint(fields=['tenant', 'name'], name='unique_tenant_router_name'),
+            models.UniqueConstraint(fields=['tenant', 'hostname'], condition=~models.Q(hostname=''), name='unique_tenant_router_hostname'),
+        ]
+
     def clean(self):
         super().clean()
         if self.ip_address:
@@ -120,6 +132,12 @@ class OLT(models.Model):
     last_sync = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'ip_address'], name='unique_tenant_olt_ip'),
+            models.UniqueConstraint(fields=['tenant', 'name'], name='unique_tenant_olt_name'),
+        ]
+
     def clean(self):
         super().clean()
         if self.ip_address:
@@ -154,6 +172,12 @@ class ONU(models.Model):
     distance_meters = models.PositiveIntegerField(default=0)
     last_offline_reason = models.CharField(max_length=255, blank=True)
     last_sync = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        super().clean()
+        if hasattr(self, 'olt') and self.olt and self.tenant_id and self.olt.tenant_id != self.tenant_id:
+            from django.core.exceptions import ValidationError
+            raise ValidationError("ONU OLT must belong to the same tenant.")
 
     def __str__(self):
         return f"ONU {self.pon_port}:{self.onu_index} ({self.mac_address or self.serial_number})"
