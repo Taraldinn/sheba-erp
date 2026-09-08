@@ -133,7 +133,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 tenant_memberships__is_active=True,
             ).first() if str(user_id).isdigit() else None
             if user is None:
-                return Response({'error': 'Invalid assignee for this tenant.'}, status=400)
+                return Response({'error': 'Selected user does not belong to this ISP tenant.'}, status=400)
         ticket.assigned_to = user
         ticket.save(update_fields=['assigned_to', 'updated_at'])
         return Response({'message': f'Ticket assigned to {user.username if user else "None"}.', 'assigned_to': user.username if user else None})
