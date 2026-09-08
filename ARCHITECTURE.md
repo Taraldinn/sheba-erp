@@ -1,22 +1,23 @@
-# Sheba ISP ERP — Architectural Contract & System Invariants
+# Sheba ISP ERP — Software Architecture Specification
 
-## Document Information
-- **Repository**: `Taraldinn/sheba-erp`
-- **Current Stage**: STAGE 0 — Architecture Stabilization
-- **Status**: CANONICAL ARCHITECTURAL SOURCE OF TRUTH
-- **Effective Date**: 2026-09-07
+> **Document Type**: Canonical Software Architecture Document  
+> **Repository**: `Taraldinn/sheba-erp`  
+> **File**: `ARCHITECTURE.md`  
+> **Status**: AUTHORITATIVE MASTER ARCHITECTURE SOURCE OF TRUTH  
+> **Current Completed Baseline**: STAGES 0 THROUGH 8 VERIFIED  
+> **Effective Date**: September 2026  
 
 ---
 
 ## 1. System Overview & Core Invariants
 
-Sheba ISP ERP is a high-performance, multi-tenant Internet Service Provider (ISP) Enterprise Resource Planning and Network Automation platform. It provides unified subscriber lifecycle management, RouterOS v7 MikroTik core routing automation, EPON/GPON OLT chassis management, double-entry financial ledger accounting, and a centralized SaaS multi-tenant control plane.
+Sheba ISP ERP is a high-performance, multi-tenant Enterprise Resource Planning (ERP) and Network Automation platform engineered specifically for Internet Service Providers (ISPs) and Telecommunications Operators. It provides unified subscriber lifecycle management, RouterOS v7 MikroTik core routing automation, EPON/GPON OLT chassis management, double-entry financial ledger accounting, and a centralized SaaS multi-tenant control plane.
 
 ### The Five Fundamental Architectural Invariants
 
 1. **Shared Database, Shared Schema Multi-Tenancy**:
    ```text
-   ONE PostgreSQL Database + ONE Schema + Many Tenants
+   ONE PostgreSQL Database + ONE Schema (public) + Many Tenants
    ```
    Under no circumstances shall database-per-tenant or schema-per-tenant routing be introduced. All tenant isolation is enforced at the application data layer via mandatory `tenant_id` foreign keys, `TenantScopedManager`, and server-derived tenant resolution.
 
@@ -48,60 +49,60 @@ Sheba ISP ERP is a high-performance, multi-tenant Internet Service Provider (ISP
 
 ## 2. Architecture Dependency Graph
 
-To prevent architectural regressions, all downstream development must adhere to the strict sequential dependency chain below:
+To prevent architectural regressions, all downstream development adheres to the strict sequential dependency chain below:
 
 ```text
 ┌────────────────────────────────────────────────────────┐
 │                        STAGE 0                         │
-│               Architecture Stabilization               │
+│               Architecture Stabilization               │ [DONE]
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │                        STAGE 1                         │
-│              Tenancy & Domain Resolution               │
+│              Tenancy & Domain Resolution               │ [DONE]
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │                        STAGE 2                         │
-│           Authentication & Identity Migration          │
+│           Authentication & Identity Migration          │ [DONE]
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │                        STAGE 3                         │
-│            RBAC, Roles & Permission Scopes             │
+│            RBAC, Roles & Permission Scopes             │ [DONE]
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │                        STAGE 4                         │
-│         Celery + Redis Infrastructure & Concurrency    │
+│         Celery + Redis Infrastructure & Concurrency    │ [DONE]
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │                        STAGE 5                         │
-│       Payments & Webhook Pipeline (State Machine)      │
-└───────────────────────────┬────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                        STAGE 6                         │
-│       Finance, Ledger & Billing Integrity (Invoices)   │
+│       Payments & Webhook Pipeline (State Machine)      │ [DONE]
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │                        STAGE 7                         │
-│        Networking Operations (MikroTik ROSv7 & OLT)    │
+│        Networking Operations (MikroTik ROSv7 & OLT)    │ [DONE]
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │                        STAGE 8                         │
-│            API Design & Security Hardening             │
+│            API Design & Security Hardening             │ [DONE]
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                        STAGE 6                         │
+│       Finance, Ledger & Billing Integrity (Invoices)   │ [NEXT]
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
@@ -111,284 +112,317 @@ To prevent architectural regressions, all downstream development must adhere to 
 └────────────────────────────────────────────────────────┘
 ```
 
-> [!IMPORTANT]
-> **CRITICAL RULE**: Downstream feature development must never bypass unresolved upstream architectural dependencies. No feature in Stage 9+ may be implemented if Stages 1–8 have outstanding invariant violations.
-
 ---
 
-## 3. Multi-Tenancy Architecture (Stage 1 Specification)
+## 3. High-Level Architectural Topology
 
-### 3.1 Domain-to-Tenant Resolution Flow
+```mermaid
+graph TB
+    subgraph Clients["Client Layer"]
+        Browser["Next.js Web Client<br/>(Staff / Management Dashboard)"]
+        MobileSMS["Android SMS Gateway<br/>(Payment SMS Forwarder)"]
+        CustomerPortal["Customer Self-Care Portal<br/>(Future App)"]
+    end
 
-```text
-Incoming HTTP Request
-       │
-       ▼
-Extract Hostname (strip port, lowercase)
-       │
-       ├───────────────────────────────────────────────────────┐
-       ▼                                                       ▼
-Is Control Plane Domain?                             Query TenantDomain Table
-(admin.shebafi.xyz, admin.localhost, etc.)          (hostname == host, is_active == True)
-       │                                                       │
-       ├── Yes: request.is_control_plane = True                ├── Found: request.tenant = domain.tenant
-       │        request.tenant = None                          │          request.is_control_plane = False
-       │        Bypass tenant isolation                        │
-       │                                                       ▼
-       │                                             Not Found in TenantDomain?
-       │                                                       │
-       │                                             Query Legacy Tenant.domain / Subdomain Slug
-       │                                                       │
-       │                                                       ├── Found: request.tenant = tenant
-       │                                                       │
-       │                                                       └── Not Found:
-       │                                                           ├── Dev Environment: fallback to default tenant
-       │                                                           └── Prod Environment: HTTP 404 TENANT_NOT_FOUND
-       ▼
-Tenant Suspension Check
-(tenant.is_active == False) -> HTTP 403 TENANT_INACTIVE
+    subgraph Edge["Edge / Reverse Proxy"]
+        Nginx["Nginx Reverse Proxy<br/>(SSL Termination & Host Routing)"]
+    end
+
+    subgraph Backend["Application Server (Django 5.x REST Framework)"]
+        MW["TenantResolutionMiddleware<br/>(Host -> TenantDomain -> Tenant)"]
+        Auth["Authentication & RBAC<br/>(StaffMembership + HasTenantPermission)"]
+        API["Hardened ViewSets & Action Serializers<br/>(TenantScopedViewSetMixin)"]
+        NetService["Network Services Layer<br/>(MikroTikService & OpticalPowerService)"]
+    end
+
+    subgraph Workers["Asynchronous Processing Layer"]
+        Redis[("Redis 7.x<br/>(Broker, Cache & Distributed Locks)")]
+        CeleryWorker["Celery Workers<br/>(Background Event & Network Tasks)"]
+        CeleryBeat["Celery Beat<br/>(Cron Scheduler)"]
+    end
+
+    subgraph Storage["Persistence Layer"]
+        Postgres[("PostgreSQL 16+<br/>(Shared Schema, Tenant Partitioned)")]
+    end
+
+    subgraph Hardware["Physical Network Infrastructure"]
+        Router["MikroTik Core Routers (ROSv7)"]
+        OLT["EPON / GPON OLT Chassis"]
+        ONU["Customer ONUs / CPEs"]
+    end
+
+    Browser --> Nginx
+    MobileSMS --> Nginx
+    CustomerPortal --> Nginx
+
+    Nginx --> MW
+    MW --> Auth
+    Auth --> API
+
+    API --> Postgres
+    API -->|task.delay| Redis
+    API --> NetService
+
+    Redis --> CeleryWorker
+    CeleryBeat --> Redis
+    CeleryWorker --> Postgres
+    CeleryWorker --> NetService
+
+    NetService --> Router
+    NetService --> OLT
+    OLT --> ONU
 ```
 
-### 3.2 Tenant Isolation Rules
-1. **No Client-Controlled Tenant Switching**:
-   - Headers: `X-Tenant-ID`, `X-Tenant-Key`, `X-Subdomain` are prohibited as tenant switches in production.
-   - Query Parameters: `?tenant=`, `?tenant_id=`, `?slug=` are prohibited.
-   - Body Data: `request.data["tenant"]` or `request.data["tenant_id"]` must never determine the request tenant.
-2. **`TenantScopedManager`**:
-   - All tenant-owned models use `TenantScopedManager`.
-   - Calling `.for_tenant(tenant)` filters strictly by `tenant=tenant`. If `tenant` is `None`, it returns `.none()`.
-3. **`TenantScopedViewSetMixin`**:
-   - Overrides `get_queryset()` to automatically scope queries to `request.tenant`.
-   - Overrides `perform_create()` to inject `tenant=request.tenant` from the server.
-4. **Prohibition of `Model.objects.all()`**:
-   - `Model.objects.all()` is strictly forbidden on tenant business endpoints.
-   - Global queries are only permissible in Django Admin and Central Control Plane ViewSets guarded by `IsCentralAdmin`.
-
 ---
 
-## 4. Database Architecture
+## 4. Multi-Tenancy Architecture
 
-### 4.1 Schema Strategy
-- **Engine**: Single PostgreSQL database instance via `DATABASE_URL` (`psycopg2-binary`).
-- **Schema**: Single shared PostgreSQL schema (`public`).
-- **Data Partitioning**: Logical partitioning via `tenant_id` foreign key columns on every business model.
+### 4.1 Domain-to-Tenant Resolution Flow
 
-### 4.2 Composite Constraints & Indexing
-Every tenant-owned entity must enforce unique constraints and primary lookup indexes composite with `tenant_id`:
-```text
-Customer:            UNIQUE(tenant_id, pppoe_username)
-Package:             UNIQUE(tenant_id, name)
-POPBranch:           UNIQUE(tenant_id, name)
-Router:              UNIQUE(tenant_id, ip_address)
-Invoice:             UNIQUE(tenant_id, invoice_no)
-Role:                UNIQUE(tenant_id, name)
-StaffMembership:     UNIQUE(user_id, tenant_id)
-Reseller:            UNIQUE(user_id) with FK to Tenant
-BillingAccount:      UNIQUE(tenant_id, customer_id)
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Client / Web Browser
+    participant Nginx as Nginx Reverse Proxy
+    participant MW as TenantResolutionMiddleware
+    participant Cache as Redis Cache
+    participant DB as PostgreSQL
+    participant View as TenantScopedViewSetMixin
+
+    Client->>Nginx: HTTP Request (Host: speednet.shebafi.xyz)
+    Nginx->>MW: Forward with Host header
+    MW->>MW: Extract hostname: speednet.shebafi.xyz
+    alt Host matches Control Plane domain
+        MW->>MW: Set request.is_control_plane = True, request.tenant = None
+    else Standard Tenant Domain
+        MW->>Cache: Lookup cached tenant_id for domain
+        alt Cache Miss
+            MW->>DB: Query TenantDomain (domain=host, is_active=True)
+            DB-->>MW: Return TenantDomain record
+            MW->>Cache: Store tenant_id in cache (TTL: 3600s)
+        end
+        alt Tenant Suspended (is_active == False)
+            MW-->>Client: 403 Forbidden (TENANT_INACTIVE)
+        else Tenant Active
+            MW->>MW: Bind request.tenant = resolved_tenant
+        end
+    end
+    MW->>View: Dispatch request to ViewSet
+    View->>DB: ORM query automatically filtered by tenant=request.tenant
+    DB-->>View: Returns strictly tenant-owned records
+    View-->>Client: 200 OK JSON response
 ```
 
-Mandatory composite indexes on high-throughput query paths:
-- `(tenant_id, is_active)`
-- `(tenant_id, created_at)`
-- `(tenant_id, status)`
+### 4.2 Tenant Isolation Enforcements
+1. **No Client Tenant Switching**: Client headers (`X-Tenant-ID`, `X-Tenant-Key`) and query params (`?tenant_id=`) are stripped and disregarded.
+2. **Body Payload Stripping**: Request data containing `tenant` or `tenant_id` fields are stripped by serializers (`read_only_fields = ('tenant',)`).
+3. **`TenantScopedManager`**: All tenant-owned models utilize `TenantScopedManager`. Calling `.for_tenant(tenant)` returns `.none()` if `tenant` is empty.
+4. **Prohibition of `Model.objects.all()`**: `Model.objects.all()` is strictly forbidden across all business endpoints. Global queries exist solely in the central control plane guarded by `IsCentralAdmin`.
+5. **Composite Unique Constraints**: Every tenant model enforces database-level uniqueness composite with `tenant_id`:
+   - `Customer`: `UNIQUE(tenant_id, pppoe_username)` and `UNIQUE(tenant_id, customer_code)`
+   - `Package`: `UNIQUE(tenant_id, name)`
+   - `POPBranch`: `UNIQUE(tenant_id, name)`
+   - `Router`: `UNIQUE(tenant_id, ip_address)` and `UNIQUE(tenant_id, name)`
+   - `OLT`: `UNIQUE(tenant_id, ip_address)` and `UNIQUE(tenant_id, name)`
+   - `Role`: `UNIQUE(tenant_id, name)`
+   - `StaffMembership`: `UNIQUE(user_id, tenant_id)`
+   - `Invoice`: `UNIQUE(tenant_id, invoice_no)`
+   - `BillingAccount`: `UNIQUE(tenant_id, customer_id)`
 
 ---
 
-## 5. Authentication & Identity Architecture (Stage 2 & 3 Specification)
+## 5. Identity, Authentication & RBAC Architecture
 
 ### 5.1 Identity Model Hierarchy
 
-```text
-                    ┌───────────────┐
-                    │   auth.User   │
-                    └───────┬───────┘
-                            │
-              ┌─────────────┴─────────────┐
-              ▼                           ▼
-    ┌──────────────────┐        ┌──────────────────┐
-    │ StaffMembership  │        │     Reseller     │
-    │ (Internal Staff) │        │ (External Partner│
-    └─────────┬────────┘        └─────────┬────────┘
-              │                           │
-              ▼                           ▼
-    ┌──────────────────┐        ┌──────────────────┐
-    │       Role       │        │  ResellerLedger  │
-    │ (Tenant-scoped)  │        └──────────────────┘
-    └─────────┬────────┘
-              │
-              ▼
-    ┌──────────────────┐
-    │    Permission    │
-    │ (Dot-notation)   │
-    └──────────────────┘
+```mermaid
+classDiagram
+    class User {
+        +int id
+        +string username
+        +string email
+        +bool is_active
+        +bool is_superuser
+    }
+
+    class Tenant {
+        +int id
+        +string name
+        +string slug
+        +bool is_active
+    }
+
+    class StaffMembership {
+        +int id
+        +User user
+        +Tenant tenant
+        +Role role
+        +string scope
+        +bool is_active
+        +has_permission(codename) bool
+    }
+
+    class Role {
+        +int id
+        +Tenant tenant
+        +string name
+        +Permission[] permissions
+    }
+
+    class Permission {
+        +int id
+        +string codename
+        +string name
+        +string module
+    }
+
+    class Reseller {
+        +int id
+        +User user
+        +Tenant tenant
+        +string business_name
+        +decimal wallet_balance
+    }
+
+    User "1" --> "0..*" StaffMembership
+    Tenant "1" --> "0..*" StaffMembership
+    Role "1" <-- "0..*" StaffMembership
+    Role "0..*" o-- "1..*" Permission
+    User "1" --> "0..1" Reseller
+    Tenant "1" --> "0..*" Reseller
 ```
 
-### 5.2 Roles, Permissions, and Scopes
-- **`Permission`**: Platform-wide capability string (`customers.view`, `customers.recharge`, `router.manage`, `finance.adjust`).
-- **`Role`**: Tenant-scoped container for permissions (e.g. `Managing Director`, `Senior Billing Specialist`, `NOC Technician`).
-- **`StaffMembership`**: Links a Django `User` to a `Tenant` with a designated `Role` and `Scope`.
-- **`Scope`**: Restricts data access within the role:
-  - `GLOBAL`: Full tenant operational visibility.
-  - `POP`: Restricted to branches/POPs assigned to the staff member.
-  - `AREA`: Restricted to geographic operational territories.
-  - `SELF`: Own records only (e.g., tickets assigned to the employee).
-
-### 5.3 Legacy `StaffProfile` Migration Plan
-The current codebase contains:
-- `apps.authentication.models.StaffProfile` (combines legacy `UserRole` enum, staff fields, wallet balance, and credit limit).
-- `apps.authentication.models.StaffMembership` (new fine-grained identity model).
-
-**Stage 0 Rule**: Do **not** execute breaking data migrations during Stage 0. The coexistence of `StaffProfile` and `StaffMembership` is recognized and classified as `PARTIALLY_IMPLEMENTED`. Migration of view permissions from `StaffProfile.role` to `StaffMembership.has_permission()` is scheduled for **Stage 2 & Stage 3**.
+### 5.2 Scopes and Permissions
+- **Capability Strings**: Fine-grained permissions (`customer.view`, `customer.recharge`, `router.manage`, `staff.manage`).
+- **Data Scopes**:
+  - `GLOBAL`: Full visibility across tenant.
+  - `POP`: Scoped to assigned POP branches.
+  - `AREA`: Scoped to assigned service areas.
+  - `SELF`: Scoped to own created records.
+  - `ASSIGNED`: Scoped strictly to tickets or work orders assigned to the staff member.
 
 ---
 
-## 6. Control Plane Architecture (Stage 13 Specification)
+## 6. Asynchronous Task & Concurrency Architecture
 
-### 6.1 Control Plane vs. Tenant Plane Separation
+### 6.1 Redis Distributed Locking
+To prevent race conditions during customer recharge, payment matching, and hardware provisioning, the platform utilizes distributed locks via Redis:
 
-| Attribute | Central Control Plane | Tenant Plane |
-|---|---|---|
-| **Domains** | `admin.shebafi.xyz`, `control.shebafi.xyz`, `admin.localhost` | `shebafi.shebafi.xyz`, `fardin.shebaerp.com`, custom domains |
-| **Middleware Context** | `request.is_control_plane = True`, `request.tenant = None` | `request.is_control_plane = False`, `request.tenant = Tenant(...)` |
-| **Target Audience** | Platform Super Admins (Sheba Cloud Operator) | ISP Managing Directors, Billing Staff, NOC, Resellers |
-| **API Path Prefix** | `/api/v1/saas/` | `/api/v1/customers/`, `/routers/`, `/billing/`, etc. |
-| **Authorization** | `IsCentralAdmin` (Requires `user.is_superuser` and no tenant affiliation) | `IsTenantMember`, `IsAdminOrManager`, `IsBillingStaff` |
-| **Data Scope** | Tenant provisioning, domain routing, subscription quotas, backups | Individual ISP customer data, router configs, daily cash ledger |
-
-### 6.2 Security Isolation Contract
-Under no circumstances may an authenticated tenant staff member query `/api/v1/saas/` endpoints. Conversely, platform super administrators operating in the control plane must not execute mutations against tenant business datasets without creating explicit audit trail impersonation sessions.
-
----
-
-## 7. Financial & Billing Architecture (Stage 5 & 6 Specification)
-
-### 7.1 The Financial Invariant: Ledger as Source of Truth
-Financial integrity requires double-entry or append-only ledger entries.
-```text
-                    ┌─────────────────────────┐
-                    │  Customer/Agent Payment │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                     ┌───────────────────────┐
-                     │    IdempotencyKey     │  <-- Blocks duplicate requests within 24h
-                     └───────────┬───────────┘
-                                 │
-                                 ▼
-                     ┌───────────────────────┐
-                     │  transaction.atomic() │
-                     └───────────┬───────────┘
-                                 │
-         ┌───────────────────────┴───────────────────────┐
-         ▼                                               ▼
-┌──────────────────┐                           ┌──────────────────┐
-│   LedgerEntry    │                           │PaymentAllocation │
-│  (Append-Only)   │                           │(Maps Tx to Inv)  │
-└────────┬─────────┘                           └──────────────────┘
-         │
-         ▼
-┌──────────────────┐
-│  BillingAccount  │  <-- Projected Cache (balance = sum(credits) - sum(debits))
-│     (Cache)      │
-└──────────────────┘
+```python
+with distributed_lock(f"lock:recharge:{tenant.id}:{customer.id}", timeout=15):
+    with transaction.atomic():
+        # Lock acquired, perform atomic ledger and router update
+        pass
 ```
 
-### 7.2 Prohibited Actions
-- `DELETE FROM finance_ledgerentry`: Deletion of ledger entries is strictly prohibited at both the API and database levels.
-- `DELETE FROM payments_paymenttransaction`: Raw payment records cannot be deleted.
-- Direct balance updates without ledger records (`UPDATE customer SET balance = balance + 500`) are strictly forbidden. All monetary balance changes must arise from an underlying `LedgerEntry`.
+### 6.2 Task Conventions
+- All background tasks are registered as `@shared_task` and accept `tenant_id` as their first parameter.
+- Tasks re-query the database within `transaction.atomic()` to guarantee consistency.
+- Tasks implement exponential backoff retry policies for transient network failures.
 
 ---
 
-## 8. Asynchronous Architecture (Stage 4 Specification)
+## 7. Payments & Inbound Event State Machine
 
-### 8.1 Async Processing Model
-Background tasks handle long-running, IO-intensive, or hardware-dependent work:
-```text
-                ┌──────────────────────────────────┐
-                │        Client HTTP Request       │
-                └────────────────┬─────────────────┘
-                                 │
-                                 ▼
-                ┌──────────────────────────────────┐
-                │ Store Event (InboundPaymentEvent)│
-                └────────────────┬─────────────────┘
-                                 │
-                                 ▼
-                ┌──────────────────────────────────┐
-                │ Return Immediate HTTP 202 / 200  │
-                └────────────────┬─────────────────┘
-                                 │
-                                 ▼
-                  task.delay(tenant_id, event_id)
-                                 │
-                                 ▼
-                ┌──────────────────────────────────┐
-                │          Redis Message           │
-                └────────────────┬─────────────────┘
-                                 │
-                                 ▼
-                ┌──────────────────────────────────┐
-                │          Celery Worker           │
-                │ 1. Verify tenant isolation       │
-                │ 2. Acquire Redis distributed lock│
-                │ 3. Match PPPoE / Mobile          │
-                │ 4. Create Ledger & Transaction   │
-                │ 5. Update Router PPPoE Session   │
-                │ 6. Release lock                  │
-                └──────────────────────────────────┘
+```mermaid
+stateDiagram-v2
+    [*] --> RECEIVED: HTTP POST /api/v1/payments/webhook/sms/
+    RECEIVED --> PROCESSING: Celery Task process_payment_event_task.delay()
+    
+    PROCESSING --> DUPLICATE: TrxID or Hash exists
+    PROCESSING --> MATCHED: PPPoE username or Mobile matched
+    PROCESSING --> UNMATCHED: Subscriber ambiguous or unknown
+    PROCESSING --> FAILED: Parser error or invalid amount
+    
+    MATCHED --> COMPLETED: LedgerEntry created & Customer recharged
+    UNMATCHED --> RESOLVED: Staff manually allocates via /resolve/
+    
+    DUPLICATE --> [*]
+    COMPLETED --> [*]
+    RESOLVED --> COMPLETED
+    FAILED --> [*]
 ```
 
-### 8.2 Task Conventions
-1. **Mandatory Tenant Argument**: Every Celery task function must accept `tenant_id` as its first argument.
-2. **Stateless Execution**: Never rely on thread-local `request.tenant` inside Celery workers.
-3. **Idempotent Tasks**: Every task must be safely re-runnable with identical arguments without generating duplicate transactions or corrupted network states.
+- **Immediate 202 Accepted**: Webhooks return immediately after persisting raw events.
+- **Idempotency**: TrxID, SMS hash, and idempotency keys prevent double credit.
+- **Staff Recovery**: Unmatched events are preserved in a safe state and resolved via staff UI.
 
 ---
 
-## 9. Network Architecture (Stage 7 Specification)
+## 8. Network Operations Architecture (MikroTik ROSv7 & OLTs)
 
-### 9.1 Hardware Isolation Layer
 ```text
-REST API Views (/api/v1/routers/)
-       │
-       ▼
-Network Service Layer (apps/network/services/mikrotik/ & olt/)
-       │
-       ├── Credential Decryption (Fernet symmetric decrypt from SECRET_KEY)
-       ├── SSRF Verification (Validates IP is not cloud metadata 169.254.169.254, loopback, or multicast)
-       │
-       ▼
-Hardware Protocol Client (MikroTikRESTClient / TelnetSNMPClient)
-       │
-       ▼
-Physical Core Router (MikroTik CCR/RB RouterOS v7) / EPON OLT Chassis
+Views (/api/v1/routers/, /api/v1/onus/)
+  │
+  ▼
+Network Service Layer (MikroTikService, OpticalPowerService)
+  ├── Fernet Credential Decryption
+  ├── SSRF Validation (Blocks 169.254.169.254, loopbacks, multicast)
+  └── Timeout & Error Handling (5s connect/read timeout)
+  │
+  ▼
+Hardware Protocol Clients (RouterOS REST Client, Telnet/SNMP Clients)
+  │
+  ▼
+Physical Devices (MikroTik Routers, EPON/GPON OLTs)
 ```
 
-### 9.2 Router Credential Protection
-- Passwords and SNMP communities are never stored in plaintext. They are encrypted using `apps.core.encryption.FernetEncryption` via `EncryptedCharField` (`enc:...`).
-- Network audit logs automatically redact passwords, secrets, and auth tokens before writing to `AuditLog`.
+- **Credential Protection**: Passwords and community strings are encrypted at rest with Fernet (`enc:...`) and unconditionally redacted from API output and audit logs.
+- **Resilience**: Device timeouts and connection failures return structured 502/504 errors; worker threads never crash.
 
 ---
 
-## 10. Testing & Verification Contract
+## 9. API Design & Security Hardening
 
-Before any PR or stage is marked complete, automated testing must verify:
-1. **Multi-Tenant Isolation**: Zero cross-tenant data leaks across all endpoints (verified by `test_shared_db_tenancy.py`).
-2. **Permission Enforcement**: 403 Forbidden on unauthorized roles.
-3. **Idempotency**: Identical payment requests return cached responses without duplicating ledger lines.
-4. **Network Resilience**: Router timeouts (5s) return structured `502 Bad Gateway` without crashing Django worker threads.
-5. **Linting & Compilation**: `python manage.py check` reports 0 issues; `npm run build` completes with 0 errors.
+- **Action Serializers**: Distinct serializers for mutations (`RechargeRequest`, `PaymentRequest`, `LockCustomer`, `ToggleInternet`, `RouterAction`, `ONUAction`).
+- **Secret Redaction**: `pppoe_password` is write-only; API secrets, passwords, and private keys are popped on GET.
+- **Rate Limiting**: Configured DRF rate throttles (`AnonRateThrottle`, `UserRateThrottle`, `ScopedRateThrottle`).
+- **Security Headers**: `SECURE_CONTENT_TYPE_NOSNIFF`, `SECURE_BROWSER_XSS_FILTER`, `X_FRAME_OPTIONS = 'DENY'`, CORS headers configured.
+- **OpenAPI 3.0**: Fully validated schema generated via `drf-spectacular` at [backend/schema.yml](file:///home/taraldinn/Documents/Sheba%20codebase/backend/schema.yml).
 
 ---
 
-## 11. Engineering Workflow
+## 10. Complete Entity Relationship Model
 
-Every change across all stages must follow the standard engineering lifecycle:
-```text
-Inspect -> Understand -> Change -> Verify -> Test -> Review Diff -> Update MASTER_TASK.md
+```mermaid
+erDiagram
+    Tenant ||--o{ TenantDomain : resolves
+    Tenant ||--o{ StaffMembership : employs
+    Tenant ||--o{ Customer : subscribes
+    Tenant ||--o{ Package : offers
+    Tenant ||--o{ POPBranch : operates
+    Tenant ||--o{ Router : controls
+    Tenant ||--o{ OLT : controls
+    Tenant ||--o{ Role : defines
+
+    Role ||--o{ StaffMembership : assigns
+    User ||--o{ StaffMembership : authenticates
+
+    Customer ||--o{ BillingAccount : owns
+    Customer ||--o{ Invoice : billed
+    Customer ||--o{ PaymentTransaction : pays
+    Customer }o--|| Package : subscribes_to
+    Customer }o--|| POPBranch : connected_to
+    Customer }o--|| Router : routed_through
+    Customer ||--o| ONU : bound_to
+
+    OLT ||--o{ ONU : hosts
+
+    BillingAccount ||--o{ LedgerEntry : journals
+    Invoice ||--o{ InvoiceLine : contains
+    Invoice ||--o{ PaymentAllocation : settles
+    PaymentTransaction ||--o{ PaymentAllocation : satisfies
+    PaymentTransaction ||--o| LedgerEntry : creates
+
+    InboundPaymentEvent ||--o| PaymentTransaction : triggers
 ```
-- Never execute speculative edits.
-- Never refactor working subsystems without written acceptance tests.
-- Never commit secrets, credentials, or development database dumps.
-- Commit messages must follow Conventional Commits format (`feat:`, `fix:`, `refactor:`, `chore:`, `test:`).
+
+---
+
+## 11. Verification Contract
+
+Every change must satisfy:
+1. `python manage.py check` passes with 0 issues.
+2. `python manage.py test apps` passes with 0 failures (currently 143/143 passing).
+3. `npm run build` compiles with 0 TypeScript/Turbopack errors (currently 48/48 routes).
+4. `python manage.py spectacular --file backend/schema.yml --validate` exits with code 0.
