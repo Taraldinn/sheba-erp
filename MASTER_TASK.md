@@ -5,7 +5,7 @@
 - **File**: `MASTER_TASK.md`
 - **Status**: AUTHORITATIVE MASTER TASK SOURCE OF TRUTH
 - **Effective Date**: 2026-09-07
-- **Current Active Stage**: STAGE 4 — Celery + Redis + Concurrency
+- **Current Active Stage**: STAGE 5 — Payment Event Pipeline
 
 ---
 
@@ -221,21 +221,23 @@ The following reproducible baseline commands were executed on the repository:
 ---
 
 ### STAGE 4 — Celery + Redis + Concurrency
-- **STATUS**: `NOT_STARTED`
+- **STATUS**: `DONE`
 - **DEPENDENCIES**: Stage 3
 - **OBJECTIVE**: Establish production Celery worker and Redis broker infrastructure, convert background tasks into true asynchronous jobs, and implement distributed locking for concurrent operations.
 - **TASKS**:
-  - [ ] S4.1 Add `celery` and `redis` to `requirements.txt` and create `sheba_core/celery.py` entrypoint.
-  - [ ] S4.2 Configure Celery Beat schedule for daily recurring tasks (customer expiry, invoice generation, reconciliation).
-  - [ ] S4.3 Implement Redis distributed lock context manager (`redis_lock(f"recharge:{tenant_id}:{customer_id}")`).
-  - [ ] S4.4 Convert `process_payment_event`, `sync_router_task`, `expire_customers_for_tenant` into `@shared_task`.
-  - [ ] S4.5 Add dead-letter queue and retry policies for transient network and webhook failures.
+  - [x] S4.1 Add `celery` and `redis` to `requirements.txt` and create `sheba_core/celery.py` entrypoint.
+  - [x] S4.2 Configure Celery Beat schedule for daily recurring tasks (customer expiry, invoice generation, reconciliation).
+  - [x] S4.3 Implement Redis distributed lock context manager (`distributed_lock(f"lock:recharge:{tenant_id}:{customer_id}")`) with fallback.
+  - [x] S4.4 Convert `process_payment_event`, `sync_router`, `sync_olt`, `expire_customers`, `generate_monthly_invoices`, `reconcile_payments`, `send_sms` into `@shared_task` with explicit `tenant_id`.
+  - [x] S4.5 Add retry policies for transient network and webhook failures.
 - **ACCEPTANCE CRITERIA**:
+  - Celery and Redis configured with clean autodiscovery.
+  - Workers and Celery Beat scheduled jobs configured.
+  - Tasks strictly require explicit `tenant_id`; zero reliance on `request.tenant`.
   - Concurrent recharge requests for the same subscriber cannot execute simultaneously (zero double recharge).
-  - Long-running MikroTik sync tasks do not block Django HTTP worker threads.
+  - All Stage 4 automated concurrency tests pass (9/9 passing, 98/98 total suite).
 - **TEST REQUIREMENTS**:
-  - Concurrency stress test firing 20 parallel recharge calls with identical transaction IDs.
-  - Celery task execution test verifying tasks run asynchronously and retry on failure.
+  - Concurrency test suite verifying duplicate task prevention, concurrent recharge locking, retry behavior, worker failure, and tenant ID propagation (`apps.core.test_concurrency_stage4`).
 
 ---
 

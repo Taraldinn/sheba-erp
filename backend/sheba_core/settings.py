@@ -124,6 +124,10 @@ if 'test' in sys.argv:
     PASSWORD_HASHERS = [
         'django.contrib.auth.hashers.MD5PasswordHasher',
     ]
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+    CELERY_BROKER_URL = 'memory://'
+    CELERY_RESULT_BACKEND = 'cache+memory://'
 
 # ─── Password validation ──────────────────────────────────────────────────────
 AUTH_PASSWORD_VALIDATORS = [
@@ -278,5 +282,39 @@ LOGGING = {
             'level': env('LOG_LEVEL'),
             'propagate': False,
         },
+    },
+}
+
+# ─── Celery & Redis Configuration (Stage 4) ──────────────────────────────────
+REDIS_URL = env('REDIS_URL', default='redis://127.0.0.1:6379/0')
+
+if 'test' not in sys.argv:
+    CELERY_BROKER_URL = REDIS_URL
+    CELERY_RESULT_BACKEND = REDIS_URL
+
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'expire_customers_daily': {
+        'task': 'apps.core.tasks.expire_customers',
+        'schedule': crontab(hour=0, minute=0),
+        'args': (),
+    },
+    'generate_monthly_invoices_monthly': {
+        'task': 'apps.core.tasks.generate_monthly_invoices',
+        'schedule': crontab(day_of_month=1, hour=1, minute=0),
+        'args': (),
+    },
+    'reconcile_payments_hourly': {
+        'task': 'apps.core.tasks.reconcile_payments',
+        'schedule': crontab(minute=30),
+        'args': (),
     },
 }
