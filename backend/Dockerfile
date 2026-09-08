@@ -8,7 +8,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Install build dependencies for C extensions (if needed)
+# Install build dependencies for C extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python packages into user directory
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # ==============================================================================
@@ -46,8 +46,8 @@ RUN groupadd -r -g 1001 appuser && \
 # Copy installed Python packages from builder
 COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
 
-# Copy application files
-COPY --chown=appuser:appuser . .
+# Copy application files (only backend code is copied)
+COPY --chown=appuser:appuser backend/ .
 
 # Ensure staticfiles, media, and entrypoint have correct permissions
 RUN mkdir -p /app/staticfiles /app/media && \
