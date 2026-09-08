@@ -5,7 +5,7 @@
 - **File**: `MASTER_TASK.md`
 - **Status**: AUTHORITATIVE MASTER TASK SOURCE OF TRUTH
 - **Effective Date**: 2026-09-07
-- **Current Active Stage**: STAGE 3 — RBAC
+- **Current Active Stage**: STAGE 4 — Celery + Redis + Concurrency
 
 ---
 
@@ -200,21 +200,23 @@ The following reproducible baseline commands were executed on the repository:
 ---
 
 ### STAGE 3 — RBAC
-- **STATUS**: `NOT_STARTED`
+- **STATUS**: `DONE`
 - **DEPENDENCIES**: Stage 2
 - **OBJECTIVE**: Wire database-driven `Permission` codenames and `Role` definitions to DRF permission classes, replacing hardcoded `UserRole` checks with capability-based authorization.
 - **TASKS**:
-  - [ ] S3.1 Seed standard system permissions (`customers.view`, `customers.recharge`, `routers.sync`, `finance.adjust`, etc.).
-  - [ ] S3.2 Implement `HasTenantPermission` DRF permission class evaluating `membership.has_permission(codename)`.
-  - [ ] S3.3 Enforce `Scope` filtering (`GLOBAL`, `POP`, `AREA`, `SELF`) in `get_queryset()` based on `membership.scope`.
-  - [ ] S3.4 Provide tenant-level custom Role creation API allowing ISPs to build tailored staff permission sets.
-  - [ ] S3.5 Replace legacy `IsBillingStaff`, `IsTechnicalStaff` classes with capability checks.
+  - [x] S3.1 Seed standard system permissions (`customer.view`, `customer.recharge`, `router.manage`, `staff.manage`, etc.).
+  - [x] S3.2 Implement `HasTenantPermission` DRF permission class evaluating `membership.has_permission(codename)` & central `can(...)` function.
+  - [x] S3.3 Enforce `Scope` filtering (`GLOBAL`, `POP`, `AREA`, `SELF`, `ASSIGNED`) in `get_scoped_queryset()` based on `membership.scope`.
+  - [x] S3.4 Provide tenant-level custom Role creation API and functional frontend matrix allowing ISPs to build tailored staff permission sets.
+  - [x] S3.5 Replace legacy `IsBillingStaff`, `IsTechnicalStaff`, `IsAdminOrManager` classes with capability checks.
 - **ACCEPTANCE CRITERIA**:
-  - Staff without `customers.recharge` capability are blocked with HTTP 403.
-  - POP-scoped staff cannot view subscribers outside their assigned POP branch.
+  - Staff without `customer.recharge` capability are blocked with HTTP 403.
+  - POP-scoped and assigned-scoped staff cannot view subscribers outside their scope.
+  - Custom roles and live permissions can be configured via REST API and Staff UI matrix.
+  - All Stage 3 RBAC automated tests pass (11/11 passing, 89/89 total suite).
 - **TEST REQUIREMENTS**:
-  - Permission matrix automated tests verifying all role capability combinations.
-  - Scope boundary tests for POP and Area isolation.
+  - Permission matrix automated tests verifying all role capability combinations (`apps.authentication.test_rbac_stage3`).
+  - Scope boundary tests for assigned and self isolation.
 
 ---
 

@@ -3,9 +3,12 @@ from rest_framework import serializers, viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework.exceptions import PermissionDenied
+from django.contrib.auth.models import User
 from .models import Ticket, TicketReply
 from apps.core.permissions import IsTenantMember
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
+from apps.core.authorization import can
 
 
 class TicketReplySerializer(serializers.ModelSerializer):
@@ -71,12 +74,28 @@ class TicketViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'ticket.create'):
+            raise PermissionDenied("Permission denied: ticket.create capability required.")
         ticket_no = serializer.validated_data.get('ticket_no') or f"TCK-{str(uuid.uuid4())[:6].upper()}"
         serializer.save(tenant=tenant, ticket_no=ticket_no)
+
+    def perform_update(self, serializer):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'ticket.manage', serializer.instance):
+            raise PermissionDenied("Permission denied: ticket.manage capability required.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'ticket.manage', instance):
+            raise PermissionDenied("Permission denied: ticket.manage capability required.")
+        super().perform_destroy(instance)
 
     @action(detail=True, methods=['post'])
     def reply(self, request, pk=None):
         ticket = self.get_object()
+        if not can(request.user, request.tenant, 'ticket.manage', ticket) and not can(request.user, request.tenant, 'ticket.create', ticket):
+            return Response({'error': 'Permission denied: ticket.manage capability required.'}, status=403)
         message = request.data.get('message')
         if not message:
             return Response({'error': 'Message cannot be empty'}, status=400)
@@ -89,3 +108,23 @@ class TicketViewSet(viewsets.ModelViewSet):
             message=message
         )
         return Response(TicketReplySerializer(reply).data)
+
+    @action(detail=True, methods=['post'])
+    def close(self, request, pk=None):
+        ticket = self.get_object()
+        if not can(request.user, request.tenant, 'ticket.manage', ticket):
+            return Response({'error': 'Permission denied: ticket.manage capability required.'}, status=403)
+        ticket.status = Ticket.Status.CLOSED
+        ticket.save(update_fields=['status', 'updated_at'])
+        return Response({'message': f'Ticket #{ticket.ticket_no} closed.', 'status': ticket.status})
+
+    @action(detail=True, methods=['post'])
+    def assign(self, request, pk=None):
+        ticket = self.get_object()
+        if not can(request.user, request.tenant, 'ticket.manage', ticket):
+            return Response({'error': 'Permission denied: ticket.manage capability required.'}, status=403)
+        user_id = request.data.get('user_id')
+        user = User.objects.filter(id=user_id).first() if user_id else None
+        ticket.assigned_to = user
+        ticket.save(update_fields=['assigned_to', 'updated_at'])
+        return Response({'message': f'Ticket assigned to {user.username if user else "None"}.', 'assigned_to': user.username if user else None})

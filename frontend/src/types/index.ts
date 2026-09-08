@@ -234,3 +234,41 @@ export interface Notification {
   created_at: string;
   related_id?: string;
 }
+
+export interface PermissionItem {
+  id: number;
+  codename: string;
+  name: string;
+  module: string;
+}
+
+export interface RoleItem {
+  id: string;
+  tenant?: string;
+  name: string;
+  description: string;
+  is_active: boolean;
+  permissions: number[];
+  permissions_detail?: PermissionItem[];
+  members_count?: number;
+  created_at?: string;
+}
+
+export interface StaffItem {
+  id: string;
+  username: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  role: string;
+  role_display?: string;
+  role_id?: string;
+  role_name?: string;
+  scope: 'GLOBAL' | 'TENANT' | 'POP' | 'AREA' | 'SELF' | 'ASSIGNED';
+  phone?: string;
+  national_id?: string;
+  address?: string;
+  is_active: boolean;
+  created_at?: string;
+}
+

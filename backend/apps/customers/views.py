@@ -10,8 +10,10 @@ from .models import Customer, CustomerStatus
 from .serializers import CustomerListSerializer, CustomerDetailSerializer, CustomerRechargeSerializer
 from apps.billing.models import Package, Recharge, Invoice
 from apps.core.models import AuditLog
-from apps.core.permissions import IsTenantMember, IsBillingStaff
+from apps.core.permissions import IsTenantMember, IsBillingStaff, HasTenantPermission
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
+from apps.core.authorization import can
+from rest_framework.exceptions import PermissionDenied
 
 
 @extend_schema_view(
@@ -28,7 +30,20 @@ from apps.core.utils import get_scoped_queryset, get_tenant_for_request
     toggle_status=extend_schema(tags=['2. Customers & Subscribers']),
 )
 class CustomerViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated, IsTenantMember]
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, HasTenantPermission]
+    action_permissions = {
+        'list': 'customer.view',
+        'retrieve': 'customer.view',
+        'create': 'customer.create',
+        'update': 'customer.update',
+        'partial_update': 'customer.update',
+        'destroy': 'customer.delete',
+        'recharge': 'customer.recharge',
+        'toggle_internet': 'customer.update',
+        'lock': 'customer.update',
+        'unlock': 'customer.update',
+        'toggle_status': 'customer.update',
+    }
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -64,12 +79,29 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'customer.create'):
+            raise PermissionDenied("Permission denied: customer.create capability required.")
         serializer.save(tenant=tenant)
+
+    def perform_update(self, serializer):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'customer.update', serializer.instance):
+            raise PermissionDenied("Permission denied: customer.update capability required.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'customer.delete', instance):
+            raise PermissionDenied("Permission denied: customer.delete capability required.")
+        super().perform_destroy(instance)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsBillingStaff])
     @transaction.atomic
     def recharge(self, request, pk=None):
-        customer_id = self.get_object().id
+        customer = self.get_object()
+        if not can(request.user, request.tenant, 'customer.recharge', customer):
+            return Response({'error': 'Permission denied: customer.recharge capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        customer_id = customer.id
         # Acquire row lock to prevent race condition
         customer = Customer.objects.select_for_update().get(id=customer_id)
         serializer = CustomerRechargeSerializer(data=request.data)
@@ -156,7 +188,10 @@ class CustomerViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='toggle-internet')
     @transaction.atomic
     def toggle_internet(self, request, pk=None):
-        customer_id = self.get_object().id
+        customer = self.get_object()
+        if not can(request.user, request.tenant, 'customer.update', customer):
+            return Response({'error': 'Permission denied: customer.update capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        customer_id = customer.id
         customer = Customer.objects.select_for_update().get(id=customer_id)
         action_type = request.data.get('state')  # 'on', 'off', or toggle
 
@@ -204,7 +239,10 @@ class CustomerViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def toggle_status(self, request, pk=None):
-        customer_id = self.get_object().id
+        customer = self.get_object()
+        if not can(request.user, request.tenant, 'customer.update', customer):
+            return Response({'error': 'Permission denied: customer.update capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        customer_id = customer.id
         customer = Customer.objects.select_for_update().get(id=customer_id)
         target_status = request.data.get('status')
         if target_status in CustomerStatus.values:

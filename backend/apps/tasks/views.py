@@ -1,8 +1,13 @@
 from rest_framework import serializers, viewsets, permissions
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.contrib.auth.models import User
 from .models import Task
 from apps.core.permissions import IsTenantMember
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
+from apps.core.authorization import can
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -30,4 +35,39 @@ class TaskViewSet(viewsets.ModelViewSet):
         return get_scoped_queryset(self.request, Task)
 
     def perform_create(self, serializer):
-        serializer.save(tenant=get_tenant_for_request(self.request))
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'task.manage'):
+            raise PermissionDenied("Permission denied: task.manage capability required.")
+        serializer.save(tenant=tenant)
+
+    def perform_update(self, serializer):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'task.manage', serializer.instance):
+            raise PermissionDenied("Permission denied: task.manage capability required.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'task.manage', instance):
+            raise PermissionDenied("Permission denied: task.manage capability required.")
+        super().perform_destroy(instance)
+
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        task = self.get_object()
+        if not can(request.user, request.tenant, 'task.manage', task):
+            return Response({'error': 'Permission denied: task.manage capability required.'}, status=403)
+        task.status = Task.Status.COMPLETED
+        task.save(update_fields=['status', 'updated_at'])
+        return Response({'message': f'Task "{task.title}" completed.', 'status': task.status})
+
+    @action(detail=True, methods=['post'])
+    def assign(self, request, pk=None):
+        task = self.get_object()
+        if not can(request.user, request.tenant, 'task.manage', task):
+            return Response({'error': 'Permission denied: task.manage capability required.'}, status=403)
+        user_id = request.data.get('user_id')
+        user = User.objects.filter(id=user_id).first() if user_id else None
+        task.assigned_to = user
+        task.save(update_fields=['assigned_to', 'updated_at'])
+        return Response({'message': f'Task assigned to {user.username if user else "None"}.', 'assigned_to': user.username if user else None})

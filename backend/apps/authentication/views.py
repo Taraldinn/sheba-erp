@@ -4,11 +4,15 @@ from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from .models import StaffProfile, StaffMembership, UserRole
-from .serializers import StaffProfileSerializer, StaffMembershipSerializer, UserDetailSerializer, LoginSerializer
+from .models import StaffProfile, StaffMembership, UserRole, Role, Permission
+from .serializers import (
+    StaffProfileSerializer, StaffMembershipSerializer, UserDetailSerializer,
+    LoginSerializer, RoleSerializer, PermissionSerializer
+)
 from apps.core.models import Tenant, AuditLog
 from apps.core.permissions import IsTenantMember
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
+from apps.core.authorization import can
 
 
 @extend_schema(tags=['1. Authentication & Users'], description='Authenticate staff user and receive API Token with tenant information.')
@@ -155,7 +159,89 @@ class StaffProfileViewSet(viewsets.ModelViewSet):
     serializer_class = StaffProfileSerializer
 
     def get_queryset(self):
-        return get_scoped_queryset(self.request, StaffProfile).select_related('user')
+        return get_scoped_queryset(self.request, StaffProfile).select_related('user', 'tenant')
 
     def perform_create(self, serializer):
-        serializer.save(tenant=get_tenant_for_request(self.request))
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'staff.manage'):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Permission denied: staff.manage capability required.")
+        serializer.save(tenant=tenant)
+
+    def perform_update(self, serializer):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'staff.manage', serializer.instance):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Permission denied: staff.manage capability required.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'staff.manage', instance):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Permission denied: staff.manage capability required.")
+        super().perform_destroy(instance)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['1. Authentication & Users']),
+    retrieve=extend_schema(tags=['1. Authentication & Users']),
+    create=extend_schema(tags=['1. Authentication & Users']),
+    update=extend_schema(tags=['1. Authentication & Users']),
+    partial_update=extend_schema(tags=['1. Authentication & Users']),
+    destroy=extend_schema(tags=['1. Authentication & Users']),
+)
+class RoleViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for ISP tenant roles and permission mappings.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember]
+    serializer_class = RoleSerializer
+
+    def get_queryset(self):
+        tenant = get_tenant_for_request(self.request)
+        if not tenant:
+            return Role.objects.none()
+        from apps.authentication.services.rbac import seed_default_roles_for_tenant
+        if not Role.objects.filter(tenant=tenant).exists():
+            seed_default_roles_for_tenant(tenant)
+        return Role.objects.filter(tenant=tenant).prefetch_related('permissions', 'memberships')
+
+    def perform_create(self, serializer):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'staff.manage'):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Permission denied: staff.manage capability required.")
+        serializer.save(tenant=tenant)
+
+    def perform_update(self, serializer):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'staff.manage', serializer.instance):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Permission denied: staff.manage capability required.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'staff.manage', instance):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Permission denied: staff.manage capability required.")
+        super().perform_destroy(instance)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['1. Authentication & Users']),
+    retrieve=extend_schema(tags=['1. Authentication & Users']),
+)
+class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Catalog of standard platform capabilities.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember]
+    serializer_class = PermissionSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        from apps.authentication.services.rbac import ensure_permission_catalog
+        ensure_permission_catalog()
+        return Permission.objects.all().order_by('module', 'codename')

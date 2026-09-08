@@ -903,6 +903,60 @@ export class ApiClient {
     return res.ok;
   }
 
+  // ════════════════════════ ROLES & PERMISSIONS (RBAC) ════════════════════════
+  static async getRoles() {
+    try {
+      const res = await fetch(`${API_BASE}/roles/`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data.results || data;
+      }
+    } catch {}
+    return [];
+  }
+
+  static async createRole(payload: any) {
+    const res = await fetch(`${API_BASE}/roles/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(typeof err === 'object' ? JSON.stringify(err) : 'Failed to create role');
+    }
+    return await res.json();
+  }
+
+  static async updateRole(id: string, payload: any) {
+    const res = await fetch(`${API_BASE}/roles/${id}/`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(typeof err === 'object' ? JSON.stringify(err) : 'Failed to update role');
+    }
+    return await res.json();
+  }
+
+  static async deleteRole(id: string) {
+    const res = await fetch(`${API_BASE}/roles/${id}/`, { method: 'DELETE', headers: this.getHeaders() });
+    return res.ok;
+  }
+
+  static async getPermissions() {
+    try {
+      const res = await fetch(`${API_BASE}/permissions/`, { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return data.results || data;
+      }
+    } catch {}
+    return [];
+  }
+
   // ════════════════════════ SETTINGS & AUDIT LOGS ════════════════════════
   static async getSettings() {
     try {

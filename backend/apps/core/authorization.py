@@ -59,10 +59,13 @@ def can(user, tenant, permission_codename: str, resource=None) -> bool:
         profile = getattr(user, 'profile', None)
         if profile and profile.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
             return True
+        if not role:
+            # Active membership with no specific role assigned retains access
+            return True
         return False
 
     # Full tenant admin roles bypass individual capability checks
-    admin_roles = ['Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN']
+    admin_roles = ['Super Admin', 'SUPER_ADMIN', 'Admin', 'ADMIN', 'Admin / Managing Director']
     if role.name in admin_roles:
         role_has_perm = True
     else:

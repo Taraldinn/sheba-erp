@@ -1,6 +1,7 @@
 from pathlib import Path
 import environ
 import os
+import sys
 
 # ─── Base directory ──────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -57,6 +58,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'drf_spectacular',
     'whitenoise.runserver_nostatic',   # serve compressed statics in dev too
+    'sslserver',
 
     # Sheba ISP Core Apps
     'apps.core',
@@ -113,6 +115,15 @@ WSGI_APPLICATION = 'sheba_core.wsgi.application'
 DATABASES = {
     'default': env.db('DATABASE_URL', default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")
 }
+
+if 'test' in sys.argv:
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': ':memory:',
+    }
+    PASSWORD_HASHERS = [
+        'django.contrib.auth.hashers.MD5PasswordHasher',
+    ]
 
 # ─── Password validation ──────────────────────────────────────────────────────
 AUTH_PASSWORD_VALIDATORS = [

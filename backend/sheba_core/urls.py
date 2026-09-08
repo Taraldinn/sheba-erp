@@ -15,7 +15,7 @@ from apps.core.saas_views import (
     SaaSBackupViewSet, SaaSUserViewSet, SaaSAuditLogViewSet,
     SaaSLoginView, SaaSMeView
 )
-from apps.authentication.views import LoginView, CurrentUserView, StaffProfileViewSet
+from apps.authentication.views import LoginView, CurrentUserView, StaffProfileViewSet, RoleViewSet, PermissionViewSet
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
 from apps.payments.views import PaymentGatewayViewSet, PaymentTransactionViewSet, SmsLogViewSet, SmsWebhookView
@@ -44,6 +44,8 @@ router.register(r'saas/audit-logs', SaaSAuditLogViewSet, basename='saas-audit-lo
 router.register(r'settings', CompanySettingViewSet, basename='setting')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 router.register(r'staff', StaffProfileViewSet, basename='staff')
+router.register(r'roles', RoleViewSet, basename='role')
+router.register(r'permissions', PermissionViewSet, basename='permission')
 router.register(r'customers', CustomerViewSet, basename='customer')
 router.register(r'packages', PackageViewSet, basename='package')
 router.register(r'offers', OfferViewSet, basename='offer')

@@ -96,6 +96,65 @@ class IsCentralAdmin(permissions.BasePermission):
         return bool(profile and profile.role == UserRole.SUPER_ADMIN)
 
 
+from apps.core.authorization import can
+
+
+class HasTenantPermission(permissions.BasePermission):
+    """
+    Evaluates fine-grained RBAC permissions against the central authorization service.
+    Usage on ViewSet:
+        permission_classes = [permissions.IsAuthenticated, IsTenantMember, HasTenantPermission]
+        required_permission = 'customer.recharge'
+    Or action-level:
+        action_permissions = {'recharge': 'customer.recharge'}
+    """
+    def __init__(self, permission_codename=None):
+        self.permission_codename = permission_codename
+
+    def has_permission(self, request, view):
+        if not IsTenantMember().has_permission(request, view):
+            return False
+
+        perm = self.permission_codename or getattr(view, 'required_permission', None)
+        if not perm and hasattr(view, 'action_permissions'):
+            perm = view.action_permissions.get(getattr(view, 'action', None))
+
+        if not perm:
+            return True
+
+        return can(request.user, getattr(request, 'tenant', None), perm)
+
+    def has_object_permission(self, request, view, obj):
+        if not IsTenantMember().has_object_permission(request, view, obj):
+            return False
+
+        perm = self.permission_codename or getattr(view, 'required_permission', None)
+        if not perm and hasattr(view, 'action_permissions'):
+            perm = view.action_permissions.get(getattr(view, 'action', None))
+
+        if not perm:
+            return True
+
+        return can(request.user, getattr(request, 'tenant', None), perm, resource=obj)
+
+
+def requires_permission(permission_codename: str):
+    """Factory creating a DRF Permission class checking the given capability."""
+    class CustomTenantPermission(permissions.BasePermission):
+        def has_permission(self, request, view):
+            if not IsTenantMember().has_permission(request, view):
+                return False
+            return can(request.user, getattr(request, 'tenant', None), permission_codename)
+
+        def has_object_permission(self, request, view, obj):
+            if not IsTenantMember().has_object_permission(request, view, obj):
+                return False
+            return can(request.user, getattr(request, 'tenant', None), permission_codename, resource=obj)
+
+    CustomTenantPermission.__name__ = f"RequiresPermission_{permission_codename.replace('.', '_')}"
+    return CustomTenantPermission
+
+
 class IsAdminOrManager(permissions.BasePermission):
     """
     Full administrative access within the tenant (Super Admin or Admin / Managing Director).
@@ -108,9 +167,13 @@ class IsAdminOrManager(permissions.BasePermission):
         if not IsTenantMember().has_permission(request, view):
             return False
 
+        tenant = getattr(request, 'tenant', None)
+        if can(request.user, tenant, 'staff.manage') or can(request.user, tenant, 'setting.manage'):
+            return True
+
         membership = getattr(request, 'membership', None)
         if membership and membership.role:
-            if membership.role.name in [UserRole.SUPER_ADMIN, UserRole.ADMIN, 'Admin', 'Super Admin']:
+            if membership.role.name in [UserRole.SUPER_ADMIN, UserRole.ADMIN, 'Admin', 'Super Admin', 'Admin / Managing Director']:
                 return True
 
         profile = getattr(request.user, 'profile', None)
@@ -129,12 +192,21 @@ class IsBillingStaff(permissions.BasePermission):
         if not IsTenantMember().has_permission(request, view):
             return False
 
+        tenant = getattr(request, 'tenant', None)
+        if (
+            can(request.user, tenant, 'customer.recharge') or
+            can(request.user, tenant, 'invoice.create') or
+            can(request.user, tenant, 'invoice.view') or
+            can(request.user, tenant, 'payment.view')
+        ):
+            return True
+
         membership = getattr(request, 'membership', None)
         if membership and membership.role:
             allowed_role_names = [
                 UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.BILLING_OPERATOR,
                 UserRole.BILLING, UserRole.AGENT, UserRole.RESELLER,
-                'Admin', 'Billing Operator', 'Billing', 'Agent', 'Reseller'
+                'Admin', 'Super Admin', 'Billing Operator', 'Billing', 'Agent', 'Reseller'
             ]
             if membership.role.name in allowed_role_names:
                 return True
@@ -156,12 +228,22 @@ class IsTechnicalStaff(permissions.BasePermission):
         if not IsTenantMember().has_permission(request, view):
             return False
 
+        tenant = getattr(request, 'tenant', None)
+        if (
+            can(request.user, tenant, 'router.view') or
+            can(request.user, tenant, 'router.manage') or
+            can(request.user, tenant, 'ticket.view') or
+            can(request.user, tenant, 'ticket.manage') or
+            can(request.user, tenant, 'task.view')
+        ):
+            return True
+
         membership = getattr(request, 'membership', None)
         if membership and membership.role:
             allowed_role_names = [
                 UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SUPPORT_STAFF,
                 UserRole.TECHNICIAN, UserRole.LINE_MAN,
-                'Admin', 'Support Staff', 'Technician', 'Line Man'
+                'Admin', 'Super Admin', 'Support Staff', 'Technician', 'Line Man'
             ]
             if membership.role.name in allowed_role_names:
                 return True
@@ -185,6 +267,10 @@ class IsAdminUserOrReadOnly(permissions.BasePermission):
         if request.user.is_superuser:
             return True
 
+        tenant = getattr(request, 'tenant', None)
+        if can(request.user, tenant, 'setting.manage') or can(request.user, tenant, 'staff.manage'):
+            return True
+
         membership = getattr(request, 'membership', None)
         if membership and membership.role:
             if membership.role.name in [UserRole.SUPER_ADMIN, UserRole.ADMIN, 'Admin', 'Super Admin']:
@@ -192,4 +278,5 @@ class IsAdminUserOrReadOnly(permissions.BasePermission):
 
         profile = getattr(request.user, 'profile', None)
         return bool(profile and profile.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN])
+
 

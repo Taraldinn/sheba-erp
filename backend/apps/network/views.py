@@ -11,6 +11,7 @@ from .services.olt import ONUService
 from .services.audit import log_network_action
 from apps.core.permissions import IsTenantMember, IsAdminOrManager, IsTechnicalStaff, IsAdminUserOrReadOnly
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
+from apps.core.authorization import can
 
 
 @extend_schema_view(
@@ -104,6 +105,8 @@ class RouterViewSet(viewsets.ModelViewSet):
         Tests connectivity and credentials to the router (RouterOS v7 REST or API).
         """
         router = self.get_object()
+        if not can(request.user, request.tenant, 'router.manage', router):
+            return Response({'error': 'Permission denied: router.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
         svc = MikroTikService(router)
         ok, msg, details = svc.test_connection()
 
@@ -132,6 +135,8 @@ class RouterViewSet(viewsets.ModelViewSet):
         Retrieves real-time system resource health from the router.
         """
         router = self.get_object()
+        if not can(request.user, request.tenant, 'router.view', router):
+            return Response({'error': 'Permission denied: router.view capability required.'}, status=status.HTTP_403_FORBIDDEN)
         svc = MikroTikService(router)
         health_data = svc.get_system_health()
         return Response(health_data, status=status.HTTP_200_OK)
@@ -139,6 +144,8 @@ class RouterViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
     def sync_pppoe(self, request, pk=None):
         router = self.get_object()
+        if not can(request.user, request.tenant, 'router.manage', router):
+            return Response({'error': 'Permission denied: router.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
         svc = MikroTikService(router)
         try:
             sessions_count = svc.sync_active_sessions_to_db()
@@ -270,3 +277,11 @@ class UserSessionViewSet(viewsets.ReadOnlyModelViewSet):
         if router_id:
             qs = qs.filter(router_id=router_id)
         return qs.select_related('router')
+
+    @action(detail=True, methods=['post'])
+    def disconnect(self, request, pk=None):
+        session = self.get_object()
+        if not can(request.user, request.tenant, 'router.manage', session):
+            return Response({'error': 'Permission denied: router.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        session.delete()
+        return Response({'message': f'Session for {session.username} disconnected.'})

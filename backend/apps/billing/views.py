@@ -64,6 +64,11 @@ class ResellerPricingViewSet(viewsets.ModelViewSet):
         serializer.save(tenant=get_tenant_for_request(self.request))
 
 
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.decorators import action
+from apps.core.authorization import can
+
+
 @extend_schema_view(
     list=extend_schema(tags=['6. Billing & Invoices']),
     retrieve=extend_schema(tags=['6. Billing & Invoices']),
@@ -84,7 +89,31 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(tenant=get_tenant_for_request(self.request))
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'invoice.create'):
+            raise PermissionDenied("Permission denied: invoice.create capability required.")
+        serializer.save(tenant=tenant)
+
+    def perform_update(self, serializer):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'invoice.manage', serializer.instance):
+            raise PermissionDenied("Permission denied: invoice.manage capability required.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'invoice.manage', instance):
+            raise PermissionDenied("Permission denied: invoice.manage capability required.")
+        super().perform_destroy(instance)
+
+    @action(detail=True, methods=['post'])
+    def pay(self, request, pk=None):
+        invoice = self.get_object()
+        if not can(request.user, request.tenant, 'customer.recharge', invoice) and not can(request.user, request.tenant, 'invoice.manage', invoice):
+            return Response({'error': 'Permission denied: customer.recharge or invoice.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        invoice.status = 'Paid'
+        invoice.save(update_fields=['status', 'updated_at'])
+        return Response({'message': f'Invoice #{invoice.invoice_no} marked as Paid', 'invoice': InvoiceSerializer(invoice).data})
 
 
 @extend_schema_view(
