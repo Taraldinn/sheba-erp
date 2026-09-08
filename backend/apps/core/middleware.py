@@ -38,15 +38,19 @@ class TenantResolutionMiddleware(MiddlewareMixin):
 
     CONTROL_PLANE_PREFIXES = ('admin.', 'control.', 'saas.')
 
+    def _is_public(self, path):
+        return path in ('', '/') or any(path.startswith(p) for p in self.PUBLIC_PATHS)
+
     def process_request(self, request):
         path = request.path_info
         raw_host = request.get_host().split(':')[0].lower()
 
+        # Reset per-request attributes
         request.tenant = None
         request.is_control_plane = False
 
-        # 1. Readiness probe & SaaS Control Plane API paths — bypass tenant resolution
-        if path == '/healthz/' or path.startswith('/healthz/'):
+        # 1. Root API landing, healthz, & SaaS paths — bypass tenant resolution
+        if path in ('', '/') or path.startswith('/healthz/'):
             return None
 
         if path.startswith('/api/v1/saas/'):
@@ -100,10 +104,17 @@ class TenantResolutionMiddleware(MiddlewareMixin):
                 except Exception:
                     pass
 
+        # D. Localhost / 127.0.0.1 development fallback (active only in local mode)
+        if not tenant and raw_host in ('localhost', '127.0.0.1') and getattr(settings, 'IS_LOCAL', False):
+            try:
+                tenant = Tenant.objects.filter(is_active=True).first()
+            except Exception:
+                pass
+
         # 4. Tenant status check
         if tenant:
             if not tenant.is_active:
-                if not any(path.startswith(p) for p in self.PUBLIC_PATHS):
+                if not self._is_public(path):
                     return JsonResponse({
                         'error': f'ISP tenant "{tenant.name}" is suspended or inactive.',
                         'code': 'TENANT_INACTIVE'
@@ -112,7 +123,7 @@ class TenantResolutionMiddleware(MiddlewareMixin):
             return None
 
         # 5. Unknown domain / missing tenant — allow public paths, reject business APIs
-        if any(path.startswith(p) for p in self.PUBLIC_PATHS):
+        if self._is_public(path):
             return None
 
         return JsonResponse({

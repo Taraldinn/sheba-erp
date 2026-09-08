@@ -7,10 +7,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ─── Load environment variables from .env file ───────────────────────────────
 env = environ.Env(
-    DEBUG=(bool, False),
-    ALLOWED_HOSTS=(list, ['localhost', '127.0.0.1']),
+    ENVIRONMENT=(str, 'local'),
+    DEBUG=(bool, True),
+    ALLOWED_HOSTS=(list, ['*']),
     CORS_ALLOWED_ORIGINS=(list, ['http://localhost:3000', 'http://127.0.0.1:3000']),
-    CORS_ALLOW_ALL_ORIGINS=(bool, False),
+    CORS_ALLOW_ALL_ORIGINS=(bool, True),
     CSRF_TRUSTED_ORIGINS=(list, []),
     DATABASE_URL=(str, f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
     REDIS_URL=(str, ''),
@@ -20,11 +21,26 @@ env = environ.Env(
 # Read .env if present (dev convenience — production injects vars via shell/docker)
 environ.Env.read_env(BASE_DIR / '.env', overwrite=False)
 
+# ─── Environment switch: 'local' vs 'production' ─────────────────────────────
+ENVIRONMENT = env('ENVIRONMENT').lower()
+IS_PRODUCTION = ENVIRONMENT in ('production', 'prod')
+IS_LOCAL = not IS_PRODUCTION
+
 # ─── Core security ───────────────────────────────────────────────────────────
 SECRET_KEY = env('SECRET_KEY', default='django-insecure-sheba-erp-development-key-change-in-prod-xyz123')
-DEBUG = env('DEBUG')
-ALLOWED_HOSTS = env('ALLOWED_HOSTS')
-CSRF_TRUSTED_ORIGINS = env('CSRF_TRUSTED_ORIGINS')
+
+if IS_LOCAL:
+    DEBUG = env.bool('DEBUG', default=True)
+    ALLOWED_HOSTS = ['*']
+    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOWED_ORIGINS = ['*']
+else:
+    DEBUG = env.bool('DEBUG', default=False)
+    ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
+    CORS_ALLOW_ALL_ORIGINS = env.bool('CORS_ALLOW_ALL_ORIGINS', default=False)
+    CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
+
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
 
 # ─── Installed apps ──────────────────────────────────────────────────────────
 INSTALLED_APPS = [
@@ -204,22 +220,26 @@ if REDIS_URL:
     SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
     SESSION_CACHE_ALIAS = 'default'
 
-# ─── Reverse Proxy Configuration (Dokploy / Traefik / Nginx) ─────────────────
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-USE_X_FORWARDED_HOST = True
-USE_X_FORWARDED_PORT = True
-
-# ─── Security headers (active in production, no-op in DEBUG) ─────────────────
-if not DEBUG:
+# ─── Reverse Proxy & Security Configuration ──────────────────────────────────
+if IS_PRODUCTION and not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+    USE_X_FORWARDED_PORT = True
     SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=0)
     if SECURE_HSTS_SECONDS > 0:
         SECURE_HSTS_INCLUDE_SUBDOMAINS = True
         SECURE_HSTS_PRELOAD = True
     SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=False)
-    SECURE_REDIRECT_EXEMPT = [r'^healthz/?', r'^api/v1/health-check/?']
+    SECURE_REDIRECT_EXEMPT = [r'^$', r'^healthz/?', r'^api/v1/health-check/?', r'^api/docs/?']
     SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=False)
     CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=False)
     X_FRAME_OPTIONS = 'DENY'
+else:
+    # Local development mode: completely permissive, zero SSL redirects, zero HSTS
+    SECURE_SSL_REDIRECT = False
+    SECURE_HSTS_SECONDS = 0
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 LOGGING = {

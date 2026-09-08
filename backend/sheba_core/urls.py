@@ -3,7 +3,10 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
-from apps.core.views import TenantViewSet, TenantDomainViewSet, CompanySettingViewSet, AuditLogViewSet, HealthCheckView, ReadinessView
+from apps.core.views import (
+    TenantViewSet, TenantDomainViewSet, CompanySettingViewSet,
+    AuditLogViewSet, HealthCheckView, ReadinessView, ApiRootView
+)
 from apps.core.saas_views import (
     SaaSOverviewView, SaaSTenantViewSet, SaaSDomainViewSet,
     SaaSTenantRequestViewSet,
@@ -71,6 +74,7 @@ admin.site.site_title = "Sheba ERP Admin Portal"
 admin.site.index_title = "ISP Operations & Billing Management"
 
 urlpatterns = [
+    path('', ApiRootView.as_view(), name='api-root'),
     path('admin/', admin.site.urls),
     
     # Auth endpoints
