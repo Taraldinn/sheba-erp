@@ -18,7 +18,10 @@ from apps.core.saas_views import (
 from apps.authentication.views import LoginView, CurrentUserView, StaffProfileViewSet, RoleViewSet, PermissionViewSet
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
-from apps.payments.views import PaymentGatewayViewSet, PaymentTransactionViewSet, SmsLogViewSet, SmsWebhookView
+from apps.payments.views import (
+    PaymentGatewayViewSet, PaymentTransactionViewSet, SmsLogViewSet,
+    SmsWebhookView, InboundPaymentEventViewSet
+)
 from apps.network.views import RouterViewSet, OLTViewSet, ONUViewSet, UserSessionViewSet, POPBranchViewSet
 from apps.support.views import TicketViewSet
 from apps.hr.views import EmployeeViewSet, AttendanceViewSet, LeaveRequestViewSet, AdvanceSalaryViewSet, PayrollRecordViewSet
@@ -55,6 +58,8 @@ router.register(r'recharges', RechargeViewSet, basename='recharge')
 router.register(r'payment-gateways', PaymentGatewayViewSet, basename='payment-gateway')
 router.register(r'transactions', PaymentTransactionViewSet, basename='transaction')
 router.register(r'sms-logs', SmsLogViewSet, basename='sms-log')
+router.register(r'payments/events', InboundPaymentEventViewSet, basename='inbound-payment-event')
+router.register(r'payment-events', InboundPaymentEventViewSet, basename='payment-event')
 router.register(r'routers', RouterViewSet, basename='router')
 router.register(r'olts', OLTViewSet, basename='olt')
 router.register(r'onus', ONUViewSet, basename='onu')

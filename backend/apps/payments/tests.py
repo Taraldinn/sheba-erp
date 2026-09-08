@@ -31,9 +31,8 @@ class PaymentSmsWebhookTests(TestCase):
             'message': sample_sms
         }, HTTP_HOST='sms.shebafi.com')
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['status'], 'success')
-        self.assertTrue(response.data['matched'])
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(response.data['status'], 'accepted')
 
         self.customer.refresh_from_db()
         self.assertEqual(self.customer.status, CustomerStatus.ACTIVE)
@@ -45,12 +44,12 @@ class PaymentSmsWebhookTests(TestCase):
         sample_sms = "You have received Tk 800.00 from 01788776655. Fee Tk 0.00. Balance Tk 15400.00. TrxID UNIQUE999"
         # First attempt: succeeds
         res1 = self.client.post(url, {'sender': 'bKash', 'message': sample_sms}, HTTP_HOST='sms.shebafi.com')
-        self.assertEqual(res1.status_code, status.HTTP_200_OK)
+        self.assertEqual(res1.status_code, status.HTTP_202_ACCEPTED)
         self.assertEqual(PaymentTransaction.objects.filter(trx_id='UNIQUE999').count(), 1)
 
         # Second attempt with same TrxID: must be idempotent and not create duplicate transaction
         res2 = self.client.post(url, {'sender': 'bKash', 'message': sample_sms}, HTTP_HOST='sms.shebafi.com')
-        self.assertEqual(res2.status_code, status.HTTP_200_OK)
+        self.assertEqual(res2.status_code, status.HTTP_202_ACCEPTED)
         self.assertTrue(res2.data.get('idempotent'))
         self.assertEqual(PaymentTransaction.objects.filter(trx_id='UNIQUE999').count(), 1)
 

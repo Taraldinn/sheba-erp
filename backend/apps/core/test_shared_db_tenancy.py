@@ -270,7 +270,7 @@ class SharedDatabaseTenancyTests(TestCase):
             'message': sms
         }, HTTP_HOST='fardin.shebafi.com')
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(response.status_code, (status.HTTP_200_OK, status.HTTP_202_ACCEPTED))
         txn = PaymentTransaction.objects.get(trx_id='AUTO99PAY')
         self.assertEqual(txn.tenant_id, self.tenant_fardin.id)
 

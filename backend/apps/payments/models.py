@@ -186,6 +186,7 @@ class InboundPaymentEvent(models.Model):
     amount              = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     trx_id              = models.CharField(max_length=100, blank=True, db_index=True)
     sender_account      = models.CharField(max_length=100, blank=True)
+    reference_id        = models.CharField(max_length=100, blank=True, db_index=True)
     status              = models.CharField(max_length=20, choices=EventStatus.choices, default=EventStatus.RECEIVED)
     matched_customer    = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True, blank=True, related_name='inbound_events')
     matched_transaction = models.ForeignKey(PaymentTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='inbound_event')
@@ -197,9 +198,10 @@ class InboundPaymentEvent(models.Model):
     class Meta:
         ordering = ['-received_at']
         indexes = [
-            models.Index(fields=['tenant', 'status'],      name='inevent_tenant_status_idx'),
-            models.Index(fields=['tenant', 'trx_id'],      name='inevent_tenant_trx_idx'),
-            models.Index(fields=['tenant', 'received_at'], name='inevent_tenant_ts_idx'),
+            models.Index(fields=['tenant', 'status'],       name='inevent_tenant_status_idx'),
+            models.Index(fields=['tenant', 'trx_id'],       name='inevent_tenant_trx_idx'),
+            models.Index(fields=['tenant', 'reference_id'], name='inevent_tenant_ref_idx'),
+            models.Index(fields=['tenant', 'received_at'],  name='inevent_tenant_ts_idx'),
         ]
 
     def __str__(self):

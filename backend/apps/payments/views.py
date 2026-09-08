@@ -2,17 +2,22 @@ import re
 import uuid
 import datetime
 from rest_framework import viewsets, permissions, views, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction, IntegrityError
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from .models import PaymentGateway, PaymentTransaction, SmsLog, TransactionStatus
-from .serializers import PaymentGatewaySerializer, PaymentTransactionSerializer, SmsLogSerializer
+from .models import PaymentGateway, PaymentTransaction, SmsLog, InboundPaymentEvent, TransactionStatus
+from .serializers import (
+    PaymentGatewaySerializer, PaymentTransactionSerializer, SmsLogSerializer,
+    InboundPaymentEventSerializer, ResolvePaymentEventSerializer
+)
 from apps.customers.models import Customer, CustomerStatus
 from apps.billing.models import Recharge
-from apps.core.models import AuditLog
-from apps.core.permissions import IsTenantMember, IsAdminOrManager, IsBillingStaff
+from apps.core.models import AuditLog, Tenant
+from apps.core.permissions import IsTenantMember, IsAdminOrManager, IsBillingStaff, HasTenantPermission
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
+from apps.core.tasks import process_payment_event
 
 
 @extend_schema_view(
@@ -68,125 +73,276 @@ class SmsLogViewSet(viewsets.ModelViewSet):
 
 @extend_schema(
     tags=['7. Payments & SMS Gateways'],
-    description='Receives automated SMS forwarded from Android SMS Gateway or modem for automatic billing reconciliation. Idempotent: duplicate TrxIDs are silently ignored.'
+    description='Ingestion-only webhook receiving automated SMS forwarded from Android SMS Gateway or modem. Returns HTTP 202 Accepted immediately and queues asynchronous matching and financial ledger processing.'
 )
 class SmsWebhookView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         sender = request.data.get('sender') or request.data.get('from', 'Unknown')
-        message = request.data.get('message') or request.data.get('text', '')
-        tenant = getattr(request, 'tenant', None)
+        message = request.data.get('message') or request.data.get('text') or request.data.get('body', '')
+        raw_payload = request.data
 
-        if not message:
-            return Response({'error': 'Message content empty'}, status=status.HTTP_400_BAD_REQUEST)
+        if not message and not request.data.get('trx_id'):
+            return Response({'error': 'Message content or trx_id required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Resolve tenant from request
+        tenant = getattr(request, 'tenant', None)
+        if not tenant:
+            tenant_val = request.data.get('tenant') or request.data.get('tenant_id')
+            if tenant_val:
+                tenant = Tenant.objects.filter(id=tenant_val).first()
+            if not tenant:
+                if Tenant.objects.count() == 1:
+                    tenant = Tenant.objects.first()
+
+        if not tenant:
+            return Response({'error': 'Tenant could not be resolved from request'}, status=status.HTTP_400_BAD_REQUEST)
 
         # --- Parse SMS ---
-        trx_match = re.search(r'TrxID\s+([A-Z0-9]+)|TxnId:\s*([A-Z0-9]+)|Txn:\s*([A-Z0-9]+)', message, re.IGNORECASE)
-        amount_match = re.search(r'Tk\s*([\d,]+\.?\d*)|BDT\s*([\d,]+\.?\d*)', message, re.IGNORECASE)
-        account_match = re.search(r'from\s+([0-9+]+)|Ref\s+([A-Za-z0-9_-]+)', message, re.IGNORECASE)
+        trx_match = re.search(r'(?:TrxID|TxnId|Txn|Transaction\s*ID|TxID)[:\s]+([A-Za-z0-9_-]+)', message, re.IGNORECASE)
+        amount_match = re.search(r'(?:Tk|BDT|Amount\s*[:\s]*Tk?\.?)\s*([\d,]+\.?\d*)', message, re.IGNORECASE)
+        account_match = re.search(r'(?:from|account)[:\s]+([0-9+]+)', message, re.IGNORECASE)
+        ref_match = re.search(r'(?:Ref|Reference)[:\s]+([A-Za-z0-9_\.-]+)', message, re.IGNORECASE)
 
-        parsed_trx = (trx_match.group(1) or trx_match.group(2) or trx_match.group(3)) if trx_match else ''
-        parsed_amount = float(amount_match.group(1).replace(',', '')) if amount_match else None
-        parsed_acc = (account_match.group(1) or account_match.group(2)) if account_match else ''
-        parsed_provider = 'bKash' if 'bkash' in message.lower() or 'bkash' in sender.lower() else \
-                          'Nagad' if 'nagad' in message.lower() else 'Generic'
+        parsed_trx = request.data.get('trx_id') or ((trx_match.group(1)) if trx_match else '')
+        parsed_amount = request.data.get('amount')
+        if not parsed_amount and amount_match:
+            try:
+                parsed_amount = float(amount_match.group(1).replace(',', ''))
+            except Exception:
+                parsed_amount = None
+        parsed_acc = request.data.get('sender_account') or ((account_match.group(1)) if account_match else '')
+        parsed_ref = request.data.get('reference_id') or request.data.get('reference') or ((ref_match.group(1)) if ref_match else '')
+        parsed_provider = request.data.get('provider')
+        if not parsed_provider:
+            msg_lower = (message + ' ' + sender).lower()
+            if 'bkash' in msg_lower:
+                parsed_provider = 'bKash'
+            elif 'nagad' in msg_lower:
+                parsed_provider = 'Nagad'
+            elif 'rocket' in msg_lower:
+                parsed_provider = 'Rocket'
+            elif 'upay' in msg_lower:
+                parsed_provider = 'Upay'
+            elif 'sslcommerz' in msg_lower:
+                parsed_provider = 'SSLCommerz'
+            else:
+                parsed_provider = 'SMS'
 
-        # --- P0.3 IDEMPOTENCY: if we've already processed this TrxID, return early ---
+        # --- Fast Idempotency: duplicate TrxID or Reference ID returns early HTTP 202 ---
         if parsed_trx:
-            existing_txn = PaymentTransaction.objects.filter(trx_id=parsed_trx).first()
+            existing_txn = PaymentTransaction.objects.filter(tenant=tenant, trx_id=parsed_trx).first()
             if existing_txn:
                 return Response({
-                    'status': 'success',
+                    'status': 'accepted',
                     'sms_id': str(existing_txn.id),
                     'matched': True,
                     'idempotent': True,
                     'message': f'TrxID {parsed_trx} already processed.'
-                })
+                }, status=status.HTTP_202_ACCEPTED)
 
-        try:
-            with transaction.atomic():
-                # Create SMS log
-                sms_log = SmsLog.objects.create(
-                    tenant=tenant,
-                    sender=sender,
-                    raw_message=message,
-                    parsed_provider=parsed_provider,
-                    parsed_amount=parsed_amount,
-                    parsed_trx_id=parsed_trx,
-                    parsed_account=parsed_acc,
-                    is_matched=False
-                )
+            existing_event = InboundPaymentEvent.objects.filter(
+                tenant=tenant, trx_id=parsed_trx, status=InboundPaymentEvent.EventStatus.MATCHED
+            ).first()
+            if existing_event:
+                return Response({
+                    'status': 'accepted',
+                    'event_id': str(existing_event.id),
+                    'matched': True,
+                    'idempotent': True,
+                    'message': f'TrxID {parsed_trx} already processed.'
+                }, status=status.HTTP_202_ACCEPTED)
 
-                matched = False
+        if parsed_ref:
+            existing_ref = InboundPaymentEvent.objects.filter(
+                tenant=tenant, reference_id=parsed_ref, status=InboundPaymentEvent.EventStatus.MATCHED
+            ).first()
+            if existing_ref:
+                return Response({
+                    'status': 'accepted',
+                    'event_id': str(existing_ref.id),
+                    'matched': True,
+                    'idempotent': True,
+                    'message': f'Reference ID {parsed_ref} already processed.'
+                }, status=status.HTTP_202_ACCEPTED)
 
-                # Auto-match by phone number
-                if parsed_acc and parsed_amount:
-                    customer_qs = Customer.objects.filter(mobile__icontains=parsed_acc[-10:])
-                    if tenant:
-                        customer_qs = customer_qs.filter(tenant=tenant)
-                    customer = customer_qs.select_for_update().first()
+        # Ingestion-only: record SMS and create InboundPaymentEvent
+        sms_log = SmsLog.objects.create(
+            tenant=tenant,
+            sender=sender,
+            raw_message=message,
+            parsed_provider=parsed_provider,
+            parsed_amount=parsed_amount,
+            parsed_trx_id=parsed_trx,
+            parsed_account=parsed_acc,
+            is_matched=False
+        )
 
-                    if customer:
-                        sms_log.matched_customer = customer
-                        sms_log.is_matched = True
-                        sms_log.save(update_fields=['matched_customer', 'is_matched'])
-                        matched = True
+        event = InboundPaymentEvent.objects.create(
+            tenant=tenant,
+            source=InboundPaymentEvent.EventSource.SMS,
+            raw_payload=message if isinstance(message, str) else str(raw_payload),
+            provider=parsed_provider,
+            amount=parsed_amount,
+            trx_id=parsed_trx,
+            sender_account=parsed_acc,
+            reference_id=parsed_ref,
+            sms_log=sms_log,
+            status=InboundPaymentEvent.EventStatus.RECEIVED
+        )
 
-                        # Extend customer expiry and activate
-                        today = timezone.now().date()
-                        base = customer.expiry_date if customer.expiry_date and customer.expiry_date >= today else today
-                        new_expiry = base + datetime.timedelta(days=30)
-                        customer.expiry_date = new_expiry
-                        customer.status = CustomerStatus.ACTIVE
-                        customer.save(update_fields=['expiry_date', 'status'])
-
-                        # Safe unique trx_id fallback
-                        final_trx_id = parsed_trx if parsed_trx else f"SMS-{str(uuid.uuid4())[:8]}"
-
-                        PaymentTransaction.objects.create(
-                            tenant=tenant,
-                            customer=customer,
-                            amount=parsed_amount,
-                            trx_id=final_trx_id,
-                            payment_method=parsed_provider,
-                            status=TransactionStatus.MATCHED,
-                            customer_account=parsed_acc,
-                            sms_log=sms_log
-                        )
-
-                        Recharge.objects.create(
-                            tenant=tenant,
-                            customer=customer,
-                            package=customer.package,
-                            amount=parsed_amount,
-                            validity_days=30,
-                            new_expiry=new_expiry,
-                            old_expiry=customer.expiry_date,
-                            payment_method=parsed_provider,
-                            trx_id=final_trx_id,
-                            notes=f"Auto-recharged from SMS TrxID: {parsed_trx}"
-                        )
-
-                        AuditLog.objects.create(
-                            tenant=tenant,
-                            actor_username='SMS_AUTO_ROBOT',
-                            action='SMS_AUTO_RECHARGE',
-                            module='PAYMENTS',
-                            target_id=str(customer.id),
-                            details={
-                                'trx_id': final_trx_id,
-                                'amount': parsed_amount,
-                                'pppoe_username': customer.pppoe_username,
-                            }
-                        )
-
-        except IntegrityError:
-            # Rare duplicate trx_id race condition — treat as idempotent success
-            return Response({'status': 'success', 'matched': True, 'idempotent': True})
+        # Dispatch async Celery task
+        process_payment_event.delay(str(tenant.id), str(event.id))
 
         return Response({
-            'status': 'success',
+            'status': 'accepted',
+            'event_id': str(event.id),
             'sms_id': str(sms_log.id),
-            'matched': matched
-        })
+            'matched': False,
+            'message': 'Payment event accepted for background processing.'
+        }, status=status.HTTP_202_ACCEPTED)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['7. Payments & SMS Gateways']),
+    retrieve=extend_schema(tags=['7. Payments & SMS Gateways']),
+    create=extend_schema(tags=['7. Payments & SMS Gateways']),
+)
+class InboundPaymentEventViewSet(viewsets.ModelViewSet):
+    """
+    Ingestion and management of inbound payment events.
+    Supports Android ISP admin app pushing extracted payment SMS events,
+    webhook integrations, and manual resolution of unmatched events.
+    """
+    serializer_class = InboundPaymentEventSerializer
+
+    def get_permissions(self):
+        if self.action == 'create':
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated(), IsTenantMember(), IsBillingStaff()]
+
+    def get_queryset(self):
+        return get_scoped_queryset(self.request, InboundPaymentEvent).select_related(
+            'matched_customer', 'matched_transaction', 'sms_log'
+        )
+
+    def create(self, request, *args, **kwargs):
+        tenant = get_tenant_for_request(request)
+        if not tenant:
+            tenant_val = request.data.get('tenant') or request.data.get('tenant_id')
+            if tenant_val:
+                tenant = Tenant.objects.filter(id=tenant_val).first()
+            if not tenant:
+                if Tenant.objects.count() == 1:
+                    tenant = Tenant.objects.first()
+
+        if not tenant:
+            return Response({'error': 'Tenant could not be resolved from request'}, status=status.HTTP_400_BAD_REQUEST)
+
+        source = request.data.get('source', InboundPaymentEvent.EventSource.SMS)
+        raw_payload = request.data.get('raw_payload') or request.data.get('message') or str(request.data)
+        provider = request.data.get('provider', '')
+        amount = request.data.get('amount')
+        trx_id = str(request.data.get('trx_id') or '').strip()
+        sender_account = str(request.data.get('sender_account') or request.data.get('sender') or '').strip()
+        reference_id = str(request.data.get('reference_id') or request.data.get('reference') or '').strip()
+
+        if not raw_payload and not trx_id:
+            return Response({'error': 'raw_payload or trx_id required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fast idempotency check
+        if trx_id:
+            existing_txn = PaymentTransaction.objects.filter(tenant=tenant, trx_id=trx_id).first()
+            if existing_txn:
+                return Response({
+                    'status': 'accepted',
+                    'idempotent': True,
+                    'matched': True,
+                    'transaction_id': str(existing_txn.id),
+                    'message': f'TrxID {trx_id} already processed.'
+                }, status=status.HTTP_202_ACCEPTED)
+
+            existing_event = InboundPaymentEvent.objects.filter(
+                tenant=tenant, trx_id=trx_id, status=InboundPaymentEvent.EventStatus.MATCHED
+            ).first()
+            if existing_event:
+                return Response({
+                    'status': 'accepted',
+                    'idempotent': True,
+                    'matched': True,
+                    'event_id': str(existing_event.id),
+                    'message': f'TrxID {trx_id} already processed.'
+                }, status=status.HTTP_202_ACCEPTED)
+
+        if reference_id:
+            existing_ref = InboundPaymentEvent.objects.filter(
+                tenant=tenant, reference_id=reference_id, status=InboundPaymentEvent.EventStatus.MATCHED
+            ).first()
+            if existing_ref:
+                return Response({
+                    'status': 'accepted',
+                    'idempotent': True,
+                    'matched': True,
+                    'event_id': str(existing_ref.id),
+                    'message': f'Reference ID {reference_id} already processed.'
+                }, status=status.HTTP_202_ACCEPTED)
+
+        # Ingestion-only: create InboundPaymentEvent
+        event = InboundPaymentEvent.objects.create(
+            tenant=tenant,
+            source=source,
+            raw_payload=raw_payload,
+            provider=provider,
+            amount=amount,
+            trx_id=trx_id,
+            sender_account=sender_account,
+            reference_id=reference_id,
+            status=InboundPaymentEvent.EventStatus.RECEIVED
+        )
+
+        # Dispatch async Celery task
+        process_payment_event.delay(str(tenant.id), str(event.id))
+
+        return Response({
+            'status': 'accepted',
+            'event_id': str(event.id),
+            'matched': False,
+            'message': 'Payment event accepted for background processing.'
+        }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=['post'], url_path='resolve')
+    def resolve(self, request, pk=None):
+        """
+        Manually resolve an UNMATCHED or FAILED payment event by linking it to a customer.
+        Authoritatively performs financial ledger entry and recharge.
+        """
+        event = self.get_object()
+        if event.status == InboundPaymentEvent.EventStatus.MATCHED:
+            return Response({'error': 'Event has already been matched and processed'}, status=status.HTTP_400_BAD_REQUEST)
+        if event.status == InboundPaymentEvent.EventStatus.DUPLICATE:
+            return Response({'error': 'Duplicate events cannot be resolved'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = ResolvePaymentEventSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        customer_id = serializer.validated_data['customer_id']
+
+        customer = Customer.objects.filter(tenant=event.tenant, id=customer_id).first()
+        if not customer:
+            return Response({'error': 'Customer not found under this tenant'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Execute processing with explicit customer_id
+        result = process_payment_event(
+            tenant_id=str(event.tenant.id),
+            event_id=str(event.id),
+            customer_id=str(customer.id)
+        )
+
+        event.refresh_from_db()
+        return Response({
+            'status': 'resolved' if event.status == InboundPaymentEvent.EventStatus.MATCHED else event.status,
+            'event_id': str(event.id),
+            'matched_customer_id': str(customer.id),
+            'matched_customer_username': customer.pppoe_username,
+            'result': result
+        }, status=status.HTTP_200_OK)
