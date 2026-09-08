@@ -25,7 +25,7 @@ backups/
 LOGS.TXT
 
 # Git & IDE configs
-.git/
+.git
 .gitignore
 .gitattributes
 .idea/
