@@ -41,6 +41,9 @@ class PaymentTransactionAdmin(admin.ModelAdmin):
     readonly_fields = ('id', 'created_at')
     date_hierarchy = 'created_at'
 
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(SmsLog)
 class SmsLogAdmin(admin.ModelAdmin):

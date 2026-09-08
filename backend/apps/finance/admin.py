@@ -10,6 +10,9 @@ class BillingAccountAdmin(admin.ModelAdmin):
     readonly_fields = ('id', 'created_at', 'updated_at')
     ordering = ('tenant', 'customer')
 
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(InvoiceLine)
 class InvoiceLineAdmin(admin.ModelAdmin):
@@ -58,6 +61,9 @@ class AdjustmentAdmin(admin.ModelAdmin):
     list_filter = ('tenant', 'adjustment_type', 'created_at')
     search_fields = ('customer__full_name', 'approved_by', 'reason')
     readonly_fields = ('id', 'ledger_entry', 'created_at')
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(IdempotencyKey)

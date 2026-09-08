@@ -27,7 +27,7 @@ from apps.customers.models import Customer, CustomerStatus
 from apps.billing.models import Invoice, Package, Recharge
 from apps.network.models import Router, UserSession, OLT
 from apps.payments.models import PaymentTransaction, SmsLog, InboundPaymentEvent, TransactionStatus
-from apps.finance.models import LedgerEntry, BillingAccount
+from apps.finance.models import LedgerEntry, BillingAccount, InvoiceLine
 from apps.core.lock import distributed_lock, LockAcquisitionError
 
 logger = logging.getLogger(__name__)
@@ -158,7 +158,7 @@ def generate_monthly_invoices(self=None, tenant_id=None, billing_month=None):
                         payable = pkg_amount + prev_due - customer.discount
                         inv_no = f"INV-{now.strftime('%y%m')}-{str(uuid.uuid4())[:6].upper()}"
 
-                        Invoice.objects.create(
+                        invoice = Invoice.objects.create(
                             tenant_id=tenant_id,
                             customer=customer,
                             invoice_no=inv_no,
@@ -172,6 +172,61 @@ def generate_monthly_invoices(self=None, tenant_id=None, billing_month=None):
                             due_amount=payable,
                             status=Invoice.InvoiceStatus.UNPAID,
                             due_date=now.date() + timezone.timedelta(days=10)
+                        )
+
+                        # Create itemized lines
+                        InvoiceLine.objects.create(
+                            invoice=invoice,
+                            tenant_id=tenant_id,
+                            description=f"Monthly Subscription ({month_str}) - {pkg_name}",
+                            quantity=1,
+                            unit_price=pkg_amount,
+                            discount=Decimal('0.00'),
+                            tax_amount=Decimal('0.00')
+                        )
+                        if prev_due > 0:
+                            InvoiceLine.objects.create(
+                                invoice=invoice,
+                                tenant_id=tenant_id,
+                                description="Previous Outstanding Due",
+                                quantity=1,
+                                unit_price=prev_due,
+                                discount=Decimal('0.00'),
+                                tax_amount=Decimal('0.00')
+                            )
+                        if customer.discount > 0:
+                            InvoiceLine.objects.create(
+                                invoice=invoice,
+                                tenant_id=tenant_id,
+                                description="Promotional / Loyalty Discount",
+                                quantity=1,
+                                unit_price=Decimal('0.00'),
+                                discount=customer.discount,
+                                tax_amount=Decimal('0.00')
+                            )
+
+                        # Update BillingAccount & create LedgerEntry
+                        billing_acct, _ = BillingAccount.objects.get_or_create(
+                            tenant_id=tenant_id,
+                            customer=customer,
+                            defaults={'balance': Decimal('0.00'), 'total_paid': Decimal('0.00')}
+                        )
+                        payable_dec = Decimal(str(payable))
+                        billing_acct.total_invoiced = Decimal(str(billing_acct.total_invoiced or '0.00')) + payable_dec
+                        billing_acct.balance = Decimal(str(billing_acct.balance or '0.00')) - payable_dec
+                        billing_acct.overdue_amount = payable_dec
+                        billing_acct.save(update_fields=['total_invoiced', 'balance', 'overdue_amount'])
+
+                        LedgerEntry.objects.create(
+                            tenant_id=tenant_id,
+                            customer=customer,
+                            entry_type=LedgerEntry.EntryType.INVOICE,
+                            amount=payable_dec,
+                            balance_after=billing_acct.balance,
+                            reference_id=str(invoice.id),
+                            reference_type='Invoice',
+                            description=f"Monthly Recurring Invoice #{inv_no} ({month_str})",
+                            created_by='MONTHLY_INVOICE_CRON'
                         )
                         created += 1
 

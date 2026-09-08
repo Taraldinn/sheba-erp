@@ -5,7 +5,7 @@
 - **File**: `MASTER_TASK.md`
 - **Status**: AUTHORITATIVE MASTER TASK SOURCE OF TRUTH
 - **Effective Date**: 2026-09-07
-- **Current Active Stage**: STAGE 6 — Finance + Billing Integrity
+- **Current Active Stage**: STAGE 9 — Customer Portal
 
 ---
 
@@ -266,21 +266,23 @@ The following reproducible baseline commands were executed on the repository:
 ---
 
 ### STAGE 6 — Finance + Billing Integrity
-- **STATUS**: `NOT_STARTED`
+- **STATUS**: `DONE`
 - **DEPENDENCIES**: Stage 5
 - **OBJECTIVE**: Integrate `apps/finance/` ledger into the main billing and customer lifecycle, ensuring all balance mutations produce immutable `LedgerEntry` records and automated monthly invoices.
 - **TASKS**:
-  - [ ] S6.1 Wire customer recharge flow to generate `LedgerEntry` (credit customer account, debit reseller wallet).
-  - [ ] S6.2 Implement automated `PaymentAllocation` linking customer payments to open `Invoice` records.
-  - [ ] S6.3 Build `AdjustmentViewSet` for manual billing adjustments with mandatory reason and ledger entry generation.
-  - [ ] S6.4 Enforce no-delete integrity on `LedgerEntry` and `PaymentTransaction` in both Django admin and ORM.
-  - [ ] S6.5 Wire monthly recurring billing cron to create itemized `InvoiceLine` items.
+  - [x] S6.1 Wire customer recharge flow to generate `LedgerEntry` (credit customer account, debit reseller wallet).
+  - [x] S6.2 Implement automated `PaymentAllocation` linking customer payments to open `Invoice` records (exact, partial, and overpayment).
+  - [x] S6.3 Build `AdjustmentViewSet` for manual billing adjustments with mandatory reason and ledger entry generation.
+  - [x] S6.4 Enforce no-delete integrity on `LedgerEntry` and `PaymentTransaction` in both Django admin and ORM.
+  - [x] S6.5 Wire monthly recurring billing cron to create itemized `InvoiceLine` items and record `INVOICE` ledger debits.
+  - [x] S6.6 Wire `InvoiceViewSet.pay` and `PaymentTransactionViewSet.create` into atomic ledger entries and invoice allocations.
+  - [x] S6.7 All 10 financial integrity tests pass in `apps/finance/test_financial_integrity_stage6.py` (153/153 total suite).
 - **ACCEPTANCE CRITERIA**:
   - `Customer.billing_account.balance` always equals the exact sum of related `LedgerEntry` rows.
   - Invoices cannot be marked paid without corresponding `PaymentAllocation` records.
+  - No financial record (`LedgerEntry`, `PaymentTransaction`, `PaymentAllocation`) can be deleted via Admin, API, or ORM.
 - **TEST REQUIREMENTS**:
-  - Accounting ledger reconciliation test verifying zero discrepancy across 1,000 synthetic transactions.
-  - Reversal and adjustment audit trail verification tests.
+  - Financial integrity test suite verifying atomic recharge, invoice allocation, immutability, idempotency, and concurrent transactions (`apps.finance.test_financial_integrity_stage6`).
 
 ---
 

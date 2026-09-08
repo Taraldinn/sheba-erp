@@ -102,7 +102,7 @@ To prevent architectural regressions, all downstream development adheres to the 
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │                        STAGE 6                         │
-│       Finance, Ledger & Billing Integrity (Invoices)   │ [NEXT]
+│       Finance, Ledger & Billing Integrity (Invoices)   │ [DONE]
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
@@ -423,6 +423,6 @@ erDiagram
 
 Every change must satisfy:
 1. `python manage.py check` passes with 0 issues.
-2. `python manage.py test apps` passes with 0 failures (currently 143/143 passing).
+2. `python manage.py test apps` passes with 0 failures (currently 153/153 passing).
 3. `npm run build` compiles with 0 TypeScript/Turbopack errors (currently 48/48 routes).
 4. `python manage.py spectacular --file backend/schema.yml --validate` exits with code 0.

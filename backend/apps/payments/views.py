@@ -17,6 +17,9 @@ from apps.billing.models import Recharge
 from apps.core.models import AuditLog, Tenant
 from apps.core.permissions import IsTenantMember, IsAdminOrManager, IsBillingStaff, HasTenantPermission
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
+from decimal import Decimal
+from apps.finance.models import BillingAccount, LedgerEntry
+from apps.finance.services import get_or_create_billing_account, record_ledger_entry, allocate_payment_to_invoices
 from apps.core.tasks import process_payment_event
 
 
@@ -95,6 +98,51 @@ class PaymentTransactionViewSet(viewsets.ModelViewSet):
                 idempotency_key=idempotency_key,
                 raw_response={'processed_by': request.user.username}
             )
+
+            if customer:
+                amount_dec = Decimal(str(payment.amount))
+                billing_acct = get_or_create_billing_account(tenant, customer)
+                billing_acct = BillingAccount.objects.select_for_update().get(id=billing_acct.id)
+                billing_acct.total_paid = Decimal(str(billing_acct.total_paid or '0.00')) + amount_dec
+                billing_acct.balance = Decimal(str(billing_acct.balance or '0.00')) + amount_dec
+                billing_acct.last_payment_at = timezone.now()
+                billing_acct.save(update_fields=['total_paid', 'balance', 'last_payment_at'])
+
+                record_ledger_entry(
+                    tenant=tenant,
+                    customer=customer,
+                    entry_type=LedgerEntry.EntryType.PAYMENT,
+                    amount=amount_dec,
+                    balance_after=billing_acct.balance,
+                    reference_id=str(payment.id),
+                    reference_type='PaymentTransaction',
+                    description=f"Manual Payment recorded via {payment.payment_method} (Trx: {trx_id})",
+                    created_by=request.user.username if request.user.is_authenticated else 'system'
+                )
+
+                # Allocate payment to open invoices (FIFO)
+                allocate_payment_to_invoices(
+                    tenant=tenant,
+                    payment=payment,
+                    customer=customer,
+                    amount=amount_dec,
+                    notes=f"Allocation from Payment {payment.id}"
+                )
+
+                # Offset customer due / advance
+                locked_customer = Customer.objects.select_for_update().get(id=customer.id)
+                due_dec = Decimal(str(locked_customer.due_amount or '0.00'))
+                adv_dec = Decimal(str(locked_customer.advance_amount or '0.00'))
+                if due_dec > 0:
+                    if amount_dec >= due_dec:
+                        surplus = amount_dec - due_dec
+                        locked_customer.due_amount = Decimal('0.00')
+                        locked_customer.advance_amount = adv_dec + surplus
+                    else:
+                        locked_customer.due_amount = due_dec - amount_dec
+                else:
+                    locked_customer.advance_amount = adv_dec + amount_dec
+                locked_customer.save(update_fields=['due_amount', 'advance_amount'])
 
             AuditLog.objects.create(
                 tenant=tenant,

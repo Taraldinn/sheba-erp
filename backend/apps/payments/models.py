@@ -1,8 +1,14 @@
 import uuid
 from django.db import models
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 from apps.core.models import Tenant
 from apps.customers.models import Customer
+
+
+class ImmutablePaymentTransactionQuerySet(models.QuerySet):
+    def delete(self):
+        raise ValidationError("Payment transactions are immutable financial records and cannot be deleted.")
 
 
 class GatewayProvider(models.TextChoices):
@@ -103,6 +109,11 @@ class PaymentTransaction(models.Model):
             models.Index(fields=['customer', 'created_at'], name='tx_customer_created_idx'),
             models.Index(fields=['tenant', 'status'], name='tx_tenant_status_idx'),
         ]
+
+    objects = ImmutablePaymentTransactionQuerySet.as_manager()
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Payment transactions are immutable financial records and cannot be deleted.")
 
     def __str__(self):
         return f"{self.payment_method} ৳{self.amount} - Trx: {self.trx_id} ({self.status})"

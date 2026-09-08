@@ -17,6 +17,8 @@ from apps.core.permissions import IsTenantMember, IsBillingStaff, HasTenantPermi
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 from apps.core.authorization import can
 from apps.core.lock import distributed_lock, LockAcquisitionError
+from apps.finance.services import execute_transactional_recharge
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import PermissionDenied
 
 
@@ -112,103 +114,72 @@ class CustomerViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Permission denied: customer.recharge capability required.'}, status=status.HTTP_403_FORBIDDEN)
 
         lock_key = f"lock:recharge:{customer.tenant_id}:{customer.id}"
+        serializer = RechargeRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        idempotency_key = request.headers.get('Idempotency-Key') or data.get('idempotency_key')
+        staff_profile = getattr(request.user, 'profile', None)
+
+        package = None
+        if data.get('package_id'):
+            package = Package.objects.filter(tenant=customer.tenant, id=data['package_id']).first()
+
         try:
             with distributed_lock(lock_key, timeout=15, blocking=True, blocking_timeout=3.0):
-                with transaction.atomic():
-                    customer_id = customer.id
-                    customer = Customer.objects.select_for_update().get(id=customer_id)
-                    serializer = CustomerRechargeSerializer(data=request.data)
-                    serializer.is_valid(raise_exception=True)
+                result = execute_transactional_recharge(
+                    tenant=customer.tenant,
+                    customer=customer,
+                    amount=data['amount'],
+                    discount=data.get('discount', 0),
+                    validity_days=data.get('validity_days', 30),
+                    payment_method=data.get('payment_method', 'Cash'),
+                    trx_id=data.get('trx_id', ''),
+                    notes=data.get('notes', ''),
+                    processed_by=staff_profile,
+                    idempotency_key=idempotency_key,
+                    package=package,
+                    actor_username=request.user.username
+                )
 
-                    data = serializer.validated_data
-                    amount = data['amount']
-                    discount = data['discount']
-                    validity_days = data['validity_days']
-                    payment_method = data['payment_method']
-                    trx_id = data.get('trx_id', '')
-                    notes = data.get('notes', '')
+                if result.get('idempotent'):
+                    return Response(result['response_data'], status=status.HTTP_200_OK)
 
-                    # Idempotency check: duplicate transaction ID within same tenant
-                    if trx_id and Recharge.objects.filter(tenant=customer.tenant, trx_id=trx_id).exists():
-                        return Response(
-                            {'error': f'Recharge with transaction ID {trx_id} has already been processed.'},
-                            status=status.HTTP_409_CONFLICT
-                        )
+                AuditLog.objects.create(
+                    tenant=customer.tenant,
+                    actor_username=request.user.username,
+                    action='RECHARGE',
+                    module='CUSTOMERS',
+                    target_id=str(customer.id),
+                    details={
+                        'pppoe_username': customer.pppoe_username,
+                        'amount': float(data['amount']),
+                        'new_expiry': result.get('new_expiry'),
+                        'recharge_id': result.get('recharge_id')
+                    }
+                )
 
-                    package = customer.package
-                    if data.get('package_id'):
-                        package = Package.objects.filter(id=data['package_id']).first() or package
-
-                    old_expiry = customer.expiry_date
-                    today = timezone.now().date()
-                    
-                    # Calculate new expiry date: if expired, add to today; if active, extend from current expiry
-                    if old_expiry and old_expiry >= today:
-                        new_expiry = old_expiry + datetime.timedelta(days=validity_days)
-                    else:
-                        new_expiry = today + datetime.timedelta(days=validity_days)
-
-                    # Update customer state
-                    customer.expiry_date = new_expiry
-                    customer.status = CustomerStatus.ACTIVE
-                    customer.package = package
-                    
-                    # Adjust due / advance
-                    net_recharge_credit = amount + discount
-                    if customer.due_amount > 0:
-                        if net_recharge_credit >= customer.due_amount:
-                            surplus = net_recharge_credit - customer.due_amount
-                            customer.due_amount = 0
-                            customer.advance_amount += surplus
-                        else:
-                            customer.due_amount -= net_recharge_credit
-                    else:
-                        customer.advance_amount += net_recharge_credit
-
-                    customer.save()
-
-                    # Create Recharge Log
-                    staff_profile = getattr(request.user, 'profile', None)
-                    recharge_record = Recharge.objects.create(
-                        tenant=customer.tenant,
-                        customer=customer,
-                        package=package,
-                        processed_by=staff_profile,
-                        amount=amount,
-                        discount=discount,
-                        validity_days=validity_days,
-                        old_expiry=old_expiry,
-                        new_expiry=new_expiry,
-                        payment_method=payment_method,
-                        trx_id=trx_id,
-                        notes=notes
-                    )
-
-                    AuditLog.objects.create(
-                        tenant=customer.tenant,
-                        actor_username=request.user.username,
-                        action='RECHARGE',
-                        module='CUSTOMERS',
-                        target_id=str(customer.id),
-                        details={
-                            'pppoe_username': customer.pppoe_username,
-                            'amount': float(amount),
-                            'old_expiry': str(old_expiry),
-                            'new_expiry': str(new_expiry)
-                        }
-                    )
-
-                    return Response({
-                        'message': f'Successfully recharged ৳{amount} for {customer.pppoe_username}',
-                        'customer': CustomerDetailSerializer(customer).data,
-                        'recharge_id': str(recharge_record.id),
-                        'new_expiry': new_expiry
-                    })
+                customer.refresh_from_db()
+                return Response({
+                    'message': result.get('message'),
+                    'customer': CustomerDetailSerializer(customer).data,
+                    'recharge_id': result.get('recharge_id'),
+                    'payment_id': result.get('payment_id'),
+                    'new_expiry': result.get('new_expiry'),
+                    'balance': result.get('balance'),
+                    'due_amount': result.get('due_amount'),
+                    'advance_amount': result.get('advance_amount'),
+                    'allocations_count': result.get('allocations_count', 0)
+                }, status=status.HTTP_200_OK)
         except LockAcquisitionError:
             return Response(
                 {'error': 'A concurrent recharge is already being processed for this customer. Please wait.'},
                 status=status.HTTP_409_CONFLICT
             )
+        except DjangoValidationError as exc:
+            err_msg = exc.message if hasattr(exc, 'message') else str(exc)
+            status_code = status.HTTP_409_CONFLICT if 'already' in err_msg or 'processing' in err_msg else status.HTTP_400_BAD_REQUEST
+            return Response({'error': err_msg}, status=status_code)
 
     @action(detail=True, methods=['post'], url_path='toggle-internet')
     @transaction.atomic

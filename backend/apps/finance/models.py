@@ -2,7 +2,13 @@ import hashlib
 import uuid
 from django.db import models
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 from apps.core.models import Tenant
+
+
+class ImmutableQuerySet(models.QuerySet):
+    def delete(self):
+        raise ValidationError("Financial records are immutable and cannot be deleted. Use compensating reversal or adjustment entries.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -109,6 +115,11 @@ class PaymentAllocation(models.Model):
             models.Index(fields=['tenant', 'payment'], name='allocation_tenant_pay_idx'),
         ]
 
+    objects = ImmutableQuerySet.as_manager()
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Payment allocations are immutable and cannot be deleted.")
+
     def __str__(self):
         return f"Allocation ৳{self.amount}: Payment→Invoice"
 
@@ -164,6 +175,11 @@ class LedgerEntry(models.Model):
             models.Index(fields=['tenant', 'entry_type', 'created_at'], name='ledger_tenant_type_ts_idx'),
         ]
 
+    objects = ImmutableQuerySet.as_manager()
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Ledger entries are immutable and cannot be deleted. Use a reversal or adjustment entry.")
+
     def __str__(self):
         return f"[{self.entry_type}] ৳{self.amount} | Balance: ৳{self.balance_after} | {self.created_at.date()}"
 
@@ -204,6 +220,11 @@ class Adjustment(models.Model):
         indexes = [
             models.Index(fields=['tenant', 'customer'], name='adj_tenant_cust_idx'),
         ]
+
+    objects = ImmutableQuerySet.as_manager()
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Adjustments are immutable audit records and cannot be deleted.")
 
     def __str__(self):
         return f"{self.adjustment_type} ৳{self.amount} for {self.customer}"
