@@ -159,6 +159,7 @@ class ONU(models.Model):
     onu_index = models.PositiveIntegerField(default=1)
     mac_address = models.CharField(max_length=50, blank=True, null=True, db_index=True)
     serial_number = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    customer = models.ForeignKey('customers.Customer', on_delete=models.SET_NULL, null=True, blank=True, related_name='onus')
     customer_name = models.CharField(max_length=150, blank=True)
     customer_phone = models.CharField(max_length=50, blank=True)
     rx_power = models.DecimalField(max_digits=5, decimal_places=2, default=-19.50, help_text="Optical RX Power in dBm")
@@ -175,9 +176,11 @@ class ONU(models.Model):
 
     def clean(self):
         super().clean()
+        from django.core.exceptions import ValidationError
         if hasattr(self, 'olt') and self.olt and self.tenant_id and self.olt.tenant_id != self.tenant_id:
-            from django.core.exceptions import ValidationError
             raise ValidationError("ONU OLT must belong to the same tenant.")
+        if hasattr(self, 'customer') and self.customer and self.tenant_id and self.customer.tenant_id != self.tenant_id:
+            raise ValidationError("ONU customer must belong to the same tenant.")
 
     def __str__(self):
         return f"ONU {self.pon_port}:{self.onu_index} ({self.mac_address or self.serial_number})"

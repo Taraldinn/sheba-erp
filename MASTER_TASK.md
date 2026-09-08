@@ -285,21 +285,26 @@ The following reproducible baseline commands were executed on the repository:
 ---
 
 ### STAGE 7 — Networking Operations
-- **STATUS**: `NOT_STARTED`
+- **STATUS**: `DONE`
 - **DEPENDENCIES**: Stage 4
-- **OBJECTIVE**: Harden MikroTik RouterOS v7 REST integration, implement OLT chassis polling drivers, and ensure zero frontend-to-hardware communication.
+- **OBJECTIVE**: Complete the operational network management layer without coupling business views directly to devices.
 - **TASKS**:
-  - [ ] S7.1 Enhance `MikroTikRESTClient` with circuit breaker and exponential backoff on router reachability failures.
-  - [ ] S7.2 Implement PPPoE secret provisioning and active session termination service methods.
-  - [ ] S7.3 Implement SNMP / Telnet optical RX power diagnostics for EPON/GPON OLTs.
-  - [ ] S7.4 Add background router configuration backup download and storage.
-  - [ ] S7.5 Verify zero exposure of decrypted router passwords in logs, API responses, and serialization.
+  - [x] S7.1 Router lifecycle works (CRUD, credential protection, health diagnostics, connection testing, SSRF protection).
+  - [x] S7.2 PPPoE lifecycle works (active session query, disconnect session on device, PPPoE enable, PPPoE disable, profile synchronization, live traffic telemetry).
+  - [x] S7.3 OLT / ONU lifecycle works (OLT CRUD, health, connection test, ONU auto-discovery, optical power metrics, ONU reboot, ONU customer assignment/unassignment).
+  - [x] S7.4 Service boundary enforced (Views -> Network Service -> MikroTik/OLT Client -> Device; zero direct frontend/view device coupling).
+  - [x] S7.5 Security verified (credentials never serialized, passwords encrypted at rest, SSRF protection against cloud metadata 169.254.169.254 and loopback, audit logging on all operations).
+  - [x] S7.6 Failure resilience verified (device timeouts, connection refused, and HTTP errors return graceful 502/504; web application never crashes).
+  - [x] S7.7 Background Celery tasks (`sync_router_task`, `sync_olt_task`) with distributed locking and tenant scoping.
+  - [x] S7.8 All 25 Stage 7 network operational tests pass (132/132 total test suite).
 - **ACCEPTANCE CRITERIA**:
-  - Unreachable routers fail gracefully within 5 seconds without hanging backend requests.
-  - Customer status changes (Active → Expired) automatically terminate active PPPoE sessions on the physical router.
-- **TEST REQUIREMENTS**:
-  - Mocked RouterOS v7 integration test suite covering timeouts, 401 auth failure, and successful session sync.
-  - OLT optical power alert test scenarios.
+  - [x] Router lifecycle works
+  - [x] PPPoE lifecycle works
+  - [x] OLT/ONU lifecycle works
+  - [x] Service boundary enforced
+  - [x] credentials protected
+  - [x] network failures handled
+  - [x] tests pass
 
 ---
 

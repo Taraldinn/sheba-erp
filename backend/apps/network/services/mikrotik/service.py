@@ -165,6 +165,9 @@ class MikroTikService:
         disabled: Optional[bool] = None,
     ) -> bool:
         """Update an existing PPPoE user's password, profile, or disabled state."""
+        if self.is_rest:
+            return self.pppoe.update_user_by_name(username, password=password, profile=profile, disabled=disabled)
+
         with RouterClient.from_router(self.router) as client:
             resource = client._api.get_resource('/ppp/secret')
             items = resource.get(name=username)
@@ -184,12 +187,19 @@ class MikroTikService:
         return True
 
     def disable_user(self, username: str) -> bool:
+        if self.is_rest:
+            return self.pppoe.disable_user_by_name(username)
         return self.update_pppoe_user(username, disabled=True)
 
     def enable_user(self, username: str) -> bool:
+        if self.is_rest:
+            return self.pppoe.enable_user_by_name(username)
         return self.update_pppoe_user(username, disabled=False)
 
     def disconnect_session(self, username: str) -> bool:
+        if self.is_rest:
+            return self.pppoe.disconnect_session_by_username(username)
+
         try:
             with RouterClient.from_router(self.router) as client:
                 active = client.run_command('/ppp/active/print')
@@ -204,9 +214,18 @@ class MikroTikService:
             return False
 
     def sync_profiles(self) -> list[str]:
+        if self.is_rest:
+            return self.pppoe.list_profiles()
+
         with RouterClient.from_router(self.router) as client:
             profiles = client.run_command('/ppp/profile/print')
         return [p.get('name', '') for p in profiles if p.get('name')]
+
+    def get_traffic_stats(self, interface_name: Optional[str] = None) -> dict[str, Any]:
+        """Retrieves live traffic metrics for an interface or router aggregate."""
+        if interface_name:
+            return self.traffic.get_interface_traffic(interface_name)
+        return self.traffic.get_aggregate_traffic()
 
     def sync_active_sessions_to_db(self) -> int:
         from apps.network.models import UserSession

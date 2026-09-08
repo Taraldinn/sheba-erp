@@ -19,6 +19,11 @@ class RouterSerializer(serializers.ModelSerializer):
             'password': {'write_only': True, 'required': False}
         }
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret.pop('password', None)
+        return ret
+
     def validate_ip_address(self, value):
         validate_router_host(value)
         return value
@@ -46,6 +51,8 @@ def _tenant_from_context(context):
 
 class ONUSerializer(serializers.ModelSerializer):
     olt_name = serializers.CharField(source='olt.name', read_only=True)
+    customer_username = serializers.CharField(source='customer.pppoe_username', read_only=True)
+    customer_full_name = serializers.CharField(source='customer.full_name', read_only=True)
     signal_status = serializers.SerializerMethodField()
 
     class Meta:
@@ -62,6 +69,16 @@ class ONUSerializer(serializers.ModelSerializer):
                 "Selected OLT does not belong to your ISP. Cross-tenant assignment is not allowed."
             )
         return olt
+
+    def validate_customer(self, customer):
+        if customer is None:
+            return customer
+        tenant = _tenant_from_context(self.context)
+        if tenant and customer.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Selected customer does not belong to your ISP. Cross-tenant assignment is not allowed."
+            )
+        return customer
 
     def get_signal_status(self, obj):
         rx = float(obj.rx_power)
@@ -82,6 +99,12 @@ class OLTSerializer(serializers.ModelSerializer):
             'telnet_password': {'write_only': True, 'required': False},
             'snmp_community': {'write_only': True, 'required': False},
         }
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret.pop('telnet_password', None)
+        ret.pop('snmp_community', None)
+        return ret
 
     def validate_ip_address(self, value):
         validate_router_host(value)
