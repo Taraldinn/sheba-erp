@@ -45,9 +45,12 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         request.tenant = None
         request.is_control_plane = False
 
-        # 1. Health checks & SaaS Control Plane API paths — always bypass tenant resolution
-        if path.startswith(('/healthz/', '/api/v1/health-check/', '/api/v1/saas/')):
-            request.is_control_plane = path.startswith('/api/v1/saas/')
+        # 1. Readiness probe & SaaS Control Plane API paths — bypass tenant resolution
+        if path == '/healthz/' or path.startswith('/healthz/'):
+            return None
+
+        if path.startswith('/api/v1/saas/'):
+            request.is_control_plane = True
             return None
 
         # 2. Central Control Plane domain identification
