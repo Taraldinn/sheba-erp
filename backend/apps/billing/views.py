@@ -137,19 +137,39 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             locked_invoice = Invoice.objects.select_for_update().get(id=invoice.id)
             customer = locked_invoice.customer
 
-            # Create payment transaction
-            payment = PaymentTransaction.objects.create(
-                tenant=tenant,
-                customer=customer,
-                amount=pay_amount,
-                payment_method=payment_method,
+            # Idempotency guard: re-check on the now-locked row so concurrent requests
+            # that both passed the pre-lock snapshot check cannot double-process.
+            current_due = Decimal(str(locked_invoice.total_payable)) - Decimal(str(locked_invoice.paid_amount or '0.00'))
+            if current_due <= 0:
+                return Response(
+                    {'error': 'This invoice has already been fully paid.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Idempotency guard: if this trx_id was already submitted, return 409
+            # instead of raising an IntegrityError from the unique constraint.
+            payment, payment_created = PaymentTransaction.objects.get_or_create(
                 trx_id=trx_id,
-                status=TransactionStatus.SUCCESS,
-                raw_payload={
-                    'notes': f"Payment for invoice #{locked_invoice.invoice_no}",
-                    'processed_by': request.user.username
+                defaults={
+                    'tenant': tenant,
+                    'customer': customer,
+                    'amount': pay_amount,
+                    'payment_method': payment_method,
+                    'status': TransactionStatus.SUCCESS,
+                    'raw_payload': {
+                        'notes': f"Payment for invoice #{locked_invoice.invoice_no}",
+                        'processed_by': request.user.username
+                    }
                 }
             )
+            if not payment_created:
+                return Response(
+                    {
+                        'error': f"Transaction ID '{trx_id}' has already been processed.",
+                        'payment_id': str(payment.id),
+                    },
+                    status=status.HTTP_409_CONFLICT
+                )
 
             # Update BillingAccount
             billing_acct = get_or_create_billing_account(tenant, customer)
