@@ -6,7 +6,7 @@ FROM python:3.12-slim AS builder
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=
+    PYTHONUNBUFFERED=1
 
 # Install build dependencies for C extensions (if needed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
