@@ -1,4 +1,4 @@
-from rest_framework import serializers, viewsets, permissions
+from rest_framework import serializers, viewsets, permissions, status
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
@@ -67,7 +67,19 @@ class TaskViewSet(viewsets.ModelViewSet):
         if not can(request.user, request.tenant, 'task.manage', task):
             return Response({'error': 'Permission denied: task.manage capability required.'}, status=403)
         user_id = request.data.get('user_id')
-        user = User.objects.filter(id=user_id).first() if user_id else None
+        user = None
+        if user_id:
+            user = User.objects.filter(id=user_id).first()
+            if not user:
+                return Response({'error': 'Target user not found.'}, status=status.HTTP_404_NOT_FOUND)
+            from apps.authentication.models import StaffMembership, StaffProfile
+            is_member = (
+                user.is_superuser or
+                StaffMembership.objects.filter(tenant=task.tenant, user=user, is_active=True).exists() or
+                StaffProfile.objects.filter(tenant=task.tenant, user=user, is_active=True).exists()
+            )
+            if not is_member:
+                return Response({'error': 'Selected user does not belong to this ISP tenant.'}, status=status.HTTP_400_BAD_REQUEST)
         task.assigned_to = user
         task.save(update_fields=['assigned_to', 'updated_at'])
         return Response({'message': f'Task assigned to {user.username if user else "None"}.', 'assigned_to': user.username if user else None})

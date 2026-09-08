@@ -15,10 +15,15 @@ from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 from apps.core.authorization import can
 
 
-@extend_schema(tags=['1. Authentication & Users'], description='Authenticate staff user and receive API Token with tenant information.')
+@extend_schema(
+    tags=['1. Authentication & Users'],
+    description='Authenticate staff user and receive API Token with tenant information.',
+    request=LoginSerializer
+)
 class LoginView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
+    @extend_schema(request=LoginSerializer, responses={200: dict, 401: dict})
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -137,7 +142,11 @@ class LoginView(views.APIView):
         })
 
 
-@extend_schema(tags=['1. Authentication & Users'], description='Get currently authenticated user details, roles, and profile settings.')
+@extend_schema(
+    tags=['1. Authentication & Users'],
+    description='Get currently authenticated user details, roles, and profile settings.',
+    responses={200: UserDetailSerializer}
+)
 class CurrentUserView(views.APIView):
     permission_classes = [permissions.IsAuthenticated, IsTenantMember]
 

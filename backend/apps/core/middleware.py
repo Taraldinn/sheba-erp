@@ -35,6 +35,10 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         '/api/docs/',
         '/api/redoc/',
         '/admin/',
+        '/api/v1/customer/query/',
+        '/api/v1/customers/query/',
+        '/api/v1/payments/sms/webhook/',
+        '/api/v1/payments/webhook/sms/',
     )
 
     CONTROL_PLANE_PREFIXES = ('admin.', 'control.', 'saas.')

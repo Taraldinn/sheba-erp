@@ -43,6 +43,14 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
         model = Customer
         fields = '__all__'
         read_only_fields = ('tenant',)
+        extra_kwargs = {
+            'pppoe_password': {'write_only': True, 'required': False}
+        }
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret.pop('pppoe_password', None)
+        return ret
 
     def validate_package(self, package):
         """Ensure the assigned package belongs to this tenant (Plan Phase 7)."""
@@ -78,12 +86,37 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
         return reseller
 
 
-class CustomerRechargeSerializer(serializers.Serializer):
-    """Action-specific serializer for the recharge endpoint (Plan Phase 25)."""
-    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+class RechargeRequestSerializer(serializers.Serializer):
+    """
+    Action-specific request serializer for subscriber recharge.
+    Enforces positive amounts and validity periods.
+    """
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=1)
     package_id = serializers.UUIDField(required=False, allow_null=True)
-    validity_days = serializers.IntegerField(default=30)
-    discount = serializers.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    validity_days = serializers.IntegerField(default=30, min_value=1)
+    discount = serializers.DecimalField(max_digits=10, decimal_places=2, default=0.00, min_value=0)
     payment_method = serializers.CharField(default='Cash')
     trx_id = serializers.CharField(required=False, allow_blank=True, default='')
     notes = serializers.CharField(required=False, allow_blank=True, default='')
+    idempotency_key = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+# Backward compatibility alias
+CustomerRechargeSerializer = RechargeRequestSerializer
+
+
+class ToggleInternetSerializer(serializers.Serializer):
+    """
+    Action-specific request serializer for toggling customer internet connectivity.
+    """
+    state = serializers.ChoiceField(choices=['on', 'off', 'toggle'], required=False, default='toggle')
+    reason = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class LockCustomerSerializer(serializers.Serializer):
+    """
+    Action-specific request serializer for administrative customer account locking.
+    """
+    reason = serializers.CharField(required=False, allow_blank=True, default='Manual administrative lock')
+    disconnect_session = serializers.BooleanField(default=True)
+

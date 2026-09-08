@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from django.contrib.auth.models import User
 from .models import StaffProfile, StaffMembership, UserRole, Role, Permission
 
@@ -29,6 +30,7 @@ class RoleSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'tenant', 'permissions', 'created_at']
 
+    @extend_schema_field(serializers.IntegerField())
     def get_members_count(self, obj):
         return obj.memberships.filter(is_active=True).count()
 
@@ -67,6 +69,7 @@ class StaffProfileSerializer(serializers.ModelSerializer):
             'is_active', 'created_at'
         ]
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_role_name(self, obj):
         membership = getattr(obj.user, '_cached_membership', None)
         if not membership or membership.tenant_id != obj.tenant_id:
@@ -190,6 +193,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_staff', 'is_superuser', 'profile', 'membership']
 
+    @extend_schema_field(StaffMembershipSerializer)
     def get_membership(self, obj):
         request = self.context.get('request')
         if not request:

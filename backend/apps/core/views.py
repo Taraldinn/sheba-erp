@@ -133,7 +133,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         return get_scoped_queryset(self.request, AuditLog)
 
 
-@extend_schema(tags=['14. Core & Tenant Settings'], description='Public health check and tenant status endpoint.')
+@extend_schema(tags=['14. Core & Tenant Settings'], description='Public health check and tenant status endpoint.', request=None, responses={200: dict})
 class HealthCheckView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -147,7 +147,7 @@ class HealthCheckView(views.APIView):
         })
 
 
-@extend_schema(tags=['14. Core & Tenant Settings'], description='Readiness probe for load balancers and Kubernetes. Returns 200 when DB is reachable, 503 when not.')
+@extend_schema(tags=['14. Core & Tenant Settings'], description='Readiness probe for load balancers and Kubernetes. Returns 200 when DB is reachable, 503 when not.', request=None, responses={200: dict, 503: dict})
 class ReadinessView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -169,7 +169,7 @@ class ReadinessView(views.APIView):
         return Response(payload, status=http_status)
 
 
-@extend_schema(tags=['14. Core & Tenant Settings'], description='Root landing endpoint providing system metadata and quick links.')
+@extend_schema(tags=['14. Core & Tenant Settings'], description='Root landing endpoint providing system metadata and quick links.', request=None, responses={200: dict})
 class ApiRootView(views.APIView):
     permission_classes = [permissions.AllowAny]
 

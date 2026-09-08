@@ -56,7 +56,9 @@ router.register(r'reseller-rates', ResellerPricingViewSet, basename='reseller-ra
 router.register(r'invoices', InvoiceViewSet, basename='invoice')
 router.register(r'recharges', RechargeViewSet, basename='recharge')
 router.register(r'payment-gateways', PaymentGatewayViewSet, basename='payment-gateway')
+router.register(r'gateways', PaymentGatewayViewSet, basename='gateway')
 router.register(r'transactions', PaymentTransactionViewSet, basename='transaction')
+router.register(r'payments/transactions', PaymentTransactionViewSet, basename='payment-transaction')
 router.register(r'sms-logs', SmsLogViewSet, basename='sms-log')
 router.register(r'payments/events', InboundPaymentEventViewSet, basename='inbound-payment-event')
 router.register(r'payment-events', InboundPaymentEventViewSet, basename='payment-event')
@@ -97,9 +99,11 @@ urlpatterns = [
     path('api/v1/health-check/', HealthCheckView.as_view(), name='health-check'),
     path('healthz/', ReadinessView.as_view(), name='readiness'),    # LB / K8s readiness probe
     path('api/v1/customer/query/', CustomerQueryApiView.as_view(), name='customer-query'),
+    path('api/v1/customers/query/', CustomerQueryApiView.as_view(), name='customers-query'),
     
     # Payment Ingestion Webhooks
     path('api/v1/payments/sms/webhook/', SmsWebhookView.as_view(), name='sms-webhook'),
+    path('api/v1/payments/webhook/sms/', SmsWebhookView.as_view(), name='sms-webhook-alias'),
     
     # Analytics & Reports
     path('api/v1/reports/dashboard/', DashboardAnalyticsView.as_view(), name='reports-dashboard'),

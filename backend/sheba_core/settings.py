@@ -166,6 +166,18 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': env('THROTTLE_ANON_RATE', default='100/minute'),
+        'user': env('THROTTLE_USER_RATE', default='1000/minute'),
+        'auth': env('THROTTLE_AUTH_RATE', default='30/minute'),
+        'webhooks': env('THROTTLE_WEBHOOK_RATE', default='300/minute'),
+        'recharge': env('THROTTLE_RECHARGE_RATE', default='60/minute'),
+    },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
@@ -216,12 +228,18 @@ CORS_ALLOW_HEADERS = [
     'x-tenant-key',
     'x-signature',
     'x-timestamp',
+    'idempotency-key',
     'accept',
     'origin',
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
 ]
+
+# ─── Security Headers ────────────────────────────────────────────────────────
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = 'DENY'
 
 # ─── Cache & Session Backend (Redis / Stateless LB) ─────────────────────────
 REDIS_URL = env('REDIS_URL')
@@ -248,7 +266,6 @@ if IS_PRODUCTION and not DEBUG:
     SECURE_REDIRECT_EXEMPT = [r'^$', r'^healthz/?', r'^api/v1/health-check/?', r'^api/docs/?']
     SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=False)
     CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=False)
-    X_FRAME_OPTIONS = 'DENY'
 else:
     # Local development mode: completely permissive, zero SSL redirects, zero HSTS
     SECURE_SSL_REDIRECT = False
@@ -318,3 +335,6 @@ CELERY_BEAT_SCHEDULE = {
         'args': (),
     },
 }
+
+if 'test' in sys.argv:
+    REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = []

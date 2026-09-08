@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from .models import Router, OLT, ONU, UserSession, POPBranch
 from .validators import validate_router_host, validate_port
 
@@ -80,6 +81,7 @@ class ONUSerializer(serializers.ModelSerializer):
             )
         return customer
 
+    @extend_schema_field(serializers.CharField())
     def get_signal_status(self, obj):
         rx = float(obj.rx_power)
         if rx > -25.0 and rx < -10.0:
@@ -128,3 +130,21 @@ class UserSessionSerializer(serializers.ModelSerializer):
                 "Selected router does not belong to your ISP. Cross-tenant assignment is not allowed."
             )
         return router
+
+
+class RouterActionSerializer(serializers.Serializer):
+    """Action-specific request serializer for MikroTik operational actions."""
+    action = serializers.ChoiceField(choices=[
+        'test_connection', 'health', 'active_sessions', 'sync_pppoe',
+        'disconnect_session', 'enable_pppoe', 'disable_pppoe', 'sync_profiles'
+    ])
+    username = serializers.CharField(required=False, allow_blank=True, default='')
+    interface = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class ONUActionSerializer(serializers.Serializer):
+    """Action-specific request serializer for OLT/ONU operational actions."""
+    action = serializers.ChoiceField(choices=['reboot', 'optical_power', 'assign_customer', 'unassign_customer'])
+    customer_id = serializers.UUIDField(required=False, allow_null=True)
+    pon_port = serializers.CharField(required=False, allow_blank=True, default='')
+

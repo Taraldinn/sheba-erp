@@ -18,6 +18,25 @@ class PaymentGatewaySerializer(serializers.ModelSerializer):
             'sandbox_password': {'write_only': True},
         }
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        for secret_key in ['app_secret', 'password', 'private_key', 'store_password', 'sandbox_app_secret', 'sandbox_password']:
+            ret.pop(secret_key, None)
+        return ret
+
+
+class PaymentRequestSerializer(serializers.Serializer):
+    """
+    Action-specific request serializer for processing payments.
+    """
+    customer_id = serializers.UUIDField(required=False, allow_null=True)
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=1)
+    payment_method = serializers.CharField(default='CASH')
+    trx_id = serializers.CharField(required=False, allow_blank=True, default='')
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+    idempotency_key = serializers.CharField(required=False, allow_blank=True, default='')
+
+
 
 class PaymentTransactionSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.full_name', read_only=True)

@@ -7,7 +7,10 @@ from django.db.models import Q
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import Customer, CustomerStatus
-from .serializers import CustomerListSerializer, CustomerDetailSerializer, CustomerRechargeSerializer
+from .serializers import (
+    CustomerListSerializer, CustomerDetailSerializer, CustomerRechargeSerializer,
+    RechargeRequestSerializer, ToggleInternetSerializer, LockCustomerSerializer
+)
 from apps.billing.models import Package, Recharge, Invoice
 from apps.core.models import AuditLog
 from apps.core.permissions import IsTenantMember, IsBillingStaff, HasTenantPermission
@@ -24,9 +27,9 @@ from rest_framework.exceptions import PermissionDenied
     update=extend_schema(tags=['2. Customers & Subscribers']),
     partial_update=extend_schema(tags=['2. Customers & Subscribers']),
     destroy=extend_schema(tags=['2. Customers & Subscribers']),
-    recharge=extend_schema(tags=['2. Customers & Subscribers']),
-    toggle_internet=extend_schema(tags=['2. Customers & Subscribers']),
-    lock=extend_schema(tags=['2. Customers & Subscribers']),
+    recharge=extend_schema(tags=['2. Customers & Subscribers'], request=RechargeRequestSerializer),
+    toggle_internet=extend_schema(tags=['2. Customers & Subscribers'], request=ToggleInternetSerializer),
+    lock=extend_schema(tags=['2. Customers & Subscribers'], request=LockCustomerSerializer),
     unlock=extend_schema(tags=['2. Customers & Subscribers']),
     toggle_status=extend_schema(tags=['2. Customers & Subscribers']),
 )
@@ -49,6 +52,12 @@ class CustomerViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'list':
             return CustomerListSerializer
+        elif self.action == 'recharge':
+            return RechargeRequestSerializer
+        elif self.action == 'toggle_internet':
+            return ToggleInternetSerializer
+        elif self.action == 'lock':
+            return LockCustomerSerializer
         return CustomerDetailSerializer
 
     def get_queryset(self):
@@ -207,11 +216,16 @@ class CustomerViewSet(viewsets.ModelViewSet):
         customer = self.get_object()
         if not can(request.user, request.tenant, 'customer.update', customer):
             return Response({'error': 'Permission denied: customer.update capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = ToggleInternetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action_type = serializer.validated_data.get('state', 'toggle')
+        reason = serializer.validated_data.get('reason', '')
+
         customer_id = customer.id
         customer = Customer.objects.select_for_update().get(id=customer_id)
-        action_type = request.data.get('state')  # 'on', 'off', or toggle
 
-        if action_type == 'on' or (not action_type and customer.status != CustomerStatus.ACTIVE):
+        if action_type == 'on' or (action_type == 'toggle' and customer.status != CustomerStatus.ACTIVE):
             customer.status = CustomerStatus.ACTIVE
             customer.save(update_fields=['status', 'updated_at'])
             
@@ -221,7 +235,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 action='INTERNET_ENABLE',
                 module='CUSTOMERS',
                 target_id=str(customer.id),
-                details={'pppoe_username': customer.pppoe_username, 'status': 'Active'}
+                details={'pppoe_username': customer.pppoe_username, 'status': 'Active', 'reason': reason}
             )
             return Response({
                 'success': True,
@@ -243,7 +257,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 action='INTERNET_DISABLE',
                 module='CUSTOMERS',
                 target_id=str(customer.id),
-                details={'pppoe_username': customer.pppoe_username, 'status': 'Suspended'}
+                details={'pppoe_username': customer.pppoe_username, 'status': 'Suspended', 'reason': reason}
             )
             return Response({
                 'success': True,
@@ -270,13 +284,64 @@ class CustomerViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def lock(self, request, pk=None):
-        return self.toggle_internet(request, pk=pk)
+        customer = self.get_object()
+        if not can(request.user, request.tenant, 'customer.update', customer):
+            return Response({'error': 'Permission denied: customer.update capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = LockCustomerSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reason = serializer.validated_data.get('reason', 'Manual administrative lock')
+        disconnect_session = serializer.validated_data.get('disconnect_session', True)
+
+        customer_id = customer.id
+        customer = Customer.objects.select_for_update().get(id=customer_id)
+        customer.status = CustomerStatus.SUSPENDED
+        customer.save(update_fields=['status', 'updated_at'])
+
+        if disconnect_session:
+            from apps.network.models import UserSession
+            UserSession.objects.filter(username=customer.pppoe_username).delete()
+
+        AuditLog.objects.create(
+            tenant=customer.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='LOCK_CUSTOMER',
+            module='CUSTOMERS',
+            target_id=str(customer.id),
+            details={'pppoe_username': customer.pppoe_username, 'status': 'Suspended', 'reason': reason}
+        )
+        return Response({
+            'success': True,
+            'message': f'Customer {customer.pppoe_username} locked. Internet disabled.',
+            'status': customer.status,
+            'is_active': False
+        })
 
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def unlock(self, request, pk=None):
-        request.data['state'] = 'on'
-        return self.toggle_internet(request, pk=pk)
+        customer = self.get_object()
+        if not can(request.user, request.tenant, 'customer.update', customer):
+            return Response({'error': 'Permission denied: customer.update capability required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        customer_id = customer.id
+        customer = Customer.objects.select_for_update().get(id=customer_id)
+        customer.status = CustomerStatus.ACTIVE
+        customer.save(update_fields=['status', 'updated_at'])
+
+        AuditLog.objects.create(
+            tenant=customer.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='UNLOCK_CUSTOMER',
+            module='CUSTOMERS',
+            target_id=str(customer.id),
+            details={'pppoe_username': customer.pppoe_username, 'status': 'Active'}
+        )
+        return Response({
+            'success': True,
+            'message': f'Customer {customer.pppoe_username} unlocked. Internet active.',
+            'status': customer.status,
+            'is_active': True
+        })
 
 
 @extend_schema(tags=['2. Customers & Subscribers'], description='Public / Self-Care endpoint to lookup subscriber profile by phone, username or customer code.')
@@ -287,17 +352,17 @@ class CustomerQueryApiView(views.APIView):
     """
     permission_classes = [permissions.AllowAny]
 
+    @extend_schema(responses={200: dict, 400: dict, 404: dict})
     def get(self, request):
         query = request.query_params.get('query') or request.query_params.get('mobile') or request.query_params.get('username')
         if not query:
             return Response({'error': 'Missing query parameter'}, status=status.HTTP_400_BAD_REQUEST)
 
         tenant = get_tenant_for_request(request)
-        qs = Customer.objects.all()
-        if tenant:
-            qs = qs.filter(tenant=tenant)
+        if not tenant:
+            return Response({'error': 'Tenant context required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        customer = qs.filter(
+        customer = Customer.objects.filter(tenant=tenant).filter(
             Q(pppoe_username=query) | Q(mobile=query) | Q(customer_code=query)
         ).select_related('package').first()
 

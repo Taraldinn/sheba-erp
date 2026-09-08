@@ -21,7 +21,8 @@ from apps.core.utils import get_scoped_queryset
     description='Role-based real-time analytics for 10 operational personas: admin, billing, sales, demo, technician, staff, reseller_l1, reseller_l2, distributor, bandwidth_reseller.',
     parameters=[
         OpenApiParameter(name='role', type=str, description='Dashboard persona to render (admin, billing, sales, demo, technician, staff, reseller_l1, reseller_l2, distributor, bandwidth_reseller)', required=False)
-    ]
+    ],
+    responses={200: dict, 403: dict}
 )
 class DashboardAnalyticsView(views.APIView):
     permission_classes = [permissions.IsAuthenticated, IsTenantMember]

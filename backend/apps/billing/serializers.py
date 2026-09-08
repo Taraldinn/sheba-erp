@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from .models import Package, ResellerPricing, Invoice, Recharge, Offer
 
 
@@ -19,6 +20,7 @@ class PackageSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ('tenant',)
 
+    @extend_schema_field(serializers.IntegerField())
     def get_subscribers_count(self, obj):
         return obj.subscribers.count()
 

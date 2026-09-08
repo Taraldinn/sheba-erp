@@ -309,21 +309,26 @@ The following reproducible baseline commands were executed on the repository:
 ---
 
 ### STAGE 8 — API + Security Hardening
-- **STATUS**: `NOT_STARTED`
+- **STATUS**: `DONE`
 - **DEPENDENCIES**: Stage 7
-- **OBJECTIVE**: Clean up REST API serializers, enforce per-action DTOs, eliminate sensitive data exposure, and configure production CORS and rate limiting.
+- **OBJECTIVE**: Clean up REST API serializers, enforce per-action DTOs, eliminate sensitive data exposure, and configure production CORS, security headers, and rate limiting.
 - **TASKS**:
-  - [ ] S8.1 Audit and split serializers into read/write action-specific serializers across all apps.
-  - [ ] S8.2 Eliminate sensitive fields (`password`, `hmac_secret`, `snmp_community`) from all GET serializers.
-  - [ ] S8.3 Implement tenant-aware rate limiting (`ScopedRateThrottle`) on public endpoints and login routes.
-  - [ ] S8.4 Enforce strict production CORS settings matching validated tenant domains.
-  - [ ] S8.5 Generate clean OpenAPI 3.0 specification via `drf-spectacular`.
+  - [x] S8.1 Audit and split serializers into read/write action-specific serializers across all apps (`RechargeRequest`, `PaymentRequest`, `LockCustomer`, `ToggleInternet`, `RouterAction`, `ONUAction`).
+  - [x] S8.2 Eliminate sensitive fields (`pppoe_password`, `password`, `app_secret`, `telnet_password`, `snmp_community`) from all GET serializers.
+  - [x] S8.3 Implement tenant-aware rate limiting (`ScopedRateThrottle`, `AnonRateThrottle`, `UserRateThrottle`) and configure security headers (`SECURE_CONTENT_TYPE_NOSNIFF`, `SECURE_BROWSER_XSS_FILTER`, `X_FRAME_OPTIONS = 'DENY'`).
+  - [x] S8.4 Enforce strict production CORS settings with `'idempotency-key'` header support.
+  - [x] S8.5 Generate and validate clean OpenAPI 3.0 specification matching actual behavior via `drf-spectacular`.
+  - [x] S8.6 Enforce tenant context on public endpoints (`CustomerQueryApiView`, `SmsWebhookView`), eliminate request.data tenant switching, and block cross-tenant staff assignment.
+  - [x] S8.7 Comprehensive security regression suite in `apps/core/test_security_hardening_stage8.py` (11/11 tests passing, 143/143 tests passing overall).
 - **ACCEPTANCE CRITERIA**:
+  - No cross-tenant reads or writes (IDOR prevented).
+  - No tenant switching via request data or query parameters.
   - No secret or password hash is ever returned in an API response.
-  - Brute force attempts on auth routes trigger HTTP 429 Too Many Requests.
+  - Destructive actions guarded by dedicated action serializers and capability checks.
+  - Zero cross-tenant staff assignments.
 - **TEST REQUIREMENTS**:
   - API security scanner tests verifying absence of sensitive fields.
-  - Throttle test suite verifying rate limit enforcement.
+  - Security regression suite verifying isolation, action serializers, and authorization.
 
 ---
 

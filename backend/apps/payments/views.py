@@ -10,7 +10,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import PaymentGateway, PaymentTransaction, SmsLog, InboundPaymentEvent, TransactionStatus
 from .serializers import (
     PaymentGatewaySerializer, PaymentTransactionSerializer, SmsLogSerializer,
-    InboundPaymentEventSerializer, ResolvePaymentEventSerializer
+    InboundPaymentEventSerializer, ResolvePaymentEventSerializer, PaymentRequestSerializer
 )
 from apps.customers.models import Customer, CustomerStatus
 from apps.billing.models import Recharge
@@ -46,13 +46,70 @@ class PaymentGatewayViewSet(viewsets.ModelViewSet):
 @extend_schema_view(
     list=extend_schema(tags=['7. Payments & SMS Gateways']),
     retrieve=extend_schema(tags=['7. Payments & SMS Gateways']),
+    create=extend_schema(tags=['7. Payments & SMS Gateways'], request=PaymentRequestSerializer),
 )
-class PaymentTransactionViewSet(viewsets.ReadOnlyModelViewSet):
+class PaymentTransactionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsBillingStaff]
-    serializer_class = PaymentTransactionSerializer
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return PaymentRequestSerializer
+        return PaymentTransactionSerializer
 
     def get_queryset(self):
         return get_scoped_queryset(self.request, PaymentTransaction).select_related('customer')
+
+    def create(self, request, *args, **kwargs):
+        tenant = get_tenant_for_request(request)
+        if not tenant:
+            return Response({'error': 'Tenant context required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = PaymentRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        customer_id = data.get('customer_id')
+        customer = None
+        if customer_id:
+            customer = Customer.objects.filter(tenant=tenant, id=customer_id).first()
+            if not customer:
+                return Response({'error': 'Customer does not belong to your ISP.'}, status=status.HTTP_404_NOT_FOUND)
+
+        trx_id = data.get('trx_id') or f"MAN-{uuid.uuid4().hex[:8].upper()}"
+        idempotency_key = data.get('idempotency_key') or ''
+
+        # Idempotency check within tenant
+        if trx_id and PaymentTransaction.objects.filter(tenant=tenant, trx_id=trx_id).exists():
+            return Response({'error': f'Transaction with ID {trx_id} already exists.'}, status=status.HTTP_409_CONFLICT)
+
+        with transaction.atomic():
+            payment = PaymentTransaction.objects.create(
+                tenant=tenant,
+                customer=customer,
+                amount=data['amount'],
+                payment_method=data['payment_method'],
+                trx_id=trx_id,
+                status=TransactionStatus.SUCCESS,
+                notes=data.get('notes', ''),
+                idempotency_key=idempotency_key,
+                raw_response={'processed_by': request.user.username}
+            )
+
+            AuditLog.objects.create(
+                tenant=tenant,
+                actor_username=request.user.username if request.user.is_authenticated else 'system',
+                action='PROCESS_PAYMENT',
+                module='PAYMENTS',
+                target_id=str(payment.id),
+                details={
+                    'amount': float(payment.amount),
+                    'trx_id': payment.trx_id,
+                    'customer_id': str(customer.id) if customer else None,
+                }
+            )
+
+        return Response(PaymentTransactionSerializer(payment).data, status=status.HTTP_201_CREATED)
 
 
 @extend_schema_view(
@@ -73,7 +130,9 @@ class SmsLogViewSet(viewsets.ModelViewSet):
 
 @extend_schema(
     tags=['7. Payments & SMS Gateways'],
-    description='Ingestion-only webhook receiving automated SMS forwarded from Android SMS Gateway or modem. Returns HTTP 202 Accepted immediately and queues asynchronous matching and financial ledger processing.'
+    description='Ingestion-only webhook receiving automated SMS forwarded from Android SMS Gateway or modem. Returns HTTP 202 Accepted immediately and queues asynchronous matching and financial ledger processing.',
+    request=None,
+    responses={202: None, 400: None}
 )
 class SmsWebhookView(views.APIView):
     permission_classes = [permissions.AllowAny]
@@ -86,18 +145,10 @@ class SmsWebhookView(views.APIView):
         if not message and not request.data.get('trx_id'):
             return Response({'error': 'Message content or trx_id required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Resolve tenant from request
-        tenant = getattr(request, 'tenant', None)
+        # Resolve tenant strictly from request domain/header
+        tenant = get_tenant_for_request(request)
         if not tenant:
-            tenant_val = request.data.get('tenant') or request.data.get('tenant_id')
-            if tenant_val:
-                tenant = Tenant.objects.filter(id=tenant_val).first()
-            if not tenant:
-                if Tenant.objects.count() == 1:
-                    tenant = Tenant.objects.first()
-
-        if not tenant:
-            return Response({'error': 'Tenant could not be resolved from request'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Tenant could not be resolved from request host or context.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # --- Parse SMS ---
         trx_match = re.search(r'(?:TrxID|TxnId|Txn|Transaction\s*ID|TxID)[:\s]+([A-Za-z0-9_-]+)', message, re.IGNORECASE)
@@ -230,15 +281,7 @@ class InboundPaymentEventViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         tenant = get_tenant_for_request(request)
         if not tenant:
-            tenant_val = request.data.get('tenant') or request.data.get('tenant_id')
-            if tenant_val:
-                tenant = Tenant.objects.filter(id=tenant_val).first()
-            if not tenant:
-                if Tenant.objects.count() == 1:
-                    tenant = Tenant.objects.first()
-
-        if not tenant:
-            return Response({'error': 'Tenant could not be resolved from request'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Tenant could not be resolved from request host or context.'}, status=status.HTTP_400_BAD_REQUEST)
 
         source = request.data.get('source', InboundPaymentEvent.EventSource.SMS)
         raw_payload = request.data.get('raw_payload') or request.data.get('message') or str(request.data)

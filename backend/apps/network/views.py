@@ -6,7 +6,10 @@ from rest_framework.response import Response
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import Router, OLT, ONU, UserSession, POPBranch
-from .serializers import RouterSerializer, OLTSerializer, ONUSerializer, UserSessionSerializer, POPBranchSerializer
+from .serializers import (
+    RouterSerializer, OLTSerializer, ONUSerializer, UserSessionSerializer,
+    POPBranchSerializer, RouterActionSerializer, ONUActionSerializer
+)
 from .services.mikrotik import MikroTikService
 from .services.olt import ONUService, OLTSystemService, OpticalPowerService
 from .services.audit import log_network_action
@@ -358,6 +361,31 @@ class RouterViewSet(viewsets.ModelViewSet):
             'timestamp': timezone.now().isoformat()
         })
 
+    @extend_schema(request=RouterActionSerializer)
+    @action(detail=True, methods=['post'], url_path='action', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def execute_action(self, request, pk=None):
+        router = self.get_object()
+        serializer = RouterActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action_name = serializer.validated_data['action']
+        if action_name == 'test_connection':
+            return self.test_connection(request, pk=pk)
+        elif action_name == 'health':
+            return self.health(request, pk=pk)
+        elif action_name == 'active_sessions':
+            return self.active_sessions(request, pk=pk)
+        elif action_name == 'sync_pppoe':
+            return self.sync_pppoe(request, pk=pk)
+        elif action_name == 'disconnect_session':
+            return self.disconnect_session(request, pk=pk)
+        elif action_name == 'enable_pppoe':
+            return self.enable_pppoe(request, pk=pk)
+        elif action_name == 'disable_pppoe':
+            return self.disable_pppoe(request, pk=pk)
+        elif action_name == 'sync_profiles':
+            return self.sync_profiles(request, pk=pk)
+        return Response({'error': f'Unsupported action: {action_name}'}, status=status.HTTP_400_BAD_REQUEST)
+
 
 @extend_schema_view(
     list=extend_schema(tags=['5. OLT & Optical ONUs']),
@@ -629,6 +657,23 @@ class ONUViewSet(viewsets.ModelViewSet):
             'message': 'ONU unassigned from customer.',
             'onu': ONUSerializer(onu, context={'request': request}).data
         })
+
+    @extend_schema(request=ONUActionSerializer)
+    @action(detail=True, methods=['post'], url_path='action', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def execute_action(self, request, pk=None):
+        onu = self.get_object()
+        serializer = ONUActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action_name = serializer.validated_data['action']
+        if action_name == 'reboot':
+            return self.reboot(request, pk=pk)
+        elif action_name == 'optical_power':
+            return self.optical_power(request, pk=pk)
+        elif action_name == 'assign_customer':
+            return self.assign_customer(request, pk=pk)
+        elif action_name == 'unassign_customer':
+            return self.unassign_customer(request, pk=pk)
+        return Response({'error': f'Unsupported action: {action_name}'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema_view(
