@@ -23,6 +23,12 @@ import threading
 from contextlib import contextmanager
 from django.conf import settings
 
+# redis is optional — falls back to the in-memory lock when the package is absent.
+try:
+    import redis as _redis_module
+except ImportError:
+    _redis_module = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -57,8 +63,9 @@ def distributed_lock(lock_key: str, timeout: int = 30, blocking: bool = True, bl
 
     if redis_url and not is_eager and not redis_url.startswith('memory://'):
         try:
-            import redis
-            client = redis.Redis.from_url(redis_url, socket_connect_timeout=1.0)
+            if _redis_module is None:
+                raise ImportError("redis package is not installed")
+            client = _redis_module.Redis.from_url(redis_url, socket_connect_timeout=1.0)
             redis_lock_obj = client.lock(
                 name=f"sheba:{lock_key}",
                 timeout=timeout,
@@ -68,11 +75,12 @@ def distributed_lock(lock_key: str, timeout: int = 30, blocking: bool = True, bl
             acquired = redis_lock_obj.acquire()
             if not acquired:
                 raise LockAcquisitionError(f"Could not acquire Redis lock for '{lock_key}' within {blocking_timeout}s")
-        except (redis.ConnectionError, redis.TimeoutError) as exc:
-            logger.debug("Redis unavailable for lock '%s', falling back to in-memory lock: %s", lock_key, exc)
-            redis_lock_obj = None
         except LockAcquisitionError:
             raise
+        except (_redis_module.ConnectionError, _redis_module.TimeoutError) if _redis_module is not None else ():
+            # Redis is reachable but the connection dropped — fall back silently.
+            logger.debug("Redis unavailable for lock '%s', falling back to in-memory lock", lock_key)
+            redis_lock_obj = None
         except Exception as exc:
             logger.warning("Redis lock error on '%s': %s", lock_key, exc)
             redis_lock_obj = None
