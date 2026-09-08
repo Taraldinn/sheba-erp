@@ -1,0 +1,24 @@
+# Ignore all frontend and legacy code completely
+frontend/
+php-legecy-shebafi/
+*.sql
+
+# Backend local environments and sqlite
+backend/venv/
+backend/.venv/
+backend/env/
+backend/*.sqlite3
+backend/db.sqlite3
+backend/backups/
+backend/.env
+
+# Caches and logs
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+LOGS.TXT
+.git/
+.gitignore
+.idea/
+.vscode/
