@@ -11,6 +11,7 @@ env = environ.Env(
     ALLOWED_HOSTS=(list, ['localhost', '127.0.0.1']),
     CORS_ALLOWED_ORIGINS=(list, ['http://localhost:3000', 'http://127.0.0.1:3000']),
     CORS_ALLOW_ALL_ORIGINS=(bool, False),
+    CSRF_TRUSTED_ORIGINS=(list, []),
     DATABASE_URL=(str, f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
     REDIS_URL=(str, ''),
     LOG_LEVEL=(str, 'INFO'),
@@ -23,6 +24,7 @@ environ.Env.read_env(BASE_DIR / '.env', overwrite=False)
 SECRET_KEY = env('SECRET_KEY', default='django-insecure-sheba-erp-development-key-change-in-prod-xyz123')
 DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env('ALLOWED_HOSTS')
+CSRF_TRUSTED_ORIGINS = env('CSRF_TRUSTED_ORIGINS')
 
 # ─── Installed apps ──────────────────────────────────────────────────────────
 INSTALLED_APPS = [
@@ -201,6 +203,11 @@ if REDIS_URL:
     }
     SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
     SESSION_CACHE_ALIAS = 'default'
+
+# ─── Reverse Proxy Configuration (Dokploy / Traefik / Nginx) ─────────────────
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
 
 # ─── Security headers (active in production, no-op in DEBUG) ─────────────────
 if not DEBUG:

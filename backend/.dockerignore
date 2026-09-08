@@ -1,0 +1,42 @@
+# Python virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Local environment variables
+.env
+.env.local
+
+# Python cache & compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# SQLite and local database files
+*.sqlite3
+db.sqlite3
+*.db
+
+# Backups & logs
+backups/
+*.log
+LOGS.TXT
+
+# Git & IDE configs
+.git/
+.gitignore
+.gitattributes
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Static and media files (media should be mounted via persistent volume)
+media/
+staticfiles/
+
+# Docker / OS files
+.DS_Store
+Thumbs.db
