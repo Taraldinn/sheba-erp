@@ -1,0 +1,29 @@
+# Root dockerignore for Dokploy
+frontend/
+php-legecy-shebafi/
+*.sql
+
+# Backend virtual environments & databases
+backend/venv/
+backend/.venv/
+backend/env/
+backend/*.sqlite3
+backend/db.sqlite3
+backend/backups/
+backend/staticfiles/
+backend/media/
+backend/.env
+
+# Python cache & compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Git & IDE configs
+.git/
+.gitignore
+.idea/
+.vscode/
+*.log
+LOGS.TXT

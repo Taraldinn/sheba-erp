@@ -45,9 +45,9 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         request.tenant = None
         request.is_control_plane = False
 
-        # 1. SaaS Control Plane API paths — always bypass tenant resolution
-        if path.startswith('/api/v1/saas/'):
-            request.is_control_plane = True
+        # 1. Health checks & SaaS Control Plane API paths — always bypass tenant resolution
+        if path.startswith(('/healthz/', '/api/v1/health-check/', '/api/v1/saas/')):
+            request.is_control_plane = path.startswith('/api/v1/saas/')
             return None
 
         # 2. Central Control Plane domain identification
@@ -82,14 +82,20 @@ class TenantResolutionMiddleware(MiddlewareMixin):
 
         # B. Legacy Tenant.domain field fallback
         if not tenant:
-            tenant = Tenant.objects.filter(domain__iexact=raw_host).first()
+            try:
+                tenant = Tenant.objects.filter(domain__iexact=raw_host).first()
+            except Exception:
+                pass
 
         # C. Subdomain slug match (e.g., fardin.shebafi.com -> slug="fardin")
         if not tenant:
             parts = raw_host.split('.')
             if len(parts) >= 2 and parts[0] not in ('www', 'api', 'localhost', '127', 'testserver'):
                 subdomain = parts[0]
-                tenant = Tenant.objects.filter(slug__iexact=subdomain).first()
+                try:
+                    tenant = Tenant.objects.filter(slug__iexact=subdomain).first()
+                except Exception:
+                    pass
 
         # 4. Tenant status check
         if tenant:
