@@ -26,6 +26,7 @@ class TenantResolutionMiddleware(MiddlewareMixin):
     """
 
     PUBLIC_PATHS = (
+        '/api-auth/',
         '/healthz/',
         '/api/v1/health-check/',
         '/api/v1/auth/',
@@ -39,7 +40,7 @@ class TenantResolutionMiddleware(MiddlewareMixin):
     CONTROL_PLANE_PREFIXES = ('admin.', 'control.', 'saas.')
 
     def _is_public(self, path):
-        return path in ('', '/') or any(path.startswith(p) for p in self.PUBLIC_PATHS)
+        return path in ('', '/', '/api/v1', '/api/v1/') or any(path.startswith(p) for p in self.PUBLIC_PATHS)
 
     def process_request(self, request):
         path = request.path_info

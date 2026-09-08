@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework import permissions
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 from apps.core.views import (
@@ -28,6 +29,7 @@ from apps.reports.views import DashboardAnalyticsView
 
 # API Router
 router = DefaultRouter()
+router.APIRootView.permission_classes = [permissions.AllowAny]
 router.register(r'tenants', TenantViewSet, basename='tenant')
 router.register(r'tenant-domains', TenantDomainViewSet, basename='tenant-domain')
 router.register(r'saas/tenants', SaaSTenantViewSet, basename='saas-tenant')
@@ -76,6 +78,9 @@ admin.site.index_title = "ISP Operations & Billing Management"
 urlpatterns = [
     path('', ApiRootView.as_view(), name='api-root'),
     path('admin/', admin.site.urls),
+    
+    # DRF Browsable API Login/Logout
+    path('api-auth/', include('rest_framework.urls')),
     
     # Auth endpoints
     path('api/v1/auth/login/', LoginView.as_view(), name='auth-login'),

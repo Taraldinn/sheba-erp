@@ -334,6 +334,11 @@ class ApiRootView(views.APIView):
             Multi-tenant ISP Operations, Billing, MikroTik Integration & CRM API. All systems are operational. Select an endpoint or explore documentation below:
         </p>
         <div class="grid">
+            <a href="{apiv1_url}" class="card">
+                <span class="card-icon">⚡</span>
+                <span class="card-title">DRF Browsable API</span>
+                <span class="card-desc">Default Django REST Framework root with all 30+ endpoints</span>
+            </a>
             <a href="{swagger_url}" class="card">
                 <span class="card-icon">📘</span>
                 <span class="card-title">Swagger UI</span>
