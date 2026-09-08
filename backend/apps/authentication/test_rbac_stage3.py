@@ -84,6 +84,22 @@ class RBACTestSuiteStage3(TestCase):
             tenant=cls.tenant_a,
             role=UserRole.ADMIN
         )
+        # The post_save signal on StaffProfile auto-creates a StaffMembership;
+        # use get_or_create to avoid a UNIQUE constraint violation.
+        cls.admin_membership, _ = StaffMembership.objects.get_or_create(
+            user=cls.admin_user,
+            tenant=cls.tenant_a,
+            defaults={
+                'role': cls.tenant_a.roles.filter(name='Admin').first(),
+                'scope': StaffMembership.Scope.TENANT,
+                'is_active': True,
+            }
+        )
+        # Ensure the role is the correct one (signal may have assigned a different name variant)
+        admin_role = cls.tenant_a.roles.filter(name='Admin').first()
+        if admin_role and cls.admin_membership.role != admin_role:
+            cls.admin_membership.role = admin_role
+            cls.admin_membership.save(update_fields=['role'])
 
         # 2. Billing Operator (Tenant A)
         cls.billing_user = User.objects.create_user(
@@ -93,12 +109,10 @@ class RBACTestSuiteStage3(TestCase):
         )
         cls.billing_token = Token.objects.create(user=cls.billing_user)
         cls.billing_role = cls.tenant_a.roles.filter(name='Billing Operator').first()
-        cls.billing_membership = StaffMembership.objects.create(
+        cls.billing_membership, _ = StaffMembership.objects.get_or_create(
             user=cls.billing_user,
             tenant=cls.tenant_a,
-            role=cls.billing_role,
-            scope=StaffMembership.Scope.TENANT,
-            is_active=True
+            defaults={'role': cls.billing_role, 'scope': StaffMembership.Scope.TENANT, 'is_active': True}
         )
         cls.billing_profile = StaffProfile.objects.create(
             user=cls.billing_user,
@@ -114,12 +128,10 @@ class RBACTestSuiteStage3(TestCase):
         )
         cls.lineman_token = Token.objects.create(user=cls.lineman_user)
         cls.lineman_role = cls.tenant_a.roles.filter(name='Line Man').first()
-        cls.lineman_membership = StaffMembership.objects.create(
+        cls.lineman_membership, _ = StaffMembership.objects.get_or_create(
             user=cls.lineman_user,
             tenant=cls.tenant_a,
-            role=cls.lineman_role,
-            scope=StaffMembership.Scope.ASSIGNED,
-            is_active=True
+            defaults={'role': cls.lineman_role, 'scope': StaffMembership.Scope.ASSIGNED, 'is_active': True}
         )
         cls.lineman_profile = StaffProfile.objects.create(
             user=cls.lineman_user,
@@ -135,12 +147,10 @@ class RBACTestSuiteStage3(TestCase):
         )
         cls.support_token = Token.objects.create(user=cls.support_user)
         cls.support_role = cls.tenant_a.roles.filter(name='Support Staff').first()
-        cls.support_membership = StaffMembership.objects.create(
+        cls.support_membership, _ = StaffMembership.objects.get_or_create(
             user=cls.support_user,
             tenant=cls.tenant_a,
-            role=cls.support_role,
-            scope=StaffMembership.Scope.TENANT,
-            is_active=True
+            defaults={'role': cls.support_role, 'scope': StaffMembership.Scope.TENANT, 'is_active': True}
         )
         cls.support_profile = StaffProfile.objects.create(
             user=cls.support_user,

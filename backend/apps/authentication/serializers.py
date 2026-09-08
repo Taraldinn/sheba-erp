@@ -55,9 +55,14 @@ class StaffProfileSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(required=False, allow_blank=True)
     last_name = serializers.CharField(required=False, allow_blank=True)
     role_display = serializers.CharField(source='get_role_display', read_only=True)
-    role_id = serializers.UUIDField(required=False, write_only=True, allow_null=True)
+    scope = serializers.ChoiceField(
+        choices=StaffMembership.Scope.choices, required=False, default=StaffMembership.Scope.TENANT
+    )
     role_name = serializers.SerializerMethodField()
     scope = serializers.CharField(required=False, default='TENANT')
+    # role_id is injected in to_representation() from the associated StaffMembership and
+    # used in create/update to look up the Role object; it is not a StaffProfile model field.
+    role_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = StaffProfile
@@ -101,20 +106,23 @@ class StaffProfileSerializer(serializers.ModelSerializer):
         last_name = validated_data.pop('last_name', '')
         role_id = validated_data.pop('role_id', None)
         scope = validated_data.pop('scope', StaffMembership.Scope.TENANT)
-        tenant = validated_data.get('tenant')
+        # tenant is injected by perform_create(serializer.save(tenant=...))
+        tenant = validated_data.pop('tenant', None)
 
-        if not username:
-            raise serializers.ValidationError({'username': 'Username is required to create a staff member.'})
-
-        user, created = User.objects.get_or_create(
-            username=username,
-            defaults={'email': email, 'first_name': first_name, 'last_name': last_name}
+        if User.objects.filter(username=username).exists():
+            raise serializers.ValidationError({'username': 'This username is already taken.'})
+        user = User.objects.create(
+            username=username, email=email,
+            first_name=first_name, last_name=last_name,
         )
         if password:
+            from django.contrib.auth.password_validation import validate_password
+            validate_password(password, user)
             user.set_password(password)
             user.save()
 
         validated_data['user'] = user
+        validated_data['tenant'] = tenant
         profile = super().create(validated_data)
 
         # Attach role & membership
@@ -125,12 +133,12 @@ class StaffProfileSerializer(serializers.ModelSerializer):
             if not role_obj:
                 role_obj = Role.objects.filter(name=profile.role, tenant=tenant).first()
 
-            membership, _ = StaffMembership.objects.get_or_create(
+            membership, created = StaffMembership.objects.get_or_create(
                 user=user,
                 tenant=tenant,
                 defaults={'role': role_obj, 'scope': scope, 'is_active': profile.is_active}
             )
-            if not _:
+            if not created:
                 membership.role = role_obj or membership.role
                 membership.scope = scope or membership.scope
                 membership.is_active = profile.is_active

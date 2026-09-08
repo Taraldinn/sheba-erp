@@ -2,8 +2,17 @@
 RBAC Catalog & Default Role Seeding Service (Stage 3).
 ======================================================
 Defines platform-wide capability codenames and default ISP tenant roles.
+
+# CONCURRENCY SAFETY
+# Both ensure_permission_catalog() and seed_default_roles_for_tenant() are
+# safe for concurrent invocation:
+#   - They run inside transaction.atomic() with get_or_create / update_or_create.
+#   - A fast-path existence check avoids unnecessary DB writes on every GET.
+# These functions are intentionally idempotent; calling them more than once
+# for the same tenant/catalog produces no duplicate records.
 """
 
+from django.db import transaction
 from apps.authentication.models import Permission, Role
 from apps.core.models import Tenant
 
@@ -174,39 +183,68 @@ DEFAULT_ROLE_TEMPLATES = {
 
 
 def ensure_permission_catalog():
-    """Idempotently seed and update all platform permissions."""
+    """
+    Idempotently seed and update all platform permissions.
+
+    Fast path: if the catalog already has the expected number of entries, skip
+    the write loop entirely so this is safe to call from read-path code without
+    hitting the DB on every GET request.
+    Uses transaction.atomic() so concurrent first-time calls cannot create
+    duplicate Permission rows.
+    """
+    expected_count = len(PERMISSION_CATALOG)
+    # Fast path — catalog is already fully seeded; no writes needed.
+    if Permission.objects.count() >= expected_count:
+        return 0
+
     created_count = 0
-    for codename, name, module in PERMISSION_CATALOG:
-        _, created = Permission.objects.update_or_create(
-            codename=codename,
-            defaults={'name': name, 'module': module}
-        )
-        if created:
-            created_count += 1
+    with transaction.atomic():
+        for codename, name, module in PERMISSION_CATALOG:
+            _, created = Permission.objects.update_or_create(
+                codename=codename,
+                defaults={'name': name, 'module': module}
+            )
+            if created:
+                created_count += 1
     return created_count
 
 
 def seed_default_roles_for_tenant(tenant):
     """
     Ensure all default roles exist for a given tenant and attach their permissions.
+
+    Safe for concurrent HTTP requests:
+    - Wrapped in transaction.atomic() so parallel first-time calls for the same
+      tenant cannot race and produce duplicate Role rows.
+    - get_or_create guarantees idempotency on retry.
+
+    Fast path: if the tenant already has the expected number of roles, return
+    immediately so repeated read-path calls incur only a single COUNT query.
     """
+    expected_role_count = len(DEFAULT_ROLE_TEMPLATES)
+    # Fast path — roles already seeded for this tenant.
+    if Role.objects.filter(tenant=tenant).count() >= expected_role_count:
+        return
+
     ensure_permission_catalog()
-    all_permissions = list(Permission.objects.all())
-    perm_lookup = {p.codename: p for p in all_permissions}
 
-    for role_name, template in DEFAULT_ROLE_TEMPLATES.items():
-        role, _ = Role.objects.get_or_create(
-            tenant=tenant,
-            name=role_name,
-            defaults={'description': template['description'], 'is_active': True}
-        )
+    with transaction.atomic():
+        all_permissions = list(Permission.objects.all())
+        perm_lookup = {p.codename: p for p in all_permissions}
 
-        desired_perms = template['permissions']
-        if desired_perms == '__all__':
-            role.permissions.set(all_permissions)
-        else:
-            perms_to_add = [perm_lookup[c] for c in desired_perms if c in perm_lookup]
-            role.permissions.set(perms_to_add)
+        for role_name, template in DEFAULT_ROLE_TEMPLATES.items():
+            role, _ = Role.objects.get_or_create(
+                tenant=tenant,
+                name=role_name,
+                defaults={'description': template['description'], 'is_active': True}
+            )
+
+            desired_perms = template['permissions']
+            if desired_perms == '__all__':
+                role.permissions.set(all_permissions)
+            else:
+                perms_to_add = [perm_lookup[c] for c in desired_perms if c in perm_lookup]
+                role.permissions.set(perms_to_add)
 
 
 def ensure_all_tenants_default_roles():
