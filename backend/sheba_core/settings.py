@@ -211,13 +211,14 @@ USE_X_FORWARDED_PORT = True
 
 # ─── Security headers (active in production, no-op in DEBUG) ─────────────────
 if not DEBUG:
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+    SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=0)
+    if SECURE_HSTS_SECONDS > 0:
+        SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+        SECURE_HSTS_PRELOAD = True
     SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=False)
     SECURE_REDIRECT_EXEMPT = [r'^healthz/?', r'^api/v1/health-check/?']
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=False)
+    CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=False)
     X_FRAME_OPTIONS = 'DENY'
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
