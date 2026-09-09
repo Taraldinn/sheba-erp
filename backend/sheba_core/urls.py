@@ -23,6 +23,9 @@ from apps.payments.views import (
     PaymentGatewayViewSet, PaymentTransactionViewSet, SmsLogViewSet,
     SmsWebhookView, InboundPaymentEventViewSet
 )
+from apps.payments.bkash_views import (
+    BKashPayBillQueryView, BKashPayBillPayView, ManualSMSForwarderView
+)
 from apps.network.views import RouterViewSet, OLTViewSet, ONUViewSet, UserSessionViewSet, POPBranchViewSet
 from apps.support.views import TicketViewSet
 from apps.hr.views import EmployeeViewSet, AttendanceViewSet, LeaveRequestViewSet, AdvanceSalaryViewSet, PayrollRecordViewSet
@@ -107,9 +110,12 @@ urlpatterns = [
     path('api/v1/customer/query/', CustomerQueryApiView.as_view(), name='customer-query'),
     path('api/v1/customers/query/', CustomerQueryApiView.as_view(), name='customers-query'),
     
-    # Payment Ingestion Webhooks
+    # Payment Ingestion & Gateway Webhooks
     path('api/v1/payments/sms/webhook/', SmsWebhookView.as_view(), name='sms-webhook'),
     path('api/v1/payments/webhook/sms/', SmsWebhookView.as_view(), name='sms-webhook-alias'),
+    path('api/v1/payments/bkash/paybill/query/', BKashPayBillQueryView.as_view(), name='bkash-paybill-query'),
+    path('api/v1/payments/bkash/paybill/pay/', BKashPayBillPayView.as_view(), name='bkash-paybill-pay'),
+    path('api/v1/payments/forwarder/webhook/', ManualSMSForwarderView.as_view(), name='manual-sms-forwarder-webhook'),
     
     # Analytics & Reports
     path('api/v1/reports/dashboard/', DashboardAnalyticsView.as_view(), name='reports-dashboard'),

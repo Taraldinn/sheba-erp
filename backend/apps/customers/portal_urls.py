@@ -13,6 +13,11 @@ from apps.customers.portal_views import (
     CustomerPortalNotificationView,
 )
 from apps.customers.portal_ticket_views import CustomerPortalTicketViewSet
+from apps.payments.bkash_views import (
+    BKashCheckoutCreateView,
+    BKashCheckoutExecuteView,
+    CustomerPortalClaimPaymentView,
+)
 
 router = DefaultRouter()
 router.register('invoices', CustomerPortalInvoiceViewSet, basename='portal-invoices')
@@ -28,6 +33,11 @@ urlpatterns = [
     path('session/', CustomerPortalSessionView.as_view(), name='portal-session'),
     path('packages/', CustomerPortalPackagesView.as_view(), name='portal-packages'),
     path('notifications/', CustomerPortalNotificationView.as_view(), name='portal-notifications'),
+
+    # Payment & Recharge Endpoints
+    path('payments/bkash/create/', BKashCheckoutCreateView.as_view(), name='portal-bkash-create'),
+    path('payments/bkash/execute/', BKashCheckoutExecuteView.as_view(), name='portal-bkash-execute'),
+    path('payments/claim/', CustomerPortalClaimPaymentView.as_view(), name='portal-payments-claim'),
 
     # ViewSets
     path('', include(router.urls)),
