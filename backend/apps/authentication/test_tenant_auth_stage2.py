@@ -393,15 +393,19 @@ class TenantAwareAuthenticationStage2Tests(TestCase):
             password='password123',
             email='consultant@it.test'
         )
-        # Create active memberships in Tenant A and Tenant B
+        # Create active memberships in Tenant A and Tenant B with explicit roles
+        role_a = self.membership_a.role or self.tenant_a.roles.filter(name__in=['Admin', 'Support Staff']).first()
+        role_b = self.membership_b.role or self.tenant_b.roles.filter(name__in=['Admin', 'Support Staff']).first()
         StaffMembership.objects.create(
             user=consultant,
             tenant=self.tenant_a,
+            role=role_a,
             is_active=True
         )
         StaffMembership.objects.create(
             user=consultant,
             tenant=self.tenant_b,
+            role=role_b,
             is_active=True
         )
 

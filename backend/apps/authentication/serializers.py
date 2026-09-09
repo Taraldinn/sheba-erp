@@ -59,7 +59,6 @@ class StaffProfileSerializer(serializers.ModelSerializer):
         choices=StaffMembership.Scope.choices, required=False, default=StaffMembership.Scope.TENANT
     )
     role_name = serializers.SerializerMethodField()
-    scope = serializers.CharField(required=False, default='TENANT')
     # role_id is injected in to_representation() from the associated StaffMembership and
     # used in create/update to look up the Role object; it is not a StaffProfile model field.
     role_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
@@ -109,6 +108,8 @@ class StaffProfileSerializer(serializers.ModelSerializer):
         # tenant is injected by perform_create(serializer.save(tenant=...))
         tenant = validated_data.pop('tenant', None)
 
+        if not username:
+            raise serializers.ValidationError({'username': 'This field is required.'})
         if User.objects.filter(username=username).exists():
             raise serializers.ValidationError({'username': 'This username is already taken.'})
         user = User.objects.create(
@@ -167,6 +168,8 @@ class StaffProfileSerializer(serializers.ModelSerializer):
                 user.last_name = last_name
                 user_updated = True
             if password:
+                from django.contrib.auth.password_validation import validate_password
+                validate_password(password, user)
                 user.set_password(password)
                 user_updated = True
             if user_updated:

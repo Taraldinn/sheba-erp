@@ -54,11 +54,19 @@ class Stage8SecurityHardeningTests(TestCase):
             tenant=self.tenant_a,
             role=UserRole.ADMIN
         )
+        self.role_admin_a, _ = Role.objects.get_or_create(
+            tenant=self.tenant_a,
+            name='Admin',
+            defaults={'description': 'Admin role'}
+        )
         self.membership_a_admin, _ = StaffMembership.objects.get_or_create(
             user=self.user_a_admin,
             tenant=self.tenant_a,
-            defaults={'is_active': True}
+            defaults={'is_active': True, 'role': self.role_admin_a}
         )
+        if self.membership_a_admin.role != self.role_admin_a:
+            self.membership_a_admin.role = self.role_admin_a
+            self.membership_a_admin.save(update_fields=['role'])
 
         # Limited Tech Staff under Tenant A (No recharge or billing capability)
         self.user_a_tech = User.objects.create_user(username='alpha_tech', password='password123')
@@ -68,11 +76,23 @@ class Stage8SecurityHardeningTests(TestCase):
             tenant=self.tenant_a,
             role=UserRole.TECHNICIAN
         )
+        self.role_tech_a, _ = Role.objects.get_or_create(
+            tenant=self.tenant_a,
+            name='Technician',
+            defaults={'description': 'Field technician'}
+        )
+        # Explicitly assign limited permissions excluding customer.recharge and customer.update
+        self.role_tech_a.permissions.set(
+            Permission.objects.filter(codename__in=['ticket.view', 'ticket.update', 'task.view', 'task.update'])
+        )
         self.membership_a_tech, _ = StaffMembership.objects.get_or_create(
             user=self.user_a_tech,
             tenant=self.tenant_a,
-            defaults={'is_active': True}
+            defaults={'is_active': True, 'role': self.role_tech_a}
         )
+        if self.membership_a_tech.role != self.role_tech_a:
+            self.membership_a_tech.role = self.role_tech_a
+            self.membership_a_tech.save(update_fields=['role'])
 
         # ─── Tenant B (Beta Telecom) ───
         self.tenant_b = Tenant.objects.create(
@@ -94,11 +114,19 @@ class Stage8SecurityHardeningTests(TestCase):
             tenant=self.tenant_b,
             role=UserRole.ADMIN
         )
+        self.role_admin_b, _ = Role.objects.get_or_create(
+            tenant=self.tenant_b,
+            name='Admin',
+            defaults={'description': 'Admin role'}
+        )
         self.membership_b_admin, _ = StaffMembership.objects.get_or_create(
             user=self.user_b_admin,
             tenant=self.tenant_b,
-            defaults={'is_active': True}
+            defaults={'is_active': True, 'role': self.role_admin_b}
         )
+        if self.membership_b_admin.role != self.role_admin_b:
+            self.membership_b_admin.role = self.role_admin_b
+            self.membership_b_admin.save(update_fields=['role'])
 
         # Packages
         self.pkg_a = Package.objects.create(

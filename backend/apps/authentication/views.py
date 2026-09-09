@@ -62,8 +62,12 @@ class LoginView(views.APIView):
                 # Fallback sync from legacy StaffProfile
                 profile = getattr(user, 'profile', None)
                 if profile and profile.tenant_id == tenant.id and profile.is_active:
+                    role_obj = None
+                    if profile.role:
+                        from apps.authentication.models import Role
+                        role_obj = Role.objects.filter(tenant=tenant, name__iexact=profile.get_role_display()).first() or Role.objects.filter(tenant=tenant, name__iexact=profile.role).first()
                     membership, _ = StaffMembership.objects.get_or_create(
-                        user=user, tenant=tenant, defaults={'is_active': True}
+                        user=user, tenant=tenant, defaults={'is_active': True, 'role': role_obj}
                     )
 
             if not membership:

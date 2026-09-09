@@ -221,9 +221,9 @@ def seed_default_roles_for_tenant(tenant):
     Fast path: if the tenant already has the expected number of roles, return
     immediately so repeated read-path calls incur only a single COUNT query.
     """
-    expected_role_count = len(DEFAULT_ROLE_TEMPLATES)
-    # Fast path — roles already seeded for this tenant.
-    if Role.objects.filter(tenant=tenant).count() >= expected_role_count:
+    # Fast path — all default role template names already present for this tenant.
+    existing_role_names = set(Role.objects.filter(tenant=tenant).values_list('name', flat=True))
+    if set(DEFAULT_ROLE_TEMPLATES.keys()).issubset(existing_role_names):
         return
 
     ensure_permission_catalog()
