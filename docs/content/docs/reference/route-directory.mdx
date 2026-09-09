@@ -1,0 +1,25 @@
+---
+title: URL Route Directory
+description: Master table of backend API routes and frontend page URLs.
+---
+
+# URL Route Directory
+
+`IMPLEMENTED`
+
+Quick cross-reference between frontend routes and backend REST endpoints.
+
+| Frontend Page | Path in `frontend/` | Backend REST Endpoint | ViewSet Controller |
+| :--- | :--- | :--- | :--- |
+| **Dashboard** | `src/app/page.tsx` | `GET /api/v1/reports/dashboard/` | `DashboardAnalyticsView` |
+| **Customers** | `src/app/customers/page.tsx` | `GET/POST /api/v1/customers/` | `CustomerViewSet` |
+| **Billing** | `src/app/billing/page.tsx` | `GET/POST /api/v1/invoices/` | `InvoiceViewSet` |
+| **Routers** | `src/app/routers/page.tsx` | `GET/POST /api/v1/routers/` | `RouterViewSet` |
+| **OLT** | `src/app/olt/page.tsx` | `GET/POST /api/v1/olts/`, `/onus/` | `OLTViewSet`, `ONUViewSet` |
+| **Payments** | `src/app/payments/page.tsx` | `GET/POST /api/v1/payments/events/` | `InboundPaymentEventViewSet` |
+| **Support** | `src/app/support/page.tsx` | `GET/POST /api/v1/tickets/` | `TicketViewSet` |
+| **Tasks** | `src/app/tasks/page.tsx` | `GET/POST /api/v1/tasks/` | `TaskViewSet` |
+| **Staff** | `src/app/staff/page.tsx` | `GET/POST /api/v1/staff/`, `/roles/`| `StaffProfileViewSet` |
+| **Store** | `src/app/store/page.tsx` | `GET/POST /api/v1/store-items/` | `StoreItemViewSet` |
+| **HR** | `src/app/hr/page.tsx` | `GET/POST /api/v1/employees/` | `EmployeeViewSet` |
+| **SaaS Admin** | `src/app/saas-admin/page.tsx`| `GET/POST /api/v1/saas/tenants/` | `SaaSTenantViewSet` |

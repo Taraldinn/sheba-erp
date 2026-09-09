@@ -1,0 +1,48 @@
+---
+title: First Day as a Developer
+description: Onboarding checklist for new software engineers joining the Sheba ISP ERP project.
+---
+
+# First Day as a Developer Checklist
+
+`IMPLEMENTED`
+
+Welcome to the Sheba ISP ERP team! Follow this checklist on your first day to verify your development environment and familiarize yourself with the codebase.
+
+---
+
+## 1. Environment & Tools Checklist
+
+- [ ] Install **Python 3.12+** and **Node.js 20+** (`nvm` recommended).
+- [ ] Install **Docker Engine** & **Docker Compose**.
+- [ ] Clone the repository: `git clone https://github.com/Taraldinn/sheba-erp.git`.
+- [ ] Setup backend venv and install dependencies: `pip install -r backend/requirements.txt`.
+- [ ] Setup frontend dependencies: `npm install` inside `frontend/`.
+- [ ] Setup docs dependencies: `npm install` inside `docs/`.
+
+---
+
+## 2. Booting the Stack
+
+- [ ] Start background infrastructure: `docker compose -f backend/docker-compose.yml up -d postgres redis`.
+- [ ] Apply migrations: `python backend/manage.py migrate`.
+- [ ] Run seed data script: `python backend/seed_data.py`.
+- [ ] Start Django backend: `python backend/manage.py runserver 8000`.
+- [ ] Start Next.js frontend: `npm run dev` in `frontend/` (port 3000).
+- [ ] Start Documentation engine: `npm run dev` in `docs/` (port 3001).
+
+---
+
+## 3. Verification & Sanity Testing
+
+- [ ] **Open Swagger UI**: Navigate to `http://localhost:8000/api/docs/`.
+- [ ] **Run Backend Tests**: Run `python manage.py test` inside `backend/` and confirm all tests pass (153/153 tests passing).
+- [ ] **Login to Dashboard**:
+  - Open `http://localhost:3000/login`.
+  - Sign in with `admin` / `admin123`.
+  - Confirm dashboard widgets (Active Subscribers, Monthly Revenue, Online Sessions) load without errors.
+- [ ] **Test Customer Query**:
+  - Navigate to `http://localhost:3000/customers`.
+  - Search for an existing customer and verify PPPoE details.
+- [ ] **Read the Architecture Document**:
+  - Review [System Overview](/docs/architecture/overview) and [Core Invariants](/docs/architecture/multi-tenancy).

@@ -1,0 +1,40 @@
+---
+title: How to Modify an Existing Feature Safely
+description: Pre-flight checks, verifying tests, preventing regressions, and validating database migrations.
+---
+
+# How to Modify an Existing Feature Safely
+
+`IMPLEMENTED`
+
+Before altering any business logic, database models, or API endpoints:
+
+---
+
+## 1. Run Verification Pre-Flight
+
+Always run the full test suite to establish a passing baseline:
+```bash
+cd backend && venv/bin/python manage.py test
+```
+Confirm 153/153 tests pass.
+
+---
+
+## 2. Invariant Check Before Editing
+
+Ask yourself these questions:
+- Does this change introduce cross-tenant data leakage?
+- Does it bypass host-derived multi-tenancy?
+- Does it delete or alter records from `LedgerEntry` directly?
+- Does it execute synchronous external network I/O in an HTTP view thread?
+
+---
+
+## 3. Verify Frontend Production Build
+
+If modifying frontend components or types:
+```bash
+cd frontend && npm run build
+```
+Verify Turbopack compilation passes with 0 TypeScript or linting errors.

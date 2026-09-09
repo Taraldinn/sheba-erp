@@ -1,0 +1,33 @@
+---
+title: ISP Network Model Overview
+description: High-level ISP networking architecture, core routing, optical aggregation, and edge customer CPEs.
+---
+
+# ISP Network Model Overview
+
+`IMPLEMENTED`
+
+Sheba ISP ERP manages physical carrier hardware spanning upstream core routers, optical distribution frames (ODFs), optical line terminals (OLTs), and subscriber optical network units (ONUs).
+
+```mermaid
+flowchart LR
+    Internet(("Global Internet / BDIX")) --- CoreRouter["MikroTik Core Router (RouterOS v7)"]
+    CoreRouter --- OLTChassis["EPON / GPON OLT Chassis"]
+    OLTChassis --- Splitter["Optical Splitter (1:32 / 1:64)"]
+    Splitter --- ONU1["Subscriber ONU / Wi-Fi Router"]
+    Splitter --- ONU2["Subscriber ONU / Wi-Fi Router"]
+```
+
+---
+
+## 1. Physical Hardware Supported
+
+- **Edge / BNG Routers**: MikroTik CCR series (CCR1036, CCR2004, CCR2116, CCR2216) running RouterOS v7.
+- **Optical Aggregation**: VSOL, Huawei, ZTE, BDCOM EPON & GPON chassis.
+- **Client CPEs**: Bridged ONUs with PPPoE dialer termination on subscriber Wi-Fi routers.
+
+---
+
+## 2. Invariant: Service-Mediated Hardware Operations
+
+Direct browser-to-hardware communication is strictly forbidden. All provisioning commands, optical diagnostics, and telemetry queries are executed by server-side adapter services in `apps.network.services`.

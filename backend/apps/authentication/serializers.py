@@ -148,6 +148,9 @@ class StaffProfileSerializer(serializers.ModelSerializer):
         return profile
 
     def update(self, instance, validated_data):
+        if 'username' in validated_data:
+            validated_data.pop('username')
+            raise serializers.ValidationError({'username': 'Username cannot be changed.'})
         password = validated_data.pop('password', None)
         email = validated_data.pop('email', None)
         first_name = validated_data.pop('first_name', None)

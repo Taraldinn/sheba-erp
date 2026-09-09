@@ -1,0 +1,29 @@
+---
+title: PPPoE, IP Pools & Bandwidth Queues
+description: PPPoE subscriber provisioning, dynamic/static IP allocation, and bandwidth rate shaping.
+---
+
+# PPPoE, IP Pools & Bandwidth Queues
+
+`IMPLEMENTED`
+
+Bandwidth management guarantees subscriber speed tiers and prevents network saturation.
+
+---
+
+## 1. PPPoE Profiles & Rate Limiting
+
+MikroTik RouterOS applies bandwidth shaping via:
+1. **PPPoE Profile `rate-limit` parameter**:
+   - Syntax: `<rx-rate>/<tx-rate> [burst-rx/burst-tx [threshold-rx/threshold-tx [burst-time-rx/burst-time-tx]]]`
+   - Example for 20 Mbps symmetric: `20M/20M`.
+2. **Simple Queues**:
+   - Created dynamically when PPPoE session authenticates.
+   - Assigned to the interface `<pppoe-username>`.
+
+---
+
+## 2. IP Pool Allocation
+
+- **Dynamic IP Pool**: Configured on the MikroTik router (e.g. `10.100.0.0/16`). RouterOS allocates the next available IP address from the pool upon successful PPPoE authentication.
+- **Static Public IP**: If a customer requests a static real IP, the ERP sets `remote-address=<static-ip>` on the PPPoE secret.

@@ -1,0 +1,36 @@
+---
+title: MikroTik Hardware Mocking & Testing
+description: Unit testing router services without requiring physical hardware connections.
+---
+
+# MikroTik Hardware Mocking & Testing
+
+`IMPLEMENTED`
+
+In `apps.network.test_isp_operations_stage7`, physical MikroTik socket communication is mocked using `unittest.mock.patch`:
+
+---
+
+## 1. Mocking `MikroTikClient`
+
+```python
+from unittest.mock import patch
+
+class MikroTikServiceTests(TestCase):
+    @patch('apps.network.services.mikrotik.service.MikroTikClient')
+    def test_pppoe_user_provisioning(self, mock_client_cls):
+        mock_client = mock_client_cls.return_value
+        mock_client.create_secret.return_value = {'success': True, 'id': '*1'}
+
+        service = MikroTikService(self.router)
+        res = service.create_pppoe_user('subscriber_01', 'pass123', 'Home-20M')
+        
+        self.assertTrue(res['success'])
+        mock_client.create_secret.assert_called_once_with(
+            name='subscriber_01',
+            password='pass123',
+            profile='Home-20M'
+        )
+```
+
+This ensures full test determinism and enables rapid CI/CD test execution without physical edge routers.

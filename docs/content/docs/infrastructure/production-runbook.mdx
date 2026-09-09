@@ -1,0 +1,50 @@
+---
+title: Production Operations & Runbook
+description: Standard operating procedures for deployments, rollback, database backups, and emergency recovery.
+---
+
+# Production Operations & Runbook
+
+`IMPLEMENTED`
+
+Standard operating procedures for managing the live Sheba ISP ERP production cluster.
+
+---
+
+## 1. Zero-Downtime Deployment Procedure
+
+```bash
+# 1. Pull latest verified commits from origin main
+git pull origin main
+
+# 2. Run test suite to verify code integrity
+cd backend && venv/bin/python manage.py test
+
+# 3. Trigger Docker build and rolling container replacement
+docker compose -f backend/docker-compose.yml build
+docker compose -f backend/docker-compose.yml up -d --no-deps backend
+```
+
+---
+
+## 2. Emergency Rollback Procedure
+
+If a critical regression is detected post-deployment:
+1. Revert to previous Git release tag:
+   ```bash
+   git checkout <last-stable-tag>
+   ```
+2. If migrations cannot be reversed cleanly, restore PostgreSQL snapshot from before migration:
+   ```bash
+   docker compose -f backend/docker-compose.yml stop backend
+   cat /app/backups/sheba_pre_deploy.sql | docker exec -i sheba-postgres psql -U sheba_user -d sheba_erp
+   docker compose -f backend/docker-compose.yml start backend
+   ```
+
+---
+
+## 3. Database Automated Backups
+
+- Handled by `apps.core.tasks.execute_database_backup`.
+- Generates compressed `pg_dump` SQL files stored with encrypted checksums in `/app/backups/`.
+- Retained for 30 days with automated pruning of older snapshots.

@@ -1,4 +1,5 @@
 import re
+import json
 import uuid
 import datetime
 from rest_framework import viewsets, permissions, views, status
@@ -18,7 +19,7 @@ from apps.core.models import AuditLog, Tenant
 from apps.core.permissions import IsTenantMember, IsAdminOrManager, IsBillingStaff, HasTenantPermission
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 from decimal import Decimal
-from apps.finance.models import BillingAccount, LedgerEntry
+from apps.finance.models import BillingAccount, LedgerEntry, IdempotencyKey
 from apps.finance.services import get_or_create_billing_account, record_ledger_entry, allocate_payment_to_invoices
 from apps.core.tasks import process_payment_event
 
@@ -82,84 +83,112 @@ class PaymentTransactionViewSet(viewsets.ModelViewSet):
         trx_id = data.get('trx_id') or f"MAN-{uuid.uuid4().hex[:8].upper()}"
         idempotency_key = data.get('idempotency_key') or ''
 
-        # Global uniqueness check on trx_id
-        if trx_id and PaymentTransaction.objects.filter(trx_id=trx_id).exists():
+        try:
+            with transaction.atomic():
+                if idempotency_key:
+                    idem, created = IdempotencyKey.objects.get_or_create(
+                        tenant=tenant,
+                        key=idempotency_key,
+                        defaults={
+                            'operation': 'payment_create',
+                            'status': IdempotencyKey.Status.PROCESSING
+                        }
+                    )
+                    if not created:
+                        if idem.is_complete:
+                            return Response(idem.response_body, status=idem.response_status or status.HTTP_200_OK)
+                        elif idem.status == IdempotencyKey.Status.PROCESSING:
+                            return Response({'error': 'A payment with this Idempotency-Key is currently processing.'}, status=status.HTTP_409_CONFLICT)
+
+                # Global uniqueness check on trx_id
+                if trx_id and PaymentTransaction.objects.filter(trx_id=trx_id).exists():
+                    return Response({'error': f'Transaction with ID {trx_id} already exists.'}, status=status.HTTP_409_CONFLICT)
+
+                payment = PaymentTransaction.objects.create(
+                    tenant=tenant,
+                    customer=customer,
+                    amount=data['amount'],
+                    payment_method=data['payment_method'],
+                    trx_id=trx_id,
+                    status=TransactionStatus.SUCCESS,
+                    raw_payload={
+                        'notes': data.get('notes', ''),
+                        'idempotency_key': idempotency_key,
+                        'processed_by': request.user.username
+                    }
+                )
+
+                if customer:
+                    amount_dec = Decimal(str(payment.amount))
+                    billing_acct = get_or_create_billing_account(tenant, customer)
+                    billing_acct = BillingAccount.objects.select_for_update().get(id=billing_acct.id)
+                    billing_acct.total_paid = Decimal(str(billing_acct.total_paid or '0.00')) + amount_dec
+                    billing_acct.balance = Decimal(str(billing_acct.balance or '0.00')) + amount_dec
+                    billing_acct.last_payment_at = timezone.now()
+                    billing_acct.save(update_fields=['total_paid', 'balance', 'last_payment_at'])
+
+                    record_ledger_entry(
+                        tenant=tenant,
+                        customer=customer,
+                        entry_type=LedgerEntry.EntryType.PAYMENT,
+                        amount=amount_dec,
+                        balance_after=billing_acct.balance,
+                        reference_id=str(payment.id),
+                        reference_type='PaymentTransaction',
+                        description=f"Manual Payment recorded via {payment.payment_method} (Trx: {trx_id})",
+                        created_by=request.user.username if request.user.is_authenticated else 'system'
+                    )
+
+                    # Allocate payment to open invoices (FIFO)
+                    allocate_payment_to_invoices(
+                        tenant=tenant,
+                        payment=payment,
+                        customer=customer,
+                        amount=amount_dec,
+                        notes=f"Allocation from Payment {payment.id}"
+                    )
+
+                    # Offset customer due / advance
+                    locked_customer = Customer.objects.select_for_update().get(id=customer.id)
+                    due_dec = Decimal(str(locked_customer.due_amount or '0.00'))
+                    adv_dec = Decimal(str(locked_customer.advance_amount or '0.00'))
+                    if due_dec > 0:
+                        if amount_dec >= due_dec:
+                            surplus = amount_dec - due_dec
+                            locked_customer.due_amount = Decimal('0.00')
+                            locked_customer.advance_amount = adv_dec + surplus
+                        else:
+                            locked_customer.due_amount = due_dec - amount_dec
+                    else:
+                        locked_customer.advance_amount = adv_dec + amount_dec
+                    locked_customer.save(update_fields=['due_amount', 'advance_amount'])
+
+                AuditLog.objects.create(
+                    tenant=tenant,
+                    actor_username=request.user.username if request.user.is_authenticated else 'system',
+                    action='PROCESS_PAYMENT',
+                    module='PAYMENTS',
+                    target_id=str(payment.id),
+                    details={
+                        'amount': float(payment.amount),
+                        'trx_id': payment.trx_id,
+                        'customer_id': str(customer.id) if customer else None,
+                    }
+                )
+
+                response_data = PaymentTransactionSerializer(payment).data
+
+                if idempotency_key:
+                    idem.status = IdempotencyKey.Status.COMPLETE
+                    idem.response_body = json.loads(json.dumps(response_data, default=str))
+                    idem.response_status = status.HTTP_201_CREATED
+                    idem.completed_at = timezone.now()
+                    idem.save(update_fields=['status', 'response_body', 'response_status', 'completed_at'])
+
+        except IntegrityError:
             return Response({'error': f'Transaction with ID {trx_id} already exists.'}, status=status.HTTP_409_CONFLICT)
 
-        with transaction.atomic():
-            payment = PaymentTransaction.objects.create(
-                tenant=tenant,
-                customer=customer,
-                amount=data['amount'],
-                payment_method=data['payment_method'],
-                trx_id=trx_id,
-                status=TransactionStatus.SUCCESS,
-                raw_payload={
-                    'notes': data.get('notes', ''),
-                    'idempotency_key': idempotency_key,
-                    'processed_by': request.user.username
-                }
-            )
-
-            if customer:
-                amount_dec = Decimal(str(payment.amount))
-                billing_acct = get_or_create_billing_account(tenant, customer)
-                billing_acct = BillingAccount.objects.select_for_update().get(id=billing_acct.id)
-                billing_acct.total_paid = Decimal(str(billing_acct.total_paid or '0.00')) + amount_dec
-                billing_acct.balance = Decimal(str(billing_acct.balance or '0.00')) + amount_dec
-                billing_acct.last_payment_at = timezone.now()
-                billing_acct.save(update_fields=['total_paid', 'balance', 'last_payment_at'])
-
-                record_ledger_entry(
-                    tenant=tenant,
-                    customer=customer,
-                    entry_type=LedgerEntry.EntryType.PAYMENT,
-                    amount=amount_dec,
-                    balance_after=billing_acct.balance,
-                    reference_id=str(payment.id),
-                    reference_type='PaymentTransaction',
-                    description=f"Manual Payment recorded via {payment.payment_method} (Trx: {trx_id})",
-                    created_by=request.user.username if request.user.is_authenticated else 'system'
-                )
-
-                # Allocate payment to open invoices (FIFO)
-                allocate_payment_to_invoices(
-                    tenant=tenant,
-                    payment=payment,
-                    customer=customer,
-                    amount=amount_dec,
-                    notes=f"Allocation from Payment {payment.id}"
-                )
-
-                # Offset customer due / advance
-                locked_customer = Customer.objects.select_for_update().get(id=customer.id)
-                due_dec = Decimal(str(locked_customer.due_amount or '0.00'))
-                adv_dec = Decimal(str(locked_customer.advance_amount or '0.00'))
-                if due_dec > 0:
-                    if amount_dec >= due_dec:
-                        surplus = amount_dec - due_dec
-                        locked_customer.due_amount = Decimal('0.00')
-                        locked_customer.advance_amount = adv_dec + surplus
-                    else:
-                        locked_customer.due_amount = due_dec - amount_dec
-                else:
-                    locked_customer.advance_amount = adv_dec + amount_dec
-                locked_customer.save(update_fields=['due_amount', 'advance_amount'])
-
-            AuditLog.objects.create(
-                tenant=tenant,
-                actor_username=request.user.username if request.user.is_authenticated else 'system',
-                action='PROCESS_PAYMENT',
-                module='PAYMENTS',
-                target_id=str(payment.id),
-                details={
-                    'amount': float(payment.amount),
-                    'trx_id': payment.trx_id,
-                    'customer_id': str(customer.id) if customer else None,
-                }
-            )
-
-        return Response(PaymentTransactionSerializer(payment).data, status=status.HTTP_201_CREATED)
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 @extend_schema_view(
@@ -188,17 +217,17 @@ class SmsWebhookView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        # Resolve tenant strictly from request domain/header
+        tenant = get_tenant_for_request(request)
+        if not tenant:
+            return Response({'error': 'Tenant could not be resolved from request host or context.'}, status=status.HTTP_400_BAD_REQUEST)
+
         sender = request.data.get('sender') or request.data.get('from', 'Unknown')
         message = request.data.get('message') or request.data.get('text') or request.data.get('body', '')
         raw_payload = request.data
 
         if not message and not request.data.get('trx_id'):
             return Response({'error': 'Message content or trx_id required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Resolve tenant strictly from request domain/header
-        tenant = get_tenant_for_request(request)
-        if not tenant:
-            return Response({'error': 'Tenant could not be resolved from request host or context.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # --- Parse SMS ---
         trx_match = re.search(r'(?:TrxID|TxnId|Txn|Transaction\s*ID|TxID)[:\s]+([A-Za-z0-9_-]+)', message, re.IGNORECASE)
@@ -334,13 +363,17 @@ class InboundPaymentEventViewSet(viewsets.ModelViewSet):
         if not tenant:
             return Response({'error': 'Tenant could not be resolved from request host or context.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        source = request.data.get('source', InboundPaymentEvent.EventSource.SMS)
-        raw_payload = request.data.get('raw_payload') or request.data.get('message') or str(request.data)
-        provider = request.data.get('provider', '')
-        amount = request.data.get('amount')
-        trx_id = str(request.data.get('trx_id') or '').strip()
-        sender_account = str(request.data.get('sender_account') or request.data.get('sender') or '').strip()
-        reference_id = str(request.data.get('reference_id') or request.data.get('reference') or '').strip()
+        serializer = InboundPaymentEventSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+
+        source = validated.get('source', InboundPaymentEvent.EventSource.SMS)
+        raw_payload = validated.get('raw_payload') or request.data.get('message') or str(request.data)
+        provider = validated.get('provider', '')
+        amount = validated.get('amount')
+        trx_id = str(validated.get('trx_id') or request.data.get('trx_id') or '').strip()
+        sender_account = str(validated.get('sender_account') or request.data.get('sender') or '').strip()
+        reference_id = str(validated.get('reference_id') or request.data.get('reference') or '').strip()
 
         if not raw_payload and not trx_id:
             return Response({'error': 'raw_payload or trx_id required'}, status=status.HTTP_400_BAD_REQUEST)

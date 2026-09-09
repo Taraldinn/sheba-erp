@@ -1,0 +1,120 @@
+---
+title: System Architecture Overview
+description: End-to-end architectural blueprint, high-level context, and request lifecycle in Sheba ISP ERP.
+---
+
+# System Architecture Overview
+
+`IMPLEMENTED`
+
+Sheba ISP ERP is architected as a **modular monolith** with a decoupled Next.js frontend, an asynchronous Celery task engine, a high-concurrency Redis caching layer, and a single-schema multi-tenant PostgreSQL database.
+
+---
+
+## 1. High-Level Context Diagram
+
+```mermaid
+flowchart TB
+    subgraph Clients["User and Hardware Clients"]
+        WebAdmin["ISP Staff Web Portal (Next.js)"]
+        SubPortal["Subscriber Self-Care Portal"]
+        SaaSAdmin["SaaS SuperAdmin Portal"]
+        MFSGateways["Payment Gateways (bKash / Nagad)"]
+        MikroTikHW["MikroTik Routers (RouterOS v7)"]
+        OLTHW["EPON / GPON OLT Chassis"]
+    end
+
+    subgraph Boundary["API Gateway and Reverse Proxy (Dokploy / Nginx)"]
+        RP["Reverse Proxy (SSL / Host Routing)"]
+    end
+
+    subgraph BackendMonolith["Django 6.x Modular Monolith"]
+        Middleware["TenantResolutionMiddleware and Auth Guards"]
+        REST["REST API Controllers (DRF ViewSets)"]
+        Services["Domain Services (Billing, Network, Finance)"]
+        ORM["TenantScopedManager and ORM Models"]
+        TaskDispatch["Task Dispatcher (Celery Client)"]
+    end
+
+    subgraph AsyncExecution["Async Infrastructure"]
+        Redis[("Redis 7 Broker and Cache")]
+        CeleryWorkers["Celery Background Workers"]
+        DistributedLock["Distributed Lock Engine"]
+    end
+
+    subgraph DataStore["Primary Data Storage"]
+        PG[("PostgreSQL 16 - Public Schema")]
+    end
+
+
+    WebAdmin -->|HTTPS / JSON| RP
+    SubPortal -->|HTTPS / JSON| RP
+    SaaSAdmin -->|HTTPS / JSON| RP
+    MFSGateways -->|Webhook POST| RP
+
+    RP --> Middleware
+    Middleware --> REST
+    REST --> Services
+    Services --> ORM
+    ORM --> PG
+
+    Services --> TaskDispatch
+    TaskDispatch --> Redis
+    Redis --> CeleryWorkers
+    CeleryWorkers --> DistributedLock
+    CeleryWorkers --> Services
+
+    Services -->|RouterOS API / REST| MikroTikHW
+    Services -->|SNMP / Telnet| OLTHW
+```
+
+---
+
+## 2. Request-Response Lifecycle
+
+Every HTTP request entering the backend undergoes a deterministic 7-stage processing pipeline:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Frontend / Gateway
+    participant Proxy as Reverse Proxy
+    participant TenantMW as TenantResolutionMiddleware
+    participant Auth as TokenAuthentication
+    participant Perm as RBAC / IsTenantMember
+    participant View as API ViewSet
+    participant Svc as Domain Service
+    participant DB as PostgreSQL
+    participant Lock as Redis Distributed Lock
+
+    Client->>Proxy: HTTP Request (Host: tenant.shebafi.xyz)
+    Proxy->>TenantMW: Forward with original Host header
+    TenantMW->>DB: Query TenantDomain for Host
+    DB-->>TenantMW: Return Tenant instance
+    Note over TenantMW: request.tenant = resolved_tenant
+    TenantMW->>Auth: Authenticate Bearer / Token
+    Auth-->>Perm: Authenticated User + StaffProfile
+    Perm->>Perm: Verify User belongs to request.tenant
+    Perm->>View: Dispatch Action
+    View->>Svc: Invoke Business Logic
+    opt Mutating Operation
+        Svc->>Lock: Acquire distributed_lock(key)
+        Lock-->>Svc: Lock Acquired
+        Svc->>DB: Atomic Transaction (select_for_update)
+        DB-->>Svc: Commit Changes
+        Svc->>Lock: Release Lock
+    end
+    View-->>Client: HTTP 200 / 201 Response JSON
+```
+
+---
+
+## 3. Communication Protocols & Standards
+
+- **Internal API**: JSON over HTTP REST. Standard DRF pagination (`count`, `next`, `previous`, `results`).
+- **MikroTik RouterOS v7**:
+  - Primary: REST API over HTTPS (`/rest/...`).
+  - Secondary/Fallback: RouterOS API protocol (port 8728 / 8729 SSL).
+- **OLT Management**:
+  - Telemetry & Optical Diagnostics: SNMP v2c / v3, CLI scraping over SSH/Telnet.
+- **Asynchronous Messaging**: Celery serialized JSON payloads routed over Redis queue.

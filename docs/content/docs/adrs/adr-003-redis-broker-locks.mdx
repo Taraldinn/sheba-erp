@@ -1,0 +1,32 @@
+---
+title: "ADR-003: Redis for Caching, Celery Broker & Distributed Locks"
+description: Standardizing on Redis 7 as the single multi-purpose in-memory infrastructure component.
+---
+
+# ADR-003: Redis for Caching, Celery Broker & Distributed Locks
+
+- **Status**: `ACCEPTED`
+- **Deciders**: Lead Architect
+- **Date**: September 2026
+
+---
+
+## Context
+
+The platform requires a message broker for Celery, an application cache for frequent queries, and distributed locking to coordinate background tasks without race conditions.
+
+---
+
+## Decision
+
+Standardize on **Redis 7** for all three roles:
+- Celery Queue Broker.
+- Django Caching Engine.
+- Redlock / Atomic distributed locking in `apps.core.lock`.
+
+---
+
+## Consequences
+
+- **Positive**: Single in-memory service reduces operational overhead, Docker container count, and RAM footprint on VPS deployments.
+- **Negative**: Redis memory spikes must be monitored; queue eviction policies must be configured appropriately.

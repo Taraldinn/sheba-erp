@@ -1,0 +1,33 @@
+---
+title: "apps.hr — Human Resources & Payroll"
+description: Employee profiles, daily biometric/manual attendance, leave approvals, salary advances, and monthly payroll.
+---
+
+# `apps.hr` — Human Resources & Payroll
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/hr/`
+- **Responsibilities**: Staff employee directory, daily attendance tracking, leave requests, salary advances, and automated monthly payroll ledger generation.
+
+---
+
+## 1. Database Models (5 Models)
+
+| Model Name | Purpose | Key Fields |
+| :--- | :--- | :--- |
+| `Employee` | Internal staff HR record | `name`, `email`, `phone`, `designation`, `department`, `salary`, `join_date` |
+| `Attendance` | Daily check-in/check-out logs | `employee`, `date`, `check_in`, `check_out`, `status` (PRESENT, LATE, ABSENT) |
+| `LeaveRequest` | Staff leave application | `employee`, `leave_type`, `start_date`, `end_date`, `status`, `reason` |
+| `AdvanceSalary` | Employee salary advance requests | `employee`, `amount`, `request_date`, `deduction_month`, `status` |
+| `PayrollRecord` | Monthly processed salary disbursement | `employee`, `month`, `basic_salary`, `bonus`, `deductions`, `net_salary`, `status` |
+
+---
+
+## 2. API Endpoints
+
+- `GET/POST /api/v1/employees/`: Employee directory management.
+- `GET/POST /api/v1/attendance/`: Attendance logging and daily summary reports.
+- `GET/POST /api/v1/leaves/`: Leave submissions and manager approval workflows.
+- `GET/POST /api/v1/advance-salaries/`: Advance tracking with automatic deduction mapping.
+- `GET/POST /api/v1/payrolls/`: Monthly payroll calculation and PDF disbursement slips.

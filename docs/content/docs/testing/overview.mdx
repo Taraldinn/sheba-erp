@@ -1,0 +1,18 @@
+---
+title: Testing Philosophy & Strategy
+description: Test pyramid, automated test suites, and regression prevention strategy.
+---
+
+# Testing Philosophy & Strategy
+
+`IMPLEMENTED`
+
+Testing in Sheba ISP ERP emphasizes backend unit and integration test coverage across tenant isolation, financial ledger invariants, and simulated hardware network communication.
+
+---
+
+## 1. Test Suite Coverage
+
+- **Backend Unit & Integration Tests**: 153 active automated tests covering all 13 apps.
+- **In-Memory SQLite Fast Execution**: Test runs automatically swap `DATABASES['default']` to `:memory:` and use `MD5PasswordHasher` to execute 153 tests in under 5 seconds.
+- **Eager Celery Execution**: Under `test` mode, `CELERY_TASK_ALWAYS_EAGER = True` and `CELERY_TASK_EAGER_PROPAGATES = True`, allowing asynchronous task logic to run synchronously within test runners.

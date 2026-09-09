@@ -1,0 +1,110 @@
+---
+title: Complete Models Inventory (52 Models)
+description: Exhaustive directory of all 52 Django models across all 13 backend apps.
+---
+
+# Complete Models Inventory (52 Models)
+
+`IMPLEMENTED`
+
+The backend database schema consists of exactly 52 active Django models verified in the codebase.
+
+---
+
+## 1. `apps.core` (10 Models)
+1. `Tenant`: Root multi-tenant ISP organization.
+2. `TenantDomain`: Custom domain and subdomain mappings for host-derived tenancy.
+3. `TenantApiToken`: Machine-to-machine authentication tokens.
+4. `CompanySetting`: Tenant-specific branding, currency, and portal settings.
+5. `AuditLog`: Immutable audit trail for compliance and tracking.
+6. `TenantOnboardingRequest`: Self-service signup applications from potential ISP tenants.
+7. `SaaSPackage`: SaaS billing tiers and subscriber quota limits.
+8. `TenantSubscription`: Active SaaS contract binding a tenant to a `SaaSPackage`.
+9. `SaaSPayment`: Billing records for tenant platform payments.
+10. `DatabaseBackup`: Metadata records for automated database backups.
+
+---
+
+## 2. `apps.authentication` (6 Models)
+11. `StaffProfile`: User profile details linked to Django's `auth.User`.
+12. `Permission`: Granular system permission code.
+13. `Role`: Tenant-scoped collection of permissions.
+14. `StaffMembership`: User-to-tenant-to-role binding.
+15. `Reseller`: Wholesale bandwidth reseller profile.
+16. `ResellerLedgerEntry`: Financial balance transactions for resellers.
+
+---
+
+## 3. `apps.customers` (1 Model)
+17. `Customer`: Master subscriber entity with PPPoE credentials, location, and status.
+
+---
+
+## 4. `apps.billing` (5 Models)
+18. `Package`: Broadband tier with bandwidth, price, and MikroTik profile.
+19. `ResellerPricing`: Custom discounted wholesale rates for packages per reseller.
+20. `Invoice`: Monthly subscription invoice.
+21. `Recharge`: Record of subscription validity renewal.
+22. `Offer`: Promotional discounts and billing campaigns.
+
+---
+
+## 5. `apps.finance` (6 Models)
+23. `BillingAccount`: Double-entry accounting ledger account for a subscriber.
+24. `InvoiceLine`: Itemized charge on an `Invoice`.
+25. `PaymentAllocation`: Settlement mapping payments to specific invoices.
+26. `LedgerEntry`: Immutable credit/debit transaction journal.
+27. `Adjustment`: Staff manual fee adjustments or waivers.
+28. `IdempotencyKey`: Unique mutation protection keys with cached responses.
+
+---
+
+## 6. `apps.payments` (5 Models)
+29. `PaymentGateway`: bKash, Nagad, or bank gateway credentials.
+30. `PaymentTransaction`: Completed subscriber payments.
+31. `PaymentAttempt`: Raw payment gateway transaction attempts.
+32. `InboundPaymentEvent`: Staging buffer for SMS webhooks.
+33. `SmsLog`: Inbound/outbound SMS gateway records.
+
+---
+
+## 7. `apps.network` (5 Models)
+34. `POPBranch`: Network Point-of-Presence physical location.
+35. `Router`: MikroTik edge router registration and credentials.
+36. `OLT`: Optical Line Terminal chassis registration.
+37. `ONU`: Optical Network Unit attached to a PON port.
+38. `UserSession`: Real-time active PPPoE tunnel cache.
+
+---
+
+## 8. `apps.support` (2 Models)
+39. `Ticket`: NOC and customer support tickets.
+40. `TicketReply`: Communication thread on a ticket.
+
+---
+
+## 9. `apps.hr` (5 Models)
+41. `Employee`: Staff employee record.
+42. `Attendance`: Daily attendance check-in/out.
+43. `LeaveRequest`: Employee leave applications.
+44. `AdvanceSalary`: Employee salary advance tracking.
+45. `PayrollRecord`: Monthly salary disbursement journal.
+
+---
+
+## 10. `apps.store` (3 Models)
+46. `ItemCategory`: Hardware inventory categories.
+47. `StoreItem`: Physical items in stock (cables, routers, SFPs).
+48. `StockTransaction`: Stock movements in and out of the warehouse.
+
+---
+
+## 11. `apps.tasks` (1 Model)
+49. `Task`: Maintenance and field technician work orders.
+
+---
+
+## 12. `apps.callcenter` (3 Models)
+50. `CallLog`: Telephony customer communication records.
+51. `VoiceSetting`: Telephony gateway configurations.
+52. `VoiceTemplate`: IVR broadcast audio scripts.

@@ -1,0 +1,39 @@
+---
+title: Infrastructure Architecture Overview
+description: VPS hosting, containerized micro-services, reverse proxies, and production network topology.
+---
+
+# Infrastructure Architecture Overview
+
+`IMPLEMENTED`
+
+Sheba ISP ERP is designed for deployment on bare-metal dedicated servers or high-performance Cloud VPS instances (e.g. Hetzner, DigitalOcean) running Linux Debian 12 / Ubuntu 24.04.
+
+```mermaid
+flowchart TD
+    Client["Internet Clients / Subscribers / Staff"] -->|Port 80/443| Nginx["Dokploy / Reverse Proxy (Traefik/Nginx)"]
+    
+    subgraph DockerNetwork["Internal Docker Bridge Network"]
+        Nginx -->|Port 3000| Frontend["Next.js App Container"]
+        Nginx -->|Port 8000| Backend["Django Gunicorn Container"]
+        Nginx -->|Port 3001| Docs["Fumadocs Container"]
+        
+        Backend -->|Port 5432| DB[("PostgreSQL 16 Container")]
+        Backend -->|Port 6379| Redis[("Redis 7 Container")]
+        
+        Worker["Celery Background Workers"] --> DB
+        Worker --> Redis
+    end
+
+    Backend -->|Management VLAN| MikroTikCore["MikroTik Core Routers"]
+    Backend -->|Management VLAN| OLTChassis["EPON/GPON OLTs"]
+```
+
+---
+
+## 1. Core Services
+
+- **Backend Web Server**: `gunicorn` with `uvloop` workers behind WhiteNoise compressed static asset serving.
+- **Frontend Server**: Node.js Next.js standalone runner.
+- **Relational Storage**: PostgreSQL 16 Alpine container with persistent named volumes (`postgres_data`).
+- **Worker Queue**: Redis 7 Alpine with persistent append-only file (`redis_data`).

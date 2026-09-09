@@ -46,7 +46,7 @@ const FALLBACK_ROLES: RoleItem[] = [
     description: "Platform / Tenant Master Administrator with full privileges",
     is_active: true,
     permissions: [],
-    members_count: 1,
+    members_count: 0,
   },
   {
     id: "r-admin",
@@ -54,7 +54,7 @@ const FALLBACK_ROLES: RoleItem[] = [
     description: "Managing Director / Executive ISP Administrator",
     is_active: true,
     permissions: [],
-    members_count: 2,
+    members_count: 0,
   },
   {
     id: "r-billing",
@@ -62,7 +62,7 @@ const FALLBACK_ROLES: RoleItem[] = [
     description: "Handles subscriber billing, invoicing, payments, and renewals",
     is_active: true,
     permissions: [],
-    members_count: 3,
+    members_count: 0,
   },
   {
     id: "r-support",
@@ -70,7 +70,7 @@ const FALLBACK_ROLES: RoleItem[] = [
     description: "Customer service and technical support specialist",
     is_active: true,
     permissions: [],
-    members_count: 4,
+    members_count: 0,
   },
   {
     id: "r-lineman",
@@ -78,7 +78,7 @@ const FALLBACK_ROLES: RoleItem[] = [
     description: "Field technician for on-site router and subscriber maintenance",
     is_active: true,
     permissions: [],
-    members_count: 2,
+    members_count: 0,
   },
 ];
 
@@ -95,6 +95,7 @@ export default function StaffPage() {
   const [activeTab, setActiveTab] = useState<"staff" | "roles">("staff");
   const [staffList, setStaffList] = useState<StaffItem[]>([]);
   const [roles, setRoles] = useState<RoleItem[]>([]);
+  const [isRolesAvailable, setIsRolesAvailable] = useState(false);
   const [permissions, setPermissions] = useState<PermissionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -142,8 +143,10 @@ export default function StaffPage() {
 
       if (fetchedRoles && fetchedRoles.length > 0) {
         setRoles(fetchedRoles);
+        setIsRolesAvailable(true);
       } else {
         setRoles(FALLBACK_ROLES);
+        setIsRolesAvailable(false);
       }
 
       if (fetchedPerms && fetchedPerms.length > 0) {
@@ -152,6 +155,7 @@ export default function StaffPage() {
     } catch (err: any) {
       console.error("Error loading staff data:", err);
       setRoles(FALLBACK_ROLES);
+      setIsRolesAvailable(false);
     } finally {
       setLoading(false);
     }
@@ -205,8 +209,8 @@ export default function StaffPage() {
       last_name: "",
       email: "",
       phone: "",
-      role: roles[0]?.name || "Support Staff",
-      role_id: roles[0]?.id || "",
+      role: isRolesAvailable ? (roles[0]?.name || "Support Staff") : "",
+      role_id: isRolesAvailable ? (roles[0]?.id || "") : "",
       scope: "TENANT",
       is_active: true,
     });
@@ -235,6 +239,14 @@ export default function StaffPage() {
   // Submit staff create/update
   const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isRolesAvailable) {
+      showToast("Roles are unavailable from the server. Staff role assignment is disabled.", "error");
+      return;
+    }
+    if (staffForm.role_id && String(staffForm.role_id).startsWith("r-")) {
+      showToast("Cannot assign synthetic fallback role. Please wait for server roles to load.", "error");
+      return;
+    }
     setSubmitting(true);
     try {
       if (editingStaffId) {
@@ -283,13 +295,10 @@ export default function StaffPage() {
 
   // Delete staff member
   const handleDeleteStaff = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to remove ${name} from staff directory?`)) return;
+    if (!confirm(`Are you sure you want to remove staff member "${name}"?`)) return;
     try {
-      const ok = await ApiClient.deleteStaff(id);
-      if (!ok) {
-        throw new Error("Failed to delete staff member");
-      }
-      showToast("Staff member deleted successfully");
+      await ApiClient.deleteStaff(id);
+      showToast(`Staff member "${name}" removed.`);
       loadData();
     } catch (err: any) {
       showToast(err.message || "Failed to delete staff member", "error");
@@ -330,11 +339,14 @@ export default function StaffPage() {
     }
     setSubmitting(true);
     try {
+      const existingRole = editingRoleId ? roles.find((r) => r.id === editingRoleId) : null;
+      const isActive = existingRole ? existingRole.is_active : true;
+
       const payload = {
         name: roleForm.name.trim(),
         description: roleForm.description,
         permission_ids: roleForm.permission_ids,
-        is_active: true,
+        is_active: isActive,
       };
 
       if (editingRoleId) {
@@ -687,6 +699,12 @@ export default function StaffPage() {
       {/* ──────────────── TAB 2: ROLES & PERMISSIONS MATRIX ──────────────── */}
       {activeTab === "roles" && (
         <div className="space-y-6">
+          {!isRolesAvailable && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-500 text-xs flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 shrink-0" />
+              <span>Roles unavailable: Showing offline preview roles only. Role assignment and modifications are disabled.</span>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {roles.map((role) => {
               const isAdminRole = ["Super Admin", "Admin", "SUPER_ADMIN", "ADMIN"].includes(
@@ -869,7 +887,8 @@ export default function StaffPage() {
               <div>
                 <Label className="text-xs font-semibold">Assigned Role</Label>
                 <select
-                  value={staffForm.role_id || staffForm.role}
+                  disabled={!isRolesAvailable}
+                  value={isRolesAvailable ? (staffForm.role_id || staffForm.role) : ""}
                   onChange={(e) => {
                     const selected = roles.find((r) => r.id === e.target.value || r.name === e.target.value);
                     setStaffForm({
@@ -878,14 +897,21 @@ export default function StaffPage() {
                       role_id: selected ? selected.id : "",
                     });
                   }}
-                  className="w-full h-9 mt-1 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full h-9 mt-1 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
+                  {!isRolesAvailable ? (
+                    <option value="">Roles unavailable</option>
+                  ) : (
+                    roles.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))
+                  )}
                 </select>
+                {!isRolesAvailable && (
+                  <p className="text-[11px] text-amber-500 mt-1">Roles are currently unavailable. Role assignment is disabled.</p>
+                )}
               </div>
 
               <div>

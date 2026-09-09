@@ -1,0 +1,32 @@
+---
+title: "ADR-001: Modular Monolith vs Microservices"
+description: Decision to structure the backend as a single cohesive modular monolith rather than distributed microservices.
+---
+
+# ADR-001: Modular Monolith vs Microservices
+
+- **Status**: `ACCEPTED`
+- **Deciders**: Lead Architect
+- **Date**: September 2026
+
+---
+
+## Context
+
+An ISP ERP orchestrates deeply interrelated workflows: subscriber registration requires simultaneous customer creation, billing account provisioning, invoice generation, and edge router sync. Breaking these operations across distributed microservices introduces distributed transactions (2PC / Sagas), network latency, and operational overhead.
+
+---
+
+## Decision
+
+We chose a **Modular Monolith** using Django:
+- Applications are organized into 13 cohesive domain apps in `backend/apps/`.
+- Cross-module operations execute within ACID database transactions.
+- Deployment remains a single container service, drastically simplifying CI/CD and hosting.
+
+---
+
+## Consequences
+
+- **Positive**: Zero network latency for inter-module calls; trivial local development setup; atomic database transactions.
+- **Negative**: Requires strict discipline to prevent spaghetti imports and ensure clean module boundaries.

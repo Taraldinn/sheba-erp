@@ -1,0 +1,32 @@
+---
+title: "ADR-004: Token Authentication & Host-Derived Tenancy"
+description: Architectural pairing of server-derived HTTP Host multi-tenancy with DRF TokenAuthentication.
+---
+
+# ADR-004: Token Authentication & Host-Derived Tenancy
+
+- **Status**: `ACCEPTED`
+- **Deciders**: Lead Architect
+- **Date**: September 2026
+
+---
+
+## Context
+
+Allowing clients to declare or switch their tenant identity via custom request headers (`X-Tenant-ID`) or URL parameters introduces tenant spoofing vulnerabilities.
+
+---
+
+## Decision
+
+Bind tenant identity strictly to the incoming **HTTP Host Header**:
+- Matched in `TenantResolutionMiddleware` against active `TenantDomain` records.
+- Authenticate requests using Django REST Framework's standard `TokenAuthentication`.
+- Verify that the authenticated staff user has an active `StaffMembership` binding them to the resolved `request.tenant`.
+
+---
+
+## Consequences
+
+- **Positive**: Impossible for an authenticated staff user to accidentally or maliciously query data from another ISP tenant.
+- **Negative**: Local development requires `localhost` fallback or editing `/etc/hosts` for testing custom domains.

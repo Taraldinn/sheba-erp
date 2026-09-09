@@ -1,0 +1,56 @@
+---
+title: Environment Variables
+description: Complete specification of all environment variables supported by the backend, worker, and frontend.
+---
+
+# Environment Variables Reference
+
+`IMPLEMENTED`
+
+All configuration settings are loaded via `django-environ` in `backend/sheba_core/settings.py`. In local development, values are read from `backend/.env`. In production, they are injected by Docker / Dokploy.
+
+---
+
+## 1. Backend Core & Security Settings
+
+| Variable | Type | Default (Local) | Production Requirement | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `ENVIRONMENT` | string | `local` | `production` | Switches security flags (`DEBUG`, host validation, SSL headers). |
+| `DEBUG` | boolean | `True` | `False` | Enables verbose error pages. **Must be False in production.** |
+| `SECRET_KEY` | string | `django-insecure-...` | **Random 64-char string** | Django cryptographic signing secret. |
+| `ALLOWED_HOSTS` | comma-separated list | `*` | `api.shebafi.xyz,*.shebafi.xyz` | Permitted HTTP Host headers. |
+| `DATABASE_URL` | URI string | `sqlite:///db.sqlite3` | `postgres://user:pass@host:5432/db` | Database connection string. |
+| `REDIS_URL` | URI string | `''` (or `redis://localhost:6379/0`) | `redis://redis:6379/0` | Cache and Celery message broker URI. |
+| `LOG_LEVEL` | string | `INFO` | `INFO` / `WARNING` | Application logging verbosity. |
+
+---
+
+## 2. CORS & CSRF Settings
+
+| Variable | Type | Default (Local) | Production Requirement | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `CORS_ALLOW_ALL_ORIGINS` | boolean | `True` | `False` | When True, permits all domains. Must be False in prod. |
+| `CORS_ALLOWED_ORIGINS` | comma-separated list | `http://localhost:3000` | `https://app.shebafi.xyz` | Whitelisted frontend origins. |
+| `CSRF_TRUSTED_ORIGINS` | comma-separated list | `[]` | `https://app.shebafi.xyz,https://api.shebafi.xyz` | Trusted origins for CSRF checks on mutating requests. |
+
+---
+
+## 3. Rate Limiting (DRF Throttling)
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `THROTTLE_ANON_RATE` | `100/minute` | Unauthenticated public queries (`/api/v1/customer/query/`) |
+| `THROTTLE_USER_RATE` | `1000/minute` | Authenticated staff API interactions |
+| `THROTTLE_AUTH_RATE` | `30/minute` | Login endpoints (`/api/v1/auth/login/`) |
+| `THROTTLE_WEBHOOK_RATE` | `300/minute` | Inbound payment SMS webhooks (`/api/v1/payments/sms/webhook/`) |
+| `THROTTLE_RECHARGE_RATE` | `60/minute` | Manual or auto subscriber recharge requests |
+
+---
+
+## 4. Frontend Environment Variables (`frontend/.env.local`)
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000/api/v1` | Base URL pointing to the Django REST API backend |
+| `NEXT_PUBLIC_DEFAULT_TENANT_ID` | `shebafi` | Fallback tenant identifier used during dev testing |
+| `PORT` | `3000` | Frontend web server listening port |

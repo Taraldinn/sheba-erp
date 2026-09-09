@@ -1,0 +1,9 @@
+{
+  "title": "Reference",
+  "pages": [
+    "env-vars",
+    "cli-commands",
+    "permissions-directory",
+    "route-directory"
+  ]
+}

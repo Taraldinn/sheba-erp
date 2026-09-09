@@ -1,0 +1,45 @@
+---
+title: Suspension & Reactivation Lifecycle
+description: Automated daily lockouts for expired accounts, session kicking, and instantaneous service restoration upon payment.
+---
+
+# Suspension & Reactivation Lifecycle
+
+`IMPLEMENTED`
+
+Maintaining cash flow requires reliable, non-blocking automation to disconnect delinquent subscribers and instantly restore access when payment is received.
+
+---
+
+## 1. Automated Expiration & Suspension Flow
+
+Every midnight, the Celery Beat scheduler triggers `expire_customers(tenant_id)`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Beat as Celery Beat
+    participant Task as expire_customers
+    participant DB as PostgreSQL
+    participant ROS as MikroTik RouterOS
+
+    Beat->>Task: Midnight Schedule
+    Task->>DB: Query Customers WHERE expiry_date < today AND status = 'ACTIVE'
+    loop For Each Expired Customer
+        Task->>DB: Update Customer.status = 'EXPIRED'
+        Task->>DB: Remove UserSession records
+        Task->>ROS: Terminate Active PPPoE Session (/ppp/active/remove)
+        Task->>ROS: Disable Secret or Switch Profile to 'Expired-Isolated'
+        Task->>DB: Record AuditLog (action='AUTO_LOCK_EXPIRED')
+    end
+```
+
+---
+
+## 2. Instant Reactivation Flow
+
+When a subscriber pays via bKash/Nagad or staff processes a recharge:
+1. `process_recharge` is dispatched.
+2. The database updates `Customer.status = 'ACTIVE'` and increments `expiry_date`.
+3. `MikroTikService.enable_pppoe_user()` is invoked immediately.
+4. If an isolated session exists, it is kicked so the subscriber immediately renegotiates PPPoE with full high-speed Internet access.

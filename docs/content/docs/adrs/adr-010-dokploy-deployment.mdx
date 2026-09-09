@@ -1,0 +1,32 @@
+---
+title: "ADR-010: Docker & Dokploy VPS Deployment Strategy"
+description: Architectural selection of Dokploy and multi-stage Docker builds for production deployment.
+---
+
+# ADR-010: Docker & Dokploy VPS Deployment Strategy
+
+- **Status**: `ACCEPTED`
+- **Deciders**: Lead Architect
+- **Date**: September 2026
+
+---
+
+## Context
+
+We evaluated Kubernetes (high cost, immense operational complexity for small-to-medium ISPs), pure systemd scripts (brittle dependency management), and self-hosted PaaS tooling (Dokploy / Coolify).
+
+---
+
+## Decision
+
+Adopt **Dokploy on a Linux VPS with Docker Compose**:
+- Multi-stage Docker builds separating Python compilation from the slim production runner.
+- Dokploy provides automated Git-push triggers, rolling container replacement, Let's Encrypt SSL management, and environment variable configuration.
+- Native `/healthz/` readiness probe integration.
+
+---
+
+## Consequences
+
+- **Positive**: Low infrastructure cost (runs on a $20-40/mo VPS); deterministic container runtimes; automated zero-downtime rollouts.
+- **Negative**: Single VPS node requires regular offsite automated database backups for disaster recovery.

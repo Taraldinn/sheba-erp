@@ -1,0 +1,35 @@
+---
+title: MikroTik Integration Specification
+description: API communication protocols, payloads, authentication, and error handling for MikroTik routers.
+---
+
+# MikroTik Integration Specification
+
+`IMPLEMENTED`
+
+- **Vendor**: MikroTik SIA
+- **Supported OS Versions**: RouterOS v7.1 through v7.18+
+- **Protocols**:
+  1. RouterOS REST API (HTTPS port 443 / 80)
+  2. RouterOS API protocol (port 8728 / 8729 SSL)
+
+---
+
+## 1. Authentication
+
+Credentials are provided during router registration in `/routers`:
+- Stored symmetrically encrypted with Fernet.
+- Authenticated via HTTP Basic Authentication for REST endpoints (`/rest/...`) or binary challenge-response for API sockets.
+
+---
+
+## 2. Command Mappings
+
+| Action | RouterOS REST Endpoint | HTTP Method |
+| :--- | :--- | :--- |
+| **Add PPPoE Secret** | `/rest/ppp/secret` | `PUT` / `POST` |
+| **Disable Secret** | `/rest/ppp/secret/{id}` | `PATCH` (`disabled=true`) |
+| **Enable Secret** | `/rest/ppp/secret/{id}` | `PATCH` (`disabled=false`) |
+| **Kick Tunnel** | `/rest/ppp/active/{id}` | `DELETE` |
+| **Resource Telemetry**| `/rest/system/resource` | `GET` |
+| **Interface Traffic** | `/rest/interface/monitor-traffic` | `POST` |

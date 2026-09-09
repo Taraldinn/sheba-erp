@@ -1,0 +1,32 @@
+---
+title: "apps.payments — Gateways, MFS & Webhooks"
+description: Payment transaction processing, bKash/Nagad SMS webhook ingestion, and SMS dispatch logs.
+---
+
+# `apps.payments` — Gateways, MFS & Webhooks
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/payments/`
+- **Responsibilities**: Payment gateway configurations, transaction tracking, SMS webhook parsing, signature verification, and SMS delivery logging.
+
+---
+
+## 1. Database Models (5 Models)
+
+| Model Name | Purpose | Key Fields |
+| :--- | :--- | :--- |
+| `PaymentGateway` | Gateway configuration (bKash, Nagad, SSLCommerz) | `name`, `gateway_type`, `is_active`, `api_key`, `webhook_secret` |
+| `PaymentTransaction` | Completed or pending customer payment | `trx_id`, `customer`, `amount`, `status`, `payment_method` |
+| `PaymentAttempt` | Tracks raw payment attempt iterations and errors | `transaction`, `attempt_number`, `response_payload`, `status` |
+| `InboundPaymentEvent` | Raw webhook event payload buffer | `gateway`, `raw_payload`, `status`, `trx_id`, `parsed_amount` |
+| `SmsLog` | Log of all inbound/outbound SMS communications | `phone`, `message`, `status`, `direction`, `gateway_response` |
+
+---
+
+## 2. Webhook Signature Security
+
+The SMS webhook endpoint (`/api/v1/payments/sms/webhook/`) requires:
+1. **Tenant Resolution Exclusively from Host**: No `tenant` or `tenant_id` accepted in body payload.
+2. **Signature Verification**: Validates `X-Signature` or configured gateway webhook token against `tenant.payment_gateways`.
+3. **Asynchronous Dispatch**: The HTTP view returns `200 ACCEPTED` within 50ms, delegating transaction matching and ledger creation to Celery (`process_payment_event`).

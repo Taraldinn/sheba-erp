@@ -1,0 +1,44 @@
+---
+title: "apps.network — MikroTik RouterOS & OLT Chassis"
+description: Core network operations, POP branches, MikroTik RouterOS v7 integration, OLT optical diagnostics, and online sessions.
+---
+
+# `apps.network` — MikroTik RouterOS & OLT Chassis
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/network/`
+- **Responsibilities**: MikroTik RouterOS v7 synchronization, PPPoE credentials and queue management, EPON/GPON OLT chassis management, optical RX power diagnostics, and active online subscriber sessions.
+
+---
+
+## 1. Database Models (5 Models)
+
+| Model Name | Purpose | Key Fields |
+| :--- | :--- | :--- |
+| `POPBranch` | Point of Presence (POP) distribution branch | `name`, `code`, `location`, `contact_person`, `is_active` |
+| `Router` | MikroTik Core Router registration | `name`, `ip_address`, `api_port`, `username`, `encrypted_password`, `status` |
+| `OLT` | Optical Line Terminal chassis | `name`, `ip_address`, `brand`, `snmp_community`, `pon_ports_count` |
+| `ONU` | Optical Network Unit at subscriber premises | `olt`, `pon_port`, `mac_address`, `rx_power`, `tx_power`, `status` |
+| `UserSession` | Live active PPPoE session cache | `username`, `ip_address`, `mac_address`, `uptime`, `bytes_in`, `bytes_out` |
+
+---
+
+## 2. MikroTik Client Architecture (`apps.network.services.mikrotik`)
+
+```text
+RouterViewSet (Controller)
+       │
+       ▼
+MikroTikService (Business Logic)
+       │
+       ▼
+MikroTikClient (Adapter & Connection Pooling)
+       │
+       ▼
+RouterOS v7 REST API / Binary API Socket
+```
+
+- **Credential Security**: Passwords stored symmetrically encrypted via `cryptography.fernet`.
+- **SSRF Prevention**: Strict server-side IP validation prevents arbitrary internal network probing.
+- **Failover / Offline Handling**: Routers unreachable during operations are flagged `OFFLINE`; background task `sync_router_telemetry` retries connectivity and reports circuit restoration.

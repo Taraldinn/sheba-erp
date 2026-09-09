@@ -1,0 +1,61 @@
+---
+title: "apps.authentication — Identity, RBAC & Resellers"
+description: Authentication tokens, staff profiles, multi-tenant RBAC permissions, and reseller commissions.
+---
+
+# `apps.authentication` — Identity, RBAC & Resellers
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/authentication/`
+- **Responsibilities**: User authentication, token issuance, staff tenant membership, role-based access control, and reseller financial ledgers.
+
+---
+
+## 1. Database Models (6 Models)
+
+| Model Name | Purpose | Key Fields | Constraints |
+| :--- | :--- | :--- | :--- |
+| `StaffProfile` | Links Django `User` to ISP staff details | `user`, `phone`, `designation`, `is_active` | OneToOne with `auth.User` |
+| `Permission` | Granular permission definitions | `code`, `name`, `module`, `description` | `code` is unique |
+| `Role` | Tenant-scoped bundle of permissions | `tenant`, `name`, `permissions`, `is_system_default` | Unique `(tenant, name)` |
+| `StaffMembership` | Associates a user to a tenant with a specific role | `tenant`, `user`, `role`, `is_active`, `joined_at` | Unique `(tenant, user)` |
+| `Reseller` | External bandwidth reseller / sub-ISP profile | `tenant`, `user`, `company_name`, `balance`, `credit_limit`| Tenant-scoped |
+| `ResellerLedgerEntry` | Financial transactions for reseller deposits/debits | `reseller`, `amount`, `entry_type`, `balance_after` | Immutable ledger |
+
+---
+
+## 2. Authorization & RBAC Workflow
+
+Permissions are defined in `apps.authentication.permissions`:
+
+```python
+class HasPermissionScope(permissions.BasePermission):
+    """
+    Checks if the authenticated staff member possesses the required permission code
+    within the resolved request.tenant.
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+        membership = StaffMembership.objects.filter(
+            user=request.user,
+            tenant=request.tenant,
+            is_active=True
+        ).select_related('role').first()
+        if not membership or not membership.role:
+            return False
+        required_perm = getattr(view, 'required_permission', None)
+        return membership.role.permissions.filter(code=required_perm).exists()
+```
+
+---
+
+## 3. Endpoints
+
+- `POST /api/v1/auth/login/`: Validates credentials, returns Token and tenant membership.
+- `GET /api/v1/auth/me/`: Returns current profile, assigned role, and permitted capability flags.
+- `GET/POST /api/v1/staff/`: Staff CRUD within tenant.
+- `GET/POST /api/v1/roles/`: Custom role management with permission checkbox assignment.

@@ -1,0 +1,29 @@
+---
+title: Network Failure Handling & Resiliency
+description: Handling unreachable edge routers, circuit dropouts, session reconciliation, and desync recovery.
+---
+
+# Network Failure Handling & Resiliency
+
+`IMPLEMENTED`
+
+Physical carrier networks experience fiber cuts, upstream power outages, and temporary link flapping. Sheba ISP ERP guarantees system stability during hardware failures.
+
+---
+
+## 1. Non-Blocking I/O & Circuit Breakers
+
+When communicating with a remote MikroTik or OLT:
+- **Strict Timeouts**: Socket connections timeout after 5 seconds (`timeout=5.0`).
+- **Graceful Degradation**: If an edge router is offline during customer creation, the customer record is safely saved in PostgreSQL with status `DESYNC` rather than throwing an unhandled HTTP 500 error.
+- **Circuit State Tracking**: If 3 consecutive health checks fail, the router status is flagged `OFFLINE` and alert notifications are broadcast to NOC staff.
+
+---
+
+## 2. Session Reconciliation Background Task
+
+The Celery task `sync_pppoe_sessions(router_id)` runs periodically:
+1. Connects to the MikroTik router and pulls `/ppp/active/print`.
+2. Reconciles running sessions against the `UserSession` table in PostgreSQL.
+3. Removes orphaned session records for subscribers who disconnected abruptly without a RADIUS stop or FIN packet.
+4. Identifies unauthorized sessions running on the router that lack an active customer profile in the ERP.

@@ -1,0 +1,33 @@
+---
+title: Frontend Build & Type Validation
+description: TypeScript typecheck, linting, and Turbopack production build verification.
+---
+
+# Frontend Build & Type Validation
+
+`IMPLEMENTED`
+
+Frontend code validation enforces strict TypeScript checking and production bundle verification.
+
+---
+
+## 1. Typecheck and Linting
+
+```bash
+cd frontend
+npm run lint
+```
+
+---
+
+## 2. Turbopack Production Build Verification
+
+```bash
+cd frontend
+npm run build
+```
+
+The Next.js 16 compiler verifies:
+- Type correctness of all props across pages and components.
+- Server vs client component boundaries (`use client`).
+- CSS bundle generation with TailwindCSS v4.

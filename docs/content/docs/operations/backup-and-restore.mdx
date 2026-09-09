@@ -1,0 +1,35 @@
+---
+title: Database Backup & Restoration Runbook
+description: Automated snapshot schedules, manual pg_dump exports, and point-in-time recovery.
+---
+
+# Database Backup & Restoration Runbook
+
+`IMPLEMENTED`
+
+Data preservation runbook for PostgreSQL 16.
+
+---
+
+## 1. Creating a Manual Backup
+
+```bash
+docker exec -t sheba-postgres pg_dump -U sheba_user -d sheba_erp -F c -b -v -f /var/lib/postgresql/data/backup_$(date +%Y%m%d_%H%M%S).dump
+```
+
+---
+
+## 2. Restoring from a Backup
+
+```bash
+# 1. Stop backend to prevent active connection locks
+docker compose -f backend/docker-compose.yml stop backend
+
+# 2. Terminate active sessions and restore
+docker exec -i sheba-postgres psql -U sheba_user -d postgres -c "DROP DATABASE sheba_erp;"
+docker exec -i sheba-postgres psql -U sheba_user -d postgres -c "CREATE DATABASE sheba_erp;"
+cat backup.sql | docker exec -i sheba-postgres psql -U sheba_user -d sheba_erp
+
+# 3. Start backend
+docker compose -f backend/docker-compose.yml start backend
+```

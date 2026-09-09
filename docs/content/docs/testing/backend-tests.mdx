@@ -1,0 +1,61 @@
+---
+title: Backend Test Suite Execution
+description: Running unit and integration tests across apps with Django's test runner.
+---
+
+# Backend Test Suite Execution
+
+`IMPLEMENTED`
+
+Execute tests using the virtual environment runner:
+
+---
+
+## 1. Running the Full Test Suite
+
+```bash
+cd backend
+venv/bin/python manage.py test
+```
+
+Expected result:
+```text
+Ran 153 tests in 4.120s
+OK
+```
+
+---
+
+## 2. Running App-Specific Tests
+
+```bash
+# Test only the finance ledger module
+venv/bin/python manage.py test apps.finance
+
+# Test only payments and SMS webhook state machine
+venv/bin/python manage.py test apps.payments
+
+# Test MikroTik network operations
+venv/bin/python manage.py test apps.network
+```
+
+---
+
+## 3. Writing New Tests
+
+Inherit from `rest_framework.test.APITestCase` and initialize tenant and auth fixtures in `setUp()`:
+
+```python
+from rest_framework.test import APITestCase
+from apps.core.models import Tenant, TenantDomain
+from django.contrib.auth.models import User
+from rest_framework.authtoken.models import Token
+
+class CustomerApiTests(APITestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name="Test ISP", subdomain="testisp")
+        self.domain = TenantDomain.objects.create(tenant=self.tenant, domain="testserver")
+        self.user = User.objects.create_user(username="staff", password="password")
+        self.token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+```

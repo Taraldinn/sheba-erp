@@ -1,0 +1,29 @@
+---
+title: "apps.support — NOC Ticketing & Helpdesk"
+description: Incident ticketing, technician assignments, subscriber issues, and threaded replies.
+---
+
+# `apps.support` — NOC Ticketing & Helpdesk
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/support/`
+- **Responsibilities**: Customer support incident tickets, NOC issue resolution, priority tracking, technician dispatch, and threaded communication.
+
+---
+
+## 1. Database Models (2 Models)
+
+| Model Name | Purpose | Key Fields | Choices / Constraints |
+| :--- | :--- | :--- | :--- |
+| `Ticket` | Customer issue report | `ticket_number`, `customer`, `subject`, `description`, `priority`, `status`, `assigned_to` | Status: OPEN, IN_PROGRESS, RESOLVED, CLOSED |
+| `TicketReply` | Staff or subscriber message thread | `ticket`, `author`, `message`, `is_internal_note`, `created_at` | Belongs to `Ticket` |
+
+---
+
+## 2. API Endpoints
+
+- `GET /api/v1/tickets/`: Filter tickets by `status`, `priority`, `assigned_to`, or `customer`.
+- `POST /api/v1/tickets/`: Create a new ticket with automatic ticket numbering (`TICK-YYYYMM-XXXX`).
+- `POST /api/v1/tickets/{id}/assign/`: Assigns ticket to a verified staff user belonging to the same tenant.
+- `POST /api/v1/tickets/{id}/reply/`: Adds a staff reply or internal technician note.

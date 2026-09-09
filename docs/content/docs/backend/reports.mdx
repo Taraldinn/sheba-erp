@@ -1,0 +1,48 @@
+---
+title: "apps.reports — Analytics & Business Intelligence"
+description: Real-time aggregated business KPIs, revenue trends, traffic distribution, and executive reports.
+---
+
+# `apps.reports` — Analytics & Business Intelligence
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/reports/`
+- **Responsibilities**: Analytical queries, KPI aggregations, revenue trends, bandwidth consumption charts, and executive dashboards.
+
+---
+
+## 1. Architecture: Analytical Projections
+
+`apps.reports` contains **zero database models**. It operates as a purely analytical service layer computing real-time aggregations over `Customer`, `Invoice`, `PaymentTransaction`, and `UserSession`.
+
+---
+
+## 2. API Endpoints
+
+### `GET /api/v1/reports/dashboard/`
+Returns consolidated executive dashboard metrics tailored to the requesting staff role:
+
+```json
+{
+  "kpis": {
+    "total_subscribers": 1250,
+    "active_subscribers": 1180,
+    "expired_subscribers": 70,
+    "monthly_revenue": 845000.00,
+    "total_due": 42000.00,
+    "online_sessions": 980,
+    "active_routers": 4,
+    "open_tickets": 3
+  },
+  "monthly_trend": [
+    { "month": "Jan", "revenue": 810000, "expenses": 240000 },
+    { "month": "Feb", "revenue": 845000, "expenses": 255000 }
+  ],
+  "traffic_distribution": [
+    { "name": "BDIX", "value": 45 },
+    { "name": "Global Internet", "value": 35 },
+    { "name": "Cache (GGC/FNA)", "value": 20 }
+  ]
+}
+```

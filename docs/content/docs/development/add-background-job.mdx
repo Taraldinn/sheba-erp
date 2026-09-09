@@ -1,0 +1,48 @@
+---
+title: How to Add a Celery Background Job
+description: Creating asynchronous Celery tasks, distributed locking with Redis, and beat schedules.
+---
+
+# How to Add a Celery Background Job
+
+`IMPLEMENTED`
+
+Follow these rules when introducing new background jobs:
+
+---
+
+## 1. Implement Task in `tasks.py`
+
+```python
+from celery import shared_task
+from apps.core.lock import distributed_lock, LockAcquisitionError
+import logging
+
+logger = logging.getLogger(__name__)
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def sync_leads_crm(self, tenant_id):
+    """
+    Periodic task synchronizing external CRM leads.
+    Protected by Redis distributed lock.
+    """
+    lock_key = f"lock:sync_leads:{tenant_id}"
+    try:
+        with distributed_lock(lock_key, timeout=120, blocking=False):
+            # 1. Fetch leads scoped strictly to tenant_id
+            # 2. Perform external sync
+            logger.info("Successfully synced leads for tenant %s", tenant_id)
+            return {'success': True}
+    except LockAcquisitionError:
+        logger.warning("Lead sync already in progress for tenant %s", tenant_id)
+        return {'success': False, 'error': 'LOCK_ACTIVE'}
+```
+
+---
+
+## 2. Dispatch Task from Views
+
+```python
+# In a view or service method:
+sync_leads_crm.delay(tenant_id=str(request.tenant.id))
+```

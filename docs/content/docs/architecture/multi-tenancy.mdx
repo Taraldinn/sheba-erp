@@ -1,0 +1,88 @@
+---
+title: Multi-Tenancy Architecture
+description: Deep dive into shared-database, shared-schema multi-tenancy and server-derived tenant isolation.
+---
+
+# Multi-Tenancy Architecture & Isolation
+
+`IMPLEMENTED`
+
+Sheba ISP ERP is architected around strict **shared-database, shared-schema multi-tenancy**. All tenants coexist within a single PostgreSQL database and a single schema (`public`).
+
+---
+
+## 1. Core Multi-Tenancy Invariants
+
+1. **No Database-Per-Tenant**: Under no circumstances shall database-per-tenant or schema-per-tenant routing be introduced.
+2. **Mandatory Foreign Key**: Every tenant-scoped database model inherits from `TenantScopedModel` or explicitly defines `tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, db_index=True)`.
+3. **Server-Derived Identity**:
+   ```text
+   HTTP Host Header -> TenantDomain Lookup -> Tenant Model -> request.tenant
+   ```
+   A request's tenant identity is strictly resolved from the incoming domain or subdomain. Clients cannot override their tenant using request headers (`X-Tenant-ID`), query parameters (`?tenant_id=`), or request body fields.
+
+---
+
+## 2. Tenant Resolution Flow (`TenantResolutionMiddleware`)
+
+Located in `backend/apps/core/middleware.py`:
+
+```python
+class TenantResolutionMiddleware:
+    def __call__(self, request):
+        host = request.get_host().split(':')[0].lower()
+        
+        # 1. Match active TenantDomain
+        domain_entry = TenantDomain.objects.select_related('tenant').filter(
+            domain__iexact=host,
+            is_active=True,
+            tenant__is_active=True
+        ).first()
+
+        if domain_entry:
+            request.tenant = domain_entry.tenant
+        elif host in ['localhost', '127.0.0.1', 'testserver'] and settings.IS_LOCAL:
+            # Fallback only permitted in local dev/testing
+            request.tenant = Tenant.objects.filter(is_active=True).first()
+        else:
+            request.tenant = None
+
+        response = self.get_response(request)
+        return response
+```
+
+---
+
+## 3. Data Isolation via `TenantScopedManager`
+
+To prevent cross-tenant data leakage:
+
+```python
+class TenantScopedManager(models.Manager):
+    def for_tenant(self, tenant):
+        if not tenant:
+            return self.none()
+        tenant_id = tenant.id if hasattr(tenant, 'id') else tenant
+        return self.filter(tenant_id=tenant_id)
+```
+
+In DRF ViewSets, `get_queryset()` consistently enforces tenant boundaries:
+```python
+class BaseTenantViewSet(viewsets.ModelViewSet):
+    def get_queryset(self):
+        tenant = getattr(self.request, 'tenant', None)
+        if not tenant:
+            return self.queryset.none()
+        return self.queryset.filter(tenant=tenant)
+```
+
+---
+
+## 4. Multi-Tenant SaaS Control Plane
+
+The platform provides a dedicated SaaS SuperAdmin control plane (`admin.shebafi.xyz` / `/saas-admin`) that manages:
+- Tenant onboarding (`TenantOnboardingRequest`)
+- Custom domain binding (`TenantDomain`)
+- SaaS package tiers and feature flags (`SaaSPackage`)
+- SaaS subscription billing & payment tracking (`TenantSubscription`, `SaaSPayment`)
+- Automated cross-tenant database backups (`DatabaseBackup`)

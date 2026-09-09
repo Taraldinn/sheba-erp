@@ -1,0 +1,129 @@
+---
+title: Network Operations Pages
+description: Deep documentation for MikroTik Routers, OLT/PON equipment, Live PPPoE Sessions, Bandwidth telemetry, and Topology maps.
+---
+
+# Network Operations Pages
+
+`IMPLEMENTED`
+
+The network operations suite enables ISP network engineers to monitor routing hardware, optical distribution networks, live subscriber sessions, and throughput in real time.
+
+---
+
+## 1. MikroTik Router Management (`/routers`)
+
+### Purpose
+Centralizes RouterOS device management, real-time API connection checks, active interface traffic telemetry, and configuration synchronization.
+
+### Route & Permission
+- **Route**: `/routers`
+- **Role Guard**: `super_admin`, `admin`, `technician`
+
+### Components Breakdown
+```text
+RoutersPage
+ ├── RoutersHeader (Add Router Button, Sync All Routers, Total Hardware Count)
+ ├── RouterCardsGrid
+ │    ├── RouterCard (IP, Port, API Status, CPU Load %, Free RAM, ROS Version)
+ │    └── QuickActions (Test API Connection, Sync Profiles, Reboot Router)
+ ├── AddRouterDialog (IP, API Port, SSL, Username, Password, Location Tag)
+ └── InterfacesTable (Active interfaces, Tx/Rx rates, Link status)
+```
+
+### API Endpoints
+- **GET `/routers/`**: Returns all managed MikroTik routers.
+- **POST `/routers/`**: Registers a new router and initiates handshake.
+- **POST `/routers/{id}/sync/`**: Syncs PPP secrets, IP pools, and queue profiles.
+- **POST `/routers/{id}/reboot/`**: Issues controlled reboot command via RouterOS API.
+
+---
+
+## 2. OLT & Optical Diagnostics (`/olt`)
+
+### Purpose
+Monitors Optical Line Terminals (EPON & GPON), PON card slots, and connected Optical Network Units (ONUs) with live optical receive power (dBm) telemetry.
+
+### Route & Permission
+- **Route**: `/olt`
+- **Role Guard**: `super_admin`, `admin`, `technician`
+
+### Components Breakdown
+```text
+OLTPage
+ ├── OltHeader (Total OLTs, Active PON Ports, Online ONUs)
+ ├── OltSelectorTabs (Switch between chassis / rack locations)
+ ├── PonPortGrid (PON 1 to PON 16 status with capacity indicators)
+ └── OnuDiagnosticsTable
+      ├── ONU Serial / MAC & Assigned Customer
+      ├── Rx Optical Power (dBm) with Color-coded Signal Badge
+      ├── Distance from OLT (meters)
+      └── Actions (Reboot ONU, Deregister, Update Description)
+```
+
+### Signal Quality Thresholds:
+- **Optimal (Green)**: `-14 dBm` to `-23 dBm`
+- **Warning (Yellow)**: `-24 dBm` to `-27 dBm` (High fiber loss)
+- **Critical (Red)**: `< -27 dBm` or `> -8 dBm` (Overload / Fiber Cut)
+
+---
+
+## 3. Active PPPoE & Hotspot Sessions (`/online-sessions`)
+
+### Purpose
+Displays live active subscriber connections, assigned dynamic/static IP addresses, session uptime, MAC bindings, and bandwidth consumption with one-click kick actions.
+
+### Route & Permission
+- **Route**: `/online-sessions`
+- **Role Guard**: `super_admin`, `admin`, `technician`, `support`
+
+### Components Breakdown
+```text
+OnlineSessionsPage
+ ├── LiveSummaryCards (Total Online, PPPoE Count, Static IP Count, Hotspot Count)
+ ├── SessionsSearchFilter (Search by Username, IP, MAC Address, Router Filter)
+ ├── SessionsTable
+ │    ├── Username & Real Name
+ │    ├── Assigned IP & Caller ID (MAC)
+ │    ├── Uptime (e.g. '3d 14h 22m')
+ │    ├── Download / Upload Volume (MB/GB)
+ │    └── KickButton (Terminate session via MikroTik API)
+ └── AutoRefreshToggle (Polling interval: 10s, 30s, Manual)
+```
+
+### Session Disconnect Flow:
+```mermaid
+flowchart TD
+    ClickKick[Click Disconnect Session] --> ConfirmDialog[Prompt: Disconnect PPPoE Session?]
+    ConfirmDialog -- Yes --> APIKick[POST /routers/{id}/kick-session/]
+    APIKick --> LoadingSpinner[Disable row and show spinner]
+    APIKick -- Success 200 --> ToastSuccess[Sonner: 'Session terminated']
+    ToastSuccess --> RemoveRow[Remove session from local table state]
+    APIKick -- Error 500 --> ToastError[Sonner: 'Failed: Router did not respond']
+```
+
+---
+
+## 4. Bandwidth Monitoring (`/bandwidth`)
+
+### Purpose
+Visualizes aggregate edge bandwidth utilization, upstream transit links, and identifies top bandwidth consumers across subscriber tiers.
+
+### Route & Permission
+- **Route**: `/bandwidth`
+- **Role Guard**: `super_admin`, `admin`, `technician`
+
+### Key Capabilities
+- **MRTG / Real-time Throughput**: Continuous area chart displaying total uplink and downlink usage in Gbps/Mbps.
+- **Top Consumer Table**: Real-time ranking of subscribers consuming the highest instantaneous throughput.
+- **Queue Inspection**: MikroTik Simple Queue and Queue Tree packet drop rates.
+
+---
+
+## 5. Core Network & Topology (`/network`, `/topology`)
+
+### Purpose
+Maps physical and logical network distribution from the Core Gateway, through Distribution Switches, OLT chassis, Optical Splitters, to Customer Premises Equipment (CPE).
+
+- **`/network`**: Status dashboard for core switches, servers, and upstream BGP peers.
+- **`/topology`**: Interactive topological tree visualizing parent-child equipment links, enabling technicians to pinpoint single points of failure (e.g., optical fiber breaks).

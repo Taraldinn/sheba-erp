@@ -1,0 +1,9 @@
+{
+  "title": "Security Architecture",
+  "pages": [
+    "overview",
+    "auth-and-rbac",
+    "credentials-encryption",
+    "never-do-this"
+  ]
+}

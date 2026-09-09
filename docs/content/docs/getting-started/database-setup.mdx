@@ -1,0 +1,71 @@
+---
+title: Database Setup & Migrations
+description: Managing PostgreSQL schemas, Django migrations, data seeding, and test fixtures.
+---
+
+# Database Setup & Migrations
+
+`IMPLEMENTED`
+
+Sheba ISP ERP utilizes a single-schema, multi-tenant architecture on PostgreSQL 16 (or SQLite for lightweight local offline work).
+
+---
+
+## 1. PostgreSQL Database Initialization
+
+If running PostgreSQL locally or via Docker Compose:
+```bash
+docker compose -f backend/docker-compose.yml up -d postgres redis
+```
+This spawns:
+- PostgreSQL 16 on `localhost:5432` (`user: sheba_user`, `pass: sheba_secure_password`, `db: sheba_erp`)
+- Redis 7 on `localhost:6379`
+
+Configure `DATABASE_URL` in `backend/.env`:
+```ini
+DATABASE_URL=postgres://sheba_user:sheba_secure_password@localhost:5432/sheba_erp
+```
+
+---
+
+## 2. Applying Migrations
+
+Execute all app migrations in dependency order:
+```bash
+cd backend
+source venv/bin/activate
+python manage.py migrate
+```
+
+To inspect migration status:
+```bash
+python manage.py showmigrations
+```
+
+---
+
+## 3. Seeding Realistic ISP Operations Data
+
+Run the authoritative seed script:
+```bash
+python seed_data.py
+```
+
+The seed script creates:
+1. **Tenants**:
+   - `shebafi`: Primary ISP tenant (domain: `shebafi.net`, `localhost`)
+   - `speednet`: Secondary tenant for multi-tenancy verification
+2. **Staff Accounts**:
+   - Username: `admin` (Password: `admin123`, Superuser, full permissions)
+   - Username: `billing_staff` (Password: `billing123`, role: Billing Staff)
+   - Username: `technician` (Password: `tech123`, role: Field Tech)
+3. **Network Hardware**:
+   - 2 MikroTik Core Routers (`MikroTik Core-1`, `MikroTik Core-2`)
+   - 1 OLT Chassis (`VSOL V1600D EPON 4-Port`)
+   - 8 Optical ONUs with live signal telemetry
+4. **Broadband Packages**:
+   - `Home Bronze (10 Mbps)` — 500 BDT
+   - `Home Silver (20 Mbps)` — 800 BDT
+   - `Home Gold (50 Mbps)` — 1500 BDT
+5. **Customers & Subscriptions**:
+   - 50+ realistic ISP customers with PPPoE accounts, IP bindings, and billing balances.

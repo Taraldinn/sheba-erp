@@ -1,0 +1,53 @@
+---
+title: Payment & Recharge Lifecycle
+description: Mobile financial service (bKash/Nagad) webhook ingestion, transaction matching, ledger posting, and automatic renewal.
+---
+
+# Payment & Recharge Lifecycle
+
+`IMPLEMENTED`
+
+The payment pipeline supports both manual staff recharges and fully automated bKash / Nagad SMS webhook transaction processing.
+
+---
+
+## 1. Automated Webhook Ingestion & State Machine
+
+When an SMS arrives from an MFS provider (e.g. bKash Merchant SMS forwarding):
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Gateway as MFS SMS Gateway
+    participant Webhook as SmsWebhookView
+    participant DB as PostgreSQL
+    participant Worker as Celery Worker (process_payment_event)
+    participant Router as MikroTik Router
+
+    Gateway->>Webhook: POST /api/v1/payments/sms/webhook/ (Signature, Payload)
+    Note over Webhook: Resolve Tenant from Host<br/>Verify HMAC Signature Header
+    Webhook->>DB: Record InboundPaymentEvent (status='PENDING')
+    Webhook->>Worker: Dispatch process_payment_event.delay(event_id)
+    Webhook-->>Gateway: HTTP 200 {status: 'ACCEPTED'}
+
+    Worker->>DB: Parse TrxID, Sender, Amount
+    Worker->>DB: Match against Customer (pppoe_username / phone)
+    alt Match Found & Valid Amount
+        Worker->>DB: Atomic Transaction:
+        Note over Worker,DB: 1. Create PaymentTransaction (status='COMPLETED')<br/>2. Post LedgerEntry (credit=amount)<br/>3. Extend Customer.expiry_date by 30 days<br/>4. Set Customer.status='ACTIVE'
+        Worker->>Router: Un-isolate PPPoE Queue / Session
+        Worker->>DB: Update InboundPaymentEvent (status='PROCESSED')
+    else No Subscriber Match
+        Worker->>DB: Update InboundPaymentEvent (status='UNMATCHED')
+    end
+```
+
+---
+
+## 2. Inbound Payment Event Statuses
+
+- `PENDING`: Initial state upon HTTP webhook reception.
+- `PROCESSED`: Successfully matched to subscriber, ledger credited, service extended.
+- `UNMATCHED`: Payment received, but reference/phone does not match any active subscriber. Retained for manual staff allocation in `/payments`.
+- `DUPLICATE`: Transaction ID already processed; discarded to prevent double crediting.
+- `FAILED`: Parsing error or database transaction rollback.

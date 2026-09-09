@@ -69,9 +69,11 @@ class TaskViewSet(viewsets.ModelViewSet):
         user_id = request.data.get('user_id')
         user = None
         if user_id:
-            user = User.objects.filter(id=user_id).first()
+            if not str(user_id).isdigit():
+                return Response({'error': 'user_id must be a numeric integer.'}, status=status.HTTP_400_BAD_REQUEST)
+            user = User.objects.filter(id=int(user_id)).first()
             if not user:
-                return Response({'error': 'Target user not found.'}, status=status.HTTP_404_NOT_FOUND)
+                return Response({'error': 'Target user not found.'}, status=status.HTTP_400_BAD_REQUEST)
             from apps.authentication.models import StaffMembership, StaffProfile
             is_member = (
                 user.is_superuser or

@@ -1,0 +1,35 @@
+---
+title: Dokploy & Cloud VPS Deployment
+description: Continuous deployment using Dokploy, Git push triggers, Traefik SSL automation, and env variable injection.
+---
+
+# Dokploy & Cloud VPS Deployment
+
+`IMPLEMENTED`
+
+The production infrastructure is orchestrated using **Dokploy**, a self-hosted PaaS alternative to Coolify/Heroku running on a Debian Linux VPS.
+
+---
+
+## 1. Dokploy Application Configuration
+
+1. **Git Repository**: Connects to `https://github.com/Taraldinn/sheba-erp` (branch: `main`).
+2. **Build Type**: `Dockerfile` (pointing to root `Dockerfile`).
+3. **Domain Mapping**:
+   - `api.shebafi.xyz` -> Port `8000` (Backend API)
+   - `app.shebafi.xyz` -> Port `3000` (Frontend Dashboard)
+   - `docs.shebafi.xyz` -> Port `3001` (Fumadocs Portal)
+   - `*.shebafi.xyz` -> Port `8000` (Wildcard tenant domain routing)
+4. **Automated SSL**: Dokploy’s built-in Traefik reverse proxy issues and auto-renews Let's Encrypt TLS certificates.
+
+---
+
+## 2. Production Health Checks & Zero-Downtime Rollouts
+
+- Dokploy polls the `/healthz/` readiness probe.
+- When a new Git commit is pushed to `main`:
+  1. Dokploy builds the new Docker image.
+  2. Runs database migrations automatically via `RUN_MIGRATIONS=true` in `entrypoint.sh`.
+  3. Waits for the container healthcheck to pass.
+  4. Flips the Traefik proxy routes to the new container.
+  5. Terminates the old container without dropping active HTTP connections.

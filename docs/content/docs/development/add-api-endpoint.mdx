@@ -1,0 +1,57 @@
+---
+title: How to Add a REST API Endpoint
+description: Creating serializers, ViewSets, permission bindings, and drf-spectacular schema tags.
+---
+
+# How to Add a REST API Endpoint
+
+`IMPLEMENTED`
+
+Follow this pattern to expose a new REST endpoint:
+
+---
+
+## 1. Create Serializer (`serializers.py`)
+
+```python
+from rest_framework import serializers
+from .models import Lead
+
+class LeadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Lead
+        fields = ['id', 'name', 'phone', 'interested_package', 'status', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def validate_phone(self, value):
+        if not value.startswith('01') or len(value) != 11:
+            raise serializers.ValidationError("Phone number must be a valid 11-digit Bangladeshi number starting with 01.")
+        return value
+```
+
+---
+
+## 2. Implement ViewSet (`views.py`)
+
+```python
+from rest_framework import viewsets, permissions
+from drf_spectacular.utils import extend_schema
+from apps.authentication.permissions import IsTenantMember, HasPermissionScope
+from .models import Lead
+from .serializers import LeadSerializer
+
+@extend_schema(tags=['15. Marketing & Leads'])
+class LeadViewSet(viewsets.ModelViewSet):
+    serializer_class = LeadSerializer
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, HasPermissionScope]
+    required_permission = 'marketing.manage'
+
+    def get_queryset(self):
+        tenant = getattr(self.request, 'tenant', None)
+        if not tenant:
+            return Lead.objects.none()
+        return Lead.objects.filter(tenant=tenant)
+
+    def perform_create(self, serializer):
+        serializer.save(tenant=self.request.tenant)
+```

@@ -192,9 +192,11 @@ def ensure_permission_catalog():
     Uses transaction.atomic() so concurrent first-time calls cannot create
     duplicate Permission rows.
     """
-    expected_count = len(PERMISSION_CATALOG)
-    # Fast path — catalog is already fully seeded; no writes needed.
-    if Permission.objects.count() >= expected_count:
+    expected_codenames = {codename for codename, _, _ in PERMISSION_CATALOG}
+    # Fast path — every catalog codename already exists; no writes needed.
+    if expected_codenames.issubset(
+        set(Permission.objects.values_list('codename', flat=True))
+    ):
         return 0
 
     created_count = 0

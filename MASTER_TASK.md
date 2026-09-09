@@ -288,7 +288,7 @@ The following reproducible baseline commands were executed on the repository:
 
 ### STAGE 7 — Networking Operations
 - **STATUS**: `DONE`
-- **DEPENDENCIES**: Stage 4
+- **DEPENDENCIES**: Stage 4, Stage 6
 - **OBJECTIVE**: Complete the operational network management layer without coupling business views directly to devices.
 - **TASKS**:
   - [x] S7.1 Router lifecycle works (CRUD, credential protection, health diagnostics, connection testing, SSRF protection).

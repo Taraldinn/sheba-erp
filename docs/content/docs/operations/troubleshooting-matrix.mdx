@@ -1,0 +1,19 @@
+---
+title: Production Troubleshooting Matrix
+description: Problem, possible cause, diagnosis steps, solution, and verification matrix for operational incidents.
+---
+
+# Production Troubleshooting Matrix
+
+`IMPLEMENTED`
+
+Quick-reference diagnostic matrix for operational incidents.
+
+| Problem | Possible Cause | How to Diagnose | Solution | Verification |
+| :--- | :--- | :--- | :--- | :--- |
+| **HTTP 403 "Tenant not resolved"** | Missing or incorrect HTTP `Host` header | Inspect Nginx / Traefik logs for incoming `Host` header | Ensure domain is registered in `TenantDomain` table under an active `Tenant` | `curl -H "Host: isp.shebafi.xyz" http://localhost:8000/api/v1/health-check/` returns 200 |
+| **HTTP 401 Unauthorized** | Expired or invalid token | Check `Authorization: Token <token>` header in request | Re-authenticate via `/api/v1/auth/login/` and update stored token | Test `/api/v1/auth/me/` with new token |
+| **Subscriber Cannot Connect via PPPoE** | Secret disabled or password mismatch | Query MikroTik `/ppp/secret/print` for subscriber username | Trigger customer status toggle in `/customers` to force resync of credentials | Subscriber router connects and receives IP from pool |
+| **Payment SMS Received But Not Credited** | SMS payload format mismatch or TrxID unparsed | Check `InboundPaymentEvent` table in DB for status `UNMATCHED` | Navigate to `/payments` and manually allocate payment to subscriber account | Customer `due_amount` decreases and `expiry_date` extends |
+| **Router Marked "OFFLINE"** | Firewall blocking port 8728/443 or changed router password | Test `telnet <router-ip> 8728` from backend host | Verify management IP route, unblock firewall, and re-enter credentials in `/routers` | Click "Sync Telemetry" in UI and confirm status turns Green (Online) |
+| **Database Locks Stalling Requests** | Unreleased distributed lock or long transaction | Check Redis `KEYS lock:*` and PostgreSQL `pg_stat_activity` | Terminate blocking backend PID or delete stale Redis lock key | API response times normalize under 100ms |

@@ -193,6 +193,10 @@ class StaffProfileViewSet(viewsets.ModelViewSet):
         if not can(self.request.user, tenant, 'staff.manage', instance):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Permission denied: staff.manage capability required.")
+        from apps.authentication.services.rbac import DEFAULT_ROLE_TEMPLATES
+        if instance.name in DEFAULT_ROLE_TEMPLATES:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'detail': 'Default system roles cannot be deleted.'})
         super().perform_destroy(instance)
 
 

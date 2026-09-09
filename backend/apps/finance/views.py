@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 from rest_framework import viewsets, permissions, status, mixins
 from rest_framework.decorators import action
@@ -53,6 +54,10 @@ class LedgerEntryViewSet(viewsets.ReadOnlyModelViewSet):
         cust_id = self.request.query_params.get('customer')
         entry_type = self.request.query_params.get('entry_type')
         if cust_id:
+            try:
+                uuid.UUID(str(cust_id))
+            except (ValueError, AttributeError, TypeError):
+                raise ValidationError({'customer': 'Must be a valid UUID.'})
             qs = qs.filter(customer_id=cust_id)
         if entry_type:
             qs = qs.filter(entry_type=entry_type)

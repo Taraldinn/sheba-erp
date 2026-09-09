@@ -1,0 +1,41 @@
+---
+title: bKash & Nagad SMS Webhook Integration
+description: Parser specifications, regular expressions, HMAC verification, and mobile financial services integration.
+---
+
+# bKash & Nagad SMS Webhook Integration
+
+`IMPLEMENTED`
+
+Located in `backend/apps/payments/views.py` and `backend/apps/core/tasks.py`.
+
+---
+
+## 1. Webhook Signature Verification
+
+The webhook endpoint verifies the HMAC-SHA256 signature passed in the `X-Signature` header:
+```python
+expected_sig = hmac.new(
+    gateway.webhook_secret.encode('utf-8'),
+    raw_payload.encode('utf-8'),
+    hashlib.sha256
+).hexdigest()
+
+if not hmac.compare_digest(provided_signature, expected_sig):
+    return Response({'error': 'Invalid webhook signature'}, status=status.HTTP_403_FORBIDDEN)
+```
+
+---
+
+## 2. SMS Payload Regex Parsers
+
+### bKash Merchant Payment Format
+```text
+You have received Tk (?P<amount>[\d,.]+) from (?P<sender>01\d{9}).*Ref[:\s]+(?P<ref>[\w_]+).*TrxID[:\s]+(?P<trx_id>[A-Z0-9]+)
+```
+
+### Nagad Merchant Payment Format
+```text
+Payment of Tk (?P<amount>[\d,.]+) received from (?P<sender>01\d{9}).*TxnID[:\s]+(?P<trx_id>[A-Z0-9]+).*Ref[:\s]+(?P<ref>[\w_]+)
+```
+- Extracted transaction IDs (`trx_id`) are checked against `InboundPaymentEvent` to prevent replay attacks.

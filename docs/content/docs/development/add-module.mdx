@@ -1,0 +1,68 @@
+---
+title: How to Add a New Backend Module
+description: Standard workflow for creating and registering a new cohesive Django app in backend/apps/.
+---
+
+# How to Add a New Backend Module
+
+`IMPLEMENTED`
+
+Follow this process when introducing a new business domain:
+
+---
+
+## 1. Scaffold App Directory
+
+```bash
+cd backend/apps
+python ../manage.py startapp marketing
+```
+
+---
+
+## 2. Register App in `settings.py`
+
+Open `backend/sheba_core/settings.py` and append to `INSTALLED_APPS`:
+
+```python
+INSTALLED_APPS = [
+    # ... other apps ...
+    'apps.marketing',
+]
+```
+
+---
+
+## 3. Define AppConfig
+
+In `backend/apps/marketing/apps.py`:
+
+```python
+from django.apps import AppConfig
+
+class MarketingConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'apps.marketing'
+    verbose_name = 'Marketing & Lead Generation'
+```
+
+---
+
+## 4. Setup URLs and Routers
+
+In `backend/apps/marketing/urls.py`:
+
+```python
+from rest_framework.routers import DefaultRouter
+from .views import LeadViewSet
+
+router = DefaultRouter()
+router.register(r'leads', LeadViewSet, basename='lead')
+
+urlpatterns = router.urls
+```
+
+Include these URLs into the master API router in `backend/sheba_core/urls.py`:
+```python
+router.register(r'leads', LeadViewSet, basename='lead')
+```

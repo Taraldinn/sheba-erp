@@ -1,0 +1,40 @@
+---
+title: Network Provisioning Lifecycle
+description: Subscriber onboarding, PPPoE secret creation, profile assignment, IP pool allocation, and queue enforcement on MikroTik.
+---
+
+# Network Provisioning Lifecycle
+
+`IMPLEMENTED`
+
+Sheba ISP ERP translates high-level customer subscription choices directly into physical hardware configurations on MikroTik RouterOS v7 edge routers.
+
+---
+
+## 1. Provisioning Flow
+
+```mermaid
+flowchart TD
+    Start([Staff Creates Customer]) --> Validate[Validate PPPoE Username & Password]
+    Validate --> AssignRouter[Resolve Target MikroTik Router]
+    AssignRouter --> CheckProfile[Resolve / Create RouterOS Profile]
+    CheckProfile --> CreateSecret[MikroTikService.create_pppoe_user]
+    CreateSecret --> SetQueue[Apply Simple Queue Rate Limit]
+    SetQueue --> VerifySecret[Verify RouterOS Response]
+    VerifySecret -->|Success| SaveActive[Save Customer with status=ACTIVE]
+    VerifySecret -->|Router Unreachable| SaveDesync[Save Customer with status=DESYNC]
+```
+
+---
+
+## 2. MikroTik Hardware Operations
+
+1. **PPPoE Secret Creation**:
+   - Endpoint: `/ppp/secret/add` on RouterOS REST API.
+   - Parameters: `name` (username), `password`, `service=pppoe`, `profile`, `remote-address` (if static IP).
+2. **Bandwidth Queue Provisioning**:
+   - Matches package upload/download tier (e.g. `20M/20M`).
+   - Dynamically assigned via PPPoE Profile `rate-limit` parameter or dedicated Simple Queue.
+3. **Graceful Disconnect (Re-Authentication)**:
+   - When package is upgraded, the system removes the active tunnel session in `/ppp/active/remove`.
+   - The customer router immediately reconnects with the new bandwidth parameters.

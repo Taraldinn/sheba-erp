@@ -1,0 +1,37 @@
+---
+title: Operational Runbooks
+description: Standard operational procedures for service restarts, container health, and log inspection.
+---
+
+# Operational Runbooks
+
+`IMPLEMENTED`
+
+Standard operating commands for maintaining live Sheba ISP ERP instances.
+
+---
+
+## 1. Inspecting Live Logs
+
+```bash
+# View backend Django and Gunicorn logs
+docker logs -f sheba-backend --tail 200
+
+# View PostgreSQL query and transaction logs
+docker logs -f sheba-postgres --tail 100
+
+# View Celery background worker tasks
+docker logs -f sheba-celery --tail 200
+```
+
+---
+
+## 2. Restarting Services
+
+```bash
+# Graceful backend restart
+docker compose -f backend/docker-compose.yml restart backend
+
+# Full stack restart
+docker compose -f backend/docker-compose.yml restart
+```

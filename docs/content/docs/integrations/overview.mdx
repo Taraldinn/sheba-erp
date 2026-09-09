@@ -1,0 +1,17 @@
+---
+title: External Integrations Overview
+description: Overview of external systems connected to Sheba ISP ERP.
+---
+
+# External Integrations Overview
+
+`IMPLEMENTED`
+
+Sheba ISP ERP connects with hardware edge devices, telecommunications infrastructure, financial payment gateways, and background message brokers.
+
+| Integration | Protocol / Transport | Purpose | Implementation Path |
+| :--- | :--- | :--- | :--- |
+| **MikroTik RouterOS v7** | HTTPS REST / Binary API (Port 8728) | Core routing, PPPoE credentials, bandwidth queues | `apps/network/services/mikrotik/` |
+| **EPON / GPON OLTs** | SNMP v2c/v3, SSH, Telnet | Optical aggregation, RX power diagnostics, ONU reboot | `apps/network/services/olt/` |
+| **bKash & Nagad MFS** | HTTP POST Webhooks (HMAC SHA-256) | Automated subscriber payment reconciliation | `apps/payments/views.py` |
+| **Redis 7** | RESP Protocol (Port 6379) | Celery message broker, rate limit cache, distributed locks | `apps/core/lock.py` |

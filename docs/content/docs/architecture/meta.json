@@ -1,0 +1,10 @@
+{
+  "title": "Architecture",
+  "pages": [
+    "overview",
+    "multi-tenancy",
+    "modular-monolith",
+    "async-pipeline",
+    "financial-ledger"
+  ]
+}

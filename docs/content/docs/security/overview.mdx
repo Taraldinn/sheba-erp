@@ -1,0 +1,43 @@
+---
+title: Security Architecture Overview
+description: Defense-in-depth security model, authentication layers, tenant data boundaries, and audit logging.
+---
+
+# Security Architecture Overview
+
+`IMPLEMENTED`
+
+Sheba ISP ERP implements a multi-layered defense-in-depth model protecting subscriber personal identifiable information (PII), double-entry financial journals, and ISP core network infrastructure.
+
+```mermaid
+flowchart TD
+    subgraph Perimeter["Perimeter Security"]
+        HTTPS["TLS 1.3 / SSL Termination"]
+        ReverseProxy["Nginx / Dokploy Host Filtering"]
+        RateLimiting["DRF Throttling Scopes"]
+    end
+
+    subgraph Application["Application Layer"]
+        HostTenancy["TenantResolutionMiddleware"]
+        AuthTokens["DRF TokenAuthentication"]
+        RBAC["IsTenantMember and HasPermissionScope"]
+        InputValidation["Strict Serializer Data Typing"]
+    end
+
+    subgraph CoreSecrets["Cryptographic and Data Security"]
+        Fernet["Symmetric Fernet Credential Encryption"]
+        ImmutableLedger["Immutable Append-Only LedgerEntry"]
+        Audit["Comprehensive AuditLog Journal"]
+    end
+
+    Perimeter --> Application
+    Application --> CoreSecrets
+```
+
+---
+
+## 1. Security Boundaries
+
+- **Public Internet vs Staff**: Only `/api/v1/auth/login/`, `/api/v1/customer/query/`, and `/api/v1/payments/sms/webhook/` are accessible unauthenticated.
+- **Tenant Boundaries**: A user authenticated under Tenant A cannot view or alter data under Tenant B, even with a valid staff token.
+- **Hardware Isolation**: MikroTik routers and OLTs are placed on dedicated management VLANs, accessible only from the ERP backend server IP.

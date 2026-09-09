@@ -1,0 +1,27 @@
+---
+title: Disaster Recovery & Emergency Procedures
+description: High-severity incident protocols, host outage migration, and data corruption recovery.
+---
+
+# Disaster Recovery & Emergency Procedures
+
+`IMPLEMENTED`
+
+Protocols for catastrophic VPS hardware failure, database corruption, or security incidents.
+
+---
+
+## 1. Severity 1 Incident Protocol (Total Outage)
+
+1. **Assess Impact**: Check `/healthz/` and `/api/v1/health-check/`.
+2. **Database Verification**: Confirm PostgreSQL service health and disk volume integrity.
+3. **Failover Execution**: If the primary VPS is unrecoverable, provision a new Linux server in Dokploy and deploy from the latest verified Git tag and offsite SQL backup.
+
+---
+
+## 2. MikroTik Edge Router Outage
+
+If a primary edge router fails:
+1. Promote secondary standby router in `/routers`.
+2. Run bulk subscriber re-sync task to provision PPPoE secrets on the backup router.
+3. Update edge switch VLAN gateways to route traffic through the standby BNG.

@@ -142,7 +142,7 @@ graph TB
     end
 
     subgraph Storage["Persistence Layer"]
-        Postgres[("PostgreSQL 16+<br/>(Shared Schema, Tenant Partitioned)")]
+        Postgres[("PostgreSQL 16+<br/>(Shared Schema, Application-Enforced Tenant Isolation)")]
     end
 
     subgraph Hardware["Physical Network Infrastructure"]

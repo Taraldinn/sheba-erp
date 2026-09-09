@@ -1,0 +1,46 @@
+---
+title: OLT Chassis & Optical Diagnostics
+description: Optical line terminal management, PON port monitoring, optical power (RX/TX dBm), and ONU reboots.
+---
+
+# OLT Chassis & Optical Diagnostics
+
+`IMPLEMENTED`
+
+Located in `backend/apps/network/services/olt/`, the OLT service layer interacts with optical chassis hardware.
+
+---
+
+## 1. OLT Client Architecture (`services/olt/client.py`)
+
+```python
+class OLTClient:
+    def __init__(self, olt: OLT):
+        self.olt = olt
+
+    def get_optical_power(self, pon_port: str, onu_index: int) -> dict:
+        """
+        Polls the OLT via SNMP/Telnet for ONU optical power parameters.
+        Returns RX Power (dBm), TX Power (dBm), Distance (meters), and Status.
+        """
+```
+
+---
+
+## 2. Optical Signal Health Thresholds
+
+The frontend visualizes optical health using standard color-coded badges:
+
+| Signal Range (RX Power) | Classification | Action |
+| :--- | :--- | :--- |
+| `-14.0 dBm` to `-24.0 dBm` | **Optimal / Good** (Green) | Normal operating conditions |
+| `-24.1 dBm` to `-27.0 dBm` | **Marginal / Warning** (Yellow) | Check drop cable bends / dirty connectors |
+| `< -27.1 dBm` | **Critical / Optical Loss** (Red) | High loss, frequent packet drops. Dispatch technician |
+| `0.0 dBm` / `N/A` | **Loss of Signal (LOS)** (Gray) | Fiber cut or ONU unpowered |
+
+---
+
+## 3. Remote Operations
+
+- **Remote ONU Reboot**: Triggers an OMCI/OAM reboot command to restart a frozen subscriber ONU without requiring a home technician visit.
+- **Auto-Discovery**: Identifies newly attached unconfigured ONUs on PON ports for quick one-click provisioning.

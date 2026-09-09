@@ -1,0 +1,61 @@
+---
+title: How to Add a Database Model & Migration
+description: Implementing tenant-scoped models, defining indexes, writing migrations, and verifying rollback safety.
+---
+
+# How to Add a Database Model & Migration
+
+`IMPLEMENTED`
+
+All transactional business models must inherit from `TenantScopedModel` to enforce tenant isolation.
+
+---
+
+## 1. Define Model in `models.py`
+
+```python
+from django.db import models
+from apps.core.models import TenantScopedModel
+
+class Lead(TenantScopedModel):
+    name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=20, db_index=True)
+    interested_package = models.ForeignKey(
+        'billing.Package',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL
+    )
+    status = models.CharField(max_length=20, default='NEW')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status']),
+            models.Index(fields=['tenant', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.phone})"
+```
+
+---
+
+## 2. Generate and Apply Migration
+
+```bash
+cd backend
+python manage.py makemigrations marketing
+python manage.py migrate
+```
+
+---
+
+## 3. Verify Rollback Capability
+
+Always verify that the migration can be safely reverted:
+```bash
+python manage.py migrate marketing zero
+python manage.py migrate marketing
+```

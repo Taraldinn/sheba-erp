@@ -1,0 +1,19 @@
+{
+  "title": "Backend Modules",
+  "pages": [
+    "overview",
+    "core",
+    "authentication",
+    "customers",
+    "billing",
+    "finance",
+    "payments",
+    "network",
+    "support",
+    "hr",
+    "store",
+    "tasks",
+    "callcenter",
+    "reports"
+  ]
+}

@@ -1,0 +1,21 @@
+---
+title: Environment Variables Quick Reference
+description: Quick lookup table for all backend and frontend configuration flags.
+---
+
+# Environment Variables Quick Reference
+
+`IMPLEMENTED`
+
+| Variable | Environment | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `ENVIRONMENT` | Backend | `local` | `local` vs `production` security toggle |
+| `DEBUG` | Backend | `True` | Django debug mode (Must be `False` in prod) |
+| `SECRET_KEY` | Backend | `django-insecure-...` | 64-character cryptographic signing key |
+| `ALLOWED_HOSTS` | Backend | `*` | Permitted incoming HTTP Host headers |
+| `DATABASE_URL` | Backend | `sqlite:///db.sqlite3` | PostgreSQL connection string |
+| `REDIS_URL` | Backend | `''` | Redis cache and message broker URI |
+| `CORS_ALLOWED_ORIGINS` | Backend | `http://localhost:3000` | Whitelisted frontend web origins |
+| `LOG_LEVEL` | Backend | `INFO` | Logger verbosity (`DEBUG`, `INFO`, `WARNING`) |
+| `NEXT_PUBLIC_API_URL` | Frontend | `http://localhost:8000/api/v1` | Backend API URL for client fetch requests |
+| `NEXT_PUBLIC_DEFAULT_TENANT_ID` | Frontend | `shebafi` | Fallback tenant identifier in local dev |

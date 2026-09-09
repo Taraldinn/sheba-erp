@@ -5,6 +5,7 @@ Defines the base interface for vendor-specific OLT drivers (Huawei, ZTE, VSOL, B
 import abc
 import logging
 from typing import Any, Optional
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,8 @@ class GenericSNMPOLTClient(BaseOLTClient):
         return True
 
     def get_optical_power(self, pon_port: str, onu_index: int) -> dict[str, Any]:
+        if getattr(settings, 'IS_PRODUCTION', False) or not getattr(settings, 'IS_LOCAL', True):
+            raise OLTClientError(f"Live optical power query not supported for OLT brand '{self.olt.brand}' in production.")
         return {
             'pon_port': pon_port,
             'onu_index': onu_index,
@@ -105,6 +108,8 @@ class GenericSNMPOLTClient(BaseOLTClient):
         }
 
     def discover_onus(self, pon_port: Optional[str] = None) -> list[dict[str, Any]]:
+        if getattr(settings, 'IS_PRODUCTION', False) or not getattr(settings, 'IS_LOCAL', True):
+            raise OLTClientError(f"Live ONU discovery not supported for OLT brand '{self.olt.brand}' in production.")
         target_port = pon_port or 'EPON0/1'
         logger.info("Discovering ONUs on OLT %s port %s", self.olt.name, target_port)
         return [

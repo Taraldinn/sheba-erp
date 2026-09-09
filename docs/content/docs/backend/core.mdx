@@ -1,0 +1,40 @@
+---
+title: "apps.core — Multi-Tenancy & Platform Foundation"
+description: Architectural foundation managing tenant resolution, domains, audit logging, and the SaaS control plane.
+---
+
+# `apps.core` — Multi-Tenancy & Platform Foundation
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/core/`
+- **Responsibilities**: Tenant resolution, domain routing, company settings, audit logging, distributed locking, and SaaS control plane operations.
+- **Non-responsibilities**: Business-specific billing logic, subscriber provisioning, or direct router communication.
+
+---
+
+## 1. Database Models (10 Models)
+
+| Model Name | Purpose | Key Fields | Nullable / Constraints |
+| :--- | :--- | :--- | :--- |
+| `Tenant` | Primary multi-tenant organization entity | `name`, `subdomain`, `is_active`, `tier`, `created_at` | `subdomain` is unique |
+| `TenantDomain` | Maps external domains / subdomains to a Tenant | `domain`, `tenant`, `is_primary`, `is_active` | `domain` is unique |
+| `TenantApiToken` | Machine-to-machine API tokens for tenant services | `tenant`, `token`, `is_active`, `created_at` | `token` is unique |
+| `CompanySetting` | Key-value settings per tenant (branding, ISP profile) | `tenant`, `company_name`, `logo`, `support_phone` | One record per tenant |
+| `AuditLog` | Append-only system audit trail | `tenant`, `actor_username`, `action`, `module`, `details` | Indexed by timestamp & tenant |
+| `TenantOnboardingRequest`| Self-service ISP onboarding requests | `org_name`, `contact_email`, `status`, `notes` | Status: PENDING, APPROVED, REJECTED |
+| `SaaSPackage` | SaaS subscription plans (e.g. Starter, Pro, Enterprise)| `name`, `price_monthly`, `max_subscribers`, `features` | Unique plan name |
+| `TenantSubscription` | Active SaaS subscription for a Tenant | `tenant`, `package`, `start_date`, `end_date`, `status` | One active subscription per tenant |
+| `SaaSPayment` | Billing records for tenant platform usage | `subscription`, `amount`, `payment_method`, `trx_id` | Unique `trx_id` |
+| `DatabaseBackup` | Backup metadata and storage URLs | `tenant`, `filename`, `file_size`, `status`, `created_at` | Track backup status |
+
+---
+
+## 2. Controllers & API Endpoints
+
+- `GET/POST /api/v1/tenants/`: CRUD for tenants (SaaS SuperAdmin only).
+- `GET/POST /api/v1/tenant-domains/`: Domain mapping and verification.
+- `GET/PATCH /api/v1/settings/`: Company branding and operational configurations.
+- `GET /api/v1/audit-logs/`: Auditable search logs for security compliance.
+- `POST /api/v1/saas/auth/login/`: Dedicated SaaS control plane login.
+- `GET /api/v1/saas/overview/`: SuperAdmin aggregated tenant health and MRR.

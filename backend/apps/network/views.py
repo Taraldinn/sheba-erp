@@ -553,6 +553,8 @@ class ONUViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def reboot(self, request, pk=None):
         onu = self.get_object()
+        if not can(request.user, request.tenant, 'olt.manage', onu):
+            return Response({'error': 'Permission denied: olt.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
         success = False
         try:
             ONUService(onu).reboot_onu()
@@ -594,7 +596,9 @@ class ONUViewSet(viewsets.ModelViewSet):
         onu = self.get_object()
         if not can(request.user, request.tenant, 'olt.manage', onu):
             return Response({'error': 'Permission denied: olt.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
-        customer_id = request.data.get('customer_id')
+        serializer = ONUActionSerializer(data={'action': 'assign_customer', **request.data})
+        serializer.is_valid(raise_exception=True)
+        customer_id = serializer.validated_data.get('customer_id')
         if not customer_id:
             return Response({'error': 'customer_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -642,6 +646,8 @@ class ONUViewSet(viewsets.ModelViewSet):
         Unlinks an assigned customer from this ONU.
         """
         onu = self.get_object()
+        if not can(request.user, request.tenant, 'olt.manage', onu):
+            return Response({'error': 'Permission denied: olt.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
         old_customer = onu.customer
         if old_customer:
             old_customer.onu_mac_or_sn = ''

@@ -1,0 +1,32 @@
+---
+title: Database Schema Architecture & Invariants
+description: PostgreSQL 16 schema design, indexing strategies, audit fields, and transactional integrity.
+---
+
+# Database Schema Architecture & Invariants
+
+`IMPLEMENTED`
+
+Sheba ISP ERP runs on **PostgreSQL 16** using Django's ORM.
+
+---
+
+## 1. The Single-Schema Architecture
+
+All tenants store their records in the standard `public` PostgreSQL schema.
+
+### Core Database Rules:
+1. **Mandatory Tenant Indexing**: Every tenant-partitioned table has a compound index on `(tenant_id, created_at)` or `(tenant_id, status)` to maintain millisecond index scans across millions of subscriber records.
+2. **Soft Deletion & Cascade Rules**:
+   - Deleting a `Tenant` cascades to all tenant data (`models.CASCADE`).
+   - Deleting a `Router` or `Package` assigned to active subscribers is blocked via `models.PROTECT`.
+3. **Audit Fields**: Models inherit timestamps:
+   - `created_at = models.DateTimeField(auto_now_add=True, db_index=True)`
+   - `updated_at = models.DateTimeField(auto_now=True)`
+
+---
+
+## 2. Transactions & Concurrency Control
+
+- **Row Locks**: Financial operations (`apps.finance`) and recharge allocations acquire pessimistic database row locks using `.select_for_update()`.
+- **Atomic Rollbacks**: Mutating workflows run inside `with transaction.atomic():`. Any unexpected exception rolls back all pending inserts and updates.

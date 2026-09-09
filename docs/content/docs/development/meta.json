@@ -1,0 +1,14 @@
+{
+  "title": "Development Guides",
+  "pages": [
+    "overview",
+    "add-module",
+    "add-model-and-migration",
+    "add-api-endpoint",
+    "add-permission",
+    "add-frontend-page-and-component",
+    "add-background-job",
+    "add-mikrotik-operation",
+    "modify-existing-feature"
+  ]
+}

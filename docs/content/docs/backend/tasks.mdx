@@ -1,0 +1,36 @@
+---
+title: "apps.tasks — Field Maintenance & Work Orders"
+description: Field technician work orders, optical fiber repairs, customer site installations, and task tracking.
+---
+
+# `apps.tasks` — Field Maintenance & Work Orders
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/tasks/`
+- **Responsibilities**: Field technician job orders, fiber break dispatch, customer installation schedules, and task status life-cycle.
+
+---
+
+## 1. Database Model: `Task`
+
+```python
+class Task(TenantScopedModel):
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    customer = models.ForeignKey('customers.Customer', null=True, blank=True, on_delete=models.SET_NULL)
+    task_type = models.CharField(max_length=50)  # INSTALLATION, REPAIR, INSPECTION
+    priority = models.CharField(max_length=20, default='MEDIUM')  # LOW, MEDIUM, HIGH, URGENT
+    status = models.CharField(max_length=20, default='PENDING')  # PENDING, ASSIGNED, IN_PROGRESS, COMPLETED, CANCELLED
+    assigned_to = models.ForeignKey('authentication.StaffProfile', null=True, blank=True, on_delete=models.SET_NULL)
+    due_date = models.DateField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+```
+
+---
+
+## 2. API Endpoints
+
+- `GET/POST /api/v1/tasks/`: Search and schedule maintenance work orders.
+- `POST /api/v1/tasks/{id}/assign/`: Assigns work order to a tenant-scoped technician.
+- `POST /api/v1/tasks/{id}/complete/`: Marks task completed and logs completion notes.

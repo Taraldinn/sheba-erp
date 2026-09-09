@@ -1,0 +1,53 @@
+---
+title: API Architecture & Standards
+description: REST conventions, authentication mechanisms, pagination, filtering, and OpenAPI schema access.
+---
+
+# API Architecture & Standards
+
+`IMPLEMENTED`
+
+The backend provides a standardized JSON REST API under `/api/v1/`.
+
+---
+
+## 1. Authentication & Headers
+
+Requests must include:
+```http
+Authorization: Token <token>
+Content-Type: application/json
+Accept: application/json
+```
+
+For mutating financial transactions, include:
+```http
+Idempotency-Key: <unique-uuid4>
+```
+
+---
+
+## 2. Standard Pagination & Filtering
+
+Endpoints returning lists implement DRF `PageNumberPagination`:
+```json
+{
+  "count": 142,
+  "next": "http://localhost:8000/api/v1/customers/?page=2",
+  "previous": null,
+  "results": [ ... ]
+}
+```
+
+Filtering is supported via URL search parameters:
+- `?search=<term>`: Full-text search across name, phone, or PPPoE username.
+- `?status=ACTIVE`: State filtering.
+- `?page_size=50`: Custom page size up to 100.
+
+---
+
+## 3. Interactive Documentation
+
+- **Swagger UI**: `http://localhost:8000/api/docs/`
+- **ReDoc**: `http://localhost:8000/api/redoc/`
+- **Raw OpenAPI 3.0 Schema**: `http://localhost:8000/api/schema/`

@@ -1,0 +1,57 @@
+---
+title: Project Status & Roadmap
+description: Current implementation baseline, verified completed stages, technical debt, and future roadmap.
+---
+
+# Project Status & Roadmap
+
+`IMPLEMENTED`
+
+This document reflects the exact operational state of the codebase as of September 2026.
+
+---
+
+## 1. Verified Completed Baseline (Stages 0 Through 8)
+
+The system has successfully completed and verified all core milestones in `MASTER_TASK.md` and `ARCHITECTURE.md` (153 automated tests passing):
+
+| Stage | Milestone | Status | Key Verifications |
+| :--- | :--- | :--- | :--- |
+| **Stage 0** | Architecture Stabilization | `IMPLEMENTED` | Strict architectural invariants established; single-schema multi-tenancy enforced. |
+| **Stage 1** | Tenancy & Domain Resolution | `IMPLEMENTED` | `TenantResolutionMiddleware` deriving tenant from HTTP Host; `TenantDomain` mapping. |
+| **Stage 2** | Authentication & Identity | `IMPLEMENTED` | DRF Token Authentication; `StaffMembership` binding staff to tenant. |
+| **Stage 3** | RBAC, Roles & Permissions | `IMPLEMENTED` | Dynamic role permissions, `IsTenantMember`, and `HasPermissionScope`. |
+| **Stage 4** | Celery + Redis Concurrency | `IMPLEMENTED` | Redis message broker, distributed locks (`distributed_lock`), daily expiry task. |
+| **Stage 5** | Payments & Webhook Pipeline | `IMPLEMENTED` | bKash/Nagad SMS webhook parsing, signature verification, `InboundPaymentEvent` state machine. |
+| **Stage 6** | Finance & Ledger Integrity | `IMPLEMENTED` | Double-entry `LedgerEntry` journal, `BillingAccount`, `IdempotencyKey` headers. |
+| **Stage 7** | Network Operations (MikroTik & OLT) | `IMPLEMENTED` | MikroTik ROSv7 REST/socket adapter, PPPoE provisioning, optical power telemetry. |
+| **Stage 8** | Multi-Tenant SaaS Control Plane | `IMPLEMENTED` | Tenant onboarding requests, package subscriptions, automated database backup tasks. |
+
+---
+
+## 2. Partially Implemented Features (`PARTIAL`)
+
+- **Automated OLT Auto-Provisioning**: While OLT client telemetry, optical signal polling, and manual ONU reboot are implemented, automated zero-touch provisioning of unconfigured ONUs currently requires manual confirmation in `/olt`.
+- **Advanced Traffic Shaping**: MikroTik Simple Queues and PPPoE Profile rate-limiting are fully implemented. Dynamic PCQ burst queuing is partially implemented.
+
+---
+
+## 3. Planned Features (`PLANNED`)
+
+- **Radius Server Integration**: FreeRADIUS integration as an alternative BNG authentication backend to native RouterOS API polling.
+- **Automated Direct Payment Gateways**: bKash Tokenized Checkout and Nagad Direct Merchant API integration alongside the existing SMS webhook pipeline.
+- **Mobile Technician App**: Lightweight PWA / Flutter client for field technicians.
+
+---
+
+## 4. Technical Debt & Known Limitations
+
+1. **Local Domain Emulation**: Because tenancy is server-derived from HTTP Host, testing multi-tenancy locally requires configuring local domains or setting `/etc/hosts` mappings (e.g. `tenant1.localhost:3000`).
+2. **PostgreSQL Migration Duration at High Volume**: In production databases with over 10 million ledger entries, adding unindexed foreign keys requires `CONCURRENTLY` index builds.
+
+---
+
+## 5. Deprecated Features (`DEPRECATED`)
+
+- **Client-Provided Tenant Headers**: Legacy `X-Tenant-ID` header overrides are deprecated and ignored on mutating backend routes.
+- **Mutable Balance Column**: Direct updates to `Customer.balance` are deprecated; all balance modifications must flow through `apps.finance.LedgerEntry`.

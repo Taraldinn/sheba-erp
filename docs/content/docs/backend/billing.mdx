@@ -1,0 +1,32 @@
+---
+title: "apps.billing — Packages, Invoices & Recharges"
+description: Broadband packages, recurring invoicing, recharge workflows, and promotional offers.
+---
+
+# `apps.billing` — Packages, Invoices & Recharges
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/billing/`
+- **Responsibilities**: Broadband bandwidth tiers, package definitions, recurring monthly invoices, recharge transactions, and promotional discounts.
+
+---
+
+## 1. Database Models (5 Models)
+
+| Model Name | Purpose | Key Fields |
+| :--- | :--- | :--- |
+| `Package` | Broadband plan (speed, rate, validity, MikroTik profile) | `name`, `price`, `bandwidth_mbps`, `mikrotik_profile`, `validity_days` |
+| `ResellerPricing` | Custom wholesale rate for packages per reseller | `reseller`, `package`, `custom_rate`, `is_active` |
+| `Invoice` | Monthly recurring subscription bill | `invoice_number`, `customer`, `amount`, `paid_amount`, `status`, `due_date` |
+| `Recharge` | Record of subscription renewal and date extension | `customer`, `package`, `amount`, `validity_days`, `recharged_by` |
+| `Offer` | Promotional discounts or bundle campaigns | `title`, `discount_type`, `discount_value`, `start_date`, `end_date` |
+
+---
+
+## 2. Controllers & Workflows
+
+- `GET/POST /api/v1/packages/`: Manage broadband tiers and sync corresponding RouterOS queue profiles.
+- `GET/POST /api/v1/invoices/`: View invoices, filter by `status` (`UNPAID`, `PAID`, `PARTIAL`), and download billing receipts.
+- `POST /api/v1/recharges/`: Atomic recharge action. Accepts `customer_id`, `amount`, and extends subscription expiry date.
+- `GET/POST /api/v1/offers/`: Campaign and discount configuration.

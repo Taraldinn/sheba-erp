@@ -1,0 +1,28 @@
+---
+title: "apps.store — Hardware & Fiber Inventory"
+description: Hardware catalog, fiber optic drop cables, SFP transceivers, ONUs, and stock balance ledgers.
+---
+
+# `apps.store` — Hardware & Fiber Inventory
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/store/`
+- **Responsibilities**: Hardware catalog, item categories, physical stock tracking, purchase orders, technician issues, and fiber cable drum inventory.
+
+---
+
+## 1. Database Models (3 Models)
+
+| Model Name | Purpose | Key Fields |
+| :--- | :--- | :--- |
+| `ItemCategory` | Product group (e.g. Optical ONUs, Drop Cables, Routers) | `name`, `description`, `is_active` |
+| `StoreItem` | Catalog item specification | `category`, `name`, `sku`, `unit`, `unit_price`, `quantity_in_stock`, `min_stock_alert` |
+| `StockTransaction` | Audit ledger for inventory in/out movements | `item`, `transaction_type` (PURCHASE, ISSUE, RETURN, ADJUSTMENT), `quantity`, `reference` |
+
+---
+
+## 2. API Endpoints
+
+- `GET/POST /api/v1/store-items/`: Inventory item catalog and low stock warnings.
+- `GET/POST /api/v1/stock-transactions/`: Records warehouse intake or technician field issuance.

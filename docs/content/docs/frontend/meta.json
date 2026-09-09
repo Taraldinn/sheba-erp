@@ -1,0 +1,15 @@
+{
+  "title": "Frontend Architecture",
+  "pages": [
+    "overview",
+    "architecture-and-state",
+    "routing-and-layouts",
+    "design-system-and-components",
+    "pages-core-erp",
+    "pages-network-ops",
+    "pages-business-and-operations",
+    "pages-platform-and-portal",
+    "forms-tables-and-patterns",
+    "development-guides"
+  ]
+}

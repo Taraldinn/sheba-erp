@@ -1,0 +1,33 @@
+---
+title: "ADR-005: Granular Role-Based Access Control (RBAC)"
+description: Implementation of tenant-scoped roles and permission capabilities over monolithic user flags.
+---
+
+# ADR-005: Granular Role-Based Access Control (RBAC)
+
+- **Status**: `ACCEPTED`
+- **Deciders**: Lead Architect
+- **Date**: September 2026
+
+---
+
+## Context
+
+Different ISP operators have distinct job hierarchies: billing staff, field technicians, NOC engineers, call center operators, and storekeepers. Coarse-grained `is_staff` / `is_superuser` flags cannot restrict technicians from viewing sensitive financial ledgers.
+
+---
+
+## Decision
+
+Implement granular RBAC with:
+- Global `Permission` definitions.
+- Tenant-scoped `Role` models containing multiple permissions.
+- `StaffMembership` binding a staff user to a role within a specific tenant.
+- Enforced on backend viewsets via `HasPermissionScope`.
+
+---
+
+## Consequences
+
+- **Positive**: Complete administrative control per tenant; staff can be assigned fine-grained capabilities without code changes.
+- **Negative**: Adds a database join on authenticated requests (mitigated by `select_related('role__permissions')`).

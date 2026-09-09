@@ -1,0 +1,168 @@
+---
+title: Core Business Pages
+description: Deep documentation for Dashboard, Customer CRM, Internet Packages, Invoicing, and Payment collections.
+---
+
+# Core Business Pages
+
+`IMPLEMENTED`
+
+This section details the primary operational pages of the Sheba ISP ERP application, covering their components, data flow, permissions, and API interactions.
+
+---
+
+## 1. Executive KPI Dashboard (`/`)
+
+### Purpose
+Provides real-time operational visibility into active subscribers, revenue collection metrics, network bandwidth usage, and hardware health.
+
+### Route & Permission
+- **Route**: `/`
+- **Role Guard**: `super_admin`, `admin`
+
+### Components Breakdown
+```text
+DashboardPage
+ ├── MetricCardsGrid (Customers, Due, Monthly Collections, Routers Online)
+ ├── TrafficAreaChart (24h Download/Upload Bandwidth Distribution via Recharts)
+ ├── RevenueBarChart (Monthly Target vs. Realized Collections)
+ ├── RouterHealthTable (MikroTik Router status, CPU load, RAM usage)
+ ├── OltHealthSummary (EPON/GPON optical levels)
+ └── RecentTransactionsTable (Latest payments with gateway badges)
+```
+
+### API Integration
+- **GET `/reports/dashboard/?role=admin`**: Fetches KPIs, hourly traffic vectors, and monthly collection trends.
+- **GET `/routers/`**: Retrieves active MikroTik hardware health and status.
+- **GET `/payments/`**: Fetches latest payment transactions.
+- **GET `/olt/`**: Retrieves OLT device status.
+
+### States
+- **Loading**: Skeletons for metric cards and spinner for chart canvas.
+- **Error / Offline**: Automatic fallback to `mockKPIs` and default traffic vectors.
+
+---
+
+## 2. Customer Management (`/customers`)
+
+### Purpose
+Comprehensive subscriber CRM managing PPPoE/Static IP credentials, bandwidth subscriptions, billing cycles, balance recharge, and bulk actions.
+
+### Route & Permission
+- **Route**: `/customers`
+- **Query Parameters**: `status` (Active, Expired, Suspended, Left, Due)
+- **Role Guard**: `super_admin`, `admin`, `billing`, `support`, `reseller`
+
+### Components Breakdown
+```text
+CustomersPage
+ ├── CustomersHeader (Breadcrumbs, Total Count, Add Customer Button, Export CSV)
+ ├── StatusFilterTabs (All, Active, Expired, Suspended, Left, Due, Free/Staff)
+ ├── FilterToolbar (Full-text Search, Zone Dropdown, Package Dropdown, Reseller Dropdown)
+ ├── BulkActionActionBar (Shown when checkboxes selected: Recharge, Grace Days, Change Reseller, SMS)
+ ├── CustomersTable
+ │    ├── SelectAllCheckbox
+ │    ├── CustomerRow (PPPoE Username, Full Name, Package Badge, IP, Expiry, Due, Status)
+ │    └── ActionsMenu (Recharge, Extend Grace Days, Edit, Suspend/Reactivate)
+ ├── AddCustomerDialog (Modal form for subscriber creation)
+ └── QuickRechargeDialog (Single subscriber recharge modal)
+```
+
+### API Endpoints
+- **GET `/customers/`**: Loads customer list with filtering parameters.
+- **POST `/customers/`**: Creates new customer profile with PPPoE credentials.
+- **POST `/customers/{id}/recharge/`**: Recharges customer balance and extends expiry.
+- **POST `/customers/{id}/suspend/`**: Suspends internet access and terminates PPPoE session.
+- **POST `/customers/{id}/reactivate/`**: Restores subscriber service.
+- **DELETE `/customers/{id}/`**: Soft-deletes customer record.
+
+### Customer Suspension Flow:
+```mermaid
+flowchart TD
+    ClickSuspend[Click Suspend in Actions Menu] --> ConfirmDialog[Show Confirmation Dialog]
+    ConfirmDialog -- Confirm --> APISuspend[POST /customers/{id}/suspend/]
+    APISuspend --> LoadingState[Show Inline Spinner]
+    APISuspend -- Success 200 --> ToastSuccess[Sonner: 'Customer suspended']
+    ToastSuccess --> ReloadCustomers[Reload Customer Table]
+    APISuspend -- Error 400/500 --> ToastError[Sonner: 'Failed to suspend: Router unreachable']
+```
+
+---
+
+## 3. Bandwidth Packages (`/packages`)
+
+### Purpose
+Defines internet bandwidth plans, download/upload rates, MikroTik profile synchronization, and reseller wholesale pricing.
+
+### Route & Permission
+- **Route**: `/packages`
+- **Role Guard**: `super_admin`, `admin`, `billing`
+
+### Components Breakdown
+```text
+PackagesPage
+ ├── PackagesHeader (Add Package Button, Total Active Plans count)
+ ├── PackageCardsGrid (Card per tier with Speed Badge, Price, Validity, and Subscribers)
+ ├── AddPackageDialog
+ │    ├── Name, Speed (Mbps), Upload Speed (Mbps)
+ │    ├── MikroTik Queue Profile name
+ │    ├── Validity Days (Default: 30)
+ │    └── Regular Price vs. Minimum Reseller Price
+ └── EditPackageDialog
+```
+
+### API Endpoints
+- **GET `/packages/`**: Retrieves package list and active subscriber counts.
+- **POST `/packages/`**: Creates a new bandwidth plan and pushes profile to MikroTik.
+- **PATCH `/packages/{id}/`**: Updates pricing or speed limits.
+- **DELETE `/packages/{id}/`**: Deactivates package if no subscribers are attached.
+
+---
+
+## 4. Billing & Invoicing (`/billing`)
+
+### Purpose
+Automates recurring billing generation, invoice delivery, payment tracking, and scheduled customer auto-lock for overdue accounts.
+
+### Route & Permission
+- **Route**: `/billing`
+- **Role Guard**: `super_admin`, `admin`, `billing`
+
+### Components Breakdown
+```text
+BillingPage
+ ├── BillingSummaryCards (Total Invoiced, Total Collected, Unpaid Dues, Overdue Count)
+ ├── InvoicesFilterBar (Search by Invoice #, Status Filter: Paid, Partial, Unpaid, Overdue)
+ ├── InvoicesTable (Invoice ID, Customer, Package, Amount, Paid, Due, Status, Due Date)
+ └── GenerateInvoicesDialog (Bulk cycle generation for specified month/zone)
+```
+
+### API Endpoints
+- **GET `/billing/invoices/`**: Fetches paginated invoices.
+- **POST `/billing/generate/`**: Triggers batch invoice creation for the billing cycle.
+- **GET `/billing/summary/`**: Retrieves aggregate collection and due statistics.
+
+---
+
+## 5. Payments & Collections (`/payments`)
+
+### Purpose
+Central ledger of all incoming subscriber payments via cash, bank transfer, and automated mobile financial services (bKash, Nagad, Rocket).
+
+### Route & Permission
+- **Route**: `/payments`
+- **Role Guard**: `super_admin`, `admin`, `billing`, `reseller`
+
+### Components Breakdown
+```text
+PaymentsPage
+ ├── PaymentKPIs (Today's Collection, bKash Total, Cash Total, Bank Total)
+ ├── CollectPaymentDialog (Manual collection: Customer select, Amount, Method, Notes)
+ ├── PaymentMethodFilters (All, Cash, bKash, Nagad, Rocket, Bank)
+ └── PaymentsTable (TrxID, Customer, Method Badge, Amount, Gateway Status, Timestamp)
+```
+
+### API Endpoints
+- **GET `/payments/`**: Retrieves transaction history.
+- **POST `/payments/`**: Records manual offline payment collection.
+- **POST `/payments/verify/`**: Reconciles digital gateway webhook transaction.

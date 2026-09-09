@@ -1,0 +1,83 @@
+---
+title: How to Add a Frontend Page & Component
+description: Creating Next.js App Router pages, data tables, modal dialogs, and ApiClient methods.
+---
+
+# How to Add a Frontend Page & Component
+
+`IMPLEMENTED`
+
+Follow this guide to add a new operational screen to the ISP dashboard.
+
+---
+
+## 1. Add API Method (`frontend/src/lib/api.ts`)
+
+```typescript
+export class ApiClient {
+  // ...
+  static async getLeads() {
+    try {
+      const res = await fetch(`${API_BASE}/leads/`, { headers: this.getHeaders() });
+      if (res.ok) return await res.json();
+    } catch {}
+    return [];
+  }
+}
+```
+
+---
+
+## 2. Create Page (`frontend/src/app/leads/page.tsx`)
+
+```tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { AppShell } from '@/components/layouts/AppShell';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { ApiClient } from '@/lib/api';
+
+export default function LeadsPage() {
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    ApiClient.getLeads().then((data) => {
+      setLeads(data.results || data);
+      setLoading(false);
+    });
+  }, []);
+
+  return (
+    <AppShell>
+      <div className="p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold tracking-tight">Sales Leads</h1>
+          <Button>Create Lead</Button>
+        </div>
+
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {leads.map((lead) => (
+              <TableRow key={lead.id}>
+                <TableCell>{lead.name}</TableCell>
+                <TableCell>{lead.phone}</TableCell>
+                <TableCell>{lead.status}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </AppShell>
+  );
+}
+```

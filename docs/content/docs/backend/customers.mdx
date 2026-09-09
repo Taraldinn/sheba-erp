@@ -1,0 +1,54 @@
+---
+title: "apps.customers — Subscriber Lifecycle & CRM"
+description: Customer data model, PPPoE credentials, connection status, and public verification queries.
+---
+
+# `apps.customers` — Subscriber Lifecycle & CRM
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/customers/`
+- **Responsibilities**: Customer database, PPPoE credentials, physical connection locations, status tracking, and subscriber query endpoints.
+
+---
+
+## 1. Database Model: `Customer`
+
+The `Customer` model represents the core subscriber entity:
+
+```python
+class Customer(TenantScopedModel):
+    # Identity
+    name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=20, db_index=True)
+    email = models.EmailField(blank=True, null=True)
+    nid = models.CharField(max_length=30, blank=True)
+    address = models.TextField()
+
+    # Network / PPPoE Credentials
+    pppoe_username = models.CharField(max_length=100, db_index=True)
+    pppoe_password = models.CharField(max_length=100)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    mac_address = models.CharField(max_length=30, blank=True)
+    router = models.ForeignKey('network.Router', on_delete=models.PROTECT, related_name='customers')
+
+    # Subscription & Billing
+    package = models.ForeignKey('billing.Package', on_delete=models.PROTECT, related_name='customers')
+    reseller = models.ForeignKey('authentication.Reseller', null=True, blank=True, on_delete=models.SET_NULL)
+    status = models.CharField(max_length=20, choices=CustomerStatus.choices, default=CustomerStatus.ACTIVE)
+    monthly_bill = models.DecimalField(max_digits=10, decimal_places=2)
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    due_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    expiry_date = models.DateField(null=True, blank=True, db_index=True)
+    billing_type = models.CharField(max_length=20, default='PREPAID')
+```
+
+---
+
+## 2. API Endpoints
+
+- `GET /api/v1/customers/`: Paginated subscriber search with filters by `status`, `package`, `router`, `search`.
+- `POST /api/v1/customers/`: Provisions a new subscriber, initializes `BillingAccount`, and triggers MikroTik sync.
+- `GET /api/v1/customers/{id}/`: Detail view including recent invoices, payments, and live session stats.
+- `POST /api/v1/customers/{id}/toggle_status/`: Quick toggle to suspend or resume Internet access.
+- `POST /api/v1/customer/query/`: Public/portal query endpoint allowing subscribers to check bill and due amount by phone or PPPoE username.

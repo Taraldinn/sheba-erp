@@ -1,0 +1,41 @@
+---
+title: Backend Overview & Engineering Standards
+description: Overview of the 13 backend apps, shared design patterns, serializers, viewsets, and models.
+---
+
+# Backend Overview & Engineering Standards
+
+`IMPLEMENTED`
+
+The backend is built with **Django 6.1** and **Django REST Framework (DRF) 3.18**. All applications reside under `backend/apps/`.
+
+---
+
+## 1. Application Inventory (13 Apps, 52 Models)
+
+| Application | Path | Model Count | Key Models |
+| :--- | :--- | :--- | :--- |
+| `apps.core` | `backend/apps/core` | 10 | `Tenant`, `TenantDomain`, `AuditLog`, `SaaSPackage`, `DatabaseBackup` |
+| `apps.authentication` | `backend/apps/authentication` | 6 | `StaffProfile`, `Role`, `Permission`, `StaffMembership`, `Reseller` |
+| `apps.customers` | `backend/apps/customers` | 1 | `Customer` |
+| `apps.billing` | `backend/apps/billing` | 5 | `Package`, `Invoice`, `Recharge`, `Offer`, `ResellerPricing` |
+| `apps.finance` | `backend/apps/finance` | 6 | `BillingAccount`, `InvoiceLine`, `LedgerEntry`, `Adjustment`, `IdempotencyKey` |
+| `apps.payments` | `backend/apps/payments` | 5 | `PaymentGateway`, `PaymentTransaction`, `InboundPaymentEvent`, `SmsLog` |
+| `apps.network` | `backend/apps/network` | 5 | `POPBranch`, `Router`, `OLT`, `ONU`, `UserSession` |
+| `apps.support` | `backend/apps/support` | 2 | `Ticket`, `TicketReply` |
+| `apps.hr` | `backend/apps/hr` | 5 | `Employee`, `Attendance`, `LeaveRequest`, `AdvanceSalary`, `PayrollRecord` |
+| `apps.store` | `backend/apps/store` | 3 | `ItemCategory`, `StoreItem`, `StockTransaction` |
+| `apps.tasks` | `backend/apps/tasks` | 1 | `Task` |
+| `apps.callcenter` | `backend/apps/callcenter` | 3 | `CallLog`, `VoiceSetting`, `VoiceTemplate` |
+| `apps.reports` | `backend/apps/reports` | 0 | Analytical endpoints (`DashboardAnalyticsView`) |
+
+---
+
+## 2. Standardized ViewSet Structure
+
+All API endpoints follow a consistent structure:
+- Inherit from `viewsets.ModelViewSet` or `rest_framework.views.APIView`.
+- Apply `rest_framework.authentication.TokenAuthentication`.
+- Enforce `apps.core.permissions.IsTenantMember`.
+- Restrict `get_queryset()` strictly to `request.tenant`.
+- Wrap financial and hardware mutations in `transaction.atomic()` and `distributed_lock()`.

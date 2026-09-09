@@ -1,0 +1,55 @@
+---
+title: How to Add a System Permission
+description: Registering new permission codes, scoping by module, and assigning to roles.
+---
+
+# How to Add a System Permission
+
+`IMPLEMENTED`
+
+Permissions are defined in `apps.authentication.models.Permission`.
+
+---
+
+## 1. Register Permission Code
+
+Create a data migration or add to `backend/seed_data.py`:
+
+```python
+from apps.authentication.models import Permission
+
+Permission.objects.get_or_create(
+    code='marketing.manage',
+    defaults={
+        'name': 'Manage Marketing Leads',
+        'module': 'MARKETING',
+        'description': 'Allows creating, viewing, and converting sales leads.'
+    }
+)
+```
+
+---
+
+## 2. Enforce in Views
+
+In your DRF ViewSet, define `required_permission`:
+
+```python
+class LeadViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsTenantMember, HasPermissionScope]
+    required_permission = 'marketing.manage'
+```
+
+---
+
+## 3. Enforce in Frontend Components
+
+Use `RoleGuard` to gate UI elements:
+
+```tsx
+<RoleGuard requiredPermission="marketing.manage">
+  <Button onClick={() => setShowLeadModal(true)}>
+    Add Lead
+  </Button>
+</RoleGuard>
+```

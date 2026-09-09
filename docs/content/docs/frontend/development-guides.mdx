@@ -1,0 +1,133 @@
+---
+title: Frontend Development Guides
+description: Step-by-step developer guides for creating new pages, adding CRUD features, extending ApiClient, and protecting routes.
+---
+
+# Frontend Development Guides
+
+`IMPLEMENTED`
+
+These developer recipes explain how to safely add new screens and features to the Sheba ISP ERP frontend while maintaining architectural consistency.
+
+---
+
+## Guide 1: Adding a New Page
+
+To add a new route to the ERP:
+
+### Step 1: Create the Next.js Route
+Create a new directory and `page.tsx` inside `frontend/src/app/`:
+```bash
+mkdir -p src/app/fiber-nodes
+touch src/app/fiber-nodes/page.tsx
+```
+
+### Step 2: Implement the Page Component
+Use the established page template:
+```tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import { RoleGuard } from "@/components/auth/RoleGuard";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+
+export default function FiberNodesPage() {
+  return (
+    <RoleGuard allowedRoles={["admin", "technician"]} roleTitle="Fiber Manager">
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Fiber Distribution Nodes</h1>
+            <p className="text-sm text-muted-foreground">Manage optical splitters and distribution enclosures.</p>
+          </div>
+          <Button className="gap-2">
+            <Plus className="h-4 w-4" /> Add Node
+          </Button>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Optical Nodes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* Table or content */}
+          </CardContent>
+        </Card>
+      </div>
+    </RoleGuard>
+  );
+}
+```
+
+### Step 3: Register in Navigation Sidebar
+Open `frontend/src/components/layouts/Sidebar.tsx` and add your route under the appropriate functional category (e.g., Network Operations):
+```tsx
+{
+  name: "Fiber Nodes",
+  href: "/fiber-nodes",
+  icon: Network, // Lucide icon
+  roles: ["admin", "technician"],
+}
+```
+
+---
+
+## Guide 2: Adding a CRUD Feature
+
+Follow this standard checklist for implementing a complete CRUD module:
+
+1. **TypeScript Types**: Declare interface in `frontend/src/types/index.ts`:
+   ```typescript
+   export interface FiberNode {
+     id: string;
+     name: string;
+     zone: string;
+     total_ports: number;
+     used_ports: number;
+     status: "Active" | "Maintenance";
+   }
+   ```
+2. **API Client Method**: Add methods to `frontend/src/lib/api.ts`:
+   ```typescript
+   static async getFiberNodes(): Promise<FiberNode[]> {
+     try {
+       const res = await fetch(`${API_BASE}/network/nodes/`, { headers: this.getHeaders() });
+       if (res.ok) return await res.json();
+     } catch {}
+     return mockFiberNodes; // Fallback fixture
+   }
+   ```
+3. **Filter & Search Bar**: Wire up `search` state filtering the local array.
+4. **Dialog Form**: Implement modal for node creation with controlled inputs.
+5. **Mutation Feedback**: Wrap API calls in `try/catch` and fire `toast.success()` on completion.
+
+---
+
+## Guide 3: Using `RoleGuard` for Protected UI Actions
+
+Beyond protecting entire pages, `RoleGuard` can conditionally wrap individual buttons or actions:
+
+```tsx
+// Example: Restrict destructive actions to SuperAdmins
+import { RoleGuard } from "@/components/auth/RoleGuard";
+
+<RoleGuard allowedRoles={["super_admin"]}>
+  <Button variant="destructive" onClick={handleHardReset}>
+    Factory Reset OLT
+  </Button>
+</RoleGuard>
+```
+
+---
+
+## Guide 4: Connecting Real API vs. Mock Fallback
+
+All endpoints in `ApiClient` follow the resilient fetch pattern:
+- Always use `this.getHeaders()` to inject `Authorization: Token <token>` and `X-Tenant-ID`.
+- In local development without the backend running, `ApiClient` catches the connection refusal and returns fixtures from `mock-data.ts`.
+- When testing against a live Django backend, ensure `NEXT_PUBLIC_API_URL` is configured in `.env.local`:
+  ```bash
+  NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+  ```

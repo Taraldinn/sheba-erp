@@ -1,0 +1,40 @@
+---
+title: Authentication & Granular RBAC
+description: Token authentication, session handling, staff tenant membership, and role permission scopes.
+---
+
+# Authentication & Granular RBAC
+
+`IMPLEMENTED`
+
+Identity and authorization are decoupled into authentication tokens and tenant-bound role permissions.
+
+---
+
+## 1. Authentication Flow
+
+1. User sends `POST /api/v1/auth/login/` with `username` and `password`.
+2. Backend verifies credentials against Django's `auth.User`.
+3. Returns `Token` key (`TokenAuthentication`).
+4. On subsequent requests, the client passes `Authorization: Token <key>`.
+
+---
+
+## 2. Granular Role-Based Access Control (RBAC)
+
+A user's permissions are resolved dynamically through `StaffMembership`:
+
+```text
+User ──(has many)──> StaffMembership ──(belongs to)──> Tenant
+                            │
+                            └──(assigned)──> Role
+                                              │
+                                              └──(contains)──> Permissions
+```
+
+- If a staff user has no active `StaffMembership` for `request.tenant`, access is denied (`403 Forbidden`).
+- Default system roles:
+  - `Admin`: Full permissions within tenant.
+  - `Billing Staff`: Can manage customers, invoices, recharges, and payment matching. Cannot modify router credentials or delete audit logs.
+  - `Field Technician`: Read-only customer access; can view/update assigned NOC tickets and work order tasks.
+  - `NOC Engineer`: Full network, router, and OLT diagnostics permissions.

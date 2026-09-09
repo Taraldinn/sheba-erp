@@ -1,0 +1,16 @@
+{
+  "title": "Architecture Decisions (ADRs)",
+  "pages": [
+    "overview",
+    "adr-001-modular-monolith",
+    "adr-002-single-schema-multitenancy",
+    "adr-003-redis-broker-locks",
+    "adr-004-token-auth-host-tenancy",
+    "adr-005-rbac",
+    "adr-006-mikrotik-abstraction",
+    "adr-007-immutable-ledger",
+    "adr-008-async-webhooks",
+    "adr-009-hybrid-ssr-nextjs",
+    "adr-010-dokploy-deployment"
+  ]
+}

@@ -1,0 +1,70 @@
+---
+title: CLI Commands Directory
+description: Comprehensive list of management commands and maintenance scripts.
+---
+
+# CLI Commands Directory
+
+`IMPLEMENTED`
+
+Standard CLI commands across the repository:
+
+---
+
+## 1. Backend Management Commands
+
+```bash
+# Run server
+python manage.py runserver 0.0.0.0:8000
+
+# Apply database migrations
+python manage.py migrate
+
+# Create new migrations
+python manage.py makemigrations
+
+# Run automated test suite
+python manage.py test
+
+# Collect static assets
+python manage.py collectstatic --noinput
+
+# Seed realistic database fixtures
+python seed_data.py
+
+# Launch Celery worker
+celery -A sheba_core worker -l info
+
+# Launch Celery beat scheduler
+celery -A sheba_core beat -l info
+```
+
+---
+
+## 2. Frontend Commands (`frontend/`)
+
+```bash
+# Start Next.js local development server (port 3000)
+npm run dev
+
+# Compile production bundle with Turbopack
+npm run build
+
+# Run ESLint validation
+npm run lint
+
+# Start production server
+npm run start
+```
+
+---
+
+## 3. Documentation Commands (`docs/`)
+
+```bash
+# Start Fumadocs development server (port 3001)
+npm run dev -- -p 3001
+
+# Build production static documentation
+npm run build
+```

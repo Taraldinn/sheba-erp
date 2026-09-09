@@ -1,0 +1,32 @@
+---
+title: "ADR-008: Asynchronous Webhook & State Machine Processing"
+description: Architectural separation of HTTP webhook reception from subscriber matching and ledger mutations.
+---
+
+# ADR-008: Asynchronous Webhook & State Machine Processing
+
+- **Status**: `ACCEPTED`
+- **Deciders**: Lead Architect
+- **Date**: September 2026
+
+---
+
+## Context
+
+Mobile financial service gateways (bKash, Nagad) impose tight timeout requirements (often under 3 seconds) on incoming webhook responses. Synchronously parsing regex, matching subscribers, querying routers, and posting ledger entries can exceed gateway timeouts during network spikes.
+
+---
+
+## Decision
+
+Decouple webhook reception from transaction execution:
+1. `SmsWebhookView` verifies the HMAC signature, inserts an `InboundPaymentEvent` in state `PENDING`, and returns `HTTP 200 {status: 'ACCEPTED'}` immediately (under 50ms).
+2. The view dispatches `process_payment_event.delay(event_id)`.
+3. Celery worker executes parsing, customer matching, ledger creation, and router un-isolation.
+
+---
+
+## Consequences
+
+- **Positive**: Zero webhook timeouts; resilient retries on network failures; immune to gateway DDoS.
+- **Negative**: Subscriber activation is asynchronous (takes 1-2 seconds rather than immediate HTTP response).

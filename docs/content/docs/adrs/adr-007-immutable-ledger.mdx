@@ -1,0 +1,33 @@
+---
+title: "ADR-007: Immutable Financial Ledger as Single Source of Truth"
+description: Architectural elimination of mutable balance columns in favor of append-only ledger entries.
+---
+
+# ADR-007: Immutable Financial Ledger as Single Source of Truth
+
+- **Status**: `ACCEPTED`
+- **Deciders**: Lead Architect
+- **Date**: September 2026
+
+---
+
+## Context
+
+Legacy ISP billing software commonly relies on a single `Customer.balance` column updated in-place. Under high concurrency (e.g. simultaneous auto-recharge, staff payment entry, and invoice generation), lost updates and un-audited discrepancies frequently occur.
+
+---
+
+## Decision
+
+Introduce `apps.finance` with an append-only `LedgerEntry` journal:
+- Records are immutable once written; deletion or update via API is blocked.
+- Balances are mathematical projections of ledger entries.
+- Adjustments, waivers, and refunds require explicit signed `Adjustment` entries.
+- Financial transactions enforce `Idempotency-Key` headers.
+
+---
+
+## Consequences
+
+- **Positive**: 100% auditable financial history; complete immunity to race conditions and lost transaction history.
+- **Negative**: Requires calculating balances via aggregations (optimized by storing `balance_after` snapshots per entry).

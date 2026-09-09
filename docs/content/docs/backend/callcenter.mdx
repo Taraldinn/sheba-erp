@@ -1,0 +1,29 @@
+---
+title: "apps.callcenter — Call Logs & Automated Voice Reminders"
+description: Telephony call logs, IVR voice templates, and automated bill payment reminder broadcasts.
+---
+
+# `apps.callcenter` — Call Logs & Automated Voice Reminders
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/callcenter/`
+- **Responsibilities**: Inbound/outbound call logs, audio voice templates, and automated IVR bill payment voice reminder broadcasts.
+
+---
+
+## 1. Database Models (3 Models)
+
+| Model Name | Purpose | Key Fields |
+| :--- | :--- | :--- |
+| `CallLog` | Record of telephone communication with subscribers | `customer`, `phone_number`, `call_type` (INBOUND, OUTBOUND), `duration_seconds`, `disposition` |
+| `VoiceSetting` | Telephony gateway credentials and IVR configuration | `provider_name`, `api_endpoint`, `caller_id`, `is_active` |
+| `VoiceTemplate` | Pre-recorded or text-to-speech audio broadcast scripts | `name`, `script_text`, `audio_file`, `template_type` (BILL_DUE, WELCOME, OUTAGE) |
+
+---
+
+## 2. API Endpoints
+
+- `GET/POST /api/v1/call-logs/`: Customer call history and support call quality logging.
+- `GET/POST /api/v1/voice-settings/`: Telephony provider configuration.
+- `GET/POST /api/v1/voice-templates/`: Audio template scripts for automated phone broadcasts.

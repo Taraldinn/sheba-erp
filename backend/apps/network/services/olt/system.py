@@ -24,8 +24,7 @@ class OLTSystemService:
     def get_system_info(self) -> dict[str, Any]:
         ok, _, _ = self.client.test_connection()
         info = self.client.get_system_info()
-        if ok:
-            self.olt.status = 'Online'
+        self.olt.status = 'Online' if ok else 'Offline'
         self.olt.last_sync = timezone.now()
         if 'total_onus' in info:
             self.olt.total_onus = info['total_onus']

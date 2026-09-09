@@ -1,0 +1,34 @@
+---
+title: OLT & Optical Network Integration
+description: SNMP and CLI integration for optical chassis diagnostics, PON ports, and subscriber ONUs.
+---
+
+# OLT & Optical Network Integration
+
+`IMPLEMENTED`
+
+- **Vendors Supported**: VSOL, Huawei (SmartAX), BDCOM, ZTE.
+- **Protocols**: SNMP v2c/v3, SSH, Telnet.
+
+---
+
+## 1. OID Mappings for Telemetry
+
+Standard MIBs polled by `apps/network/services/olt/optical.py`:
+
+| Metric | SNMP OID / CLI Command | Normal Range |
+| :--- | :--- | :--- |
+| **ONU RX Power** | `1.3.6.1.4.1.37950.1.1.5.12.2.1.8.<port>.<index>` | -15.00 to -24.00 dBm |
+| **ONU TX Power** | `1.3.6.1.4.1.37950.1.1.5.12.2.1.9.<port>.<index>` | +1.50 to +3.50 dBm |
+| **Fiber Distance**| `1.3.6.1.4.1.37950.1.1.5.12.2.1.11.<port>.<index>` | 50m to 15,000m |
+| **ONU Online Status**| `1.3.6.1.4.1.37950.1.1.5.12.1.1.8.<port>.<index>` | 1 (Online), 2 (Offline) |
+
+---
+
+## 2. Remote Reboot Integration
+
+Executed via OAM / OMCI control commands:
+```text
+epon onu reboot <interface> <onu-id>
+```
+The command resets the subscriber's optical transceiver without interrupting other ONUs sharing the same PON splitter.

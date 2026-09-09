@@ -1,0 +1,34 @@
+---
+title: "ADR-002: PostgreSQL Shared-Schema Multi-Tenancy"
+description: Decision to use single-schema multi-tenancy with row-level tenant_id filtering over schema-per-tenant.
+---
+
+# ADR-002: PostgreSQL Shared-Schema Multi-Tenancy
+
+- **Status**: `ACCEPTED`
+- **Deciders**: Lead Architect
+- **Date**: September 2026
+
+---
+
+## Context
+
+We evaluated:
+1. Database-per-tenant (complex dynamic routing, connection pool explosion).
+2. Schema-per-tenant (schema migrations take hours across hundreds of tenants).
+3. Shared-database, shared-schema (PostgreSQL public schema with `tenant_id` foreign keys).
+
+---
+
+## Decision
+
+Adopt **Shared-Database, Shared-Schema Multi-Tenancy**:
+- Exactly one PostgreSQL database, one schema.
+- Strict data layer enforcement via `TenantScopedManager` and `TenantResolutionMiddleware`.
+
+---
+
+## Consequences
+
+- **Positive**: Instantaneous database migrations across all tenants simultaneously; shared connection pooling; low infrastructure cost.
+- **Negative**: High vigilance required to prevent queries omitting `tenant_id` filters.

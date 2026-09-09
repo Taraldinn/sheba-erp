@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from .models import PaymentGateway, PaymentTransaction, SmsLog, InboundPaymentEvent
 
@@ -60,6 +61,9 @@ class SmsLogSerializer(serializers.ModelSerializer):
 class InboundPaymentEventSerializer(serializers.ModelSerializer):
     matched_customer_name = serializers.CharField(source='matched_customer.full_name', read_only=True)
     matched_customer_username = serializers.CharField(source='matched_customer.pppoe_username', read_only=True)
+    raw_payload = serializers.CharField(required=False, allow_blank=True, default='')
+    source = serializers.ChoiceField(choices=InboundPaymentEvent.EventSource.choices, default=InboundPaymentEvent.EventSource.SMS, required=False)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, allow_null=True, min_value=Decimal('0.00'))
 
     class Meta:
         model = InboundPaymentEvent

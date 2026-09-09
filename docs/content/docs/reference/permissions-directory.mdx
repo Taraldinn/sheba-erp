@@ -1,0 +1,29 @@
+---
+title: System Permissions Directory
+description: Complete directory of RBAC permission codes and module scopes.
+---
+
+# System Permissions Directory
+
+`IMPLEMENTED`
+
+The following permission codes are defined in `apps.authentication.models.Permission`:
+
+| Permission Code | Module | Display Name | Capabilities |
+| :--- | :--- | :--- | :--- |
+| `customers.view` | `CUSTOMERS` | View Customers | View subscriber list and profile details |
+| `customers.manage` | `CUSTOMERS` | Manage Customers | Create, edit, and suspend subscriber profiles |
+| `billing.view` | `BILLING` | View Invoices | Access invoice list and billing summaries |
+| `billing.manage` | `BILLING` | Manage Billing | Generate invoices and trigger subscription recharges |
+| `billing.packages` | `BILLING` | Manage Packages | Create and modify broadband packages |
+| `network.routers` | `NETWORK` | Manage Routers | Register routers, reboot, and sync PPPoE secrets |
+| `network.olt` | `NETWORK` | Manage OLT & ONUs | Optical RX power diagnostics and ONU reboots |
+| `network.sessions` | `NETWORK` | Online Sessions | View active tunnels and kick connected sessions |
+| `payments.view` | `PAYMENTS` | View Payments | View transactions and payment gateway logs |
+| `payments.manage` | `PAYMENTS` | Reconcile Payments | Match unlinked MFS transactions to subscribers |
+| `support.manage` | `SUPPORT` | NOC Support Desk | Create tickets, reply, and assign field technicians |
+| `tasks.manage` | `TASKS` | Manage Field Tasks | Create, assign, and mark work orders completed |
+| `hr.manage` | `HR` | Manage HR & Payroll | Employees, daily attendance, and payroll slips |
+| `store.manage` | `STORE` | Manage Inventory | Catalog hardware items and log stock transactions |
+| `tenant.settings` | `CORE` | Manage Settings | Modify company branding, portal, and invoice layout |
+| `auth.staff` | `AUTH` | Manage Staff | Create staff accounts and assign RBAC roles |

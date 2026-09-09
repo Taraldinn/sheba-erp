@@ -1,0 +1,109 @@
+---
+title: Local Development Setup
+description: Step-by-step instructions to clone, install dependencies, configure, and boot the entire ERP stack locally.
+---
+
+# Local Development Setup
+
+`IMPLEMENTED`
+
+Follow this guide to get the full Sheba ISP ERP platform running locally on your machine.
+
+---
+
+## 1. Repository Clone
+
+```bash
+git clone https://github.com/Taraldinn/sheba-erp.git
+cd sheba-erp
+```
+
+---
+
+## 2. Backend Setup (Django & Celery)
+
+### Create and Activate Virtual Environment
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### Install Python Dependencies
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### Environment Configuration
+Copy the sample environment file:
+```bash
+cp .env.example .env
+```
+Ensure `.env` contains local development defaults:
+```ini
+ENVIRONMENT=local
+DEBUG=True
+SECRET_KEY=django-insecure-dev-key-change-in-production
+ALLOWED_HOSTS=*
+DATABASE_URL=sqlite:///db.sqlite3
+REDIS_URL=redis://localhost:6379/0
+CORS_ALLOW_ALL_ORIGINS=True
+```
+
+### Run Migrations & Seed Database
+```bash
+python manage.py migrate
+python seed_data.py
+```
+> [!TIP]
+> `seed_data.py` creates default tenants (`shebafi`, `speednet`), default staff users (`admin`, `billing_staff`), MikroTik router configs, sample packages, and customers.
+
+### Start the Development Server
+```bash
+python manage.py runserver 0.0.0.0:8000
+```
+API endpoints will be live at `http://localhost:8000/api/v1/`.
+Interactive OpenAPI Swagger docs will be at `http://localhost:8000/api/docs/`.
+
+### Run Celery Worker (In a separate terminal)
+```bash
+cd backend
+source venv/bin/activate
+celery -A sheba_core worker -l info
+```
+
+---
+
+## 3. Frontend Setup (Next.js App)
+
+Open a new terminal window:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+The ISP ERP dashboard will be accessible at `http://localhost:3000`.
+
+---
+
+## 4. Documentation Setup (Fumadocs)
+
+Open a new terminal window:
+```bash
+cd docs
+npm install
+npm run dev -- -p 3001
+```
+The developer documentation portal will be accessible at `http://localhost:3001` (or `http://localhost:3000` if standalone).
+
+---
+
+## 5. Running the Backend Test Suite
+
+To verify system integrity across all 13 modules:
+```bash
+cd backend
+venv/bin/python manage.py test
+```
+All tests should pass with `OK` (153/153 passing).

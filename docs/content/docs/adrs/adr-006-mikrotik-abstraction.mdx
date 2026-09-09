@@ -1,0 +1,32 @@
+---
+title: "ADR-006: MikroTik RouterOS v7 Abstraction Layer"
+description: Encapsulating hardware communication behind a unified service adapter pattern.
+---
+
+# ADR-006: MikroTik RouterOS v7 Abstraction Layer
+
+- **Status**: `ACCEPTED`
+- **Deciders**: Lead Architect
+- **Date**: September 2026
+
+---
+
+## Context
+
+RouterOS offers multiple interfaces: REST API over HTTP/HTTPS, binary API protocol (port 8728), SSH, and SNMP. Directing raw socket calls from viewsets or background tasks creates tight coupling, rendering unit testing impossible without physical routers.
+
+---
+
+## Decision
+
+Isolate all RouterOS operations behind `apps/network/services/mikrotik/`:
+- `MikroTikClient` handles transport (REST vs binary API), connection pooling, and timeouts.
+- `MikroTikService` translates high-level ISP intents (`create_pppoe_user`, `sync_sessions`, `get_traffic`) into RouterOS commands.
+- Controllers and Celery tasks interact only with `MikroTikService`.
+
+---
+
+## Consequences
+
+- **Positive**: Clean abstraction; trivial mocking in unit tests (`unittest.mock.patch`); seamless failover between REST and binary protocols.
+- **Negative**: Adds an additional layer of code indirection.

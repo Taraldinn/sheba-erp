@@ -1,0 +1,10 @@
+{
+  "title": "Getting Started",
+  "pages": [
+    "prerequisites",
+    "local-development",
+    "environment-variables",
+    "database-setup",
+    "first-day-checklist"
+  ]
+}

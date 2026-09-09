@@ -1,0 +1,59 @@
+---
+title: API Errors & Throttling
+description: Standardized error responses, HTTP status codes, and rate limiting thresholds.
+---
+
+# API Errors & Throttling
+
+`IMPLEMENTED`
+
+All error payloads conform to standard RFC 7807 / DRF JSON responses.
+
+---
+
+## 1. Error Response Format
+
+### Validation Error (`HTTP 400 Bad Request`)
+```json
+{
+  "pppoe_username": [
+    "A customer with this PPPoE username already exists under this tenant."
+  ],
+  "phone": [
+    "Invalid Bangladeshi mobile phone format. Must match 01XXXXXXXXX."
+  ]
+}
+```
+
+### Authentication Error (`HTTP 401 Unauthorized`)
+```json
+{
+  "detail": "Authentication credentials were not provided."
+}
+```
+
+### Permission Denied (`HTTP 403 Forbidden`)
+```json
+{
+  "detail": "You do not have permission to perform this action in this tenant."
+}
+```
+
+### Rate Limited (`HTTP 429 Too Many Requests`)
+```json
+{
+  "detail": "Request was throttled. Expected available in 42 seconds."
+}
+```
+
+---
+
+## 2. Throttling Rates
+
+| Scope | Rate | Target Endpoints |
+| :--- | :--- | :--- |
+| `anon` | 100 / minute | Public customer query (`/api/v1/customer/query/`) |
+| `user` | 1000 / minute | Standard authenticated staff API actions |
+| `auth` | 30 / minute | Login attempts (`/api/v1/auth/login/`) |
+| `webhooks` | 300 / minute | Payment webhooks (`/api/v1/payments/sms/webhook/`) |
+| `recharge` | 60 / minute | Subscription recharges (`/api/v1/recharges/`) |

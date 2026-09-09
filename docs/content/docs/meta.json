@@ -1,0 +1,28 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "---Getting Started---",
+    "getting-started",
+    "---Architecture & System---",
+    "architecture",
+    "business-domains",
+    "---Engineering Systems---",
+    "backend",
+    "frontend",
+    "database",
+    "api",
+    "networking",
+    "security",
+    "integrations",
+    "infrastructure",
+    "---Guides & Runbooks---",
+    "development",
+    "testing",
+    "operations",
+    "reference",
+    "---Decisions & Status---",
+    "adrs",
+    "project-status"
+  ]
+}

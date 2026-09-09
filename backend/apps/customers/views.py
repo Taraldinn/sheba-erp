@@ -124,6 +124,11 @@ class CustomerViewSet(viewsets.ModelViewSet):
         package = None
         if data.get('package_id'):
             package = Package.objects.filter(tenant=customer.tenant, id=data['package_id']).first()
+            if package is None:
+                return Response(
+                    {'error': 'Selected package does not belong to your ISP.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         try:
             with distributed_lock(lock_key, timeout=15, blocking=True, blocking_timeout=3.0):

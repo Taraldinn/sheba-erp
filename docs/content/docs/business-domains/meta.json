@@ -1,0 +1,10 @@
+{
+  "title": "Business Domains",
+  "pages": [
+    "customer-lifecycle",
+    "billing-and-invoicing",
+    "payment-and-recharge",
+    "network-provisioning",
+    "suspension-and-reactivation"
+  ]
+}

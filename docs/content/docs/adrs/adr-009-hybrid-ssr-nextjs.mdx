@@ -1,0 +1,33 @@
+---
+title: "ADR-009: Hybrid SSR / Client Next.js Architecture"
+description: Architectural design of the Next.js 16 App Router frontend with TailwindCSS v4 and mock resilience.
+---
+
+# ADR-009: Hybrid SSR / Client Next.js Architecture
+
+- **Status**: `ACCEPTED`
+- **Deciders**: Lead Architect
+- **Date**: September 2026
+
+---
+
+## Context
+
+The ISP ERP client must deliver fast initial page loads, responsive navigation across 29 screens, dark/light theme switching, and real-time operational polling for NOC monitoring.
+
+---
+
+## Decision
+
+Adopt **Next.js 16 App Router** with React 19:
+- App Shell and Layouts provide fast server-rendered scaffolding.
+- Operational pages use `'use client'` where rich interactive tables, modals, and telemetry graphs require browser-side state.
+- `ApiClient` implements transparent offline mock fallbacks to facilitate frontend UI development independently of backend services.
+- Atomic design system implemented with TailwindCSS v4 and Radix UI primitives.
+
+---
+
+## Consequences
+
+- **Positive**: Extremely fluid user experience; unified React 19 ecosystem; resilient offline developer experience.
+- **Negative**: Client components require careful state synchronization with server APIs.

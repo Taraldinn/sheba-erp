@@ -1,0 +1,10 @@
+{
+  "title": "Networking & Hardware",
+  "pages": [
+    "overview",
+    "mikrotik-integration",
+    "pppoe-and-queues",
+    "olt-and-onu",
+    "failure-recovery"
+  ]
+}

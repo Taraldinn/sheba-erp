@@ -1,0 +1,35 @@
+---
+title: "apps.finance — Double-Entry Ledger & Accounts"
+description: Architectural core of financial integrity, ledger entries, invoice line items, and adjustments.
+---
+
+# `apps.finance` — Double-Entry Ledger & Accounts
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/finance/`
+- **Responsibilities**: Double-entry ledger journal, billing accounts, payment-to-invoice allocations, manual credit/debit adjustments, and idempotency key registry.
+
+---
+
+## 1. Database Models (6 Models)
+
+| Model Name | Purpose | Key Fields | Invariants |
+| :--- | :--- | :--- | :--- |
+| `BillingAccount` | Master ledger account for a customer | `account_number`, `customer`, `currency`, `status` | 1-to-1 with `Customer` |
+| `InvoiceLine` | Individual fee item associated with an invoice | `invoice`, `description`, `quantity`, `unit_price`, `total` | Belongs to `billing.Invoice` |
+| `PaymentAllocation` | Tracks partial or full payment against invoices | `payment_transaction`, `invoice`, `allocated_amount` | `allocated <= invoice.due` |
+| `LedgerEntry` | Immutable financial journal entry | `account`, `entry_type`, `debit`, `credit`, `balance_after` | Read-only once written |
+| `Adjustment` | Staff manual credit, debit, or waiver | `account`, `amount`, `adjustment_type`, `reason`, `approved_by` | Requires staff signature |
+| `IdempotencyKey` | Prevents duplicate mutations | `key`, `tenant`, `status`, `response_data`, `expires_at` | Scoped by tenant |
+
+---
+
+## 2. Ledger Invariants
+
+```text
+Every Credit to a Customer Account increases customer balance (Cash Inflow).
+Every Debit to a Customer Account decreases customer balance (Invoice Incurred).
+```
+
+Ledger entries are posted within atomic transactions using database row locks (`select_for_update()`) to guarantee consistency under high concurrent load.

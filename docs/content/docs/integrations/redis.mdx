@@ -1,0 +1,29 @@
+---
+title: Redis Caching & Distributed Locking Integration
+description: Redis 7 configuration for Celery message broker, Django cache backend, and distributed lock coordination.
+---
+
+# Redis Caching & Distributed Locking Integration
+
+`IMPLEMENTED`
+
+Redis 7 serves as the unified message broker, application cache, and distributed lock coordinator for the entire backend.
+
+---
+
+## 1. Multi-Database / Key Namespace Partitioning
+
+| DB / Prefix | Usage | Key Expiration | Description |
+| :--- | :--- | :--- | :--- |
+| `celery` (DB 0) | Celery Queue Broker | Dynamic | FIFO task queue for asynchronous jobs |
+| `cache:` (DB 0) | Django Redis Cache | 5 - 60 minutes | Cached dashboard metrics, tenant domains |
+| `lock:` (DB 0) | Distributed Locks | 60 - 300 seconds | Mutual exclusion locks preventing double billing |
+| `throttle:` (DB 0) | DRF Throttling | 60 seconds | Sliding-window request rate limits |
+
+---
+
+## 2. Distributed Locking Implementation
+
+Implemented in `backend/apps/core/lock.py`:
+- Uses Redis atomic `SET key value NX PX timeout` commands.
+- Ensures locks expire automatically if a worker process crashes, preventing permanent deadlock.

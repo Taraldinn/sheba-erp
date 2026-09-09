@@ -1,0 +1,23 @@
+---
+title: Practical Development Guides Overview
+description: Step-by-step guides for extending the backend, adding models, APIs, permissions, UI pages, and router features.
+---
+
+# Practical Development Guides Overview
+
+`IMPLEMENTED`
+
+These development guides provide copy-pasteable, technically rigorous patterns for extending Sheba ISP ERP without violating architectural invariants.
+
+---
+
+## Guide Directory
+
+- [Add a New Django Module](/docs/development/add-module): Creating and registering a new app under `backend/apps/`.
+- [Add a Database Model & Migration](/docs/development/add-model-and-migration): Creating tenant-scoped models with indexes and safe migrations.
+- [Add a REST API Endpoint](/docs/development/add-api-endpoint): Serializers, ViewSets, URL routing, and OpenAPI tags.
+- [Add a System Permission](/docs/development/add-permission): Registering permission codes and attaching them to roles.
+- [Add a Frontend Page & UI Component](/docs/development/add-frontend-page-and-component): Creating Next.js App Router pages with forms and data tables.
+- [Add a Celery Background Task](/docs/development/add-background-job): Async tasks, Redis distributed locks, and error handling.
+- [Add a MikroTik Operation](/docs/development/add-mikrotik-operation): Adding RouterOS REST/API commands to `MikroTikService`.
+- [Modify an Existing Feature Safely](/docs/development/modify-existing-feature): Testing strategy and verification before committing.

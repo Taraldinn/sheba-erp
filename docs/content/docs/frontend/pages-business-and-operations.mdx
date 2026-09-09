@@ -1,0 +1,119 @@
+---
+title: Operations, Staff & Reseller Pages
+description: Deep documentation for Helpdesk Support, Field Tasks, Hardware Inventory, Resellers, HR, Call Center, and Wallet pages.
+---
+
+# Operations, Staff & Reseller Pages
+
+`IMPLEMENTED`
+
+This section details the operational support, inventory logistics, workforce management, and reseller hierarchy screens implemented in the frontend.
+
+---
+
+## 1. Helpdesk & Support Tickets (`/support`)
+
+### Purpose
+Centralized ticketing system for customer technical complaints, fiber issues, billing disputes, and service restoration tracking.
+
+### Route & Permission
+- **Route**: `/support`
+- **Role Guard**: `super_admin`, `admin`, `support`, `technician`
+
+### Components Breakdown
+```text
+SupportPage
+ ├── TicketKPIs (Open, In Progress, Resolved, Escalated)
+ ├── TicketFilters (Priority: Low, Normal, High, Urgent; Status; Category)
+ ├── TicketsTable
+ │    ├── TicketID, Customer Name, Category, Priority Badge, Assigned Staff, Status
+ │    └── Actions (View Details, Assign Technician, Update Status)
+ ├── CreateTicketDialog (Customer Search, Subject, Issue Category, Initial Comment)
+ └── TicketDetailDrawer (Timeline of comments, technician notes, resolution timestamp)
+```
+
+---
+
+## 2. Field Tasks & Dispatch (`/tasks`)
+
+### Purpose
+Assigns, tracks, and verifies on-site tasks for field technicians (e.g., optical fiber splicing, new customer home installations, drop-cable replacements).
+
+### Route & Permission
+- **Route**: `/tasks`
+- **Role Guard**: `super_admin`, `admin`, `technician`
+
+### Key Features
+- **Task Board / List**: Displays task title, priority, customer location/zone, assigned technician, and scheduled completion time.
+- **Status Progression**: `Pending` -> `In Transit` -> `On Site` -> `Completed` -> `Verified`.
+
+---
+
+## 3. Hardware Inventory (`/inventory`)
+
+### Purpose
+Tracks warehouse stock of physical networking equipment, optical accessories, and customer premises equipment (CPE) with serial tracking.
+
+### Route & Permission
+- **Route**: `/inventory`
+- **Role Guard**: `super_admin`, `admin`, `technician`
+
+### Tracked Items:
+- **Routers**: MikroTik hEX, hAP ac2/ac3, CCR models.
+- **ONUs**: XPON / GPON single-port and dual-band Wi-Fi optical terminals.
+- **Optical Accessories**: Patch cords, fiber splitters (1:8, 1:16), TJ boxes, fast connectors.
+- **Actions**: Add item, assign serial to customer, mark defective/RMA, low-stock threshold alerts.
+
+---
+
+## 4. Reports & Business Analytics (`/reports`)
+
+### Purpose
+Generates executive, financial, and operational reports with export capabilities (CSV / Excel).
+
+### Route & Permission
+- **Route**: `/reports`
+- **Role Guard**: `super_admin`, `admin`, `billing`
+
+### Available Reports:
+- **Revenue & Collections**: Cash vs. digital collection breakdown by payment gateway and collector.
+- **Due & Aging Report**: Customers overdue for 30, 60, or 90+ days.
+- **Subscriber Churn & Growth**: New activations vs. disconnected accounts over time.
+- **Bandwidth Consumption Summary**: Average and peak usage per package tier.
+
+---
+
+## 5. Resellers & Sub-ISPs (`/resellers`)
+
+### Purpose
+Manages multi-tier reseller partnerships (L1 Resellers and L2 Sub-dealers), wholesale package pricing, commission structures, and credit wallet balances.
+
+### Route & Permission
+- **Route**: `/resellers`
+- **Role Guard**: `super_admin`, `admin`, `reseller`
+
+### Components & Actions:
+- **Reseller Cards & Table**: Reseller code, name, tier (L1/L2), active subscriber count, wallet balance.
+- **Add Balance Dialog**: Credits funds to reseller's balance for automated subscriber recharges.
+- **Commission Ledger**: Real-time commission earnings per subscriber package renewal.
+
+---
+
+## 6. Staff & Human Resources (`/staff`, `/hr`)
+
+- **`/staff`**: Internal directory of staff accounts, department assignments, and system permission roles (`admin`, `billing`, `support`, `technician`).
+- **`/hr`**: Employee profile management, monthly attendance logging, basic salary settings, and salary disbursement tracking.
+
+---
+
+## 7. Call Center CRM (`/callcenter`)
+
+### Purpose
+Logs inbound and outbound customer support calls, agent call handling durations, caller caller-ID identification, and quick-access CRM ticket creation.
+
+---
+
+## 8. Customer Wallets & Offers (`/wallet`, `/offers`)
+
+- **`/wallet`**: Customer prepaid balance ledger, showing top-up transactions, automatic monthly subscription debits, and balance adjustments.
+- **`/offers`**: Promotional discount campaigns, seasonal offers, and coupon code configurations for customer acquisition.

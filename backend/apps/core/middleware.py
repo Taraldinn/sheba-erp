@@ -35,6 +35,9 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         '/api/docs/',
         '/api/redoc/',
         '/admin/',
+    )
+
+    TENANT_NOT_FOUND_BYPASS_PATHS = (
         '/api/v1/customer/query/',
         '/api/v1/customers/query/',
         '/api/v1/payments/sms/webhook/',
@@ -43,8 +46,12 @@ class TenantResolutionMiddleware(MiddlewareMixin):
 
     CONTROL_PLANE_PREFIXES = ('admin.', 'control.', 'saas.')
 
-    def _is_public(self, path):
-        return path in ('', '/', '/api/v1', '/api/v1/') or any(path.startswith(p) for p in self.PUBLIC_PATHS)
+    def _is_public(self, path, check_inactive=False):
+        if path in ('', '/', '/api/v1', '/api/v1/') or any(path.startswith(p) for p in self.PUBLIC_PATHS):
+            return True
+        if not check_inactive:
+            return any(path.startswith(p) for p in self.TENANT_NOT_FOUND_BYPASS_PATHS)
+        return False
 
     def process_request(self, request):
         path = request.path_info
@@ -119,7 +126,7 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         # 4. Tenant status check
         if tenant:
             if not tenant.is_active:
-                if not self._is_public(path):
+                if not self._is_public(path, check_inactive=True):
                     return JsonResponse({
                         'error': f'ISP tenant "{tenant.name}" is suspended or inactive.',
                         'code': 'TENANT_INACTIVE'
@@ -128,7 +135,7 @@ class TenantResolutionMiddleware(MiddlewareMixin):
             return None
 
         # 5. Unknown domain / missing tenant — allow public paths, reject business APIs
-        if self._is_public(path):
+        if self._is_public(path, check_inactive=False):
             return None
 
         return JsonResponse({

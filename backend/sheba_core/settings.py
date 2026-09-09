@@ -303,9 +303,9 @@ LOGGING = {
 }
 
 # ─── Celery & Redis Configuration (Stage 4) ──────────────────────────────────
-REDIS_URL = env('REDIS_URL', default='redis://127.0.0.1:6379/0')
+REDIS_URL = env('REDIS_URL')
 
-if 'test' not in sys.argv:
+if 'test' not in sys.argv and REDIS_URL:
     CELERY_BROKER_URL = REDIS_URL
     CELERY_RESULT_BACKEND = REDIS_URL
 

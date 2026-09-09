@@ -1,0 +1,35 @@
+---
+title: Critical Security Rules — "Never Do This"
+description: Cardinal security rules, antipatterns, and forbidden architectural practices.
+---
+
+# Critical Security Rules — "Never Do This"
+
+`IMPLEMENTED`
+
+Violating these core invariants compromises tenant isolation, accounting veracity, or network security.
+
+---
+
+## The 10 Cardinal Rules:
+
+1. **NEVER expose router credentials to the frontend**:
+   - RouterOS passwords, API tokens, and SNMP community strings must never be included in API responses.
+2. **NEVER trust client-provided tenant headers or IDs**:
+   - Do not read `X-Tenant-ID` or `request.data['tenant']` on mutating endpoints. The tenant is derived strictly from the HTTP `Host` header.
+3. **NEVER delete records from `LedgerEntry`**:
+   - The financial ledger is immutable and append-only. Corrections must be booked as `Adjustment` entries.
+4. **NEVER execute external network calls synchronously in HTTP views**:
+   - Polling routers, sending bulk SMS, or processing webhooks must be handed off to Celery background workers.
+5. **NEVER bypass backend authorization checks**:
+   - Frontend route protection (`RoleGuard`) is for user experience only. The backend must enforce `IsTenantMember` and `HasPermissionScope`.
+6. **NEVER disable CSRF or CORS protections in production**:
+   - `CORS_ALLOW_ALL_ORIGINS` and `DEBUG` must strictly be `False` in production environments.
+7. **NEVER commit `.env` or production credentials to Git**:
+   - Always use `.env.example` with sanitized placeholders.
+8. **NEVER execute raw SQL queries without parameterization**:
+   - Always use Django ORM or parameterized queries to prevent SQL injection.
+9. **NEVER perform financial balance mutations without database row locks**:
+   - Always wrap account updates in `with transaction.atomic():` and `.select_for_update()`.
+10. **NEVER run tasks without a distributed lock if concurrent execution is possible**:
+    - Protect recharge, invoice generation, and customer expiry with Redis distributed locks.

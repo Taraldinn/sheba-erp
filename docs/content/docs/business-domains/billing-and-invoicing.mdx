@@ -1,0 +1,52 @@
+---
+title: Billing & Invoicing Lifecycle
+description: Recurring monthly invoice generation, package fee calculations, and line-item auditing.
+---
+
+# Billing & Invoicing Lifecycle
+
+`IMPLEMENTED`
+
+Sheba ISP ERP automates recurring monthly subscription invoicing for thousands of subscribers while ensuring strict accounting isolation.
+
+---
+
+## 1. Monthly Recurring Billing Cycle
+
+On the 1st of every calendar month, Celery triggers `generate_monthly_invoices(tenant_id)`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Celery as Celery Beat
+    participant Task as generate_monthly_invoices
+    participant Lock as Redis Lock
+    participant DB as PostgreSQL
+    participant SMS as SMS Dispatcher
+
+    Celery->>Task: Trigger 1st of Month Billing Run
+    Task->>Lock: Acquire lock:invoice_gen:{tenant_id}
+    Task->>DB: Query Active Customers for Tenant
+    loop For Each Customer
+        Task->>DB: Check if Invoice Already Generated for Month
+        alt Not Yet Billed
+            Task->>DB: Begin Atomic Transaction
+            Task->>DB: Create Invoice(amount=monthly_bill - discount)
+            Task->>DB: Create InvoiceLine(package=name, rate=amount)
+            Task->>DB: Post LedgerEntry(debit=payable, type='INVOICE')
+            Task->>DB: Commit Transaction
+            Task->>SMS: Queue Invoice Bill Notification SMS
+        else Already Billed
+            Task->>Task: Skip (Idempotent Guarantee)
+        end
+    end
+    Task->>Lock: Release Lock
+```
+
+---
+
+## 2. Invoicing Business Rules
+
+1. **Idempotent Billing**: A customer cannot receive more than one recurring subscription invoice for the same billing period (`period_start` to `period_end`).
+2. **Discounts & Reseller Rates**: If customer has a recurring discount or belongs to a `Reseller` with custom `ResellerPricing`, the line rate reflects the agreed tiered pricing.
+3. **Proration**: Mid-cycle new activations calculate prorated fees based on remaining days in the billing month.

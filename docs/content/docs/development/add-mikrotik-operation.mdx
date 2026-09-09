@@ -1,0 +1,48 @@
+---
+title: How to Add a MikroTik Operation
+description: Extending MikroTikService with new RouterOS REST and socket commands.
+---
+
+# How to Add a MikroTik Operation
+
+`IMPLEMENTED`
+
+All router commands must be implemented inside `apps/network/services/mikrotik/`.
+
+---
+
+## 1. Add Method to `MikroTikService` (`services/service.py`)
+
+```python
+class MikroTikService:
+    # ... existing methods ...
+
+    def set_subscriber_ip_binding(self, mac_address: str, ip_address: str, comment: str):
+        """
+        Creates an IP binding in /ip/hotspot/ip-binding or /ip/arp.
+        """
+        client = self._get_client()
+        payload = {
+            'mac-address': mac_address,
+            'address': ip_address,
+            'comment': comment,
+            'type': 'bypassed'
+        }
+        return client.execute_rest_command('PUT', '/ip/hotspot/ip-binding', payload)
+```
+
+---
+
+## 2. Expose in ViewSet (`apps/network/views.py`)
+
+```python
+@action(detail=True, methods=['post'], url_path='ip-binding')
+def add_ip_binding(self, request, pk=None):
+    router = self.get_object()
+    service = MikroTikService(router)
+    mac = request.data.get('mac_address')
+    ip = request.data.get('ip_address')
+    
+    result = service.set_subscriber_ip_binding(mac, ip, f"Tenant: {request.tenant.name}")
+    return Response(result)
+```

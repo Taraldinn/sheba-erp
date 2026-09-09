@@ -1,0 +1,55 @@
+---
+title: Prerequisites
+description: System requirements and runtime dependencies for running Sheba ISP ERP.
+---
+
+# Prerequisites & System Requirements
+
+`IMPLEMENTED`
+
+Before setting up Sheba ISP ERP on your local workstation or staging server, ensure the following core runtimes and development tools are installed.
+
+---
+
+## 1. Required Runtimes
+
+| Component | Minimum Version | Recommended Version | Verification Command |
+| :--- | :--- | :--- | :--- |
+| **Python** | `3.11.0` | `3.12+` | `python3 --version` |
+| **Node.js** | `20.0.0` | `24.x LTS` (Node 24.20 verified) | `node --version` |
+| **npm** | `10.0.0` | `11.x` (npm 11.19 verified) | `npm --version` |
+| **PostgreSQL** | `15.0` | `16-alpine` | `psql --version` |
+| **Redis** | `6.2` | `7.0-alpine` | `redis-cli --version` |
+| **Docker Engine** | `24.0` | `27.x` | `docker --version` |
+| **Docker Compose** | `2.20` | `v2.29+` | `docker compose version` |
+
+---
+
+## 2. OS-Specific System Packages (Linux/Debian/Ubuntu)
+
+The Django backend requires system-level libraries for `psycopg2-binary`, `cryptography`, and compilation:
+
+```bash
+sudo apt-get update && sudo apt-get install -y \
+    build-essential \
+    python3-dev \
+    python3-venv \
+    libpq-dev \
+    curl \
+    git
+```
+
+---
+
+## 3. Network Access & Hardware Emulation
+
+To test RouterOS and OLT automation locally without bricking physical edge routers:
+- **MikroTik RouterOS v7 CHR (Cloud Hosted Router)**: Can run as a local QEMU/VirtualBox VM.
+- **Port Requirements**:
+  - `8000`: Backend REST API (`gunicorn` / `runserver`)
+  - `3000`: Frontend Next.js Client
+  - `3001`: Fumadocs Documentation Engine
+  - `5432`: PostgreSQL Database
+  - `6379`: Redis Broker & Cache
+  - `8728` / `8729`: MikroTik API / SSL API
+  - `80` / `443`: RouterOS REST API / OLT Web interface
