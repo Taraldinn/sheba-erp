@@ -181,7 +181,7 @@ class FinancialIntegrityStage6Tests(TestCase):
             actor_username='test_admin'
         )
         self.assertTrue(res2['success'])
-        self.assertTrue(res2.get('idempotent', True))
+        self.assertTrue(res2['idempotent'])
 
         # Verify zero duplicates created
         self.assertEqual(Recharge.objects.filter(customer=self.customer).count(), recharge_count)

@@ -150,6 +150,7 @@ class AdjustmentViewSet(
                 created_by=self.request.user.username
             )
 
+            serializer.validated_data.pop('customer_id', None)
             adjustment = serializer.save(
                 tenant=tenant,
                 customer=locked_customer,

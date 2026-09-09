@@ -96,12 +96,12 @@ class PaymentAllocation(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     payment = models.ForeignKey(
         'payments.PaymentTransaction',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='allocations'
     )
     invoice = models.ForeignKey(
         'billing.Invoice',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='allocations'
     )
     amount = models.DecimalField(max_digits=12, decimal_places=2)
@@ -150,7 +150,7 @@ class LedgerEntry(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='ledger_entries')
     customer = models.ForeignKey(
-        'customers.Customer', on_delete=models.CASCADE,
+        'customers.Customer', on_delete=models.PROTECT,
         related_name='ledger_entries', null=True, blank=True
     )
     entry_type = models.CharField(max_length=30, choices=EntryType.choices)
@@ -203,7 +203,7 @@ class Adjustment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     customer = models.ForeignKey(
-        'customers.Customer', on_delete=models.CASCADE, related_name='adjustments'
+        'customers.Customer', on_delete=models.PROTECT, related_name='adjustments'
     )
     adjustment_type = models.CharField(max_length=20, choices=AdjustmentType.choices)
     amount = models.DecimalField(max_digits=12, decimal_places=2)

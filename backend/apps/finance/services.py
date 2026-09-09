@@ -222,8 +222,11 @@ def execute_transactional_recharge(
 
         # 2. Duplicate TrxID verification
         final_trx_id = trx_id.strip() if trx_id else f"RCH-{uuid.uuid4().hex[:10].upper()}"
-        if trx_id and Recharge.objects.filter(tenant=tenant, trx_id=trx_id).exists():
-            raise ValidationError(f"Recharge with transaction ID {trx_id} has already been processed.")
+        if trx_id and (
+            Recharge.objects.filter(tenant=tenant, trx_id=final_trx_id).exists()
+            or PaymentTransaction.objects.filter(trx_id=final_trx_id).exists()
+        ):
+            raise ValidationError(f"Transaction ID {final_trx_id} has already been processed.")
 
         # 3. Row-level locks on Customer and BillingAccount
         locked_customer = Customer.objects.select_for_update().get(id=customer.id)
@@ -330,7 +333,6 @@ def execute_transactional_recharge(
         # 9. Record RECHARGE service consumption LedgerEntry (debit)
         cur_bal = Decimal(str(billing_acct.balance or '0.00')) - amount_dec
         billing_acct.balance = cur_bal
-        billing_acct.save(update_fields=['balance', 'total_paid', 'last_payment_at'])
 
         record_ledger_entry(
             tenant=tenant,
@@ -343,6 +345,23 @@ def execute_transactional_recharge(
             description=f"Service recharge validity extension to {new_expiry}",
             created_by=actor_username
         )
+
+        if discount_dec > 0:
+            cur_bal = Decimal(str(billing_acct.balance or '0.00')) + discount_dec
+            billing_acct.balance = cur_bal
+            record_ledger_entry(
+                tenant=tenant,
+                customer=locked_customer,
+                entry_type=LedgerEntry.EntryType.CREDIT_NOTE,
+                amount=discount_dec,
+                balance_after=billing_acct.balance,
+                reference_id=str(recharge_record.id),
+                reference_type='Recharge',
+                description=f"Promotional discount applied for recharge {recharge_record.id}",
+                created_by=actor_username
+            )
+
+        billing_acct.save(update_fields=['balance', 'total_paid', 'last_payment_at'])
 
         response_payload = {
             'success': True,

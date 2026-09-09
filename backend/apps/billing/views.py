@@ -1,6 +1,6 @@
 import uuid
-from decimal import Decimal
-from django.db import transaction
+from decimal import Decimal, InvalidOperation
+from django.db import transaction, IntegrityError
 from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
@@ -12,6 +12,7 @@ from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 from apps.payments.models import PaymentTransaction, TransactionStatus
 from apps.finance.models import BillingAccount, LedgerEntry, PaymentAllocation
 from apps.finance.services import get_or_create_billing_account, record_ledger_entry
+from apps.customers.models import Customer
 from apps.core.models import AuditLog
 
 
@@ -126,9 +127,20 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             return Response({'error': 'This invoice has already been fully paid.'}, status=status.HTTP_400_BAD_REQUEST)
 
         amount_req = request.data.get('amount')
-        pay_amount = Decimal(str(amount_req)) if amount_req is not None else current_due
+        if amount_req is None:
+            pay_amount = current_due
+        else:
+            try:
+                pay_amount = Decimal(str(amount_req))
+            except (InvalidOperation, TypeError, ValueError):
+                return Response({'error': 'amount must be a valid decimal number.'}, status=status.HTTP_400_BAD_REQUEST)
         if pay_amount <= 0:
             return Response({'error': 'Payment amount must be greater than 0.'}, status=status.HTTP_400_BAD_REQUEST)
+        if pay_amount > current_due:
+            return Response(
+                {'error': f'Payment amount cannot exceed invoice due amount of {current_due}.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         payment_method = request.data.get('payment_method', 'Cash')
         trx_id = request.data.get('trx_id') or f"INV-PAY-{uuid.uuid4().hex[:8].upper()}"
@@ -145,29 +157,37 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                     {'error': 'This invoice has already been fully paid.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            if pay_amount > current_due:
+                return Response(
+                    {'error': f'Payment amount cannot exceed invoice due amount of {current_due}.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
             # Idempotency guard: if this trx_id was already submitted, return 409
-            # instead of raising an IntegrityError from the unique constraint.
-            payment, payment_created = PaymentTransaction.objects.get_or_create(
-                trx_id=trx_id,
-                defaults={
-                    'tenant': tenant,
-                    'customer': customer,
-                    'amount': pay_amount,
-                    'payment_method': payment_method,
-                    'status': TransactionStatus.SUCCESS,
-                    'raw_payload': {
-                        'notes': f"Payment for invoice #{locked_invoice.invoice_no}",
-                        'processed_by': request.user.username
+            # without exposing the conflicting payment record's identifier.
+            try:
+                payment, payment_created = PaymentTransaction.objects.get_or_create(
+                    tenant=tenant,
+                    trx_id=trx_id,
+                    defaults={
+                        'customer': customer,
+                        'amount': pay_amount,
+                        'payment_method': payment_method,
+                        'status': TransactionStatus.SUCCESS,
+                        'raw_payload': {
+                            'notes': f"Payment for invoice #{locked_invoice.invoice_no}",
+                            'processed_by': request.user.username
+                        }
                     }
-                }
-            )
-            if not payment_created:
+                )
+                if not payment_created:
+                    return Response(
+                        {'error': f"Transaction ID '{trx_id}' has already been processed."},
+                        status=status.HTTP_409_CONFLICT
+                    )
+            except IntegrityError:
                 return Response(
-                    {
-                        'error': f"Transaction ID '{trx_id}' has already been processed.",
-                        'payment_id': str(payment.id),
-                    },
+                    {'error': f"Transaction ID '{trx_id}' has already been processed."},
                     status=status.HTTP_409_CONFLICT
                 )
 
@@ -213,15 +233,18 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             locked_invoice.save(update_fields=['paid_amount', 'due_amount', 'status'])
 
             # Offset customer due
-            if customer.due_amount > 0:
-                due_dec = Decimal(str(customer.due_amount))
+            locked_customer = Customer.objects.select_for_update().get(id=customer.id)
+            if locked_customer.due_amount > 0:
+                due_dec = Decimal(str(locked_customer.due_amount))
                 if alloc_amount >= due_dec:
                     surplus = alloc_amount - due_dec
-                    customer.due_amount = Decimal('0.00')
-                    customer.advance_amount = Decimal(str(customer.advance_amount or '0.00')) + surplus
+                    locked_customer.due_amount = Decimal('0.00')
+                    locked_customer.advance_amount = Decimal(str(locked_customer.advance_amount or '0.00')) + surplus
                 else:
-                    customer.due_amount = due_dec - alloc_amount
-                customer.save(update_fields=['due_amount', 'advance_amount'])
+                    locked_customer.due_amount = due_dec - alloc_amount
+            else:
+                locked_customer.advance_amount = Decimal(str(locked_customer.advance_amount or '0.00')) + alloc_amount
+            locked_customer.save(update_fields=['due_amount', 'advance_amount'])
 
             AuditLog.objects.create(
                 tenant=tenant,
