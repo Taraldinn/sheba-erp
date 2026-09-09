@@ -138,61 +138,7 @@ export default function StaffPage() {
         ApiClient.getPermissions(),
       ]);
 
-      if (fetchedStaff && fetchedStaff.length > 0) {
-        setStaffList(fetchedStaff);
-      } else {
-        // Mock default staff if backend database has no staff members yet
-        setStaffList([
-          {
-            id: "st-1",
-            username: "kamrul_noc",
-            first_name: "Kamrul",
-            last_name: "Islam",
-            email: "kamrul@sheba.net",
-            phone: "01712345678",
-            role: "Admin",
-            role_name: "Admin",
-            scope: "GLOBAL",
-            is_active: true,
-          },
-          {
-            id: "st-2",
-            username: "farhana_bill",
-            first_name: "Farhana",
-            last_name: "Akter",
-            email: "farhana@sheba.net",
-            phone: "01898765432",
-            role: "Billing Operator",
-            role_name: "Billing Operator",
-            scope: "TENANT",
-            is_active: true,
-          },
-          {
-            id: "st-3",
-            username: "shakil_tech",
-            first_name: "Shakil",
-            last_name: "Ahmed",
-            email: "shakil@sheba.net",
-            phone: "01911223344",
-            role: "Line Man",
-            role_name: "Line Man",
-            scope: "ASSIGNED",
-            is_active: true,
-          },
-          {
-            id: "st-4",
-            username: "jannat_support",
-            first_name: "Jannatun",
-            last_name: "Nayeem",
-            email: "jannat@sheba.net",
-            phone: "01655443322",
-            role: "Support Staff",
-            role_name: "Support Staff",
-            scope: "TENANT",
-            is_active: true,
-          },
-        ]);
-      }
+      setStaffList(fetchedStaff || []);
 
       if (fetchedRoles && fetchedRoles.length > 0) {
         setRoles(fetchedRoles);
@@ -339,7 +285,10 @@ export default function StaffPage() {
   const handleDeleteStaff = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to remove ${name} from staff directory?`)) return;
     try {
-      await ApiClient.deleteStaff(id);
+      const ok = await ApiClient.deleteStaff(id);
+      if (!ok) {
+        throw new Error("Failed to delete staff member");
+      }
       showToast("Staff member deleted successfully");
       loadData();
     } catch (err: any) {
@@ -450,11 +399,10 @@ export default function StaffPage() {
       {/* Toast alert */}
       {statusMessage && (
         <div
-          className={`p-4 rounded-lg flex items-center gap-2 border text-sm font-medium transition-all ${
-            statusMessage.type === "success"
-              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-              : "bg-rose-500/10 text-rose-600 border-rose-500/20"
-          }`}
+          className={`p-4 rounded-lg flex items-center gap-2 border text-sm font-medium transition-all ${statusMessage.type === "success"
+            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+            : "bg-rose-500/10 text-rose-600 border-rose-500/20"
+            }`}
         >
           {statusMessage.type === "success" ? (
             <CheckCircle2 className="h-4 w-4" />
@@ -563,22 +511,20 @@ export default function StaffPage() {
       <div className="flex border-b border-border gap-2">
         <button
           onClick={() => setActiveTab("staff")}
-          className={`pb-3 pt-1 px-4 text-sm font-semibold border-b-2 flex items-center gap-2 transition-colors ${
-            activeTab === "staff"
-              ? "border-indigo-600 text-indigo-600 dark:text-indigo-400"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+          className={`pb-3 pt-1 px-4 text-sm font-semibold border-b-2 flex items-center gap-2 transition-colors ${activeTab === "staff"
+            ? "border-indigo-600 text-indigo-600 dark:text-indigo-400"
+            : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
         >
           <UsersRound className="h-4 w-4" />
           Staff Directory ({staffList.length})
         </button>
         <button
           onClick={() => setActiveTab("roles")}
-          className={`pb-3 pt-1 px-4 text-sm font-semibold border-b-2 flex items-center gap-2 transition-colors ${
-            activeTab === "roles"
-              ? "border-indigo-600 text-indigo-600 dark:text-indigo-400"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+          className={`pb-3 pt-1 px-4 text-sm font-semibold border-b-2 flex items-center gap-2 transition-colors ${activeTab === "roles"
+            ? "border-indigo-600 text-indigo-600 dark:text-indigo-400"
+            : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
         >
           <Shield className="h-4 w-4" />
           Roles & Permissions Matrix ({roles.length})
@@ -1090,11 +1036,10 @@ export default function StaffPage() {
                             return (
                               <label
                                 key={perm.id}
-                                className={`flex items-start gap-2 p-1.5 rounded cursor-pointer transition-colors border text-xs ${
-                                  isChecked
-                                    ? "bg-indigo-500/10 border-indigo-500/30 text-foreground font-medium"
-                                    : "bg-background/60 border-transparent text-muted-foreground hover:bg-muted/40"
-                                }`}
+                                className={`flex items-start gap-2 p-1.5 rounded cursor-pointer transition-colors border text-xs ${isChecked
+                                  ? "bg-indigo-500/10 border-indigo-500/30 text-foreground font-medium"
+                                  : "bg-background/60 border-transparent text-muted-foreground hover:bg-muted/40"
+                                  }`}
                               >
                                 <input
                                   type="checkbox"

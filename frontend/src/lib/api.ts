@@ -49,7 +49,7 @@ export class ApiClient {
     try {
       const res = await fetch(`${API_BASE}/auth/me/`, { headers: this.getHeaders() });
       if (res.ok) return await res.json();
-    } catch {}
+    } catch { }
     return { username: 'admin', email: 'admin@shebafi.net', is_superuser: true };
   }
 
@@ -61,7 +61,7 @@ export class ApiClient {
         const data = await res.json();
         return data.kpis;
       }
-    } catch {}
+    } catch { }
     return mockKPIs;
   }
 
@@ -69,7 +69,7 @@ export class ApiClient {
     try {
       const res = await fetch(`${API_BASE}/reports/dashboard/?role=${role}`, { headers: this.getHeaders() });
       if (res.ok) return await res.json();
-    } catch {}
+    } catch { }
     return { kpis: mockKPIs, monthly_trend: [], traffic_distribution: [], role };
   }
 
@@ -87,7 +87,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return mockCustomers;
   }
 
@@ -95,7 +95,7 @@ export class ApiClient {
     try {
       const res = await fetch(`${API_BASE}/customers/${id}/`, { headers: this.getHeaders() });
       if (res.ok) return await res.json();
-    } catch {}
+    } catch { }
     return mockCustomers.find(c => c.id === id) || null;
   }
 
@@ -164,7 +164,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return mockPackages;
   }
 
@@ -209,7 +209,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -230,7 +230,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return mockRouters;
   }
 
@@ -303,7 +303,7 @@ export class ApiClient {
     try {
       const res = await fetch(`${API_BASE}/routers/${routerId}/live_traffic/`, { headers: this.getHeaders() });
       if (res.ok) return await res.json();
-    } catch {}
+    } catch { }
     return { download_mbps: 650.4, upload_mbps: 180.2, cpu_percent: 28, active_sessions: 420 };
   }
 
@@ -315,7 +315,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return mockOLTs;
   }
 
@@ -354,7 +354,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return mockONUs;
   }
 
@@ -400,7 +400,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -438,7 +438,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -450,7 +450,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return mockTickets;
   }
 
@@ -498,7 +498,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -534,7 +534,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -569,7 +569,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -589,7 +589,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -618,7 +618,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -638,7 +638,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -650,7 +650,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -685,7 +685,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -706,7 +706,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return mockTransactions;
   }
 
@@ -728,7 +728,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -748,7 +748,7 @@ export class ApiClient {
         const d = await res.json();
         return d.results || d;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -782,7 +782,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return mockSmsLogs;
   }
 
@@ -803,7 +803,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -824,7 +824,7 @@ export class ApiClient {
         const list = d.results || d;
         return list[0] || null;
       }
-    } catch {}
+    } catch { }
     return null;
   }
 
@@ -853,7 +853,7 @@ export class ApiClient {
         const d = await res.json();
         return d.results || d;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -876,7 +876,7 @@ export class ApiClient {
         if (role) return list.filter((s: any) => s.role === role);
         return list;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -886,6 +886,10 @@ export class ApiClient {
       headers: this.getHeaders(),
       body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(typeof err === 'object' ? (err.detail || err.error || JSON.stringify(err)) : 'Failed to create staff member');
+    }
     return await res.json();
   }
 
@@ -895,11 +899,19 @@ export class ApiClient {
       headers: this.getHeaders(),
       body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(typeof err === 'object' ? (err.detail || err.error || JSON.stringify(err)) : 'Failed to update staff member');
+    }
     return await res.json();
   }
 
   static async deleteStaff(id: string) {
     const res = await fetch(`${API_BASE}/staff/${id}/`, { method: 'DELETE', headers: this.getHeaders() });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(typeof err === 'object' ? (err.detail || err.error || 'Failed to delete staff member') : 'Failed to delete staff member');
+    }
     return res.ok;
   }
 
@@ -911,7 +923,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -943,7 +955,11 @@ export class ApiClient {
 
   static async deleteRole(id: string) {
     const res = await fetch(`${API_BASE}/roles/${id}/`, { method: 'DELETE', headers: this.getHeaders() });
-    return res.ok;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || err.error || 'Failed to delete role');
+    }
+    return true;
   }
 
   static async getPermissions() {
@@ -953,7 +969,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
@@ -966,7 +982,7 @@ export class ApiClient {
         const list = data.results || data;
         return list[0] || null;
       }
-    } catch {}
+    } catch { }
     return null;
   }
 
@@ -994,7 +1010,7 @@ export class ApiClient {
         const data = await res.json();
         return data.results || data;
       }
-    } catch {}
+    } catch { }
     return [];
   }
 
