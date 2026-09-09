@@ -319,6 +319,9 @@ class Phase9FinanceBillingCompletionTests(TestCase):
             mock_dispatch.assert_called_once()
             args, kwargs = mock_dispatch.call_args
             self.assertEqual(kwargs.get('action'), NetworkSyncJob.Action.DISABLE_USER)
+            self.assertEqual(kwargs.get('tenant'), self.customer_a.tenant)
+            self.assertEqual(kwargs.get('customer'), self.customer_a)
+            self.assertEqual(kwargs.get('router'), self.customer_a.router)
 
     def test_grant_grace_period_via_api(self):
         """Granting grace period extends promise_date and dispatches post-commit network sync."""

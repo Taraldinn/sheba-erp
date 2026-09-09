@@ -119,6 +119,9 @@ urlpatterns = [
     path('api/v1/saas/auth/login/', SaaSLoginView.as_view(), name='saas-auth-login'),
     path('api/v1/saas/auth/me/', SaaSMeView.as_view(), name='saas-auth-me'),
     
+    # Customer Portal APIs
+    path('api/v1/portal/', include('apps.customers.portal_urls')),
+    
     # Master REST API
     path('api/v1/', include(router.urls)),
     

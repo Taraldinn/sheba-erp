@@ -83,10 +83,10 @@ def process_customer_expiry(tenant_id, customer_id):
                 from apps.network.models import NetworkSyncJob
                 from apps.network.tasks import dispatch_network_sync_job
                 dispatch_network_sync_job(
-                    tenant_id=tenant_id,
+                    tenant=customer.tenant,
                     action=NetworkSyncJob.Action.DISABLE_USER,
-                    customer_id=customer.id,
-                    router_id=customer.router_id,
+                    customer=customer,
+                    router=customer.router,
                     payload={'pppoe_username': customer.pppoe_username, 'reason': 'EXPIRED'}
                 )
 
