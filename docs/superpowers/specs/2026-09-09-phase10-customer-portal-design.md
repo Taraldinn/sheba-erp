@@ -87,17 +87,72 @@ The design strictly maintains multi-tenant isolation, guarantees zero IDOR vulne
   - Returns `404 Not Found` if invoice does not belong to `request.customer`.
 
 ### 3.4 Payments, Recharges & Gateway Integrations
-- `GET /api/v1/portal/payments/`:
-  - Lists historical payments (`PaymentTransaction.objects.filter(customer=request.customer, tenant=request.tenant)`).
+
+#### 3.4.1 Customer Self-Care Recharge
+- `GET /api/v1/portal/payments/`: Lists historical payment transactions.
 - `POST /api/v1/portal/recharge/`:
   - Accepts `{"package_id": "<uuid>"}` (optional; defaults to current package).
   - If customer has sufficient `advance_amount >= package.price`, applies advance immediately, extends expiry date, settles open invoices, posts ledger entries, and queues post-commit network sync (`ENABLE_USER`).
-  - If advance balance is insufficient, returns amount required with payment options.
-- `POST /api/v1/portal/payments/initiate/`:
-  - Initiates online payment attempt via `PaymentAttempt`. Returns gateway checkout URL or token if `PaymentGateway` is configured for tenant.
-- `POST /api/v1/portal/payments/claim-trx/`:
-  - Submits manual MFS transaction ID: `{"trx_id": "9K8L7M6N", "provider": "BKASH", "amount": 800.00}`.
-  - Creates `InboundPaymentEvent(source='API')` and triggers `process_payment_event` task for reconciliation and automatic reactivation.
+  - If advance is insufficient, returns required payable amount and payment gateway options.
+
+#### 3.4.2 bKash Tokenized / URL Checkout (`apps.payments.services.bkash`)
+- Conforms directly to the official bKash Developer Specification (v1.2.0-beta):
+  - **`POST /api/v1/portal/payments/bkash/create/`**:
+    - Calls bKash Token Grant (`/tokenized/checkout/token/grant`) using tenant's `PaymentGateway` credentials (`app_key`, `app_secret`, `username`, `password`).
+    - Calls bKash Create Payment (`/tokenized/checkout/create`) with `mode='0001'`, `payerReference=customer.pppoe_username`, `merchantInvoiceNumber=invoice_no`, `amount=due_or_pkg_amount`, `callbackURL`.
+    - Creates a `PaymentAttempt(status='INITIATED', provider='BKASH')`.
+    - Returns `{"paymentID": "...", "bkashURL": "..."}` for frontend redirect / iframe checkout.
+  - **`POST /api/v1/portal/payments/bkash/execute/`** (or callback handler):
+    - Receives `paymentID` and `status` from bKash callback.
+    - Calls bKash Execute Payment (`/tokenized/checkout/execute`).
+    - Upon `statusCode: "0000"`:
+      - Marks `PaymentAttempt` as `SUCCESS`.
+      - Creates `PaymentTransaction` with `trx_id=bKash.trxID`.
+      - Allocates payment to open invoices via `allocate_payment_to_invoices()`.
+      - Posts credit `LedgerEntry(entry_type=PAYMENT)`.
+      - Extends customer's `expiry_date` and restores `status=CustomerStatus.ACTIVE`.
+      - Enqueues post-commit `NetworkSyncJob(ENABLE_USER)`.
+      - Returns success response to customer.
+
+#### 3.4.3 bKash PayBill Biller API (Biller Solution)
+Enables subscribers to pay bills directly inside the bKash Mobile App under **Pay Bill → Internet → ShebaFi ISP**:
+- **Query Bill (`POST /api/v1/payments/bkash/paybill/query/`)**:
+  - bKash server queries biller with subscriber account ID (`account_no` = PPPoE username, mobile, or customer code).
+  - Validates tenant and customer.
+  - Returns bill details:
+    ```json
+    {
+      "status": "000",
+      "message": "Success",
+      "customer_name": "Kamrul Hasan",
+      "account_no": "kamrul_net",
+      "bill_amount": "800.00",
+      "due_date": "2026-09-15",
+      "bill_status": "UNPAID"
+    }
+    ```
+- **Pay Bill Webhook (`POST /api/v1/payments/bkash/paybill/pay/`)**:
+  - bKash server confirms customer payment:
+    ```json
+    {
+      "account_no": "kamrul_net",
+      "bill_amount": "800.00",
+      "trx_id": "BKA99281726",
+      "payment_time": "2026-09-09 15:40:00"
+    }
+    ```
+  - Guarded by distributed lock and `IdempotencyKey`.
+  - Atomically clears open invoices, updates `BillingAccount`, posts credit `LedgerEntry`, renews subscription expiry, and enqueues post-commit `NetworkSyncJob(ENABLE_USER)`.
+  - Returns: `{"status": "000", "message": "Bill payment accepted", "trx_id": "BKA99281726"}`.
+
+#### 3.4.4 Manual MFS & SMS Forwarder App Integration
+For tenants without automated merchant contracts:
+- **`POST /api/v1/portal/payments/claim-trx/`**:
+  - Customer submits manual MFS transaction ID: `{"trx_id": "9K8L7M6N", "provider": "BKASH", "amount": 800.00}`.
+  - Creates an `InboundPaymentEvent(source='API')` and triggers `process_payment_event` task for automated matching and line activation.
+- **`POST /api/v1/payments/forwarder/sms/`**:
+  - Webhook for Android SMS-forwarder / listener apps to post raw payment notifications.
+  - Matches `reference_id` against subscriber PPPoE username or phone, verifies amount, and settles bills automatically.
 
 ### 3.5 Support Desk
 - `GET /api/v1/portal/tickets/`:
