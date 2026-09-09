@@ -89,6 +89,12 @@ To prevent architectural regressions, all downstream development adheres to the 
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
+│                        STAGE 6                         │
+│       Finance, Ledger & Billing Integrity (Invoices)   │ [DONE]
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
 │                        STAGE 7                         │
 │        Networking Operations (MikroTik ROSv7 & OLT)    │ [DONE]
 └───────────────────────────┬────────────────────────────┘
@@ -97,12 +103,6 @@ To prevent architectural regressions, all downstream development adheres to the 
 ┌────────────────────────────────────────────────────────┐
 │                        STAGE 8                         │
 │            API Design & Security Hardening             │ [DONE]
-└───────────────────────────┬────────────────────────────┘
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                        STAGE 6                         │
-│       Finance, Ledger & Billing Integrity (Invoices)   │ [DONE]
 └───────────────────────────┬────────────────────────────┘
                             │
                             ▼
@@ -311,13 +311,16 @@ To prevent race conditions during customer recharge, payment matching, and hardw
 ```python
 with distributed_lock(f"lock:recharge:{tenant.id}:{customer.id}", timeout=15):
     with transaction.atomic():
-        # Lock acquired, perform atomic ledger and router update
+        # Lock acquired, perform atomic database ledger and billing account update
         pass
+    # Router/device updates execute outside transaction.atomic() with post-commit
+    # reconciliation tasks or compensating actions on failure
 ```
 
 ### 6.2 Task Conventions
 - All background tasks are registered as `@shared_task` and accept `tenant_id` as their first parameter.
-- Tasks re-query the database within `transaction.atomic()` to guarantee consistency.
+- Tasks re-query the database within `transaction.atomic()` to guarantee consistency of ledger state.
+- External router/hardware calls are decoupled from the database transaction; idempotent post-commit reconciliation tasks handle hardware synchronization.
 - Tasks implement exponential backoff retry policies for transient network failures.
 
 ---
@@ -378,7 +381,7 @@ Physical Devices (MikroTik Routers, EPON/GPON OLTs)
 - **Secret Redaction**: `pppoe_password` is write-only; API secrets, passwords, and private keys are popped on GET.
 - **Rate Limiting**: Configured DRF rate throttles (`AnonRateThrottle`, `UserRateThrottle`, `ScopedRateThrottle`).
 - **Security Headers**: `SECURE_CONTENT_TYPE_NOSNIFF`, `SECURE_BROWSER_XSS_FILTER`, `X_FRAME_OPTIONS = 'DENY'`, CORS headers configured.
-- **OpenAPI 3.0**: Fully validated schema generated via `drf-spectacular` at [backend/schema.yml](file:///home/taraldinn/Documents/Sheba%20codebase/backend/schema.yml).
+- **OpenAPI 3.0**: Fully validated schema generated via `drf-spectacular` at [backend/schema.yml](backend/schema.yml).
 
 ---
 
