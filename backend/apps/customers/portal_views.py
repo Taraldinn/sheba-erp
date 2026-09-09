@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.utils import timezone
 from apps.customers.authentication import CustomerJWTAuthentication
-from apps.customers.models import Customer
+from apps.customers.models import Customer, CustomerStatus
 from apps.billing.models import Package, Invoice
 from apps.network.models import UserSession
 from apps.customers.portal_serializers import (
@@ -195,3 +195,149 @@ class CustomerPortalNotificationView(CustomerPortalBaseMixin, views.APIView):
             })
 
         return Response({"notifications": notifications}, status=status.HTTP_200_OK)
+
+
+class CustomerPortalRechargeView(CustomerPortalBaseMixin, views.APIView):
+    """
+    Self-care subscription recharge endpoint.
+    If customer has sufficient advance balance, performs instant renewal.
+    Otherwise, informs client to initiate online payment.
+    """
+    def post(self, request, *args, **kwargs):
+        from decimal import Decimal
+        from django.db import transaction
+        from apps.billing.models import Recharge
+        from apps.network.models import NetworkSyncJob
+        from apps.network.tasks import dispatch_network_sync_job
+
+        customer = self.get_customer()
+        if not customer:
+            return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        package_id = request.data.get('package_id')
+        if package_id:
+            package = Package.objects.filter(tenant=customer.tenant, id=package_id, is_active=True).first()
+            if not package:
+                return Response({"error": "Selected package not found."}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            package = customer.package
+
+        if not package:
+            return Response({"error": "No subscription package assigned to customer."}, status=status.HTTP_400_BAD_REQUEST)
+
+        required_price = package.regular_price
+        advance = customer.advance_amount or Decimal('0.00')
+
+        if advance < required_price:
+            return Response({
+                "success": False,
+                "insufficient_balance": True,
+                "advance_amount": str(advance),
+                "required_amount": str(required_price),
+                "payment_url": "/api/v1/portal/payments/bkash/create/",
+                "message": f"Insufficient advance balance (৳{advance:.2f}). Required: ৳{required_price:.2f}. Please pay online via bKash."
+            }, status=status.HTTP_402_PAYMENT_REQUIRED)
+
+        with transaction.atomic():
+            locked_cust = Customer.objects.select_for_update().get(id=customer.id)
+            locked_cust.advance_amount = advance - required_price
+            today = timezone.localdate()
+            old_expiry = locked_cust.expiry_date
+            if not old_expiry or old_expiry < today:
+                new_expiry = today + timezone.timedelta(days=package.validity_days)
+            else:
+                new_expiry = old_expiry + timezone.timedelta(days=package.validity_days)
+
+            locked_cust.expiry_date = new_expiry
+            locked_cust.package = package
+            locked_cust.status = CustomerStatus.ACTIVE
+            locked_cust.save(update_fields=['advance_amount', 'expiry_date', 'package', 'status'])
+
+            recharge = Recharge.objects.create(
+                tenant=customer.tenant,
+                customer=locked_cust,
+                package=package,
+                amount=required_price,
+                validity_days=package.validity_days,
+                old_expiry=old_expiry,
+                new_expiry=new_expiry,
+                payment_method="Advance Balance",
+                trx_id=f"ADV-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                notes="Self-care renewal deducted from advance credit"
+            )
+
+            if locked_cust.router:
+                dispatch_network_sync_job(
+                    tenant=customer.tenant,
+                    action=NetworkSyncJob.Action.ENABLE_USER,
+                    customer=locked_cust,
+                    router=locked_cust.router,
+                    payload={'pppoe_username': locked_cust.pppoe_username, 'reason': 'ADVANCE_RECHARGE'}
+                )
+
+        return Response({
+            "success": True,
+            "message": f"Successfully recharged {package.name} for {package.validity_days} days.",
+            "package_name": package.name,
+            "amount_deducted": str(required_price),
+            "remaining_advance": str(locked_cust.advance_amount),
+            "new_expiry": new_expiry
+        }, status=status.HTTP_200_OK)
+
+
+class CustomerPortalRechargeHistoryView(CustomerPortalBaseMixin, views.APIView):
+    """
+    Returns history of subscription recharges for the authenticated customer.
+    """
+    def get(self, request, *args, **kwargs):
+        from apps.billing.models import Recharge
+        customer = self.get_customer()
+        if not customer:
+            return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        recharges = Recharge.objects.filter(
+            tenant=customer.tenant,
+            customer=customer
+        ).order_by('-created_at')[:50]
+
+        data = [{
+            "id": str(r.id),
+            "package_name": r.package.name if r.package else "Custom Plan",
+            "amount": str(r.amount),
+            "validity_days": r.validity_days,
+            "old_expiry": r.old_expiry,
+            "new_expiry": r.new_expiry,
+            "payment_method": r.payment_method,
+            "trx_id": r.trx_id,
+            "created_at": r.created_at
+        } for r in recharges]
+
+        return Response({"recharges": data}, status=status.HTTP_200_OK)
+
+
+class CustomerPortalPaymentHistoryView(CustomerPortalBaseMixin, views.APIView):
+    """
+    Returns ledger of confirmed payments for the authenticated customer.
+    """
+    def get(self, request, *args, **kwargs):
+        from apps.payments.models import PaymentTransaction
+        customer = self.get_customer()
+        if not customer:
+            return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        txns = PaymentTransaction.objects.filter(
+            tenant=customer.tenant,
+            customer=customer
+        ).order_by('-created_at')[:50]
+
+        data = [{
+            "id": str(t.id),
+            "amount": str(t.amount),
+            "trx_id": t.trx_id,
+            "payment_method": t.payment_method,
+            "status": t.status,
+            "created_at": t.created_at
+        } for t in txns]
+
+        return Response({"payments": data}, status=status.HTTP_200_OK)
+

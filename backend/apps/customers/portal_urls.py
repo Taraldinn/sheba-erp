@@ -11,6 +11,9 @@ from apps.customers.portal_views import (
     CustomerPortalPackagesView,
     CustomerPortalInvoiceViewSet,
     CustomerPortalNotificationView,
+    CustomerPortalRechargeView,
+    CustomerPortalRechargeHistoryView,
+    CustomerPortalPaymentHistoryView,
 )
 from apps.customers.portal_ticket_views import CustomerPortalTicketViewSet
 from apps.payments.bkash_views import (
@@ -35,6 +38,9 @@ urlpatterns = [
     path('notifications/', CustomerPortalNotificationView.as_view(), name='portal-notifications'),
 
     # Payment & Recharge Endpoints
+    path('recharge/', CustomerPortalRechargeView.as_view(), name='portal-recharge'),
+    path('recharge/history/', CustomerPortalRechargeHistoryView.as_view(), name='portal-recharge-history'),
+    path('payments/history/', CustomerPortalPaymentHistoryView.as_view(), name='portal-payments-history'),
     path('payments/bkash/create/', BKashCheckoutCreateView.as_view(), name='portal-bkash-create'),
     path('payments/bkash/execute/', BKashCheckoutExecuteView.as_view(), name='portal-bkash-execute'),
     path('payments/claim/', CustomerPortalClaimPaymentView.as_view(), name='portal-payments-claim'),
