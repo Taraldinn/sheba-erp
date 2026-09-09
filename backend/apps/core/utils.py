@@ -63,18 +63,20 @@ def get_scoped_queryset(request, queryset_or_model):
     if scope == StaffMembership.Scope.ASSIGNED:
         if 'assigned_to' in field_names:
             qs = qs.filter(assigned_to=user)
+        else:
+            qs = qs.none()
     elif scope == StaffMembership.Scope.SELF:
         if 'reseller' in field_names:
             reseller_profile = getattr(user, 'reseller_profile', None)
-            staff_profile = getattr(user, 'profile', None)
-            reseller_target = reseller_profile or staff_profile
-            if reseller_target:
-                qs = qs.filter(reseller=reseller_target)
+            if reseller_profile:
+                qs = qs.filter(reseller=reseller_profile)
             else:
                 qs = qs.none()
         elif 'assigned_to' in field_names:
             qs = qs.filter(assigned_to=user)
         elif 'user' in field_names:
             qs = qs.filter(user=user)
+        else:
+            qs = qs.none()
 
     return qs

@@ -18,6 +18,7 @@ Usage:
 """
 
 import time
+import uuid
 import logging
 import threading
 from contextlib import contextmanager
@@ -87,6 +88,7 @@ def distributed_lock(lock_key: str, timeout: int = 30, blocking: bool = True, bl
 
     # 2. In-memory fallback if Redis is unavailable or in eager test mode
     acquired_memory_lock = False
+    owner_token = None
     if redis_lock_obj is None:
         start_time = time.time()
         while True:
@@ -95,9 +97,11 @@ def distributed_lock(lock_key: str, timeout: int = 30, blocking: bool = True, bl
                 # Check if lock exists and is not expired
                 lock_info = _in_memory_locks.get(lock_key)
                 if lock_info is None or lock_info['expires_at'] <= current_time:
+                    owner_token = uuid.uuid4().hex
                     _in_memory_locks[lock_key] = {
                         'expires_at': current_time + timeout,
-                        'thread_id': threading.get_ident()
+                        'thread_id': threading.get_ident(),
+                        'owner_token': owner_token
                     }
                     acquired_memory_lock = True
                     break
@@ -121,4 +125,6 @@ def distributed_lock(lock_key: str, timeout: int = 30, blocking: bool = True, bl
 
         if acquired_memory_lock:
             with _in_memory_registry_lock:
-                _in_memory_locks.pop(lock_key, None)
+                lock_info = _in_memory_locks.get(lock_key)
+                if lock_info and lock_info.get('owner_token') == owner_token:
+                    _in_memory_locks.pop(lock_key, None)
