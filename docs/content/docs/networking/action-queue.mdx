@@ -1,0 +1,102 @@
+---
+title: Network Action Queue & Bulk Operations
+description: Carrier-grade asynchronous action tracking, idempotent execution, retry safety, and multi-step bulk operations.
+---
+
+# Network Action Queue & Bulk Operations
+
+In carrier-grade ISP operations, changing network state directly over synchronous HTTP transactions introduces catastrophic points of failure: HTTP timeouts during router latency, race conditions when multiple NOC operators issue commands simultaneously, and zero traceability when a command fails midway.
+
+Phase 13 establishes every network operation as a **first-class durable job** executed asynchronously via Celery with distributed locking, idempotency guarantees, and retry limits.
+
+---
+
+## 1. Action State Machine
+
+Every individual `NetworkAction` moves deterministically through six canonical states:
+
+```
+[ PENDING ]
+     │
+     ▼ (Worker acquires distributed lock)
+[ PROCESSING ]
+     │
+     ├─── Success ──────────────────────────► [ SUCCESS ]
+     │
+     └─── Transient Failure (retries < 3) ──► [ RETRYING ]
+               │                                   │
+               │ (Backoff timer expires)           │
+               └───────────────────────────────────┘
+     │
+     └─── Terminal Failure (retries >= 3) ──► [ FAILED ]
+
+* Operator Manual Cancellation (when PENDING) ──► [ CANCELLED ]
+```
+
+### Action Status Definitions
+
+| Status | Code | Description |
+| :--- | :--- | :--- |
+| **`PENDING`** | `PENDING` | Job enqueued in database and waiting for Celery worker consumption. |
+| **`PROCESSING`** | `PROCESSING` | Worker has acquired the distributed lock (`lock:action:<tenant_id>:<action_id>`) and is communicating with RouterOS. |
+| **`SUCCESS`** | `SUCCESS` | Hardware acknowledged and applied the desired state. Timestamps and current state recorded. |
+| **`FAILED`** | `FAILED` | Terminal failure after exhausting max retries or encountering an unrecoverable hardware error. |
+| **`RETRYING`** | `RETRYING` | Non-fatal network glitch encountered; scheduled for automated retry with exponential backoff. |
+| **`CANCELLED`** | `CANCELLED` | Operator aborted the action before execution commenced. |
+
+---
+
+## 2. Supported Action Types
+
+- **`ENABLE_SERVICE`**: Enables the subscriber's `/ppp/secret` entry on MikroTik and provisions their bandwidth profile.
+- **`DISABLE_SERVICE`**: Disables the subscriber's `/ppp/secret` entry and terminates any active tunnel from `/ppp/active`.
+- **`RECONNECT`**: Terminates the active session to force subscriber ONT/router to renegotiate IP and profile.
+- **`CHANGE_PACKAGE`**: Updates the secret's profile to the new package bandwidth limit and resets the active session.
+- **`SYNC_SECRET`**: Pushes or updates credentials (`username`, `password`, `service`, `profile`) to MikroTik `/ppp/secret`.
+- **`SYNC_PROFILE`**: Ensures the required MikroTik `/ppp/profile` exists with matching rate limits.
+- **`SYNC_ROUTER`**: Runs hardware health query and synchronizes live session telemetry to the database.
+- **`RETRY_FAILED`**: Re-enqueues a failed action with refreshed attempt counters.
+- **`REBOOT_ONU`**: Dispatches reboot command to subscriber optical ONT on the OLT.
+
+---
+
+## 3. The 7-Step Bulk Operations Workflow
+
+Bulk operations follow a rigid safeguard pipeline to prevent widespread network misconfigurations:
+
+```
+1. Select Targets (By Router, Area, Package, or Billing Status)
+       ↓
+2. Validate (Verify router health, secret presence, package eligibility)
+       ↓
+3. Preview (Inspect eligible count, skipped count, and individual skip reasons)
+       ↓
+4. Confirm (Operator authorization prompt with explicit count warnings)
+       ↓
+5. Queue (Atomic creation of BulkNetworkBatch and child NetworkActions)
+       ↓
+6. Execute (Celery worker processes batch items safely with distributed locks)
+       ↓
+7. Results (Live progress bar, success/failure counters, and error log)
+```
+
+### Pre-Execution Validation
+Before any hardware call is dispatched, the system validates candidate subscribers against operational rules:
+- **No Router Assigned**: Skipped with reason `No assigned MikroTik router`.
+- **Missing PPPoE Username**: Skipped with reason `Missing PPPoE username`.
+- **Package Redundancy**: For `CHANGE_PACKAGE`, subscribers already on the target package are skipped with `Already subscribed to <package>`.
+
+---
+
+## 4. Operational Safety Guarantees
+
+### Idempotency Keys
+Every action and bulk operation accepts an `idempotency_key` (e.g. `bulk:<batch_id>:<customer_id>`). If a request is submitted with a pre-existing idempotency key in `PENDING`, `PROCESSING`, or `SUCCESS` status, the existing job is returned immediately without duplicate hardware execution.
+
+### Distributed Locking
+Locks are enforced via Redis:
+- Per-action lock: `lock:action:<tenant_id>:<action_id>` (prevents dual execution of the same job).
+- Router synchronization lock: `lock:sync_router:<tenant_id>:<router_id>` (prevents concurrent API flooding on the BNG).
+
+### Multi-Tenant Isolation & RBAC
+All queries and actions are scoped strictly to `request.tenant`. Viewing the queue requires `CanViewNetworkMetrics`, while queueing, retrying, or cancelling actions requires `CanControlDevices`. Non-privileged staff receive HTTP 403 Forbidden.

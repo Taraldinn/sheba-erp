@@ -272,3 +272,643 @@ export interface StaffItem {
   created_at?: string;
 }
 
+// ════════════════════════ PHASE 11: NETWORK OPERATIONS COCKPIT ════════════════════════
+
+export interface NetworkCockpitDashboard {
+  routers: {
+    total: number;
+    healthy: number;
+    degraded: number;
+    avg_cpu_usage: number;
+    avg_memory_usage: number;
+    avg_disk_usage: number;
+  };
+  customers: {
+    total: number;
+    online: number;
+    offline: number;
+    active: number;
+    expired: number;
+  };
+  pending_actions: number;
+  failed_actions: number;
+  olt: {
+    total: number;
+    healthy: number;
+    degraded: number;
+  };
+  onu: {
+    total: number;
+    online: number;
+    offline: number;
+    optical_alerts: number;
+  };
+  sessions: {
+    total_active: number;
+    bytes_in: number;
+    bytes_out: number;
+    total_gb: number;
+  };
+  recent_failures: Array<{
+    id: string;
+    action: string;
+    status: string;
+    error_message: string;
+    retry_count: number;
+    router_name?: string | null;
+    olt_name?: string | null;
+    customer_code?: string | null;
+    pppoe_username?: string;
+    created_at: string;
+  }>;
+  pop_branches: Array<{
+    id: string;
+    name: string;
+    code: string;
+    location?: string;
+    total_capacity: number;
+    status: string;
+    customer_count: number;
+  }>;
+  area_breakdown: Array<{
+    area_zone: string;
+    total_subscribers: number;
+    online_count: number;
+    offline_count: number;
+    expired_count: number;
+  }>;
+  timestamp: string;
+}
+
+export interface RouterCockpitDetail {
+  router: Router & {
+    effective_host?: string;
+    api_protocol?: string;
+  };
+  customer_stats: {
+    total_provisioned: number;
+    online_customers: number;
+    offline_customers: number;
+  };
+  active_sessions_count: number;
+  customers: Array<{
+    id: string;
+    customer_code: string;
+    full_name: string;
+    pppoe_username: string;
+    static_ip: string;
+    area_zone: string;
+    package_name: string;
+    speed_mbps: number;
+    monthly_bill: string;
+    due_amount: string;
+    expiry_date: string | null;
+    status: string;
+    is_online: boolean;
+  }>;
+  active_sessions: Array<{
+    id: string;
+    username: string;
+    ip_address: string;
+    mac_address: string;
+    uptime: string;
+    bytes_in: number;
+    bytes_out: number;
+    connected_at: string | null;
+  }>;
+  recent_jobs: Array<{
+    id: string;
+    action: string;
+    status: string;
+    error_message: string | null;
+    created_at: string;
+    completed_at: string | null;
+  }>;
+}
+
+export interface OLTCockpitDetail {
+  olt: OLT & {
+    brand_display?: string;
+    total_onus: number;
+    online_onus: number;
+    offline_onus: number;
+  };
+  optical_distribution: {
+    normal: number;
+    warning: number;
+    critical_or_los: number;
+  };
+  pon_ports: Array<{
+    pon_port: string;
+    total_onus: number;
+    online_onus: number;
+    offline_onus: number;
+  }>;
+  onus: Array<{
+    id: string;
+    pon_port: string;
+    onu_index: number;
+    mac_address: string;
+    serial_number: string;
+    customer_name: string;
+    customer_code: string;
+    rx_power: string;
+    tx_power: string;
+    distance_meters: number;
+    status: string;
+    last_offline_reason?: string | null;
+    last_sync: string | null;
+  }>;
+  recent_jobs: Array<{
+    id: string;
+    action: string;
+    status: string;
+    error_message: string | null;
+    created_at: string;
+    completed_at: string | null;
+  }>;
+}
+
+export interface CustomerNetworkStatus {
+  customer: {
+    id: string;
+    customer_code: string;
+    full_name: string;
+    mobile: string;
+    email: string;
+    area_zone: string;
+    connection_type: string;
+    pppoe_username: string;
+    package_name: string;
+    monthly_bill: string;
+    due_amount: string;
+    advance_amount: string;
+    expiry_date: string | null;
+    status: string;
+  };
+  session: {
+    is_online: boolean;
+    ip_address: string;
+    mac_address: string;
+    caller_id: string;
+    uptime: string;
+    bytes_in: number;
+    bytes_out: number;
+    connected_at: string | null;
+    last_seen: string | null;
+  };
+  router: {
+    id: string;
+    name: string;
+    ip_address: string;
+    effective_host: string;
+    status: string;
+    api_protocol: string;
+  } | null;
+  onu: {
+    id: string;
+    olt_name: string;
+    olt_ip: string;
+    pon_port: string;
+    onu_index: number;
+    mac_address: string;
+    serial_number: string;
+    rx_power: string;
+    tx_power: string;
+    distance_meters: number;
+    status: string;
+    last_offline_reason?: string | null;
+    last_sync: string | null;
+  } | null;
+  recent_jobs: Array<{
+    id: string;
+    action: string;
+    status: string;
+    error_message: string | null;
+    created_at: string;
+    completed_at: string | null;
+  }>;
+}
+
+// ════════════════════════ PHASE 12: MIKROTIK RECONCILIATION ════════════════════════
+
+export type ReconciliationStatus =
+  | 'MATCHED'
+  | 'MISSING_IN_ROUTER'
+  | 'UNKNOWN_IN_ERP'
+  | 'PROFILE_MISMATCH'
+  | 'STATUS_MISMATCH'
+  | 'ROUTER_MISMATCH'
+  | 'ERROR';
+
+export interface PPPoESecretItem {
+  id: string;
+  router: string;
+  router_name: string;
+  router_ip: string;
+  customer?: string | null;
+  customer_code?: string;
+  customer_name?: string;
+  customer_status?: string;
+  customer_area?: string;
+  package?: string | null;
+  package_name?: string;
+  username: string;
+  reconciliation_status: ReconciliationStatus;
+  router_profile: string;
+  expected_profile: string;
+  router_disabled: boolean | null;
+  expected_disabled: boolean | null;
+  router_comment?: string;
+  router_caller_id?: string;
+  router_service?: string;
+  discrepancy_details: Record<string, any>;
+  last_reconciled_at: string;
+  last_synced_at?: string | null;
+  created_at?: string;
+}
+
+export interface ReconciliationRun {
+  id: string;
+  router?: string | null;
+  router_name?: string;
+  triggered_by: string;
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  total_evaluated: number;
+  matched_count: number;
+  missing_in_router_count: number;
+  unknown_in_erp_count: number;
+  profile_mismatch_count: number;
+  status_mismatch_count: number;
+  router_mismatch_count: number;
+  error_count: number;
+  error_message?: string;
+  created_at: string;
+  completed_at?: string | null;
+}
+
+export interface CustomerNetworkIdentity {
+  customer: {
+    id: string;
+    customer_code: string;
+    full_name: string;
+    status: string;
+    area_zone: string;
+    connection_type: string;
+  };
+  credentials: {
+    username: string;
+    has_password: boolean;
+    static_ip: string;
+  };
+  package: {
+    id: string | null;
+    name: string;
+    speed_mbps: number;
+    expected_profile: string;
+  };
+  router: {
+    id: string | null;
+    name: string;
+    ip_address: string;
+    status: string;
+  };
+  secret_item: PPPoESecretItem | null;
+  live_session: {
+    is_online: boolean;
+    ip_address?: string;
+    mac_address?: string;
+    uptime?: string;
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 13: Network Action Queue & Bulk Operations Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type NetworkActionStatus =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'SUCCESS'
+  | 'FAILED'
+  | 'RETRYING'
+  | 'CANCELLED';
+
+export type NetworkActionType =
+  | 'ENABLE_SERVICE'
+  | 'DISABLE_SERVICE'
+  | 'RECONNECT'
+  | 'CHANGE_PACKAGE'
+  | 'SYNC_SECRET'
+  | 'SYNC_PROFILE'
+  | 'SYNC_ROUTER'
+  | 'RETRY_FAILED'
+  | 'REBOOT_ONU';
+
+export interface NetworkActionItem {
+  id: string;
+  action: NetworkActionType | string;
+  action_display: string;
+  status: NetworkActionStatus;
+  target_type: string;
+  target_id: string;
+  target_name: string;
+  customer_id?: string | null;
+  customer_name: string;
+  customer_code?: string;
+  pppoe_username?: string;
+  router_id?: string | null;
+  router_name?: string;
+  attempt_count: number;
+  max_retries: number;
+  last_error?: string;
+  requested_state?: Record<string, any>;
+  current_state?: Record<string, any>;
+  sanitized_payload?: Record<string, any>;
+  result?: Record<string, any>;
+  idempotency_key?: string;
+  actor?: string;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+}
+
+export type BulkBatchStatus =
+  | 'PENDING'
+  | 'VALIDATING'
+  | 'PREVIEWED'
+  | 'QUEUED'
+  | 'EXECUTING'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface BulkPreviewResult {
+  total_count: number;
+  eligible_count: number;
+  skipped_count: number;
+  action_type: string;
+  target_package_name?: string | null;
+  eligible_targets: Array<{
+    id: string;
+    name: string;
+    username: string;
+    router_id: string;
+    router_name: string;
+    current_status: string;
+    current_package: string;
+    target_profile: string;
+  }>;
+  skipped_targets: Array<{
+    id: string;
+    name: string;
+    username: string;
+    reason: string;
+  }>;
+}
+
+export interface BulkNetworkBatch {
+  id: string;
+  action_type: string;
+  status: BulkBatchStatus;
+  router_id?: string | null;
+  router_name?: string;
+  total_count: number;
+  success_count: number;
+  failure_count: number;
+  skipped_count: number;
+  filter_criteria: Record<string, any>;
+  validation_summary: Record<string, any>;
+  error_summary: Array<{ target: string; error: string }>;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 14: Live Sessions, Realtime Traffic, Topology & Impact Analysis
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface LiveSession {
+  id: string;
+  username: string;
+  ip_address: string;
+  mac_address: string;
+  caller_id?: string;
+  uptime: string;
+  bytes_in: number;
+  bytes_out: number;
+  total_bytes: number;
+  rx_rate_bps: number | null;
+  tx_rate_bps: number | null;
+  rx_rate_formatted: string;
+  tx_rate_formatted: string;
+  connected_at: string | null;
+  last_seen: string | null;
+  is_online: boolean;
+  status: 'Online' | 'Offline';
+  router_id: string;
+  router_name: string;
+  customer_id: string | null;
+  customer_name: string;
+  customer_code: string;
+  package_name: string;
+  area_zone: string;
+}
+
+export interface TelemetrySession {
+  id: string;
+  username: string;
+  ip_address: string;
+  mac_address: string;
+  caller_id?: string;
+  uptime: string;
+  bytes_in: number;
+  bytes_out: number;
+  total_bytes: number;
+  rx_rate_bps: number | null;
+  tx_rate_bps: number | null;
+  rx_rate_formatted: string;
+  tx_rate_formatted: string;
+  connected_at: string | null;
+  last_seen: string | null;
+  router_name: string;
+  is_online: boolean;
+}
+
+export interface SessionHistoryItem {
+  id: string;
+  username: string;
+  ip_address: string;
+  mac_address: string;
+  connected_at: string | null;
+  disconnected_at: string | null;
+  duration_seconds: number;
+  duration_formatted: string;
+  bytes_in: number;
+  bytes_out: number;
+  total_bytes: number;
+  terminate_cause: string;
+  router_name: string;
+}
+
+export interface CustomerSessionTelemetry {
+  is_online: boolean;
+  active_session: TelemetrySession | null;
+  session_history: SessionHistoryItem[];
+  aggregates: {
+    total_bytes_in: number;
+    total_bytes_out: number;
+    total_bytes: number;
+    total_duration_seconds: number;
+    total_sessions_count: number;
+  };
+}
+
+export interface TopologyNode {
+  id: string;
+  label: string;
+  type: 'POP' | 'Router' | 'OLT' | 'PON-Port';
+  tier: number;
+  status: 'Online' | 'Offline' | 'Healthy' | 'Degraded' | 'Warning' | 'Critical';
+  details: Record<string, any>;
+}
+
+export interface TopologyEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+  capacity: string;
+  status: 'Healthy' | 'Degraded' | 'Down';
+}
+
+export interface NetworkTopologyGraph {
+  graph: {
+    nodes: TopologyNode[];
+    edges: TopologyEdge[];
+  };
+  summary: {
+    total_nodes: number;
+    total_edges: number;
+    pop_count: number;
+    router_count: number;
+    olt_count: number;
+    pon_count: number;
+    total_customers: number;
+    online_customers: number;
+  };
+  timestamp: string;
+}
+
+export interface GeoFiberFeature {
+  type: 'Feature';
+  geometry: {
+    type: 'Point' | 'LineString';
+    coordinates: any;
+  };
+  properties: {
+    id?: string;
+    category: 'POP' | 'Router' | 'OLT' | 'Customer' | 'FiberLink';
+    name?: string;
+    status?: string;
+    [key: string]: any;
+  };
+}
+
+export interface GeoFiberMap {
+  type: 'FeatureCollection';
+  features: GeoFiberFeature[];
+  map_center: [number, number];
+  zoom: number;
+  timestamp: string;
+}
+
+export interface PathImpactAnalysis {
+  target_type: string;
+  target_id: string;
+  path_trace: string[];
+  impact_summary: {
+    total_subscribers_affected: number;
+    online_subscribers_affected: number;
+    offline_subscribers: number;
+    mrr_at_risk: string;
+    currency: string;
+    estimated_bandwidth_loss_mbps: number;
+    dependent_olts_count: number;
+    dependent_pons_count: number;
+    dependent_onus_count: number;
+  };
+  downstream_hardware: {
+    olts: Array<{ id: string; name: string; brand: string; ip_address?: string }>;
+    pon_ports: string[];
+    onus_sample: Array<{ id: string; pon_port: string; serial_number: string; mac_address?: string }>;
+  };
+  affected_customers_sample: Array<{
+    id: string;
+    customer_code: string;
+    name: string;
+    pppoe_username: string;
+    mobile: string;
+    area_zone: string;
+    monthly_bill: string;
+    status: string;
+    is_online: boolean;
+  }>;
+  suggested_remediation: string[];
+  timestamp: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 15: OLT / ONU Operations & Reconciliation
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface OLTReconciliationRun {
+  id: string;
+  olt: string;
+  olt_name: string;
+  olt_brand: string;
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  total_evaluated: number;
+  matched_count: number;
+  missing_in_olt_count: number;
+  unknown_in_erp_count: number;
+  binding_mismatch_count: number;
+  optical_alarm_count: number;
+  discrepancy_details: Array<{
+    type: 'MATCHED' | 'MISSING_IN_OLT' | 'UNKNOWN_IN_ERP' | 'BINDING_MISMATCH' | 'OPTICAL_ALARM';
+    onu_id?: string;
+    serial_number?: string;
+    mac_address?: string;
+    pon_port?: string;
+    customer_name?: string;
+    message: string;
+    [key: string]: any;
+  }>;
+  triggered_by: string;
+  error_message?: string;
+  created_at: string;
+  completed_at?: string | null;
+}
+
+export interface ONUAutoMatchCandidate {
+  onu_id: string;
+  pon_port: string;
+  serial_number: string;
+  mac_address: string;
+  customer_id: string;
+  customer_name: string;
+  customer_code: string;
+  pppoe_username: string;
+  confidence: number;
+  match_reason: string;
+}
+
+export interface ONUAutoMatchResult {
+  olt_id: string;
+  dry_run: boolean;
+  total_candidates: number;
+  matched_count: number;
+  matches: ONUAutoMatchCandidate[];
+}
+

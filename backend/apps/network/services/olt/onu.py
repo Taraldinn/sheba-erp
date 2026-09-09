@@ -15,3 +15,6 @@ class ONUService:
     def reboot_onu(self) -> bool:
         """Sends reboot command to ONU via parent OLT client."""
         return self.olt_client.reboot_onu(self.onu.pon_port, self.onu.onu_index)
+
+    reboot = reboot_onu
+

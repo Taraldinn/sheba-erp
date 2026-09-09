@@ -1,0 +1,82 @@
+---
+title: Network Operations Cockpit (Phase 11)
+description: High-level ISP operator cockpit aggregating MikroTik BNG routers, GPON/EPON frames, live PPPoE sessions, optical telemetry, and subscriber diagnostic workflows.
+---
+
+# Network Operations Cockpit (Phase 11)
+
+`IMPLEMENTED`
+
+The **Network Operations Cockpit** provides ISP NOC engineers, network managers, and support technicians with unified visibility across hardware infrastructure and subscriber sessions without direct device access from browser frontends.
+
+---
+
+## 1. Architectural Principles
+
+1. **Frozen Subsystems (Phase 0–10)**:
+   - Built directly on top of the established `MikroTikService`, `OLTSystemService`, `ONUService`, and `NetworkSyncJob` service layer.
+   - No secondary MikroTik or OLT clients are created.
+2. **State Decoupling & Caching**:
+   - **PostgreSQL**: Authoritative source of truth for persistent device models, subscriber state, POP branches, and durable sync jobs.
+   - **Redis**: Ephemeral high-frequency telemetry caching (`cockpit:dash:<tenant>:<pop>:<area>`, TTL = 15s) ensuring responsive dashboards under high operator concurrency.
+3. **Strict Network Isolation**:
+   - Web frontend clients connect exclusively to Django REST framework endpoints. Frontend code never connects directly to MikroTik RouterOS or OLT Telnet/SNMP ports.
+4. **Tenant & Area Scoping**:
+   - Every metric, session, hardware element, and operational job is strictly partitioned by `request.tenant` and optionally filtered by POP branch or customer `area_zone`.
+
+---
+
+## 2. Top-Level Operational KPI Layout
+
+The top of the cockpit renders real-time counts across the network:
+
+- **Routers**: Total configured MikroTik BNG devices, Healthy (Online), Degraded (Offline or Error status), and aggregate CPU/Memory/Disk meters.
+- **Customers**: Total subscribers, Online (subscribers with active `UserSession`), Offline, Active, and Expired.
+- **Pending Actions**: Count of in-flight Celery jobs (`NetworkSyncJob.JobStatus.PENDING` or `PROCESSING`).
+- **Failed Actions**: Count of failed network synchronization tasks requiring NOC operator review.
+- **OLT**: Healthy and Degraded optical line terminals.
+- **ONU**: Online, Offline, and Optical Alerts (ONUs reporting Rx power `< -24.00 dBm`, `DyingGasp`, or `Los`).
+- **Live Bandwidth Meter**: Concurrent PPPoE sessions, cumulative download/upload bytes, and aggregate bandwidth throughput.
+
+---
+
+## 3. Hierarchical Operational Workflows
+
+The cockpit is organized into three operational drilldowns:
+
+### A. Router → Customers
+- **Hardware Telemetry**: Real-time CPU, RAM, Disk utilization, RouterOS firmware version, effective host, and uptime.
+- **Provisioned Customers**: Table of subscribers provisioned on the selected router with package speeds, expiration dates, and live online/offline badges.
+- **Active PPPoE Sessions**: Live sessions table detailing leased IP addresses, MAC addresses, connection uptime, and byte counters.
+
+### B. OLT → ONUs
+- **Optical Signal Distribution Histogram**:
+  - **Normal** (&gt;= -24 dBm): Fiber links within standard specifications.
+  - **Warning** (-27 dBm to -24 dBm): Marginal signal attenuation; requires cable inspection.
+  - **Critical / LOS** (&lt; -27 dBm or `DyingGasp` / `Los`): Optical loss or power disruption.
+- **PON Port Distribution**: Active and offline ONU distribution across PON frames (`gpon 0/1`, `epon 0/8`, etc.).
+- **Connected ONUs**: Live optical diagnostics detailing serial numbers, MAC addresses, calibrated Rx/Tx power, and distance in meters.
+
+### C. Customer → Service Diagnostics
+Inspects individual subscriber operational health:
+- **BNG Session State**: Leased IP, MAC, caller ID, session uptime, and active connection timestamp.
+- **Optical Link**: Linked OLT name, PON port, ONU index, optical signal dBm, and distance.
+- **Sync Job Audit**: History of asynchronous sync tasks and error logs.
+- **Operator Interventions**:
+  - `Disconnect Session`: Drops the active session from MikroTik RouterOS and cleans the `UserSession` record.
+  - `Sync Speed Profile`: Re-pushes bandwidth limits and PPP profiles to the router.
+  - `Reboot ONU`: Dispatches a reboot command to the subscriber's optical network unit via OLT Telnet/SNMP.
+
+---
+
+## 4. API Endpoints
+
+All endpoints require authentication and strict RBAC (`CanViewNetworkMetrics` for telemetry, `CanControlDevices` for control operations):
+
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/api/v1/network/cockpit/dashboard/` | `GET` | Aggregated network dashboard KPIs, POP summaries, and recent failures. |
+| `/api/v1/network/cockpit/routers/<id>/` | `GET` | Router operational telemetry, customer bindings, and active sessions. |
+| `/api/v1/network/cockpit/olts/<id>/` | `GET` | OLT optical histogram, PON port breakdown, and connected ONUs. |
+| `/api/v1/network/cockpit/customers/<id>/` | `GET` | Subscriber operational status panel (session + optical link + job logs). |
+| `/api/v1/network/cockpit/customers/<id>/action/` | `POST` | Dispatches operator action (`disconnect`, `sync_profile`, `reboot_onu`). |

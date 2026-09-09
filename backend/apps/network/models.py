@@ -29,6 +29,9 @@ class POPBranch(models.Model):
         ('Active', 'Active'),
         ('Decommissioned', 'Decommissioned / Left'),
     ])
+    upstream_router = models.ForeignKey('network.Router', on_delete=models.SET_NULL, null=True, blank=True, related_name='downstream_pops')
+    latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -74,6 +77,8 @@ class Router(models.Model):
     # Device Metadata & Telemetry
     location = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True)
+    latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     status = models.CharField(max_length=20, default='Online', choices=[('Online', 'Online'), ('Offline', 'Offline'), ('Error', 'Error')])
     routeros_version = models.CharField(max_length=50, blank=True, default='', help_text="RouterOS Version (e.g. 7.14.3)")
     cpu_usage = models.PositiveIntegerField(default=0, help_text="CPU load %")
@@ -120,6 +125,10 @@ class OLT(models.Model):
     name = models.CharField(max_length=150)
     brand = models.CharField(max_length=50, choices=OLTBrand.choices, default=OLTBrand.VSOL)
     ip_address = models.GenericIPAddressField()
+    pop_branch = models.ForeignKey(POPBranch, on_delete=models.SET_NULL, null=True, blank=True, related_name='olts')
+    upstream_router = models.ForeignKey(Router, on_delete=models.SET_NULL, null=True, blank=True, related_name='downstream_olts')
+    latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     snmp_community = EncryptedCharField(max_length=500, default='public')
     snmp_port = models.PositiveIntegerField(default=161)
     telnet_port = models.PositiveIntegerField(default=23)
@@ -162,6 +171,7 @@ class ONU(models.Model):
     customer = models.ForeignKey('customers.Customer', on_delete=models.SET_NULL, null=True, blank=True, related_name='onus')
     customer_name = models.CharField(max_length=150, blank=True)
     customer_phone = models.CharField(max_length=50, blank=True)
+    model_name = models.CharField(max_length=100, blank=True, default='')
     rx_power = models.DecimalField(max_digits=5, decimal_places=2, default=-19.50, help_text="Optical RX Power in dBm")
     tx_power = models.DecimalField(max_digits=5, decimal_places=2, default=2.10, help_text="Optical TX Power in dBm")
     status = models.CharField(max_length=30, default='Online', choices=[
@@ -170,6 +180,21 @@ class ONU(models.Model):
         ('DyingGasp', 'Power Loss (Dying Gasp)'),
         ('Los', 'Loss of Signal (LOS)'),
     ])
+    optical_status = models.CharField(max_length=30, default='Normal', choices=[
+        ('Normal', 'Normal'),
+        ('Warning', 'Warning'),
+        ('Critical', 'Critical'),
+        ('LOS', 'Loss of Signal (LOS)'),
+        ('PowerLoss', 'Power Loss (Dying Gasp)'),
+    ])
+    reconciliation_status = models.CharField(max_length=30, default='MATCHED', choices=[
+        ('MATCHED', 'Matched'),
+        ('MISSING_IN_OLT', 'Missing in OLT'),
+        ('UNKNOWN_IN_ERP', 'Unknown in ERP (Unbound)'),
+        ('BINDING_MISMATCH', 'Binding Mismatch'),
+        ('OPTICAL_ALARM', 'Optical Alarm'),
+    ])
+    auto_matched = models.BooleanField(default=False)
     distance_meters = models.PositiveIntegerField(default=0)
     last_offline_reason = models.CharField(max_length=255, blank=True)
     last_sync = models.DateTimeField(auto_now=True)
@@ -204,13 +229,62 @@ class UserSession(models.Model):
         return f"{self.username} -> {self.ip_address} on {self.router.name}"
 
 
+class BulkNetworkBatch(models.Model):
+    class BatchStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        VALIDATING = 'VALIDATING', 'Validating'
+        PREVIEWED = 'PREVIEWED', 'Previewed'
+        QUEUED = 'QUEUED', 'Queued'
+        EXECUTING = 'EXECUTING', 'Executing'
+        COMPLETED = 'COMPLETED', 'Completed'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='bulk_network_batches')
+    router = models.ForeignKey(Router, on_delete=models.SET_NULL, null=True, blank=True, related_name='bulk_batches')
+    action_type = models.CharField(max_length=50)
+    status = models.CharField(max_length=20, choices=BatchStatus.choices, default=BatchStatus.PENDING, db_index=True)
+    total_count = models.PositiveIntegerField(default=0)
+    success_count = models.PositiveIntegerField(default=0)
+    failure_count = models.PositiveIntegerField(default=0)
+    skipped_count = models.PositiveIntegerField(default=0)
+    filter_criteria = models.JSONField(default=dict, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    validation_summary = models.JSONField(default=dict, blank=True)
+    results = models.JSONField(default=dict, blank=True)
+    error_summary = models.JSONField(default=list, blank=True)
+    created_by = models.CharField(max_length=150, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status'], name='bulk_batch_tenant_status_idx'),
+            models.Index(fields=['tenant', 'created_at'], name='bulk_batch_tenant_created_idx'),
+        ]
+
+    def __str__(self):
+        return f"BulkNetworkBatch[{self.action_type}] - {self.status} ({self.success_count}/{self.total_count})"
+
+
 class NetworkSyncJob(models.Model):
     class Action(models.TextChoices):
+        # Phase 13 Canonical Actions
+        ENABLE_SERVICE = 'ENABLE_SERVICE', 'Enable Service'
+        DISABLE_SERVICE = 'DISABLE_SERVICE', 'Disable Service'
+        RECONNECT = 'RECONNECT', 'Reconnect'
+        CHANGE_PACKAGE = 'CHANGE_PACKAGE', 'Change Package / Profile'
+        SYNC_SECRET = 'SYNC_SECRET', 'Synchronize PPPoE Secret'
+        SYNC_PROFILE = 'SYNC_PROFILE', 'Synchronize Profile'
+        SYNC_ROUTER = 'SYNC_ROUTER', 'Router Synchronization'
+        RETRY_FAILED = 'RETRY_FAILED', 'Retry Failed Synchronization'
+        # Backwards compatible choices
         ENABLE_USER = 'ENABLE_USER', 'Enable PPPoE / Hotspot User'
         DISABLE_USER = 'DISABLE_USER', 'Disable User / Cut Internet'
         UPDATE_PACKAGE = 'UPDATE_PACKAGE', 'Update Speed Profile / Package'
         DISCONNECT_SESSION = 'DISCONNECT_SESSION', 'Disconnect Active Session'
-        SYNC_ROUTER = 'SYNC_ROUTER', 'Sync Router Configuration'
         REBOOT_ONU = 'REBOOT_ONU', 'Reboot ONU'
 
     class JobStatus(models.TextChoices):
@@ -218,14 +292,24 @@ class NetworkSyncJob(models.Model):
         PROCESSING = 'PROCESSING', 'Processing'
         SUCCESS = 'SUCCESS', 'Completed Successfully'
         FAILED = 'FAILED', 'Failed'
+        RETRYING = 'RETRYING', 'Retrying'
+        CANCELLED = 'CANCELLED', 'Cancelled'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='network_sync_jobs')
     customer = models.ForeignKey('customers.Customer', on_delete=models.SET_NULL, null=True, blank=True, related_name='network_sync_jobs')
     router = models.ForeignKey(Router, on_delete=models.SET_NULL, null=True, blank=True, related_name='sync_jobs')
     olt = models.ForeignKey(OLT, on_delete=models.SET_NULL, null=True, blank=True, related_name='sync_jobs')
+    batch = models.ForeignKey(BulkNetworkBatch, on_delete=models.SET_NULL, null=True, blank=True, related_name='actions')
     action = models.CharField(max_length=50, choices=Action.choices)
     status = models.CharField(max_length=20, choices=JobStatus.choices, default=JobStatus.PENDING, db_index=True)
+    idempotency_key = models.CharField(max_length=128, blank=True, db_index=True)
+    requested_state = models.JSONField(default=dict, blank=True)
+    current_state = models.JSONField(default=dict, blank=True)
+    target_type = models.CharField(max_length=50, default='customer')
+    target_id = models.CharField(max_length=100, blank=True)
+    target_name = models.CharField(max_length=200, blank=True)
+    actor = models.CharField(max_length=150, blank=True)
     payload = models.JSONField(default=dict, blank=True)
     result = models.JSONField(default=dict, blank=True)
     error_message = models.TextField(blank=True)
@@ -240,7 +324,165 @@ class NetworkSyncJob(models.Model):
         indexes = [
             models.Index(fields=['tenant', 'status'], name='netsync_tenant_status_idx'),
             models.Index(fields=['tenant', 'created_at'], name='netsync_tenant_created_idx'),
+            models.Index(fields=['tenant', 'idempotency_key'], name='netsync_idempotency_idx'),
         ]
 
     def __str__(self):
-        return f"NetworkSyncJob[{self.action}] - {self.status} (Tenant: {self.tenant_id})"
+        return f"NetworkAction[{self.action}] - {self.status} (Tenant: {self.tenant_id})"
+
+
+# Alias for Phase 13 first-class naming
+NetworkAction = NetworkSyncJob
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 12: MikroTik Reconciliation + PPPoE Models
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ReconciliationStatus(models.TextChoices):
+    MATCHED = 'MATCHED', 'Matched'
+    MISSING_IN_ROUTER = 'MISSING_IN_ROUTER', 'Missing in Router'
+    UNKNOWN_IN_ERP = 'UNKNOWN_IN_ERP', 'Unknown in ERP (Orphan)'
+    PROFILE_MISMATCH = 'PROFILE_MISMATCH', 'Profile Mismatch'
+    STATUS_MISMATCH = 'STATUS_MISMATCH', 'Status Mismatch'
+    ROUTER_MISMATCH = 'ROUTER_MISMATCH', 'Router Mismatch'
+    ERROR = 'ERROR', 'Error'
+
+
+class PPPoESecretItem(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='pppoe_secrets')
+    router = models.ForeignKey(Router, on_delete=models.CASCADE, related_name='pppoe_secrets')
+    customer = models.ForeignKey('customers.Customer', on_delete=models.SET_NULL, null=True, blank=True, related_name='pppoe_secrets')
+    package = models.ForeignKey('billing.Package', on_delete=models.SET_NULL, null=True, blank=True, related_name='pppoe_secrets')
+    username = models.CharField(max_length=100, db_index=True)
+    reconciliation_status = models.CharField(
+        max_length=30,
+        choices=ReconciliationStatus.choices,
+        default=ReconciliationStatus.MATCHED,
+        db_index=True
+    )
+    router_profile = models.CharField(max_length=150, blank=True, default='')
+    expected_profile = models.CharField(max_length=150, blank=True, default='')
+    router_disabled = models.BooleanField(null=True, blank=True)
+    expected_disabled = models.BooleanField(null=True, blank=True)
+    router_comment = models.CharField(max_length=255, blank=True, default='')
+    router_caller_id = models.CharField(max_length=100, blank=True, default='')
+    router_service = models.CharField(max_length=50, blank=True, default='pppoe')
+    discrepancy_details = models.JSONField(default=dict, blank=True)
+    last_reconciled_at = models.DateTimeField(default=timezone.now)
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['username']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'router', 'username'], name='unique_tenant_router_secret_username'),
+        ]
+        indexes = [
+            models.Index(fields=['tenant', 'reconciliation_status'], name='pppoe_tenant_status_idx'),
+            models.Index(fields=['tenant', 'router', 'reconciliation_status'], name='pppoe_t_r_status_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.username} on {self.router.name} ({self.reconciliation_status})"
+
+
+class ReconciliationRun(models.Model):
+    class RunStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        RUNNING = 'RUNNING', 'Running'
+        COMPLETED = 'COMPLETED', 'Completed'
+        FAILED = 'FAILED', 'Failed'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='reconciliation_runs')
+    router = models.ForeignKey(Router, on_delete=models.SET_NULL, null=True, blank=True, related_name='reconciliation_runs')
+    triggered_by = models.CharField(max_length=100, default='system')
+    status = models.CharField(max_length=20, choices=RunStatus.choices, default=RunStatus.PENDING, db_index=True)
+    total_evaluated = models.PositiveIntegerField(default=0)
+    matched_count = models.PositiveIntegerField(default=0)
+    missing_in_router_count = models.PositiveIntegerField(default=0)
+    unknown_in_erp_count = models.PositiveIntegerField(default=0)
+    profile_mismatch_count = models.PositiveIntegerField(default=0)
+    status_mismatch_count = models.PositiveIntegerField(default=0)
+    router_mismatch_count = models.PositiveIntegerField(default=0)
+    error_count = models.PositiveIntegerField(default=0)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"ReconciliationRun[{self.status}] on {self.router.name if self.router else 'All'} (Tenant: {self.tenant_id})"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 14: Historical Session Records (PostgreSQL)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class UserSessionHistory(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='user_session_history')
+    router = models.ForeignKey(Router, on_delete=models.CASCADE, related_name='session_history')
+    customer = models.ForeignKey('customers.Customer', on_delete=models.SET_NULL, null=True, blank=True, related_name='session_history')
+    username = models.CharField(max_length=100, db_index=True)
+    ip_address = models.GenericIPAddressField()
+    mac_address = models.CharField(max_length=50, blank=True)
+    caller_id = models.CharField(max_length=100, blank=True)
+    connected_at = models.DateTimeField()
+    disconnected_at = models.DateTimeField(default=timezone.now, db_index=True)
+    duration_seconds = models.PositiveIntegerField(default=0)
+    bytes_in = models.BigIntegerField(default=0)
+    bytes_out = models.BigIntegerField(default=0)
+    terminate_cause = models.CharField(max_length=50, default='Admin-Reset')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-disconnected_at']
+        indexes = [
+            models.Index(fields=['tenant', 'username'], name='hist_tenant_user_idx'),
+            models.Index(fields=['tenant', 'disconnected_at'], name='hist_tenant_disc_idx'),
+        ]
+
+    def __str__(self):
+        return f"History[{self.username}] - {self.ip_address} ({self.duration_seconds}s)"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 15: OLT Hardware Reconciliation Run
+# ─────────────────────────────────────────────────────────────────────────────
+
+class OLTReconciliationRun(models.Model):
+    class RunStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        RUNNING = 'RUNNING', 'Running'
+        COMPLETED = 'COMPLETED', 'Completed'
+        FAILED = 'FAILED', 'Failed'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='olt_reconciliation_runs')
+    olt = models.ForeignKey(OLT, on_delete=models.CASCADE, related_name='reconciliation_runs')
+    triggered_by = models.CharField(max_length=100, default='system')
+    status = models.CharField(max_length=20, choices=RunStatus.choices, default=RunStatus.PENDING, db_index=True)
+    total_evaluated = models.PositiveIntegerField(default=0)
+    matched_count = models.PositiveIntegerField(default=0)
+    missing_in_olt_count = models.PositiveIntegerField(default=0)
+    unknown_in_erp_count = models.PositiveIntegerField(default=0)
+    binding_mismatch_count = models.PositiveIntegerField(default=0)
+    optical_alarm_count = models.PositiveIntegerField(default=0)
+    discrepancy_details = models.JSONField(default=list, blank=True)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"OLTReconciliationRun[{self.status}] on {self.olt.name} (Tenant: {self.tenant_id})"
+
+

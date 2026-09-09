@@ -2,6 +2,10 @@
   "title": "Networking & Hardware",
   "pages": [
     "overview",
+    "network-cockpit",
+    "live-sessions-and-topology",
+    "reconciliation",
+    "action-queue",
     "mikrotik-integration",
     "pppoe-and-queues",
     "olt-and-onu",

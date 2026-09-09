@@ -1,0 +1,82 @@
+---
+title: MikroTik PPPoE Reconciliation (Phase 12)
+description: Bidirectional audit and synchronization system reconciling ERP subscriber package state with MikroTik RouterOS PPPoE secrets.
+---
+
+# MikroTik PPPoE Reconciliation (Phase 12)
+
+`IMPLEMENTED`
+
+The **MikroTik PPPoE Reconciliation Engine** establishes an authoritative synchronization and audit pipeline between ERP subscriber records and actual RouterOS device state (`/ppp/secret`). It identifies discrepancies such as phantom secrets, missing subscribers, speed profile mismatches, operational state drift, and cross-router assignments.
+
+---
+
+## 1. Architectural Model
+
+The reconciliation pipeline models the exact dependency graph:
+
+```
+Tenant
+  → Router
+    → PPPoE Secret
+      → Customer
+        → Package
+          → MikroTik Profile
+            → Actual Router State
+```
+
+### Core Invariants
+1. **No Frontend Direct Access**: Frontend clients communicate exclusively with the Django REST API (`/api/v1/network/reconciliation/*`). RouterOS API commands are dispatched through the backend `MikroTikService`.
+2. **Encrypted Credentials**: Passwords stored on the `Customer` model use `EncryptedCharField` and are write-only. Reconciliation APIs never return plaintext passwords in responses.
+3. **Idempotency & Concurrency**: The reconciliation engine uses distributed locks (`lock:reconcile:<tenant_id>:<router_id>`, timeout 120s) to prevent concurrent audits on the same router.
+4. **Authoritative vs Discovered State**: PostgreSQL maintains the authoritative business definition. Discovered RouterOS secrets are indexed into `PPPoESecretItem` records and compared against ERP data.
+
+---
+
+## 2. Reconciliation Statuses
+
+Every subscriber or discovered router secret is categorized into one of seven distinct states:
+
+| Status | Meaning | Automatic Resolution Strategy |
+| :--- | :--- | :--- |
+| `MATCHED` | Secret exists on assigned router; username, profile, and enabled/disabled state match ERP perfectly. | No action needed. Verified in sync. |
+| `MISSING_IN_ROUTER` | Customer exists in ERP with assigned router & PPPoE username, but the secret is missing on the router. | `PUSH_TO_ROUTER`: Re-creates secret with customer password and package profile. |
+| `UNKNOWN_IN_ERP` | Secret was discovered on the router, but no customer with this username exists in the tenant (orphan secret). | `DISABLE_ORPHAN`: Disables secret on router to prevent unmetered bandwidth theft. |
+| `PROFILE_MISMATCH` | Secret exists on router, but its profile does not match the customer's package profile. | `SYNC_PROFILE`: Updates secret profile on router to match package bandwidth. |
+| `STATUS_MISMATCH` | Secret exists on router, but its enabled/disabled state conflicts with ERP status (e.g. customer is Expired). | `SYNC_STATUS`: Disables/enables secret on router and terminates active sessions if disabled. |
+| `ROUTER_MISMATCH` | Secret exists on router A, but ERP assigns the customer to router B. | Requires NOC review to reassign router binding in ERP or migrate secret. |
+| `ERROR` | Router communication timeout, authentication failure, or API exception. | SURFACED in NOC Cockpit for network link verification. |
+
+---
+
+## 3. Safe Synchronization Actions
+
+To prevent accidental service disruption, synchronization operations are granular and audited:
+
+1. **`PUSH_TO_ROUTER`**:
+   - Queries `Customer.pppoe_username`, `Customer.pppoe_password`, and `Package.mikrotik_profile`.
+   - Calls `MikroTikPPPoEService.create_user()`.
+   - Disables the user if `Customer.status != ACTIVE`.
+   - Records a `NetworkSyncJob` and creates an audit log entry.
+2. **`SYNC_PROFILE`**:
+   - Updates `/ppp/secret` on the router to apply the target bandwidth profile.
+   - Records a `NetworkSyncJob` (`Action.UPDATE_PACKAGE`).
+3. **`SYNC_STATUS`**:
+   - Disables or enables the secret on RouterOS.
+   - Drops any live active session (`/ppp/active`) if the subscriber is being disabled.
+4. **`DISABLE_ORPHAN`**:
+   - Disables unknown secrets discovered on core routers to prevent unbilled usage.
+
+---
+
+## 4. REST API Endpoints
+
+All endpoints require authentication and strict RBAC (`CanViewNetworkMetrics` for telemetry, `CanControlDevices` for synchronization):
+
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/api/v1/network/reconciliation/secrets/` | `GET` | List/filter discovered secret inventory by router, status, area, or search query. |
+| `/api/v1/network/reconciliation/runs/` | `GET` | Audit log history of all completed and running reconciliation jobs. |
+| `/api/v1/network/reconciliation/trigger/` | `POST` | Triggers reconciliation on a router (synchronous or asynchronous Celery job). |
+| `/api/v1/network/reconciliation/items/<id>/sync/` | `POST` | Safely synchronizes a single discrepant secret item (`action` parameter). |
+| `/api/v1/network/reconciliation/customers/<id>/identity/` | `GET` | Surfaces subscriber network identity, expected package profile, and router state. |

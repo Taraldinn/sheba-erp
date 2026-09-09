@@ -28,6 +28,13 @@ The system has successfully completed and verified all core milestones in `MASTE
 | **Stage 8** | Multi-Tenant SaaS Control Plane | `IMPLEMENTED` | Tenant onboarding requests, package subscriptions, automated database backup tasks. |
 | **Stage 9** | Finance & Billing Completion | `IMPLEMENTED` | Itemized invoice lines, advance auto-settlement, non-destructive recharge reversal, financial summary & recalculation, async batch billing, and post-commit durable network sync (`NetworkSyncJob`). |
 | **Stage 10** | Customer Self-Care Portal & bKash Gateway | `IMPLEMENTED` | Customer OTP/JWT authentication, live session diagnostics, itemized invoices, support tickets & replies, bKash Tokenized Checkout (v1.2.0-beta), bKash PayBill Biller API, and Manual MFS Android Forwarder webhook. |
+| **Stage 11** | Network Operations Cockpit | `IMPLEMENTED` | High-level ISP operator cockpit: Router/OLT health overviews, online/offline customer metrics, active PPPoE session bandwidth tracking, optical power histogram, and subscriber diagnostic interventions (`disconnect`, `sync_profile`, `reboot_onu`). |
+| **Stage 12** | MikroTik PPPoE Reconciliation | `IMPLEMENTED` | Bidirectional audit and synchronization pipeline between ERP customers/packages and actual MikroTik RouterOS PPPoE secrets (`MATCHED`, `MISSING_IN_ROUTER`, `UNKNOWN_IN_ERP`, `PROFILE_MISMATCH`, `STATUS_MISMATCH`, `ROUTER_MISMATCH`, `ERROR`), with safe synchronization actions and distributed concurrency locking. |
+| **Stage 13** | Network Action Queue & Bulk Operations | `IMPLEMENTED` | Durable first-class network action queue (`PENDING`, `PROCESSING`, `SUCCESS`, `FAILED`, `RETRYING`, `CANCELLED`), distributed locking, idempotency keys, and 7-step bulk workflow pipeline (`Select` -> `Validate` -> `Preview` -> `Confirm` -> `Queue` -> `Execute` -> `Results`). |
+| **Stage 14** | Live Sessions + Traffic & Geographical Topology | `IMPLEMENTED` | Realtime PPPoE session visibility, short-lived Redis caching (10-15s TTL), throughput rates (RX/TX Mbps), active session termination via MikroTik backend service, historical session auditing in PostgreSQL (`UserSessionHistory`), multi-tier network topology hierarchy, GeoJSON geographical fiber corridor map, and blast-radius Path & Impact Analysis. |
+| **Stage 15** | OLT/ONU Operations & Reconciliation | `IMPLEMENTED` | Full optical operations dashboard, live PON/ONU inventory, optical RX/TX telemetry with alert thresholds, remote ONU reboot, OLT ↔ ERP reconciliation audit (`MATCHED`, `MISSING_IN_OLT`, `UNKNOWN_IN_ERP`, `BINDING_MISMATCH`, `OPTICAL_ALARM`), dry-run ONU auto-matching engine, and safe one-click customer-to-ONU binding. |
+
+
 
 ---
 

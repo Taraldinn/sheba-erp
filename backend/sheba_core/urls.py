@@ -128,6 +128,9 @@ urlpatterns = [
     # Customer Portal APIs
     path('api/v1/portal/', include('apps.customers.portal_urls')),
     
+    # Network Operations Cockpit (Phase 11)
+    path('api/v1/network/', include('apps.network.urls')),
+    
     # Master REST API
     path('api/v1/', include(router.urls)),
     

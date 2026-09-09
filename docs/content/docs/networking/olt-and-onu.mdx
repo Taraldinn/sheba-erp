@@ -1,46 +1,73 @@
 ---
-title: OLT Chassis & Optical Diagnostics
-description: Optical line terminal management, PON port monitoring, optical power (RX/TX dBm), and ONU reboots.
+title: OLT Chassis, ONU Inventory & Reconciliation
+description: Optical line terminal operations, PON port monitoring, live ONU discovery, optical power thresholds, automated matching, and ERP ↔ OLT reconciliation.
 ---
 
-# OLT Chassis & Optical Diagnostics
+# OLT Chassis, ONU Inventory & Reconciliation
 
 `IMPLEMENTED`
 
-Located in `backend/apps/network/services/olt/`, the OLT service layer interacts with optical chassis hardware.
+Implemented in **Phase 15**, this subsystem deepens fiber operations across the entire PON infrastructure:
 
----
-
-## 1. OLT Client Architecture (`services/olt/client.py`)
-
-```python
-class OLTClient:
-    def __init__(self, olt: OLT):
-        self.olt = olt
-
-    def get_optical_power(self, pon_port: str, onu_index: int) -> dict:
-        """
-        Polls the OLT via SNMP/Telnet for ONU optical power parameters.
-        Returns RX Power (dBm), TX Power (dBm), Distance (meters), and Status.
-        """
+```
+POP
+ ↓
+OLT (GPON / EPON Chassis)
+ ↓
+PON Port (1:64 / 1:128 Splitter)
+ ↓
+ONU (Subscriber Optical Network Unit)
+ ↓
+Customer Account
 ```
 
 ---
 
-## 2. Optical Signal Health Thresholds
+## 1. Core Capabilities
 
-The frontend visualizes optical health using standard color-coded badges:
+1. **OLT Operational Dashboard (`/olt`)**:
+   - Hardware chassis metrics (CPU, temperature, memory, uptime).
+   - Port utilization across all PON interfaces.
+   - Optical signal distribution histogram (Good, Warning, Critical, LOS).
+2. **Live ONU Inventory & Discovery**:
+   - Discovers connected ONUs directly from OLT chassis.
+   - Captures Serial Number, MAC address, PON interface, Distance (meters), and optical RX/TX levels.
+3. **Automated ONU Matching Engine (`autoMatchONUs`)**:
+   - Scans unassigned or newly attached ONUs on PON ports.
+   - Auto-matches them to ERP customers by matching customer MAC addresses or serial numbers.
+   - Supports preview (`dry_run=true`) and one-click batch application (`dry_run=false`).
+4. **OLT ↔ ERP Reconciliation**:
+   - Performs a complete bidirectional audit between hardware state and ERP database records.
+   - Categorizes every record into:
+     - `MATCHED`: Both ERP and OLT agree on ONU binding and status.
+     - `MISSING_IN_OLT`: ONU exists in ERP but is offline or unacknowledged by the OLT.
+     - `UNKNOWN_IN_ERP`: Physical ONU detected on OLT PON port with no corresponding ERP customer record.
+     - `BINDING_MISMATCH`: Serial number or MAC bound to a different customer in ERP than provisioned on OLT.
+     - `OPTICAL_ALARM`: Signal level dropped below critical optical thresholds (e.g. `< -27 dBm`).
+5. **Physical Interventions**:
+   - Remote ONU reboot via OMCI/OAM commands.
+   - Binding / unbinding customer assignments with full audit tracking.
+
+---
+
+## 2. API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/network/olt-reconciliation/runs/` | Lists historical OLT audit runs and summary mismatch counts. |
+| `POST` | `/api/v1/network/olt-reconciliation/<olt_id>/trigger/` | Triggers a live hardware audit against an OLT and returns categorized anomalies. |
+| `POST` | `/api/v1/network/onus/auto-match/` | Runs auto-matching algorithm between unassigned ONUs and ERP customers (`dry_run` supported). |
+| `POST` | `/api/v1/network/onus/<onu_id>/reboot/` | Triggers a remote OMCI reboot through the OLT client. |
+| `POST` | `/api/v1/network/onus/<onu_id>/bind/` | Binds an unassigned ONU to an ERP customer. |
+| `POST` | `/api/v1/network/onus/<onu_id>/unbind/` | Safely disassociates an ONU from a customer record. |
+
+---
+
+## 3. Optical Power Thresholds
 
 | Signal Range (RX Power) | Classification | Action |
 | :--- | :--- | :--- |
 | `-14.0 dBm` to `-24.0 dBm` | **Optimal / Good** (Green) | Normal operating conditions |
-| `-24.1 dBm` to `-27.0 dBm` | **Marginal / Warning** (Yellow) | Check drop cable bends / dirty connectors |
-| `< -27.1 dBm` | **Critical / Optical Loss** (Red) | High loss, frequent packet drops. Dispatch technician |
-| `0.0 dBm` / `N/A` | **Loss of Signal (LOS)** (Gray) | Fiber cut or ONU unpowered |
-
----
-
-## 3. Remote Operations
-
-- **Remote ONU Reboot**: Triggers an OMCI/OAM reboot command to restart a frozen subscriber ONU without requiring a home technician visit.
-- **Auto-Discovery**: Identifies newly attached unconfigured ONUs on PON ports for quick one-click provisioning.
+| `-24.1 dBm` to `-27.0 dBm` | **Marginal / Warning** (Yellow) | Inspect splice trays, patch cords, or dirty fiber ends |
+| `< -27.1 dBm` | **Critical / Optical Alarm** (Red) | High packet loss risk; dispatch fiber maintenance team |
+| `0.0 dBm` / `N/A` | **Loss of Signal (LOS)** (Gray) | Fiber cut or subscriber ONU powered off |

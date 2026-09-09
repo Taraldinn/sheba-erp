@@ -267,3 +267,72 @@ def dispatch_network_sync_job(
 
     transaction.on_commit(_enqueue)
     return job
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=30)
+def reconcile_router_task(self, tenant_id, router_id, actor_username='celery-worker'):
+    """
+    Asynchronously executes MikroTik PPPoE reconciliation for a router.
+    Strictly scoped to tenant_id.
+    """
+    from .models import Router
+    from .services.reconciliation import ReconciliationService
+
+    router = Router.objects.filter(id=router_id, tenant_id=tenant_id).first()
+    if not router:
+        logger.warning("reconcile_router_task: Router %s not found for tenant %s", router_id, tenant_id)
+        return {'success': False, 'error': 'Router not found'}
+
+    try:
+        run = ReconciliationService.reconcile_router(router, actor_username=actor_username)
+        return {
+            'success': (run.status == 'COMPLETED'),
+            'run_id': str(run.id),
+            'status': run.status,
+            'total_evaluated': run.total_evaluated,
+            'matched': run.matched_count,
+            'missing': run.missing_in_router_count,
+            'orphans': run.unknown_in_erp_count,
+        }
+    except Exception as exc:
+        logger.error("reconcile_router_task error for router %s: %s", router_id, exc)
+        try:
+            self.retry(exc=exc)
+        except Exception:
+            pass
+        return {'success': False, 'error': str(exc)}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=15)
+def process_network_action_task(self, tenant_id: str, action_id: str):
+    """
+    Phase 13: Asynchronously executes an individual NetworkAction job
+    with retry handling, distributed locking, and audit logging.
+    """
+    from .services.action_queue import ActionQueueService
+    try:
+        result = ActionQueueService.execute_action(tenant_id=tenant_id, action_id=action_id)
+        if not result.get('success') and result.get('status') == 'RETRYING':
+            if self and hasattr(self, 'request') and self.request.retries < self.max_retries:
+                raise self.retry(exc=Exception(result.get('error', 'Execution retry requested')))
+        return result
+    except Exception as exc:
+        logger.warning("process_network_action_task: error for action %s: %s", action_id, exc)
+        if self and hasattr(self, 'request') and self.request.retries < self.max_retries:
+            raise self.retry(exc=exc)
+        return {'success': False, 'action_id': action_id, 'error': str(exc)}
+
+
+@shared_task(bind=True, max_retries=1)
+def process_bulk_batch_task(self, tenant_id: str, batch_id: str):
+    """
+    Phase 13: Asynchronously executes a BulkNetworkBatch.
+    Executes actions with safety, updates batch counters, and records errors.
+    """
+    from .services.action_queue import BulkOperationsService
+    try:
+        return BulkOperationsService.execute_bulk_batch(tenant_id=tenant_id, batch_id=batch_id)
+    except Exception as exc:
+        logger.error("process_bulk_batch_task: error for batch %s: %s", batch_id, exc)
+        return {'success': False, 'batch_id': batch_id, 'error': str(exc)}
+

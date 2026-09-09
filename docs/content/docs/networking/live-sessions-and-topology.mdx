@@ -1,0 +1,71 @@
+---
+title: Live Sessions, Traffic & Fiber Topology
+description: Realtime PPPoE session visibility, short-lived Redis caching, session termination, historical session auditing, and geographical fiber blast radius analysis.
+---
+
+# Live Sessions, Traffic & Fiber Topology
+
+`IMPLEMENTED`
+
+Implemented in **Phase 14**, this subsystem delivers operator-facing live network visibility, sub-second PPPoE session tracking, and full fiber topology blast-radius analysis.
+
+---
+
+## 1. High-Frequency Realtime Session Architecture
+
+```
+Customer
+   ↓
+Router (MikroTik RouterOS v7)
+   ↓
+PPPoE Active Session
+   ↓
+Backend Poller (MikroTikService)
+   ↓
+Short-Lived Redis Cache (TTL: 15s)
+   ↓
+Operator Cockpit (/online-sessions)
+```
+
+- **Redis Caching**: High-frequency session state is cached in Redis with a 15-second TTL under the key `live_sessions:<tenant_id>:<router_id>`. This prevents slamming upstream BNGs with repeated concurrent requests while keeping operator dashboards responsive and fresh.
+- **Financial Rule**: Redis is **never** used as the source of truth for financial or billing ledger state.
+- **Historical PostgreSQL Audit (`UserSessionHistory`)**: Completed sessions and disconnects are written to PostgreSQL storing:
+  - `customer`, `router`, `mac_address`, `ip_address`, `interface_name`
+  - `started_at`, `ended_at`, `duration_seconds`
+  - `bytes_in`, `bytes_out`, `terminate_cause`
+
+---
+
+## 2. API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/network/live-sessions/` | Returns active sessions correlated with ERP customer records, including live RX/TX rates. Filterable by router, customer, or search query. |
+| `POST` | `/api/v1/network/live-sessions/terminate/` | Forcefully disconnects a live session on the router via `MikroTikService.disconnect_session` and records termination history. |
+| `GET` | `/api/v1/network/live-sessions/customer/<customer_id>/` | Deep telemetry panel for a customer showing current session status, live throughput, and last-seen timestamp. |
+| `GET` | `/api/v1/network/live-sessions/history/` | Historical session audit log from PostgreSQL for compliance and dispute resolution. |
+| `GET` | `/api/v1/network/topology/` | Full multi-tier graph hierarchy (`POP -> Router -> OLT -> PON -> ONU -> Customer`). |
+| `GET` | `/api/v1/network/geo-map/` | GeoJSON FeatureCollection containing all geographical fiber POPs, Routers, OLTs, and corridor line strings. |
+| `POST` | `/api/v1/network/impact-analysis/` | Blast-radius simulation calculating affected subscribers, active bandwidth, downstream nodes, and Monthly Recurring Revenue (MRR) at risk in BDT. |
+
+---
+
+## 3. Geographical Fiber Map & Blast Radius Analysis
+
+### Topology Hierarchy
+The network topology engine models the full delivery chain:
+```
+POP (Point of Presence)
+ └── Core / Edge Router
+      └── OLT Chassis
+           └── PON Port
+                └── Optical Network Unit (ONU)
+                     └── PPPoE Customer Account
+```
+
+### Path & Impact (Blast Radius)
+Operators can simulate a fiber cut or device failure at any level (`pop`, `router`, or `olt`):
+- **Impacted Customers Count**: Identifies every subscriber provisioned downstream.
+- **Active Traffic at Risk**: Sum of current live bandwidth in Mbps through the failed link.
+- **Revenue at Risk (BDT)**: Sum of monthly subscription package pricing for all affected customers.
+- **Downstream Hardware Tree**: Full list of affected OLTs, PON ports, and ONUs.
