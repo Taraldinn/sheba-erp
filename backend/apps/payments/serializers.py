@@ -29,7 +29,7 @@ class PaymentRequestSerializer(serializers.Serializer):
     """
     Action-specific request serializer for processing payments.
     """
-    customer_id = serializers.UUIDField(required=False, allow_null=True)
+    customer_id = serializers.UUIDField(required=True)
     amount = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=1)
     payment_method = serializers.CharField(default='CASH')
     trx_id = serializers.CharField(required=False, allow_blank=True, default='')

@@ -82,8 +82,8 @@ class PaymentTransactionViewSet(viewsets.ModelViewSet):
         trx_id = data.get('trx_id') or f"MAN-{uuid.uuid4().hex[:8].upper()}"
         idempotency_key = data.get('idempotency_key') or ''
 
-        # Idempotency check within tenant
-        if trx_id and PaymentTransaction.objects.filter(tenant=tenant, trx_id=trx_id).exists():
+        # Global uniqueness check on trx_id
+        if trx_id and PaymentTransaction.objects.filter(trx_id=trx_id).exists():
             return Response({'error': f'Transaction with ID {trx_id} already exists.'}, status=status.HTTP_409_CONFLICT)
 
         with transaction.atomic():
@@ -94,9 +94,11 @@ class PaymentTransactionViewSet(viewsets.ModelViewSet):
                 payment_method=data['payment_method'],
                 trx_id=trx_id,
                 status=TransactionStatus.SUCCESS,
-                notes=data.get('notes', ''),
-                idempotency_key=idempotency_key,
-                raw_response={'processed_by': request.user.username}
+                raw_payload={
+                    'notes': data.get('notes', ''),
+                    'idempotency_key': idempotency_key,
+                    'processed_by': request.user.username
+                }
             )
 
             if customer:
@@ -315,6 +317,7 @@ class InboundPaymentEventViewSet(viewsets.ModelViewSet):
     webhook integrations, and manual resolution of unmatched events.
     """
     serializer_class = InboundPaymentEventSerializer
+    http_method_names = ['get', 'post', 'head', 'options']
 
     def get_permissions(self):
         if self.action == 'create':
