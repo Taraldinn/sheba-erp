@@ -55,6 +55,12 @@ def process_customer_expiry(tenant_id, customer_id):
             return {'success': False, 'error': f'Customer {customer_id} not found under tenant {tenant_id}'}
 
         today = timezone.now().date()
+        if not customer.auto_lock_enabled:
+            return {'success': True, 'customer_id': str(customer.id), 'status': customer.status, 'skipped': 'AUTO_LOCK_DISABLED'}
+
+        if customer.promise_date and customer.promise_date >= today:
+            return {'success': True, 'customer_id': str(customer.id), 'status': customer.status, 'skipped': 'IN_GRACE_PERIOD'}
+
         if customer.expiry_date and customer.expiry_date < today:
             customer.status = CustomerStatus.EXPIRED
             customer.save(update_fields=['status', 'updated_at'])
@@ -71,6 +77,18 @@ def process_customer_expiry(tenant_id, customer_id):
                 target_id=str(customer.id),
                 details={'pppoe_username': customer.pppoe_username, 'status': 'Expired'}
             )
+
+            # Post-commit NetworkSyncJob for disabling user
+            if customer.router_id:
+                from apps.network.models import NetworkSyncJob
+                from apps.network.tasks import dispatch_network_sync_job
+                dispatch_network_sync_job(
+                    tenant_id=tenant_id,
+                    action=NetworkSyncJob.Action.DISABLE_USER,
+                    customer_id=customer.id,
+                    router_id=customer.router_id,
+                    payload={'pppoe_username': customer.pppoe_username, 'reason': 'EXPIRED'}
+                )
 
         return {'success': True, 'customer_id': str(customer.id), 'status': customer.status}
 
@@ -228,6 +246,18 @@ def generate_monthly_invoices(self=None, tenant_id=None, billing_month=None):
                             description=f"Monthly Recurring Invoice #{inv_no} ({month_str})",
                             created_by='MONTHLY_INVOICE_CRON'
                         )
+
+                        # Auto-settle with customer advance balance if available
+                        if customer.advance_amount and customer.advance_amount > Decimal('0.00'):
+                            from apps.finance.services import apply_advance_to_invoice
+                            tenant_obj = Tenant.objects.get(id=tenant_id)
+                            apply_advance_to_invoice(
+                                tenant=tenant_obj,
+                                customer=customer,
+                                invoice=invoice,
+                                actor_username='MONTHLY_INVOICE_CRON'
+                            )
+
                         created += 1
 
                 return {'success': True, 'tenant_id': str(tenant_id), 'month': month_str, 'invoices_created': created}

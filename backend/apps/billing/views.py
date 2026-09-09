@@ -4,10 +4,13 @@ from django.db import transaction, IntegrityError
 from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.decorators import action
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import Package, ResellerPricing, Invoice, Recharge, Offer
 from .serializers import PackageSerializer, ResellerPricingSerializer, InvoiceSerializer, RechargeSerializer, OfferSerializer
 from apps.core.permissions import IsTenantMember, IsAdminUserOrReadOnly, IsBillingStaff
+from apps.core.authorization import can
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 from apps.payments.models import PaymentTransaction, TransactionStatus
 from apps.finance.models import BillingAccount, LedgerEntry, PaymentAllocation
@@ -269,6 +272,33 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             'status': locked_invoice.status
         })
 
+    @action(detail=False, methods=['post'], url_path='generate-batch')
+    def generate_batch(self, request):
+        tenant = get_tenant_for_request(request)
+        if not can(request.user, tenant, 'invoice.create'):
+            raise PermissionDenied("Permission denied: invoice.create capability required.")
+
+        billing_month = request.data.get('billing_month', '')
+        raw_async = request.data.get('async', None)
+        if raw_async is None:
+            async_job = True
+        elif isinstance(raw_async, str):
+            async_job = raw_async.strip().lower() in ('true', '1', 'yes')
+        else:
+            async_job = bool(raw_async)
+
+        from apps.core.tasks import generate_monthly_invoices
+        if async_job:
+            task = generate_monthly_invoices.delay(tenant_id=str(tenant.id), billing_month=billing_month)
+            return Response({
+                'message': 'Batch recurring invoice generation scheduled.',
+                'task_id': task.id,
+                'tenant_id': str(tenant.id)
+            }, status=status.HTTP_202_ACCEPTED)
+
+        result = generate_monthly_invoices(tenant_id=str(tenant.id), billing_month=billing_month)
+        return Response(result, status=status.HTTP_200_OK if result.get('success') else status.HTTP_400_BAD_REQUEST)
+
 
 @extend_schema_view(
     list=extend_schema(tags=['6. Billing & Invoices']),
@@ -280,3 +310,28 @@ class RechargeViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return get_scoped_queryset(self.request, Recharge).select_related('customer', 'package', 'processed_by__user')
+
+    @action(detail=True, methods=['post'], url_path='reverse')
+    def reverse(self, request, pk=None):
+        recharge = self.get_object()
+        tenant = request.tenant
+        if not can(request.user, tenant, 'customer.recharge', recharge) and not can(request.user, tenant, 'finance.adjust', recharge):
+            return Response({'error': 'Permission denied: customer.recharge or finance.adjust capability required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        reason = request.data.get('reason', 'Administrative Reversal')
+        actor = request.user.username if request.user.is_authenticated else 'system'
+
+        from apps.finance.services import reverse_recharge
+        try:
+            result = reverse_recharge(
+                tenant=tenant,
+                recharge=recharge,
+                reason=reason,
+                actor_username=actor
+            )
+            return Response({
+                'message': f"Recharge #{recharge.id} reversed successfully.",
+                'result': result
+            }, status=status.HTTP_200_OK)
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)

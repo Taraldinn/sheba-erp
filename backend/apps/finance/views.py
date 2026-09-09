@@ -12,12 +12,32 @@ from apps.core.permissions import IsTenantMember, IsBillingStaff
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 from apps.core.authorization import can
 from apps.customers.models import Customer
-from apps.finance.models import BillingAccount, LedgerEntry, PaymentAllocation, Adjustment
+from apps.finance.models import BillingAccount, LedgerEntry, PaymentAllocation, Adjustment, InvoiceLine
 from apps.finance.serializers import (
     BillingAccountSerializer, LedgerEntrySerializer,
-    PaymentAllocationSerializer, AdjustmentSerializer
+    PaymentAllocationSerializer, AdjustmentSerializer, InvoiceLineSerializer
 )
 from apps.finance.services import get_or_create_billing_account, record_ledger_entry, reconcile_billing_account
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['6. Finance & Ledger']),
+    retrieve=extend_schema(tags=['6. Finance & Ledger']),
+)
+class InvoiceLineViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsBillingStaff]
+    serializer_class = InvoiceLineSerializer
+
+    def get_queryset(self):
+        qs = get_scoped_queryset(self.request, InvoiceLine).select_related('invoice')
+        inv_id = self.request.query_params.get('invoice')
+        if inv_id:
+            try:
+                uuid.UUID(str(inv_id))
+            except (ValueError, AttributeError, TypeError):
+                raise ValidationError({'invoice': 'Must be a valid UUID.'})
+            qs = qs.filter(invoice_id=inv_id)
+        return qs
 
 
 @extend_schema_view(

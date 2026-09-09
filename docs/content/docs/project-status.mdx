@@ -11,9 +11,9 @@ This document reflects the exact operational state of the codebase as of Septemb
 
 ---
 
-## 1. Verified Completed Baseline (Stages 0 Through 8)
+## 1. Verified Completed Baseline (Stages 0 Through 9)
 
-The system has successfully completed and verified all core milestones in `MASTER_TASK.md` and `ARCHITECTURE.md` (153 automated tests passing):
+The system has successfully completed and verified all core milestones in `MASTER_TASK.md` and `ARCHITECTURE.md` (171 automated tests passing):
 
 | Stage | Milestone | Status | Key Verifications |
 | :--- | :--- | :--- | :--- |
@@ -26,6 +26,7 @@ The system has successfully completed and verified all core milestones in `MASTE
 | **Stage 6** | Finance & Ledger Integrity | `IMPLEMENTED` | Double-entry `LedgerEntry` journal, `BillingAccount`, `IdempotencyKey` headers. |
 | **Stage 7** | Network Operations (MikroTik & OLT) | `IMPLEMENTED` | MikroTik ROSv7 REST/socket adapter, PPPoE provisioning, optical power telemetry. |
 | **Stage 8** | Multi-Tenant SaaS Control Plane | `IMPLEMENTED` | Tenant onboarding requests, package subscriptions, automated database backup tasks. |
+| **Stage 9** | Finance & Billing Completion | `IMPLEMENTED` | Itemized invoice lines, advance auto-settlement, non-destructive recharge reversal, financial summary & recalculation, async batch billing, and post-commit durable network sync (`NetworkSyncJob`). |
 
 ---
 

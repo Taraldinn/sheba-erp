@@ -21,6 +21,8 @@ Financial Event -> Idempotency Key Check -> DB Transaction -> LedgerEntry -> Bal
 ```
 - **Balances are Projections**: The true financial balance of any customer is `SUM(credit) - SUM(debit)` across all `LedgerEntry` records.
 - **Append-Only Journal**: Records in `LedgerEntry` cannot be updated or deleted via API.
+- **Non-Destructive Reversals**: Reversals of recharges or payments never delete rows. They append a compensating `REVERSAL` debit `LedgerEntry`, update linked payment status to `REFUNDED`, and restore open invoice dues.
+- **Advance Settlement Allocation**: Customer advance credits automatically settle open invoices via `apply_advance_to_invoice()`, producing explicit `PaymentAllocation` records and credit ledger entries while keeping net balance invariants consistent.
 - **Auditable Adjustments**: Corrections, refunds, or waivers must be recorded as explicit `Adjustment` entries with an audit reference and staff signature.
 
 ---

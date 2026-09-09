@@ -13,7 +13,9 @@ Quick cross-reference between frontend routes and backend REST endpoints.
 | :--- | :--- | :--- | :--- |
 | **Dashboard** | `src/app/page.tsx` | `GET /api/v1/reports/dashboard/` | `DashboardAnalyticsView` |
 | **Customers** | `src/app/customers/page.tsx` | `GET/POST /api/v1/customers/` | `CustomerViewSet` |
-| **Billing** | `src/app/billing/page.tsx` | `GET/POST /api/v1/invoices/` | `InvoiceViewSet` |
+| **Billing & Invoices** | `src/app/billing/page.tsx` | `GET/POST /api/v1/invoices/` | `InvoiceViewSet` |
+| **Invoice Lines** | `src/app/billing/page.tsx` | `GET /api/v1/invoice-lines/` | `InvoiceLineViewSet` |
+| **Recharges** | `src/app/billing/page.tsx` | `POST /api/v1/recharges/` | `RechargeViewSet` |
 | **Routers** | `src/app/routers/page.tsx` | `GET/POST /api/v1/routers/` | `RouterViewSet` |
 | **OLT** | `src/app/olt/page.tsx` | `GET/POST /api/v1/olts/`, `/onus/` | `OLTViewSet`, `ONUViewSet` |
 | **Payments** | `src/app/payments/page.tsx` | `GET/POST /api/v1/payments/events/` | `InboundPaymentEventViewSet` |

@@ -26,7 +26,47 @@ description: Broadband packages, recurring invoicing, recharge workflows, and pr
 
 ## 2. Controllers & Workflows
 
+### Packages & Offers
 - `GET/POST /api/v1/packages/`: Manage broadband tiers and sync corresponding RouterOS queue profiles.
-- `GET/POST /api/v1/invoices/`: View invoices, filter by `status` (`UNPAID`, `PAID`, `PARTIAL`), and download billing receipts.
-- `POST /api/v1/recharges/`: Atomic recharge action. Accepts `customer_id`, `amount`, and extends subscription expiry date.
 - `GET/POST /api/v1/offers/`: Campaign and discount configuration.
+
+### Invoices (`InvoiceViewSet`)
+- `GET /api/v1/invoices/`: View invoices, filter by `status` (`UNPAID`, `PAID`, `PARTIAL`, `OVERDUE`), `customer`, `billing_month`.
+- `POST /api/v1/invoices/`: Create an invoice with optional itemized `lines`. If `lines` are provided, line totals are computed (`(quantity * unit_price) - discount + tax_amount`), validated fields are preserved, and debit ledger entries are posted.
+- `POST /api/v1/invoices/generate-batch/`: Trigger tenant-wide recurring monthly invoice generation.
+  - **Async Execution (Default)**: Automatically dispatches a Celery worker task (`generate_monthly_invoices.delay()`) protected by a Redis distributed lock (`lock:invoice_gen:{tenant_id}`). Responds with `HTTP 202 Accepted`:
+    ```json
+    {
+      "success": true,
+      "task_id": "8a32b0c1-6b45-42f0-9a3d-3df798b1a234",
+      "status": "QUEUED",
+      "async": true
+    }
+    ```
+  - **Synchronous Override**: Passing `?async=false` or payload `{"async": false}` executes inline synchronously, returning `HTTP 200 OK` with generated invoice counts:
+    ```json
+    {
+      "success": true,
+      "invoices_created": 42,
+      "month": "September 2026",
+      "async": false
+    }
+    ```
+
+### Recharges (`RechargeViewSet`)
+- `POST /api/v1/recharges/`: Atomic recharge action. Accepts `customer_id`, `amount`, `validity_days`. Updates expiry date, creates a completed `PaymentTransaction`, settles open invoices, and posts credit `LedgerEntry`.
+- `POST /api/v1/recharges/{id}/reverse/`: Non-destructive compensating reversal for an erroneous recharge.
+  - Accepts optional payload: `{"reason": "Customer requested cash refund"}`.
+  - Idempotent and audit-trailed: marks `recharge.is_reversed = True`, marks linked payment transaction `REFUNDED`, posts debit `REVERSAL` ledger entry, restores original expiry date, and re-opens cleared invoices.
+  - Returns `HTTP 200 OK`:
+    ```json
+    {
+      "success": true,
+      "recharge": {
+        "id": "7b7a5a8f-2879-4509-9fd6-ec412c96c568",
+        "is_reversed": true,
+        "customer": "user100"
+      },
+      "reversed_by": "admin"
+    }
+    ```

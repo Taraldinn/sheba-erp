@@ -23,9 +23,10 @@ Long-running I/O operations, network polling, payment ingestion, and recurring b
 
 | Task Name | Schedule / Trigger | Purpose | Lock Key |
 | :--- | :--- | :--- | :--- |
-| `expire_customers` | Daily midnight cron | Locks subscribers whose expiry date has passed, removes PPPoE active sessions | `lock:expiry:{tenant_id}` |
-| `generate_monthly_invoices` | 1st of every month | Generates monthly recurring subscription invoices | `lock:invoice_gen:{tenant_id}` |
-| `process_payment_event` | Inbound SMS webhook | Matches unlinked MFS transactions against subscribers, extends expiry, posts ledger entries | `lock:payment_event:{event_id}` |
+| `expire_customers` | Daily midnight cron | Locks subscribers whose expiry date has passed (respecting grace periods), terminates sessions | `lock:expiry:{tenant_id}` |
+| `generate_monthly_invoices` | 1st of every month / API | Generates monthly recurring subscription invoices, itemized lines, and auto-settles advance | `lock:invoice_gen:{tenant_id}` |
+| `process_network_sync_job` | Post-commit dispatch | Asynchronously executes MikroTik/OLT actions (`ENABLE_USER`, `DISABLE_USER`, etc.) after DB commit | `lock:network_sync:{tenant_id}:{job_id}` |
+| `process_payment_event` | Inbound SMS webhook | Matches unlinked MFS transactions against subscribers, extends expiry, posts ledger entries | `lock:payment_event:{tenant_id}:{event_id}` |
 | `process_recharge` | Staff manual recharge | Applies subscription renewals, updates expiry dates, updates queues | `lock:recharge:{customer_id}` |
 | `sync_router_telemetry` | Every 5 minutes | Polls MikroTik routers for CPU, memory, uptime, and active PPPoE count | `lock:router_sync:{router_id}` |
 | `execute_database_backup` | Scheduled / On-demand | Dumps PostgreSQL database and uploads to backup storage | `lock:backup:{tenant_id}` |

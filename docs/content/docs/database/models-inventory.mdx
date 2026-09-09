@@ -1,13 +1,13 @@
 ---
-title: Complete Models Inventory (52 Models)
-description: Exhaustive directory of all 52 Django models across all 13 backend apps.
+title: Complete Models Inventory (53 Models)
+description: Exhaustive directory of all 53 Django models across all 13 backend apps.
 ---
 
-# Complete Models Inventory (52 Models)
+# Complete Models Inventory (53 Models)
 
 `IMPLEMENTED`
 
-The backend database schema consists of exactly 52 active Django models verified in the codebase.
+The backend database schema consists of exactly 53 active Django models verified in the codebase.
 
 ---
 
@@ -68,43 +68,44 @@ The backend database schema consists of exactly 52 active Django models verified
 
 ---
 
-## 7. `apps.network` (5 Models)
+## 7. `apps.network` (6 Models)
 34. `POPBranch`: Network Point-of-Presence physical location.
 35. `Router`: MikroTik edge router registration and credentials.
 36. `OLT`: Optical Line Terminal chassis registration.
 37. `ONU`: Optical Network Unit attached to a PON port.
 38. `UserSession`: Real-time active PPPoE tunnel cache.
+39. `NetworkSyncJob`: Post-commit durable queue for router/OLT hardware sync operations.
 
 ---
 
 ## 8. `apps.support` (2 Models)
-39. `Ticket`: NOC and customer support tickets.
-40. `TicketReply`: Communication thread on a ticket.
+40. `Ticket`: NOC and customer support tickets.
+41. `TicketReply`: Communication thread on a ticket.
 
 ---
 
 ## 9. `apps.hr` (5 Models)
-41. `Employee`: Staff employee record.
-42. `Attendance`: Daily attendance check-in/out.
-43. `LeaveRequest`: Employee leave applications.
-44. `AdvanceSalary`: Employee salary advance tracking.
-45. `PayrollRecord`: Monthly salary disbursement journal.
+42. `Employee`: Staff employee record.
+43. `Attendance`: Daily attendance check-in/out.
+44. `LeaveRequest`: Employee leave applications.
+45. `AdvanceSalary`: Employee salary advance tracking.
+46. `PayrollRecord`: Monthly salary disbursement journal.
 
 ---
 
 ## 10. `apps.store` (3 Models)
-46. `ItemCategory`: Hardware inventory categories.
-47. `StoreItem`: Physical items in stock (cables, routers, SFPs).
-48. `StockTransaction`: Stock movements in and out of the warehouse.
+47. `ItemCategory`: Hardware inventory categories.
+48. `StoreItem`: Physical items in stock (cables, routers, SFPs).
+49. `StockTransaction`: Stock movements in and out of the warehouse.
 
 ---
 
 ## 11. `apps.tasks` (1 Model)
-49. `Task`: Maintenance and field technician work orders.
+50. `Task`: Maintenance and field technician work orders.
 
 ---
 
 ## 12. `apps.callcenter` (3 Models)
-50. `CallLog`: Telephony customer communication records.
-51. `VoiceSetting`: Telephony gateway configurations.
-52. `VoiceTemplate`: IVR broadcast audio scripts.
+51. `CallLog`: Telephony customer communication records.
+52. `VoiceSetting`: Telephony gateway configurations.
+53. `VoiceTemplate`: IVR broadcast audio scripts.

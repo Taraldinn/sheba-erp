@@ -12,7 +12,7 @@ description: Core network operations, POP branches, MikroTik RouterOS v7 integra
 
 ---
 
-## 1. Database Models (5 Models)
+## 1. Database Models (6 Models)
 
 | Model Name | Purpose | Key Fields |
 | :--- | :--- | :--- |
@@ -21,13 +21,14 @@ description: Core network operations, POP branches, MikroTik RouterOS v7 integra
 | `OLT` | Optical Line Terminal chassis | `name`, `ip_address`, `brand`, `snmp_community`, `pon_ports_count` |
 | `ONU` | Optical Network Unit at subscriber premises | `olt`, `pon_port`, `mac_address`, `rx_power`, `tx_power`, `status` |
 | `UserSession` | Live active PPPoE session cache | `username`, `ip_address`, `mac_address`, `uptime`, `bytes_in`, `bytes_out` |
+| `NetworkSyncJob` | Durable hardware synchronization queue | `customer`, `router`, `olt`, `action`, `status`, `payload`, `retry_count` |
 
 ---
 
 ## 2. MikroTik Client Architecture (`apps.network.services.mikrotik`)
 
 ```text
-RouterViewSet (Controller)
+RouterViewSet / Background Task
        │
        ▼
 MikroTikService (Business Logic)
@@ -42,3 +43,55 @@ RouterOS v7 REST API / Binary API Socket
 - **Credential Security**: Passwords stored symmetrically encrypted via `cryptography.fernet`.
 - **SSRF Prevention**: Strict server-side IP validation prevents arbitrary internal network probing.
 - **Failover / Offline Handling**: Routers unreachable during operations are flagged `OFFLINE`; background task `sync_router_telemetry` retries connectivity and reports circuit restoration.
+
+---
+
+## 3. The Critical Network Rule & Post-Commit Synchronization
+
+Network hardware communication (MikroTik RouterOS REST/sockets, OLT telnet/SNMP) entails non-deterministic latencies, socket timeouts, and potential device unresponsiveness.
+
+### Architectural Invariant
+> **CRITICAL NETWORK RULE**:
+> Physical hardware operations must NEVER be executed inside an open PostgreSQL database transaction.
+> Database changes must commit first. Hardware synchronization must occur post-commit via durable background jobs.
+
+### Durable Sync Workflow (`NetworkSyncJob`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as Service / API Endpoint
+    participant DB as PostgreSQL Transaction
+    participant Celery as Celery Worker
+    participant Lock as Redis Distributed Lock
+    participant Router as MikroTik Edge Router
+
+    App->>DB: Begin Atomic DB Transaction
+    App->>DB: Mutate Customer / Financial Records
+    App->>DB: Insert NetworkSyncJob(status='PENDING', action='ENABLE_USER')
+    App->>DB: Register transaction.on_commit(enqueue_job)
+    App->>DB: COMMIT Transaction (Releases DB row locks)
+    Note over DB,Celery: DB locks released immediately; no idle connection holding
+    DB->>Celery: Trigger process_network_sync_job.delay(tenant_id, job_id)
+    Celery->>Lock: Acquire lock:network_sync:{tenant_id}:{job_id}
+    Celery->>DB: Mark NetworkSyncJob(status='PROCESSING')
+    Celery->>Router: MikroTikService.pppoe.enable_user_by_name(username)
+    alt Router Call Succeeds
+        Celery->>DB: Mark NetworkSyncJob(status='SUCCESS', result=payload)
+    else Hardware Timeout / Connection Refused
+        Celery->>DB: Increment retry_count, save error_message
+        alt retry_count >= max_retries
+            Celery->>DB: Mark NetworkSyncJob(status='FAILED')
+        else Can Retry
+            Celery->>Celery: Retry task with exponential backoff
+        end
+    end
+    Celery->>Lock: Release Lock
+```
+
+- **Job Actions**:
+  - `ENABLE_USER`: Re-enables disabled PPPoE secret on router upon recharge or grace period.
+  - `DISABLE_USER`: Disables PPPoE secret on router upon expiry or manual suspension.
+  - `UPDATE_PACKAGE`: Updates profile and rate limit queues when a customer switches speed tiers.
+  - `DISCONNECT_SESSION`: Kicks active PPPoE session forcing immediate reconnect with new profile.
+- **Durable Safety**: If Celery is temporarily unavailable or in synchronous mode, `dispatch_network_sync_job` gracefully executes inline fallback after transaction commit.

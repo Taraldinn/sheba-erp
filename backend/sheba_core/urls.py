@@ -18,7 +18,7 @@ from apps.core.saas_views import (
 from apps.authentication.views import LoginView, CurrentUserView, StaffProfileViewSet, RoleViewSet, PermissionViewSet
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
-from apps.finance.views import BillingAccountViewSet, LedgerEntryViewSet, PaymentAllocationViewSet, AdjustmentViewSet
+from apps.finance.views import BillingAccountViewSet, LedgerEntryViewSet, PaymentAllocationViewSet, AdjustmentViewSet, InvoiceLineViewSet
 from apps.payments.views import (
     PaymentGatewayViewSet, PaymentTransactionViewSet, SmsLogViewSet,
     SmsWebhookView, InboundPaymentEventViewSet
@@ -55,6 +55,7 @@ router.register(r'packages', PackageViewSet, basename='package')
 router.register(r'offers', OfferViewSet, basename='offer')
 router.register(r'reseller-rates', ResellerPricingViewSet, basename='reseller-rate')
 router.register(r'invoices', InvoiceViewSet, basename='invoice')
+router.register(r'invoice-lines', InvoiceLineViewSet, basename='invoice-line')
 router.register(r'recharges', RechargeViewSet, basename='recharge')
 router.register(r'billing-accounts', BillingAccountViewSet, basename='billing-account')
 router.register(r'ledger-entries', LedgerEntryViewSet, basename='ledger-entry')

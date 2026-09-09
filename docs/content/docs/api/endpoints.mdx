@@ -24,6 +24,9 @@ The following endpoints are registered in `backend/sheba_core/urls.py`.
 - `GET/POST /api/v1/customers/`: Customer list, creation, and filtering.
 - `GET/PATCH/DELETE /api/v1/customers/{id}/`: Customer detail and update.
 - `POST /api/v1/customers/{id}/toggle_status/`: Suspend or resume Internet access.
+- `GET /api/v1/customers/{id}/financial-summary/`: Live consolidated breakdown of subscriber balance, dues, advances, open invoices, and recent ledger entries.
+- `POST /api/v1/customers/{id}/recalculate-balance/`: Authoritative recalculation of dues and advance balances from live records.
+- `POST /api/v1/customers/{id}/grant-grace-period/`: Extends service access by `days` or `promise_date`, restores `ACTIVE` status, and dispatches post-commit network sync.
 - `POST /api/v1/customer/query/`: Public subscriber lookup by phone/username.
 - `GET/POST /api/v1/packages/`: Broadband package management.
 - `GET/POST /api/v1/offers/`: Promotional campaigns and discounts.
@@ -44,8 +47,11 @@ The following endpoints are registered in `backend/sheba_core/urls.py`.
 ---
 
 ## 4. Billing, Invoices & Finance
-- `GET/POST /api/v1/invoices/`: View, generate, and filter invoices.
-- `POST /api/v1/recharges/`: Process subscription validity recharge.
+- `GET/POST /api/v1/invoices/`: View, generate, and filter invoices (supports nested itemized `lines`).
+- `POST /api/v1/invoices/generate-batch/`: Recurring monthly invoice generation (defaults to async Celery dispatch returning HTTP 202; supports synchronous execution with `?async=false`).
+- `GET /api/v1/invoice-lines/`: List itemized invoice fee items (supports filter `?invoice=<uuid>`).
+- `POST /api/v1/recharges/`: Process subscription validity recharge with automatic invoice clearing.
+- `POST /api/v1/recharges/{id}/reverse/`: Non-destructive compensating reversal for an erroneous recharge.
 - `GET /api/v1/billing-accounts/`: Customer financial accounts.
 - `GET /api/v1/ledger-entries/`: Immutable double-entry financial ledger journal.
 - `POST /api/v1/adjustments/`: Staff manual fee adjustments or waivers.

@@ -1,6 +1,16 @@
 from rest_framework import serializers
-from apps.finance.models import BillingAccount, LedgerEntry, PaymentAllocation, Adjustment
+from apps.finance.models import BillingAccount, LedgerEntry, PaymentAllocation, Adjustment, InvoiceLine
 from apps.customers.models import Customer
+
+
+class InvoiceLineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InvoiceLine
+        fields = [
+            'id', 'invoice', 'description', 'quantity', 'unit_price',
+            'discount', 'tax_amount', 'total', 'created_at'
+        ]
+        read_only_fields = ['id', 'total', 'created_at']
 
 
 class BillingAccountSerializer(serializers.ModelSerializer):

@@ -11,31 +11,41 @@ Sheba ISP ERP automates recurring monthly subscription invoicing for thousands o
 
 ---
 
-## 1. Monthly Recurring Billing Cycle
+## 1. End-to-End Financial Lifecycle
 
-On the 1st of every calendar month, Celery triggers `generate_monthly_invoices(tenant_id)`.
+The financial architecture guarantees atomic propagation across all stages:
+
+```text
+Invoice -> Invoice Lines -> Payment -> Payment Allocation -> Ledger -> Customer Balance -> Billing Status -> Network Sync
+```
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Celery as Celery Beat
+    participant Celery as Celery Beat / API
     participant Task as generate_monthly_invoices
-    participant Lock as Redis Lock
+    participant Lock as Redis Distributed Lock
     participant DB as PostgreSQL
-    participant SMS as SMS Dispatcher
+    participant Fin as Finance Service
+    participant Net as Network Sync Worker
 
-    Celery->>Task: Trigger 1st of Month Billing Run
+    Celery->>Task: Trigger Billing Run (tenant_id)
     Task->>Lock: Acquire lock:invoice_gen:{tenant_id}
-    Task->>DB: Query Active Customers for Tenant
+    Task->>DB: Query Active Customers
     loop For Each Customer
-        Task->>DB: Check if Invoice Already Generated for Month
+        Task->>DB: Check Existing Invoice for billing_month
         alt Not Yet Billed
-            Task->>DB: Begin Atomic Transaction
-            Task->>DB: Create Invoice(amount=monthly_bill - discount)
-            Task->>DB: Create InvoiceLine(package=name, rate=amount)
-            Task->>DB: Post LedgerEntry(debit=payable, type='INVOICE')
-            Task->>DB: Commit Transaction
-            Task->>SMS: Queue Invoice Bill Notification SMS
+            Task->>DB: Begin Atomic DB Transaction
+            Task->>DB: Create Invoice & Itemized InvoiceLine records
+            Task->>DB: Update BillingAccount (total_invoiced, balance)
+            Task->>DB: Post Debit LedgerEntry(type='INVOICE')
+            alt Customer Has Advance Credit
+                Task->>Fin: apply_advance_to_invoice(customer, invoice)
+                Fin->>DB: Create PaymentAllocation
+                Fin->>DB: Mark Invoice PAID or PARTIAL
+                Fin->>DB: Post Credit LedgerEntry(type='PAYMENT')
+            end
+            Task->>DB: Commit DB Transaction
         else Already Billed
             Task->>Task: Skip (Idempotent Guarantee)
         end
@@ -45,8 +55,39 @@ sequenceDiagram
 
 ---
 
-## 2. Invoicing Business Rules
+## 2. Invoicing & Discount Rules
 
-1. **Idempotent Billing**: A customer cannot receive more than one recurring subscription invoice for the same billing period (`period_start` to `period_end`).
-2. **Discounts & Reseller Rates**: If customer has a recurring discount or belongs to a `Reseller` with custom `ResellerPricing`, the line rate reflects the agreed tiered pricing.
-3. **Proration**: Mid-cycle new activations calculate prorated fees based on remaining days in the billing month.
+1. **Idempotent Billing**: A customer cannot receive more than one recurring subscription invoice for the same `billing_month`.
+2. **Itemized Line Computation**: For each `InvoiceLine`, the net charge is computed as:
+   `line_total = (quantity * unit_price) - discount + tax_amount`
+3. **Discount Precedence**: An explicit discount passed in the invoice creation payload (including `0.00`) is strictly preserved. If omitted, the default `customer.discount` is applied.
+4. **Advance Auto-Settlement**: If a customer has an existing positive advance balance (`customer.advance_amount > 0`), the billing engine immediately executes `apply_advance_to_invoice()`, deducting advance funds to settle the new bill and creating an audited `PaymentAllocation`.
+5. **Proration**: Mid-cycle activations calculate prorated fees based on remaining days in the billing month.
+
+---
+
+## 3. Recharges & Non-Destructive Reversals
+
+```mermaid
+stateDiagram-v2
+    [*] --> RechargeInitiated: Staff / Webhook Payment
+    RechargeInitiated --> ActiveRecharge: Validated & Applied
+    state ActiveRecharge {
+        [*] --> ExtendExpiry
+        ExtendExpiry --> SettleOpenInvoices
+        SettleOpenInvoices --> CreditLedger
+        CreditLedger --> EnqueueNetworkSync: NetworkSyncJob(ENABLE_USER)
+    }
+    ActiveRecharge --> ReversedRecharge: POST /api/v1/recharges/{id}/reverse/
+    state ReversedRecharge {
+        [*] --> MarkReversed: is_reversed = true
+        MarkReversed --> RevertExpiry: Restore previous_expiry_date
+        RevertExpiry --> DebitLedger: LedgerEntry(REVERSAL)
+        DebitLedger --> ReopenInvoices: Invoices restored to UNPAID
+        ReopenInvoices --> ReclaimSurplusAdvance: Advance balance reduced
+    }
+    ReversedRecharge --> [*]
+```
+
+- **Recharge Activation**: Recharges extend customer validity, clear outstanding invoices, post credit ledger entries, and schedule post-commit router sync jobs (`ENABLE_USER`).
+- **Compensating Reversal**: Because financial records are immutable, reversing a recharge does not delete database rows. It appends a compensating `REVERSAL` ledger entry, marks the payment as refunded, rolls back the expiration date, re-opens affected invoices, and adjusts surplus advances.

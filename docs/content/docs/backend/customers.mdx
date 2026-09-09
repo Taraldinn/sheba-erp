@@ -47,8 +47,29 @@ class Customer(TenantScopedModel):
 
 ## 2. API Endpoints
 
+### Core Subscriber CRUD
 - `GET /api/v1/customers/`: Paginated subscriber search with filters by `status`, `package`, `router`, `search`.
 - `POST /api/v1/customers/`: Provisions a new subscriber, initializes `BillingAccount`, and triggers MikroTik sync.
 - `GET /api/v1/customers/{id}/`: Detail view including recent invoices, payments, and live session stats.
 - `POST /api/v1/customers/{id}/toggle_status/`: Quick toggle to suspend or resume Internet access.
 - `POST /api/v1/customer/query/`: Public/portal query endpoint allowing subscribers to check bill and due amount by phone or PPPoE username.
+
+### Financial Management & Grace Periods
+- `GET /api/v1/customers/{id}/financial-summary/`: Consolidated breakdown of subscriber financial state.
+  - Returns `due_amount`, `advance_amount`, `current_balance`, `open_invoices_count`, `unallocated_payments_total`, and recent ledger transactions.
+- `POST /api/v1/customers/{id}/recalculate-balance/`: Authoritatively re-computes `due_amount` and `advance_amount` directly from live `Invoice` and `LedgerEntry` records, fixing any cached column drift.
+- `POST /api/v1/customers/{id}/grant-grace-period/`: Temporarily extends Internet service without requiring upfront payment.
+  - Payload parameters: `{"days": 3}` or `{"promise_date": "2026-09-15"}`.
+  - Sets `customer.promise_date` and `customer.grace_period_until`.
+  - Automatically restores `customer.status = CustomerStatus.ACTIVE`.
+  - Records an immutable `AuditLog` entry.
+  - Dispatches a post-commit `NetworkSyncJob` (`ENABLE_USER`) to activate the subscriber's PPPoE credentials on the edge router.
+
+---
+
+## 3. Grace Period & Expiry Invariant
+
+In the daily midnight cron task (`expire_customers`), subscribers are evaluated against their expiration and grace period:
+- If `customer.promise_date >= today`, the customer is considered **IN_GRACE_PERIOD** and is **exempt from automatic suspension**.
+- Active PPPoE sessions are preserved, avoiding disruption while the subscriber has an active payment promise.
+- Once `today > promise_date` (and `today > expiry_date`), auto-lock proceeds, terminating sessions and dispatching `NetworkSyncJob(DISABLE_USER)`.

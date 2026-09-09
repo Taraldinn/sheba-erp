@@ -28,8 +28,61 @@ description: Architectural core of financial integrity, ledger entries, invoice 
 ## 2. Ledger Invariants
 
 ```text
-Every Credit to a Customer Account increases customer balance (Cash Inflow).
-Every Debit to a Customer Account decreases customer balance (Invoice Incurred).
+Every Credit to a Customer Account increases customer balance (Cash Inflow, Payment, Advance).
+Every Debit to a Customer Account decreases customer balance (Invoice Incurred, Reversal).
 ```
 
 Ledger entries are posted within atomic transactions using database row locks (`select_for_update()`) to guarantee consistency under high concurrent load.
+
+---
+
+## 3. Financial Services (`apps.finance.services`)
+
+The finance service layer is authoritative for all monetary calculations, ledger entries, and balance mutations.
+
+### `create_invoice_with_lines`
+Creates an itemized invoice, persists `InvoiceLine` records, computes subtotals, updates the `BillingAccount`, and posts a debit `LedgerEntry`:
+- **Line Calculation**: Each line calculates `line_total = (quantity * unit_price) - discount + tax_amount`.
+- **Discount Precedence Policy**: Explicitly provided `discount` values on the invoice payload (including `0.00`) are strictly preserved and do not fall back to `customer.discount`. If omitted (`None`), the customer's profile discount is inherited.
+- **Due Amount Invariant**: Sets `customer.due_amount = invoice.total_payable`. Because `total_payable` already includes `previous_due` plus net line items, `previous_due` is never double-added.
+- **Validated Fields Preservation**: Preserves user-supplied or serializer-validated fields (`package_name`, `invoice_no`, `package_amount`, `total_payable`).
+- **Ledger Impact**: Posts `LedgerEntry(entry_type=INVOICE, amount=total_payable)`.
+
+### `apply_advance_to_invoice`
+Clears open invoices automatically using a customer's stored credit balance:
+- Allocates up to `customer.advance_amount` against `invoice.due_amount`.
+- Updates `invoice.paid_amount`, `invoice.due_amount`, and status (`PAID` or `PARTIAL`).
+- Decrements `customer.advance_amount` and adjusts `customer.due_amount`.
+- Creates a `PaymentAllocation` record binding the settlement to the invoice.
+- Posts a credit `LedgerEntry(entry_type=PAYMENT)` and preserves the customer's net balance (`advance_amount - due_amount`).
+
+### `reverse_recharge`
+Executes an audit-compliant, non-destructive compensating reversal for an erroneous recharge:
+- Marks `recharge.is_reversed = True`.
+- Marks linked `PaymentTransaction` as `REFUNDED` (if present).
+- Rolls back customer `expiry_date` to `previous_expiry_date` (or subtracts package validity days).
+- Appends a `REVERSAL` debit `LedgerEntry`.
+- Restores unpaid/partial state on invoices cleared by the recharge.
+- Reclaims surplus advance credit granted by the recharge.
+
+### `grant_grace_period`
+Extends service access without requiring an immediate payment:
+- Sets `customer.promise_date` and `customer.grace_period_until`.
+- Restores `customer.status = CustomerStatus.ACTIVE`.
+- Emits an `AuditLog` entry.
+- Dispatches a post-commit `NetworkSyncJob` (`ENABLE_USER`) to ensure router access is re-enabled immediately.
+
+### `sync_customer_financial_summary`
+Authoritatively resolves cached balance drift by recalculating from source records:
+- Sums `due_amount` from all open (`UNPAID`, `PARTIAL`, `OVERDUE`) invoices.
+- Sums unallocated credits from completed `PaymentTransaction` and `LedgerEntry` records.
+- Synchronizes `customer.due_amount`, `customer.advance_amount`, and `billing_account.balance`.
+
+---
+
+## 4. API Controllers
+
+- `GET /api/v1/invoice-lines/`: List itemized invoice lines. Supports filtering by invoice via query parameter: `?invoice=<uuid>`.
+- `GET /api/v1/billing-accounts/`: Customer billing accounts and live balance status.
+- `GET /api/v1/ledger-entries/`: Read-only, append-only double-entry financial ledger journal.
+- `POST /api/v1/adjustments/`: Staff manual fee adjustments or waivers (requires staff attribution and idempotency key).

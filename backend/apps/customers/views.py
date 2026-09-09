@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal
 from rest_framework import viewsets, status, permissions, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -318,6 +319,96 @@ class CustomerViewSet(viewsets.ModelViewSet):
             'status': customer.status,
             'is_active': True
         })
+
+    @action(detail=True, methods=['get'], url_path='financial-summary')
+    def financial_summary(self, request, pk=None):
+        customer = self.get_object()
+        tenant = request.tenant
+        if not can(request.user, tenant, 'customer.view', customer):
+            return Response({'error': 'Permission denied: customer.view capability required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        from apps.finance.models import BillingAccount, LedgerEntry
+        from apps.billing.models import Invoice
+
+        billing_acct, _ = BillingAccount.objects.get_or_create(
+            tenant=tenant, customer=customer,
+            defaults={'balance': Decimal('0.00'), 'total_paid': Decimal('0.00')}
+        )
+
+        open_invoices = Invoice.objects.filter(
+            tenant=tenant, customer=customer,
+            status__in=[Invoice.InvoiceStatus.UNPAID, Invoice.InvoiceStatus.PARTIAL]
+        ).values('id', 'invoice_no', 'total_payable', 'paid_amount', 'due_amount', 'due_date', 'status')
+
+        recent_ledger = LedgerEntry.objects.filter(
+            tenant=tenant, customer=customer
+        ).order_by('-created_at')[:10].values(
+            'id', 'entry_type', 'amount', 'balance_after', 'reference_id', 'reference_type', 'description', 'created_at'
+        )
+
+        return Response({
+            'customer_id': str(customer.id),
+            'customer_name': customer.full_name,
+            'pppoe_username': customer.pppoe_username,
+            'status': customer.status,
+            'due_amount': customer.due_amount,
+            'advance_amount': customer.advance_amount,
+            'promise_date': customer.promise_date,
+            'expiry_date': customer.expiry_date,
+            'billing_account': {
+                'balance': billing_acct.balance,
+                'total_invoiced': billing_acct.total_invoiced,
+                'total_paid': billing_acct.total_paid,
+                'overdue_amount': billing_acct.overdue_amount,
+                'last_payment_at': billing_acct.last_payment_at,
+            },
+            'open_invoices': list(open_invoices),
+            'recent_ledger_entries': list(recent_ledger),
+        })
+
+    @action(detail=True, methods=['post'], url_path='recalculate-balance')
+    def recalculate_balance(self, request, pk=None):
+        customer = self.get_object()
+        tenant = request.tenant
+        if not can(request.user, tenant, 'finance.adjust', customer) and not can(request.user, tenant, 'customer.update', customer):
+            return Response({'error': 'Permission denied: customer.update or finance.adjust capability required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        from apps.finance.services import sync_customer_financial_summary
+        summary = sync_customer_financial_summary(tenant, customer)
+        return Response({
+            'message': f"Financial balances recalculated authoritatively for customer {customer.pppoe_username}.",
+            'summary': summary
+        })
+
+    @action(detail=True, methods=['post'], url_path='grant-grace-period')
+    def grant_grace_period(self, request, pk=None):
+        customer = self.get_object()
+        tenant = request.tenant
+        if not can(request.user, tenant, 'customer.update', customer) and not can(request.user, tenant, 'customer.recharge', customer):
+            return Response({'error': 'Permission denied: customer.update or customer.recharge capability required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        promise_date = request.data.get('promise_date')
+        days = request.data.get('days')
+        if not promise_date and not days:
+            return Response({'error': 'Either promise_date (YYYY-MM-DD) or days (integer) is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.finance.services import grant_grace_period
+        try:
+            res = grant_grace_period(
+                tenant=tenant,
+                customer=customer,
+                promise_date=promise_date,
+                days=days,
+                actor_username=request.user.username if request.user.is_authenticated else 'system'
+            )
+            return Response({
+                'message': f"Grace period granted until {res['new_promise_date']}. Customer internet active.",
+                'customer_id': str(customer.id),
+                'new_promise_date': res['new_promise_date'],
+                'status': res['status']
+            })
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema(tags=['2. Customers & Subscribers'], description='Public / Self-Care endpoint to lookup subscriber profile by phone, username or customer code.')

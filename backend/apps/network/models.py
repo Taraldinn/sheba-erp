@@ -202,3 +202,45 @@ class UserSession(models.Model):
 
     def __str__(self):
         return f"{self.username} -> {self.ip_address} on {self.router.name}"
+
+
+class NetworkSyncJob(models.Model):
+    class Action(models.TextChoices):
+        ENABLE_USER = 'ENABLE_USER', 'Enable PPPoE / Hotspot User'
+        DISABLE_USER = 'DISABLE_USER', 'Disable User / Cut Internet'
+        UPDATE_PACKAGE = 'UPDATE_PACKAGE', 'Update Speed Profile / Package'
+        DISCONNECT_SESSION = 'DISCONNECT_SESSION', 'Disconnect Active Session'
+        SYNC_ROUTER = 'SYNC_ROUTER', 'Sync Router Configuration'
+        REBOOT_ONU = 'REBOOT_ONU', 'Reboot ONU'
+
+    class JobStatus(models.TextChoices):
+        PENDING = 'PENDING', 'Pending Execution'
+        PROCESSING = 'PROCESSING', 'Processing'
+        SUCCESS = 'SUCCESS', 'Completed Successfully'
+        FAILED = 'FAILED', 'Failed'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='network_sync_jobs')
+    customer = models.ForeignKey('customers.Customer', on_delete=models.SET_NULL, null=True, blank=True, related_name='network_sync_jobs')
+    router = models.ForeignKey(Router, on_delete=models.SET_NULL, null=True, blank=True, related_name='sync_jobs')
+    olt = models.ForeignKey(OLT, on_delete=models.SET_NULL, null=True, blank=True, related_name='sync_jobs')
+    action = models.CharField(max_length=50, choices=Action.choices)
+    status = models.CharField(max_length=20, choices=JobStatus.choices, default=JobStatus.PENDING, db_index=True)
+    payload = models.JSONField(default=dict, blank=True)
+    result = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    retry_count = models.PositiveIntegerField(default=0)
+    max_retries = models.PositiveIntegerField(default=3)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status'], name='netsync_tenant_status_idx'),
+            models.Index(fields=['tenant', 'created_at'], name='netsync_tenant_created_idx'),
+        ]
+
+    def __str__(self):
+        return f"NetworkSyncJob[{self.action}] - {self.status} (Tenant: {self.tenant_id})"
