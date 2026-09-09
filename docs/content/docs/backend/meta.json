@@ -5,6 +5,7 @@
     "core",
     "authentication",
     "customers",
+    "customer-portal",
     "billing",
     "finance",
     "payments",

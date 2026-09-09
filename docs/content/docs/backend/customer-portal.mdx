@@ -1,0 +1,52 @@
+---
+title: Customer Self-Care Portal Subsystem
+description: Architecture, OTP/JWT authentication, live session telemetry, invoice retrieval, and support ticketing for the customer self-care portal.
+---
+
+# Customer Self-Care Portal Subsystem
+
+`IMPLEMENTED`
+
+The Customer Self-Care Portal (`/api/v1/portal/*` and `/portal`) provides broadband subscribers with self-service capabilities to inspect their line health, pay bills, change packages, open complaints, and manage Wi-Fi settings.
+
+---
+
+## 1. Security & Authentication Architecture
+
+Customer access is decoupled from internal staff authentication (`Token` / Django User):
+- **Identifier**: Customers log in using either their registered **mobile number** (`Customer.mobile`) or **PPPoE username** (`Customer.pppoe_username`).
+- **OTP Verification**: A 6-digit OTP is issued, valid for 5 minutes, rate-limited to **3 requests per 10 minutes** per identifier.
+- **Portal JWT**: Upon OTP verification, ShebaFi issues a signed **HMAC-SHA256 JWT** containing:
+  - `customer_id`: UUID of the authenticated customer.
+  - `tenant_id`: UUID of the customer's ISP tenant.
+  - `pppoe_username`: PPPoE login username.
+  - `type`: `'customer_portal'`.
+  - `exp`: Token expiration timestamp (default: 30 days).
+- **Tenant Isolation**: If a JWT issued for Tenant A is presented under Tenant B's domain, the request is rejected with `HTTP 401 Unauthorized`.
+- **Zero Credential Leakage**: PPPoE passwords, router secrets, SNMP community strings, and staff-only notes are strictly omitted from all portal serializers.
+
+---
+
+## 2. API Endpoint Directory
+
+All endpoints are mounted under `/api/v1/portal/`:
+
+| Method | Path | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/portal/auth/request-otp/` | Public | Rate-limited request for 6-digit login OTP code. |
+| `POST` | `/api/v1/portal/auth/verify-otp/` | Public | Validates OTP and issues customer-scoped JWT. |
+| `GET` | `/api/v1/portal/profile/` | Customer JWT | Customer details, subscription status, due and advance balances. |
+| `GET` | `/api/v1/portal/session/` | Customer JWT | Live MikroTik PPPoE session diagnostics (IP, MAC, uptime, bytes transferred). |
+| `GET` | `/api/v1/portal/packages/` | Customer JWT | Active broadband packages available for subscription upgrade. |
+| `GET` | `/api/v1/portal/invoices/` | Customer JWT | Itemized list of invoices strictly belonging to the authenticated customer. |
+| `GET` | `/api/v1/portal/invoices/{id}/receipt/` | Customer JWT | Downloadable/printable invoice breakdown receipt. |
+| `GET` | `/api/v1/portal/notifications/` | Customer JWT | Personalized renewal reminders and maintenance notices. |
+| `POST` | `/api/v1/portal/recharge/` | Customer JWT | Instant renewal deducted from accumulated advance balance credit. |
+| `GET` | `/api/v1/portal/recharge/history/` | Customer JWT | Subscription recharge transaction ledger. |
+| `GET` | `/api/v1/portal/payments/history/` | Customer JWT | Payment transaction ledger. |
+| `POST` | `/api/v1/portal/payments/bkash/create/` | Customer JWT | Initializes bKash Tokenized Checkout session. |
+| `POST` | `/api/v1/portal/payments/bkash/execute/` | Customer JWT | Executes bKash payment, offsets balance, restores internet connection. |
+| `POST` | `/api/v1/portal/payments/claim/` | Customer JWT | Allows subscriber to claim an unmatched manual MFS payment by TrxID. |
+| `GET` | `/api/v1/portal/tickets/` | Customer JWT | Customer's submitted support complaints and technician notes. |
+| `POST` | `/api/v1/portal/tickets/` | Customer JWT | Opens a new technical support complaint. |
+| `POST` | `/api/v1/portal/tickets/{id}/reply/` | Customer JWT | Adds a subscriber reply to an existing support ticket thread. |
