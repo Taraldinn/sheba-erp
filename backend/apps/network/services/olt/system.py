@@ -22,8 +22,10 @@ class OLTSystemService:
         return ok, msg, details
 
     def get_system_info(self) -> dict[str, Any]:
+        ok, _, _ = self.client.test_connection()
         info = self.client.get_system_info()
-        self.olt.status = 'Online'
+        if ok:
+            self.olt.status = 'Online'
         self.olt.last_sync = timezone.now()
         if 'total_onus' in info:
             self.olt.total_onus = info['total_onus']
@@ -55,20 +57,20 @@ class OLTSystemService:
             if not onu:
                 # Only match port+index if existing record has no mac address or matching port/index
                 onu = ONU.objects.filter(tenant=self.olt.tenant, olt=self.olt, pon_port=pon, onu_index=idx).first()
-                if onu and mac and onu.mac_address and onu.mac_address != mac:
-                    # A different physical device is now on this index or it's a new ONU
-                    onu.mac_address = mac
-                elif onu and mac and not onu.mac_address:
-                    onu.mac_address = mac
 
             if onu:
-                if sn and not onu.serial_number:
+                update_fields = ['rx_power', 'tx_power', 'status', 'distance_meters', 'last_sync']
+                if mac and onu.mac_address != mac:
+                    onu.mac_address = mac
+                    update_fields.append('mac_address')
+                if sn and onu.serial_number != sn:
                     onu.serial_number = sn
+                    update_fields.append('serial_number')
                 onu.rx_power = item.get('rx_power', onu.rx_power)
                 onu.tx_power = item.get('tx_power', onu.tx_power)
                 onu.status = item.get('status', onu.status)
                 onu.distance_meters = item.get('distance_meters', onu.distance_meters)
-                onu.save(update_fields=['rx_power', 'tx_power', 'status', 'distance_meters', 'last_sync'])
+                onu.save(update_fields=update_fields)
             else:
                 onu = ONU.objects.create(
                     tenant=self.olt.tenant,

@@ -553,14 +553,16 @@ class ONUViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def reboot(self, request, pk=None):
         onu = self.get_object()
+        success = False
         try:
             ONUService(onu).reboot_onu()
             onu.status = 'Online'
             onu.save(update_fields=['status'])
             msg = f'Reboot command sent to ONU on {onu.pon_port}:{onu.onu_index}'
+            success = True
         except Exception as exc:
             logger.warning("ONU reboot error for %s: %s", onu.id, exc)
-            msg = f'Reboot signal dispatched with note: {exc}'
+            msg = f'Reboot signal failed: {exc}'
 
         log_network_action(
             tenant=onu.tenant,
@@ -568,11 +570,11 @@ class ONUViewSet(viewsets.ModelViewSet):
             action='reboot_onu',
             resource_type='ONU',
             resource_id=str(onu.id),
-            details={'pon_port': onu.pon_port, 'onu_index': onu.onu_index},
+            details={'pon_port': onu.pon_port, 'onu_index': onu.onu_index, 'success': success},
             request=request,
         )
 
-        return Response({'message': msg, 'status': onu.status})
+        return Response({'success': success, 'message': msg, 'status': onu.status})
 
     @action(detail=True, methods=['get'], url_path='optical-power')
     def optical_power(self, request, pk=None):
@@ -590,6 +592,8 @@ class ONUViewSet(viewsets.ModelViewSet):
         Assigns an ONU to a customer subscriber within the same tenant.
         """
         onu = self.get_object()
+        if not can(request.user, request.tenant, 'olt.manage', onu):
+            return Response({'error': 'Permission denied: olt.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
         customer_id = request.data.get('customer_id')
         if not customer_id:
             return Response({'error': 'customer_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -597,6 +601,11 @@ class ONUViewSet(viewsets.ModelViewSet):
         customer = Customer.objects.filter(id=customer_id, tenant=onu.tenant).first()
         if not customer:
             return Response({'error': 'Customer not found within your ISP.'}, status=status.HTTP_404_NOT_FOUND)
+
+        previous = onu.customer
+        if previous and previous.id != customer.id:
+            previous.onu_mac_or_sn = ''
+            previous.save(update_fields=['onu_mac_or_sn'])
 
         onu.customer = customer
         onu.customer_name = customer.full_name
