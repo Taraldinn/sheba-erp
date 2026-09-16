@@ -163,27 +163,33 @@ def process_network_sync_job(self=None, tenant_id=None, job_id=None):
             )
 
             try:
+                if not target_router:
+                    raise ValueError("Target router not specified or could not be resolved from customer.")
+
+                if not username:
+                    raise ValueError("PPPoE username not provided or missing from customer record.")
+
+                svc = MikroTikService(target_router)
                 op_result = {}
-                if target_router:
-                    svc = MikroTikService(target_router)
-                    if job.action == NetworkSyncJob.Action.ENABLE_USER:
-                        if username:
-                            svc.pppoe.enable_user_by_name(username)
-                            if profile:
-                                svc.pppoe.update_user_by_name(username, profile=profile)
-                            op_result = {'user_enabled': username, 'profile': profile}
-                    elif job.action == NetworkSyncJob.Action.DISABLE_USER:
-                        if username:
-                            svc.pppoe.disable_user_by_name(username)
-                            op_result = {'user_disabled': username}
-                    elif job.action == NetworkSyncJob.Action.UPDATE_PACKAGE:
-                        if username and profile:
-                            svc.pppoe.update_user_by_name(username, profile=profile)
-                            op_result = {'profile_updated': profile}
-                    elif job.action == NetworkSyncJob.Action.DISCONNECT_SESSION:
-                        if username:
-                            svc.pppoe.disconnect_session_by_username(username)
-                            op_result = {'session_disconnected': username}
+
+                if job.action in (NetworkSyncJob.Action.ENABLE_USER, NetworkSyncJob.Action.ENABLE_SERVICE):
+                    svc.pppoe.enable_user_by_name(username)
+                    if profile:
+                        svc.pppoe.update_user_by_name(username, profile=profile)
+                    op_result = {'user_enabled': username, 'profile': profile}
+                elif job.action in (NetworkSyncJob.Action.DISABLE_USER, NetworkSyncJob.Action.DISABLE_SERVICE):
+                    svc.pppoe.disable_user_by_name(username)
+                    op_result = {'user_disabled': username}
+                elif job.action in (NetworkSyncJob.Action.UPDATE_PACKAGE, NetworkSyncJob.Action.CHANGE_PACKAGE):
+                    if not profile:
+                        raise ValueError("MikroTik profile is required for package update action.")
+                    svc.pppoe.update_user_by_name(username, profile=profile)
+                    op_result = {'profile_updated': profile}
+                elif job.action in (NetworkSyncJob.Action.DISCONNECT_SESSION, NetworkSyncJob.Action.RECONNECT):
+                    svc.pppoe.disconnect_session_by_username(username)
+                    op_result = {'session_disconnected': username}
+                else:
+                    raise ValueError(f"Action '{job.action}' is unsupported or performs no direct MikroTik hardware operation.")
 
                 job.status = NetworkSyncJob.JobStatus.SUCCESS
                 job.result = op_result
@@ -210,11 +216,11 @@ def process_network_sync_job(self=None, tenant_id=None, job_id=None):
                 logger.warning("process_network_sync_job: execution failed for job %s: %s", job.id, exc)
                 job.error_message = str(exc)
                 job.retry_count += 1
-                if job.retry_count >= job.max_retries:
+                if job.retry_count >= job.max_retries or isinstance(exc, ValueError):
                     job.status = NetworkSyncJob.JobStatus.FAILED
                 job.save(update_fields=['error_message', 'retry_count', 'status', 'updated_at'])
 
-                if self and hasattr(self, 'request') and self.request.retries < self.max_retries:
+                if not isinstance(exc, ValueError) and self and hasattr(self, 'request') and self.request.retries < self.max_retries:
                     raise self.retry(exc=exc)
                 return {'success': False, 'job_id': str(job.id), 'error': str(exc)}
 

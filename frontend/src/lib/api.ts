@@ -6,11 +6,30 @@ import {
   NetworkActionItem, BulkPreviewResult, BulkNetworkBatch,
   LiveSession, SessionHistoryItem, CustomerSessionTelemetry,
   NetworkTopologyGraph, GeoFiberMap, PathImpactAnalysis,
-  OLTReconciliationRun, ONUAutoMatchResult
+  OLTReconciliationRun, ONUAutoMatchResult,
+  AuthoritativeHierarchyResponse, TopologyDrilldownResponse
 } from '@/types';
 
+import { TokenStorage } from './auth/token-storage';
+import { AuthService } from './auth/auth-service';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-const DEFAULT_SEED_TOKEN = 'f61f38499c6f489531706cd62aaf8d92593239ef';
+
+// Global client-side 401 interceptor for automatic session expiration handling
+if (typeof window !== 'undefined') {
+  const _originalFetch = window.fetch;
+  window.fetch = async (...args) => {
+    const response = await _originalFetch(...args);
+    if (response.status === 401) {
+      const url = typeof args[0] === 'string' ? args[0] : args[0] instanceof URL ? args[0].href : args[0]?.url || '';
+      if (!url.includes('/auth/login/')) {
+        TokenStorage.clearStoredAuth();
+        window.dispatchEvent(new CustomEvent('sheba:unauthorized', { detail: { url } }));
+      }
+    }
+    return response;
+  };
+}
 
 export class ApiClient {
   private static token: string | null = null;
@@ -19,46 +38,48 @@ export class ApiClient {
   static setToken(token: string) {
     this.token = token;
     if (typeof window !== 'undefined') {
-      localStorage.setItem('sheba_token', token);
-      localStorage.setItem('sheba_auth_token', token);
+      TokenStorage.setStoredToken(token);
     }
   }
 
-  static getToken(): string {
-    if (!this.token && typeof window !== 'undefined') {
-      this.token = localStorage.getItem('sheba_token') || localStorage.getItem('sheba_auth_token') || DEFAULT_SEED_TOKEN;
+  static getToken(): string | null {
+    if (typeof window !== 'undefined') {
+      const stored = TokenStorage.getStoredToken();
+      if (stored) return stored;
     }
-    return this.token || DEFAULT_SEED_TOKEN;
+    return this.token;
   }
 
   static getHeaders(): Record<string, string> {
     const token = this.getToken();
-    return {
+    const storedTenant = typeof window !== 'undefined' ? TokenStorage.getStoredTenantId() : null;
+    const activeTenant = storedTenant || this.tenantId;
+
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Authorization': `Token ${token}`,
-      'X-Tenant-ID': this.tenantId,
     };
+    if (token) {
+      headers['Authorization'] = `Token ${token}`;
+    }
+    if (activeTenant) {
+      headers['X-Tenant-ID'] = activeTenant;
+    }
+    return headers;
   }
 
   // ════════════════════════ AUTH ════════════════════════
-  static async login(username: string, password: string) {
-    const res = await fetch(`${API_BASE}/auth/login/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': this.tenantId },
-      body: JSON.stringify({ username, password }),
-    });
-    if (!res.ok) throw new Error('Invalid credentials');
-    const data = await res.json();
-    if (data.token) this.setToken(data.token);
-    return data;
+  static async login(username: string, password: string, contextType: 'tenant' | 'central_admin' = 'tenant', tenantId?: string) {
+    const res = await AuthService.login({ username, password }, contextType, tenantId || this.tenantId);
+    this.setToken(res.token);
+    return res;
   }
 
   static async getCurrentUser() {
-    try {
-      const res = await fetch(`${API_BASE}/auth/me/`, { headers: this.getHeaders() });
-      if (res.ok) return await res.json();
-    } catch { }
-    return { username: 'admin', email: 'admin@shebafi.net', is_superuser: true };
+    const token = this.getToken();
+    if (!token) return null;
+    const contextType = typeof window !== 'undefined' ? TokenStorage.getStoredContextType() : 'tenant';
+    const tenantId = typeof window !== 'undefined' ? TokenStorage.getStoredTenantId() : this.tenantId;
+    return await AuthService.getCurrentUser(token, contextType, tenantId || undefined);
   }
 
   // ════════════════════════ DASHBOARD & ANALYTICS ════════════════════════
@@ -1035,20 +1056,12 @@ export class ApiClient {
     const defaultHeaders = this.getSaaSHeaders();
     const mergedHeaders = { ...defaultHeaders, ...(options.headers as Record<string, string> || {}) };
 
-    let res = await fetch(url, { ...options, headers: mergedHeaders });
+    const res = await fetch(url, { ...options, headers: mergedHeaders });
 
-    // If 401 or 403, and current token is not DEFAULT_SEED_TOKEN, elevate automatically to Super Admin
-    if ((res.status === 401 || res.status === 403) && this.getToken() !== DEFAULT_SEED_TOKEN) {
-      console.warn(`[SaaS API] Received HTTP ${res.status} from ${url}. Elevating session to Central Super Admin seed token...`);
-      const retryHeaders = { ...mergedHeaders, 'Authorization': `Token ${DEFAULT_SEED_TOKEN}` };
-      const retryRes = await fetch(url, { ...options, headers: retryHeaders });
-      if (retryRes.ok) {
-        this.setToken(DEFAULT_SEED_TOKEN);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('sheba_user_role', 'super_admin');
-          localStorage.setItem('sheba_user_name', 'Super Admin');
-        }
-        return retryRes;
+    if (res.status === 401) {
+      if (typeof window !== 'undefined') {
+        TokenStorage.clearStoredAuth();
+        window.dispatchEvent(new CustomEvent('sheba:unauthorized', { detail: { url } }));
       }
     }
     return res;
@@ -1940,6 +1953,56 @@ export class ApiClient {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to calculate path impact analysis');
+    }
+    return await res.json();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Phase 20: Authoritative Topology & Impact Analysis APIs
+  // ─────────────────────────────────────────────────────────────────────────
+
+  static async getAuthoritativeTopology(): Promise<AuthoritativeHierarchyResponse> {
+    const res = await fetch(`${API_BASE}/network/topology/hierarchy/`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch authoritative topology hierarchy');
+    return await res.json();
+  }
+
+  static async getTopologyDrilldown(
+    nodeType: string,
+    nodeId: string,
+    page: number = 1,
+    pageSize: number = 20,
+    search?: string
+  ): Promise<TopologyDrilldownResponse> {
+    const params = new URLSearchParams({
+      node_type: nodeType,
+      node_id: nodeId,
+      page: page.toString(),
+      page_size: pageSize.toString(),
+    });
+    if (search) params.append('search', search);
+
+    const res = await fetch(`${API_BASE}/network/topology/drilldown/?${params.toString()}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to fetch topology drilldown');
+    }
+    return await res.json();
+  }
+
+  static async simulateAuthoritativeImpact(targetType: string, targetId: string): Promise<PathImpactAnalysis> {
+    const res = await fetch(`${API_BASE}/network/topology/impact/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ target_type: targetType, target_id: targetId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to simulate authoritative failure impact');
     }
     return await res.json();
   }

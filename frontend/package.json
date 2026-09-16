@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "npx tsx --test src/lib/auth/__tests__/auth.test.ts src/lib/__tests__/saas-api.test.ts src/lib/settings/__tests__/settings-api.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

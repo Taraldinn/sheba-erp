@@ -32,13 +32,23 @@ export function proxy(request: NextRequest) {
     host.startsWith("control.") ||
     host.startsWith("saas.");
 
-  // If host is the SaaS Control Plane domain (e.g. admin.shebafi.xyz or admin.localhost)
+  const authToken = request.cookies.get("sheba_auth_token")?.value;
+
+  // Edge protection for Control Plane root and administration paths
   if (isControlPlane) {
     if (pathname === "/" || pathname === "") {
       const url = request.nextUrl.clone();
       url.pathname = "/saas-admin";
       return NextResponse.rewrite(url);
     }
+  }
+
+  // If trying to access control plane without token cookie, redirect to login
+  if (pathname.startsWith("/saas-admin") && !authToken) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("returnTo", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();

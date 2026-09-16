@@ -1,401 +1,302 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Radio,
   Lock,
   User,
   ArrowRight,
   ShieldCheck,
-  Zap,
-  Smartphone,
-  CheckCircle2,
-  DollarSign,
-  TrendingUp,
-  Timer,
-  Wrench,
-  Briefcase,
+  Building2,
+  AlertCircle,
+  Server,
   Layers,
-  Coins,
-  Boxes,
-  Activity,
-  UserCheck,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ApiClient } from "@/lib/api";
+  CheckCircle2,
+} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useAuth } from '@/lib/auth';
+import { AuthContextType } from '@/lib/auth/auth-types';
 
-interface PersonaConfig {
-  id: string;
-  name: string;
-  label: string;
-  icon: any;
-  defaultUser: string;
-  defaultPass: string;
-  targetDashboard: string;
-  color: string;
-  description: string;
-}
-
-const PERSONAS: PersonaConfig[] = [
-  {
-    id: "admin",
-    name: "Admin",
-    label: "ISP Managing Director & Admin",
-    icon: ShieldCheck,
-    defaultUser: "admin",
-    defaultPass: "admin123",
-    targetDashboard: "/",
-    color: "from-indigo-600 to-indigo-800",
-    description: "Central executive oversight, full core network routing, financial ledger & system policies.",
-  },
-  {
-    id: "billing",
-    name: "Billing",
-    label: "Billing Operator & Accounts",
-    icon: DollarSign,
-    defaultUser: "billing_op",
-    defaultPass: "billing123",
-    targetDashboard: "/dashboards/billing",
-    color: "from-emerald-600 to-emerald-800",
-    description: "Invoicing, due collection alerts, MFS reconciliation (bKash/Nagad), and cash counter.",
-  },
-  {
-    id: "sales",
-    name: "Sales",
-    label: "Sales & Client Acquisition",
-    icon: TrendingUp,
-    defaultUser: "sales_lead",
-    defaultPass: "sales123",
-    targetDashboard: "/dashboards/sales",
-    color: "from-blue-600 to-blue-800",
-    description: "New customer leads, monthly signup quotas, package popularity, and survey dispatches.",
-  },
-  {
-    id: "demo",
-    name: "Demo Accounts",
-    label: "Trial Accounts Manager",
-    icon: Timer,
-    defaultUser: "demo_mgr",
-    defaultPass: "demo123",
-    targetDashboard: "/dashboards/demo",
-    color: "from-amber-600 to-amber-800",
-    description: "Temporary evaluation PPPoE lines, countdown timers, quota enforcement, and trial conversions.",
-  },
-  {
-    id: "technician",
-    name: "Technician",
-    label: "NOC Engineer & Field Tech",
-    icon: Wrench,
-    defaultUser: "noc_tech",
-    defaultPass: "tech123",
-    targetDashboard: "/dashboards/technician",
-    color: "from-rose-600 to-rose-800",
-    description: "Degraded optical lines (RX power < -24 dBm), core router REST health, ONU reboot, splice tasks.",
-  },
-  {
-    id: "staff",
-    name: "Staff",
-    label: "General Operations Staff",
-    icon: Briefcase,
-    defaultUser: "staff_ops",
-    defaultPass: "staff123",
-    targetDashboard: "/dashboards/staff",
-    color: "from-sky-600 to-sky-800",
-    description: "Employee attendance clock-in, assigned work orders, maintenance logs, and leave requests.",
-  },
-  {
-    id: "reseller_l1",
-    name: "Reseller (L1 POP)",
-    label: "Master POP Reseller (Level 1)",
-    icon: Layers,
-    defaultUser: "reseller_l1",
-    defaultPass: "reseller123",
-    targetDashboard: "/dashboards/reseller-l1",
-    color: "from-purple-600 to-purple-800",
-    description: "POP wallet balance, credit ceilings, subordinate dealer management, and aggregate CIR pool.",
-  },
-  {
-    id: "reseller_l2",
-    name: "Sub Reseller (L2 POP)",
-    label: "Sub Reseller Dealer (Level 2)",
-    icon: Coins,
-    defaultUser: "reseller_l2",
-    defaultPass: "reseller123",
-    targetDashboard: "/dashboards/reseller-l2",
-    color: "from-violet-600 to-violet-800",
-    description: "Retail customer recharges, active PPPoE sessions, instant renewals, and commission ledger.",
-  },
-  {
-    id: "distributor",
-    name: "Distributor",
-    label: "Hardware & Voucher Distributor",
-    icon: Boxes,
-    defaultUser: "distributor_main",
-    defaultPass: "dist123",
-    targetDashboard: "/dashboards/distributor",
-    color: "from-teal-600 to-teal-800",
-    description: "Central hardware warehouse, routers, ONUs/ONTs, fiber drums, and scratch voucher cards.",
-  },
-  {
-    id: "bandwidth_reseller",
-    name: "Bandwidth Reseller",
-    label: "Carrier Wholesale Bandwidth",
-    icon: Activity,
-    defaultUser: "bandwidth_carrier",
-    defaultPass: "bw123",
-    targetDashboard: "/dashboards/bandwidth-reseller",
-    color: "from-cyan-600 to-cyan-800",
-    description: "Committed CIR aggregate graphs, 95th percentile billing, corporate VLANs, and BGP status.",
-  },
-];
-
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
-  const [selectedPersona, setSelectedPersona] = useState<PersonaConfig>(PERSONAS[0]);
-  const [isCustomerMode, setIsCustomerMode] = useState(false);
-  const [username, setUsername] = useState(PERSONAS[0].defaultUser);
-  const [password, setPassword] = useState(PERSONAS[0].defaultPass);
-  const [customerPhone, setCustomerPhone] = useState("01712345678");
-  const [customerOtp, setCustomerOtp] = useState("1234");
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get('returnTo');
 
-  const handleSelectPersona = (p: PersonaConfig) => {
-    setSelectedPersona(p);
-    setIsCustomerMode(false);
-    setUsername(p.defaultUser);
-    setPassword(p.defaultPass);
-    setErrorMsg("");
+  const {
+    login,
+    isAuthenticated,
+    user,
+    isLoading,
+    error,
+    clearError,
+    contextType,
+    setContextType,
+  } = useAuth();
+
+  const activeContext = contextType || 'tenant';
+  const [tenantId, setTenantId] = useState<string>('shebafi');
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('admin123');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // If already authenticated, redirect to destination
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (returnTo) {
+        router.replace(returnTo);
+      } else if (user.is_control_plane_admin || activeContext === 'central_admin') {
+        router.replace('/saas-admin');
+      } else {
+        router.replace('/');
+      }
+    }
+  }, [isAuthenticated, user, returnTo, router, activeContext]);
+
+  const handleContextChange = (newContext: AuthContextType) => {
+    setContextType(newContext);
+    clearError();
+    if (newContext === 'central_admin') {
+      setUsername('admin');
+      setPassword('admin123');
+    }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setErrorMsg("");
-
-    if (isCustomerMode) {
-      // Customer self-care simulation
-      setTimeout(() => {
-        localStorage.setItem("sheba_user_role", "customer");
-        localStorage.setItem("sheba_user_name", "Subscriber Client");
-        router.push("/portal");
-      }, 500);
-      return;
-    }
+    clearError();
 
     try {
-      const res = await ApiClient.login(username, password);
-      if (res && res.token) {
-        localStorage.setItem("sheba_auth_token", res.token);
-        localStorage.setItem("sheba_user_role", (res.role || selectedPersona.id).toLowerCase());
-        localStorage.setItem("sheba_user_name", res.user?.first_name ? `${res.user.first_name} ${res.user.last_name || ""}`.trim() : username);
-        if (res.tenant) {
-          localStorage.setItem("sheba_tenant", JSON.stringify(res.tenant));
-        }
+      const loggedUser = await login(
+        { username, password },
+        activeContext,
+        activeContext === 'tenant' ? tenantId : undefined
+      );
 
-        const targetUrl = res.dashboard_url || selectedPersona.targetDashboard;
-        router.push(targetUrl);
-      } else {
-        setErrorMsg("Authentication failed. Please check credentials.");
-      }
-    } catch (err: any) {
-      console.error("Login failed:", err);
-      // Fallback in case of network issue
-      localStorage.setItem("sheba_user_role", selectedPersona.id.toLowerCase());
-      localStorage.setItem("sheba_user_name", selectedPersona.name);
-      router.push(selectedPersona.targetDashboard);
-    } finally {
-      setLoading(false);
+      const destination =
+        returnTo ||
+        (loggedUser.is_control_plane_admin || activeContext === 'central_admin'
+          ? '/saas-admin'
+          : '/');
+
+      router.replace(destination);
+    } catch {
+      // Error handled by AuthContext state
     }
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Background glow effects */}
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden selection:bg-indigo-500 selection:text-white">
+      {/* Glow Effects */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-emerald-600/15 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-4xl space-y-6 relative z-10">
+      <div className="w-full max-w-md space-y-6 relative z-10">
         {/* Brand Header */}
         <div className="text-center space-y-2">
           <div className="inline-flex h-12 w-12 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-emerald-400 items-center justify-center shadow-xl shadow-indigo-500/25 ring-1 ring-white/20">
             <Radio className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl font-black text-foreground tracking-tight">SHEBA ISP PLATFORM</h1>
-          <p className="text-xs text-muted-foreground">Department-Specific Login & Role-Isolated Operation Portals</p>
+          <h1 className="text-2xl font-black text-foreground tracking-tight">SHEBA PLATFORM</h1>
+          <p className="text-xs text-muted-foreground">Unified ISP Operations & Central SaaS Control Plane</p>
         </div>
 
-        {/* Persona Portal Switcher Grid */}
-        <div className="space-y-2">
-          <p className="text-[11px] font-bold text-center uppercase tracking-wider text-muted-foreground">
-            Select Operational Portal / Role To Authenticate:
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            {PERSONAS.map((p) => {
-              const isSelected = !isCustomerMode && selectedPersona.id === p.id;
-              const Icon = p.icon;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => handleSelectPersona(p)}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                    isSelected
-                      ? "border-indigo-500 bg-indigo-500/15 shadow-md shadow-indigo-500/10 ring-1 ring-indigo-500/30"
-                      : "border-border bg-card/60 hover:bg-card hover:border-muted-foreground/30 text-muted-foreground"
-                  }`}
-                >
-                  <div className="flex items-center justify-between w-full mb-2">
-                    <div className={`h-6 w-6 rounded-lg flex items-center justify-center ${isSelected ? "bg-indigo-600 text-white" : "bg-muted text-muted-foreground"}`}>
-                      <Icon className="h-3.5 w-3.5" />
-                    </div>
-                    {isSelected && <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />}
-                  </div>
-                  <div>
-                    <p className={`text-xs font-bold leading-tight ${isSelected ? "text-foreground" : "text-muted-foreground"}`}>
-                      {p.name}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground truncate">{p.defaultUser}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Subscriber Portal Button */}
-          <div className="text-center pt-1">
-            <button
-              type="button"
-              onClick={() => setIsCustomerMode(true)}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer inline-flex items-center gap-1.5 ${
-                isCustomerMode
-                  ? "border-emerald-500 bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30"
-                  : "border-border bg-card text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Smartphone className="h-3.5 w-3.5" />
-              <span>Subscriber Self-Care Portal (Client Login)</span>
-            </button>
-          </div>
+        {/* Auth Context Tabs */}
+        <div className="grid grid-cols-2 gap-2 p-1 bg-muted/40 rounded-xl border border-border">
+          <button
+            type="button"
+            onClick={() => handleContextChange('tenant')}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeContext === 'tenant'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            <span>ISP Tenant Portal</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleContextChange('central_admin')}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeContext === 'central_admin'
+                ? 'bg-violet-600 text-white shadow-md shadow-violet-600/20'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+            }`}
+          >
+            <Server className="w-3.5 h-3.5" />
+            <span>Central SaaS Admin</span>
+          </button>
         </div>
 
         {/* Login Card */}
-        <div className="max-w-md mx-auto w-full">
-          <Card className="border-border bg-card/70 backdrop-blur-xl shadow-2xl">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-xl bg-gradient-to-tr ${isCustomerMode ? "from-emerald-600 to-teal-600" : selectedPersona.color} text-white flex items-center justify-center shadow-md`}>
-                  {isCustomerMode ? <Smartphone className="h-5 w-5" /> : <selectedPersona.icon className="h-5 w-5" />}
-                </div>
+        <Card className="border-border bg-card/70 backdrop-blur-xl shadow-2xl">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <div
+                className={`h-10 w-10 rounded-xl bg-gradient-to-tr ${
+                  activeContext === 'central_admin'
+                    ? 'from-violet-600 to-indigo-600'
+                    : 'from-indigo-600 to-emerald-600'
+                } text-white flex items-center justify-center shadow-md`}
+              >
+                {activeContext === 'central_admin' ? (
+                  <Server className="h-5 w-5" />
+                ) : (
+                  <ShieldCheck className="h-5 w-5" />
+                )}
+              </div>
+              <div>
+                <CardTitle className="text-base text-foreground">
+                  {activeContext === 'central_admin'
+                    ? 'Central Control Plane Login'
+                    : 'Tenant Operator Sign In'}
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">
+                  {activeContext === 'central_admin'
+                    ? 'Requires master control-plane authority'
+                    : 'Requires active ISP tenant membership'}
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <div
+                data-testid="auth-error-banner"
+                className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-start gap-2 animate-shake"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <div>
-                  <CardTitle className="text-base text-foreground">
-                    {isCustomerMode ? "Subscriber Portal Sign In" : `${selectedPersona.name} Portal`}
-                  </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground">
-                    {isCustomerMode ? "Enter registered mobile number or PPPoE username." : selectedPersona.label}
-                  </CardDescription>
+                  <p className="font-semibold">{error.message}</p>
+                  {error.code && (
+                    <span className="text-[10px] font-mono opacity-80 uppercase tracking-wide">
+                      Error Code: {error.code}
+                    </span>
+                  )}
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              {errorMsg && (
-                <div className="mb-4 p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs">
-                  {errorMsg}
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Username</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="pl-9 text-xs"
+                    placeholder="Enter username"
+                    autoComplete="username"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-9 text-xs"
+                    placeholder="Enter password"
+                    autoComplete="current-password"
+                  />
+                </div>
+              </div>
+
+              {activeContext === 'tenant' && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-muted-foreground">Tenant Identifier</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvanced(!showAdvanced)}
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors"
+                    >
+                      {showAdvanced ? 'Hide' : 'Configure'}
+                    </button>
+                  </div>
+                  {showAdvanced ? (
+                    <div className="relative">
+                      <Layers className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={tenantId}
+                        onChange={(e) => setTenantId(e.target.value)}
+                        className="pl-9 text-xs font-mono"
+                        placeholder="e.g. shebafi"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-[11px] font-mono text-muted-foreground bg-muted/30 px-3 py-1.5 rounded border border-border/50">
+                      Active ISP context: <span className="text-indigo-400 font-semibold">{tenantId}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
-              <form onSubmit={handleLogin} className="space-y-4">
-                {!isCustomerMode ? (
-                  <>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Username / Staff ID</label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          required
-                          value={username}
-                          onChange={(e) => setUsername(e.target.value)}
-                          className="pl-9 text-xs"
-                          placeholder="Username"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Password</label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          type="password"
-                          required
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="pl-9 text-xs"
-                          placeholder="Password"
-                        />
-                      </div>
-                    </div>
-                  </>
+              <Button
+                type="submit"
+                className={`w-full text-white font-semibold text-xs h-10 gap-2 shadow-lg cursor-pointer ${
+                  activeContext === 'central_admin'
+                    ? 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/25'
+                    : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/25'
+                }`}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Authorizing credentials...</span>
+                  </div>
                 ) : (
                   <>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Mobile Number or Subscriber ID</label>
-                      <div className="relative">
-                        <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          required
-                          value={customerPhone}
-                          onChange={(e) => setCustomerPhone(e.target.value)}
-                          className="pl-9 text-xs"
-                          placeholder="017XXXXXXXX or SB-1001"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Portal Password / OTP</label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          type="password"
-                          required
-                          value={customerOtp}
-                          onChange={(e) => setCustomerOtp(e.target.value)}
-                          className="pl-9 text-xs"
-                          placeholder="••••"
-                        />
-                      </div>
-                    </div>
+                    <span>
+                      {activeContext === 'central_admin'
+                        ? 'Sign In to Control Plane'
+                        : 'Sign In to ISP Workspace'}
+                    </span>
+                    <ArrowRight className="h-4 w-4" />
                   </>
                 )}
+              </Button>
+            </form>
 
-                <Button
-                  type="submit"
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs h-10 gap-2 shadow-lg shadow-indigo-600/25 cursor-pointer"
-                  disabled={loading}
-                >
-                  {loading ? "Authenticating..." : isCustomerMode ? "Open Client Portal" : `Enter ${selectedPersona.name} Workspace`}
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </form>
-
-              {/* Persona Description */}
-              {!isCustomerMode && (
-                <div className="mt-4 p-3 rounded-lg bg-muted/20 border border-border text-[11px] text-muted-foreground space-y-1">
-                  <p className="font-semibold text-foreground flex items-center gap-1.5">
-                    <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" />
-                    Role Boundary Isolation:
-                  </p>
-                  <p>{selectedPersona.description}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+            <div className="mt-4 p-3 rounded-lg bg-muted/20 border border-border text-[11px] text-muted-foreground space-y-1">
+              <p className="font-semibold text-foreground flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                Authoritative Boundary Policy:
+              </p>
+              <p>
+                {activeContext === 'central_admin'
+                  ? 'Central operations require control-plane superuser authorization. Tenant credentials will be rejected by backend policy.'
+                  : 'Tenant credentials authenticate directly against the scoped ISP database. Cross-tenant access is prohibited.'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

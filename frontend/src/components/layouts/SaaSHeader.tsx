@@ -4,23 +4,17 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Search,
-  ShieldCheck,
-  Building2,
   Plus,
-  Bell,
-  Sun,
-  Moon,
-  Database,
-  Layers,
-  ArrowRight,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useAuth } from "@/lib/auth";
 
 export function SaaSHeader() {
   const [query, setQuery] = useState("");
+  const { user, logout } = useAuth();
 
   return (
     <header className="h-16 border-b border-border bg-card/60 backdrop-blur-md px-6 flex items-center justify-between gap-4 sticky top-0 z-30 select-none">
@@ -63,15 +57,28 @@ export function SaaSHeader() {
         {/* Theme Toggle */}
         <ThemeToggle />
 
-        {/* Super Admin Avatar */}
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-border">
+        {/* Super Admin Avatar & Info */}
+        <div className="flex items-center gap-3 pl-2 border-l border-slate-200 dark:border-border">
           <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-            SA
+            {user?.username ? user.username.slice(0, 2).toUpperCase() : "SA"}
           </div>
           <div className="hidden md:flex flex-col text-left leading-tight">
-            <span className="text-xs font-bold text-foreground">Super Admin</span>
-            <span className="text-[10px] text-violet-600 dark:text-violet-400 font-semibold">SaaS Overseer</span>
+            <span className="text-xs font-bold text-foreground">
+              {user?.username || "Control Plane"}
+            </span>
+            <span className="text-[10px] text-violet-600 dark:text-violet-400 font-semibold">
+              {user?.is_superuser ? "Super Admin" : "SaaS Operator"}
+            </span>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => logout("/login")}
+            className="h-8 px-2 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+            title="Sign out of control plane"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </header>

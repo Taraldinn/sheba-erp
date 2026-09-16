@@ -165,10 +165,8 @@ def generate_monthly_invoices(self=None, tenant_id=None, billing_month=None):
                 ).select_related('package')
 
                 created = 0
+                skipped = 0
                 for customer in customers:
-                    if Invoice.objects.filter(tenant_id=tenant_id, customer=customer, billing_month=month_str).exists():
-                        continue
-
                     with transaction.atomic():
                         pkg_name = customer.package.name if customer.package else 'Standard'
                         pkg_amount = customer.monthly_bill
@@ -176,23 +174,33 @@ def generate_monthly_invoices(self=None, tenant_id=None, billing_month=None):
                         payable = pkg_amount + prev_due - customer.discount
                         inv_no = f"INV-{now.strftime('%y%m')}-{str(uuid.uuid4())[:6].upper()}"
 
-                        invoice = Invoice.objects.create(
+                        # Idempotency guard: get_or_create on the (tenant, customer, billing_month)
+                        # unique key. If the DB-level UniqueConstraint fires, this safely returns
+                        # the existing invoice instead of raising. Concurrent workers that race past
+                        # the distributed lock are silently skipped here — no double-invoice.
+                        invoice, was_created = Invoice.objects.get_or_create(
                             tenant_id=tenant_id,
                             customer=customer,
-                            invoice_no=inv_no,
                             billing_month=month_str,
-                            package_name=pkg_name,
-                            package_amount=pkg_amount,
-                            previous_due=prev_due,
-                            discount=customer.discount,
-                            total_payable=payable,
-                            paid_amount=0.00,
-                            due_amount=payable,
-                            status=Invoice.InvoiceStatus.UNPAID,
-                            due_date=now.date() + timezone.timedelta(days=10)
+                            defaults=dict(
+                                invoice_no=inv_no,
+                                package_name=pkg_name,
+                                package_amount=pkg_amount,
+                                previous_due=prev_due,
+                                discount=customer.discount,
+                                total_payable=payable,
+                                paid_amount=Decimal('0.00'),
+                                due_amount=payable,
+                                status=Invoice.InvoiceStatus.UNPAID,
+                                due_date=now.date() + timezone.timedelta(days=10)
+                            )
                         )
 
-                        # Create itemized lines
+                        if not was_created:
+                            skipped += 1
+                            continue
+
+                        # Create itemized lines (only for newly created invoices)
                         InvoiceLine.objects.create(
                             invoice=invoice,
                             tenant_id=tenant_id,
@@ -260,7 +268,7 @@ def generate_monthly_invoices(self=None, tenant_id=None, billing_month=None):
 
                         created += 1
 
-                return {'success': True, 'tenant_id': str(tenant_id), 'month': month_str, 'invoices_created': created}
+                return {'success': True, 'tenant_id': str(tenant_id), 'month': month_str, 'invoices_created': created, 'invoices_skipped': skipped}
         except LockAcquisitionError:
             logger.warning("generate_monthly_invoices: lock %s already held, skipping duplicate run.", lock_key)
             return {'success': False, 'error': 'DUPLICATE_TASK_SKIPPED', 'lock_key': lock_key}
@@ -746,7 +754,7 @@ sync_olt_task = sync_olt
 # 6. Messaging / Notification Tasks
 # ─────────────────────────────────────────────────────────────────────────────
 
-@shared_task(bind=True)
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_sms(self=None, tenant_id=None, payment_id=None, **kwargs):
     """
     Sends confirmation SMS for a completed payment under a specific tenant.
@@ -794,3 +802,139 @@ def retry_sms(tenant_id, sms_log_id):
         'sms_log_id': str(sms_log_id),
         'status': 'RETRIED',
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Control Plane — Subscription Lifecycle Enforcement (Stage 13.3)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=300)
+def enforce_subscription_lifecycle(self=None):
+    """
+    Daily task: auto-suspends tenants whose subscription has expired.
+
+    Criteria for suspension:
+    - subscription_expires_at is not null
+    - subscription_expires_at < now()
+    - subscription_status in ('active', 'trial', 'past_due')
+    - is_active is True (already-suspended tenants are skipped)
+
+    On suspension:
+    - Sets subscription_status = 'suspended'
+    - Sets is_active = False (blocks all tenant access immediately)
+    - Emits a central platform audit event
+
+    Reactivation must be performed manually by a central admin after the
+    ISP tenant renews their subscription.
+    """
+    now = timezone.now()
+    expired_tenants = Tenant.objects.filter(
+        subscription_expires_at__lt=now,
+        subscription_status__in=['active', 'trial', 'past_due'],
+        is_active=True,
+    )
+
+    suspended = []
+    for tenant in expired_tenants.iterator():
+        try:
+            tenant.subscription_status = 'suspended'
+            tenant.is_active = False
+            tenant.save(update_fields=['subscription_status', 'is_active', 'updated_at'])
+
+            emit_platform_audit_event.delay(
+                event_type='TENANT_AUTO_SUSPENDED',
+                actor='SYSTEM:subscription_lifecycle_task',
+                resource_type='Tenant',
+                resource_id=str(tenant.id),
+                details={
+                    'tenant_slug': tenant.slug,
+                    'subscription_expires_at': str(tenant.subscription_expires_at),
+                    'reason': 'Subscription expired — automatic suspension.',
+                }
+            )
+            logger.warning(
+                "enforce_subscription_lifecycle: suspended tenant %s (slug=%s) — subscription expired at %s",
+                tenant.id, tenant.slug, tenant.subscription_expires_at
+            )
+            suspended.append(str(tenant.id))
+        except Exception as exc:
+            logger.error(
+                "enforce_subscription_lifecycle: failed to suspend tenant %s: %s",
+                tenant.id, exc
+            )
+
+    return {
+        'success': True,
+        'evaluated_at': str(now),
+        'tenants_suspended': len(suspended),
+        'tenant_ids': suspended,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Control Plane — Central Platform Audit Stream (Stage 13.4)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+def emit_platform_audit_event(
+    self=None,
+    event_type: str = '',
+    actor: str = 'SYSTEM',
+    resource_type: str = '',
+    resource_id: str = '',
+    details: dict = None,
+):
+    """
+    Records a central platform-level audit event in the SaaSAuditLog table.
+
+    Use for high-value control-plane mutations:
+    - TENANT_CREATED, TENANT_SUSPENDED, TENANT_REACTIVATED, TENANT_DELETED
+    - ADMIN_IMPERSONATION_STARTED, ADMIN_IMPERSONATION_ENDED
+    - API_KEY_CREATED, API_KEY_REVOKED
+    - SUBSCRIPTION_CHANGED, DOMAIN_VERIFIED, BACKUP_CREATED
+
+    This task is fire-and-forget: callers do NOT await the result.
+    Failures retry up to 3 times to ensure the audit trail is durable.
+    """
+    if not event_type:
+        return {'success': False, 'error': 'event_type is required'}
+
+    try:
+        from apps.core.saas_models import SaaSAuditLog
+        SaaSAuditLog.objects.create(
+            event_type=event_type,
+            actor=actor,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            details=details or {},
+        )
+        return {
+            'success': True,
+            'event_type': event_type,
+            'actor': actor,
+            'resource_id': resource_id,
+        }
+    except ImportError:
+        try:
+            from apps.core.models import AuditLog
+            AuditLog.objects.create(
+                tenant=None,
+                actor_username=actor,
+                action=event_type,
+                module='control_plane',
+                resource_type=resource_type,
+                resource_id=str(resource_id or ''),
+                details=details or {},
+            )
+            return {'success': True, 'event_type': event_type, 'actor': actor}
+        except Exception as exc:
+            logger.error("emit_platform_audit_event: could not write audit log: %s", exc)
+            if self and hasattr(self, 'request') and self.request.retries < self.max_retries:
+                raise self.retry(exc=exc)
+            return {'success': False, 'error': str(exc)}
+    except Exception as exc:
+        logger.error("emit_platform_audit_event: error writing %s event: %s", event_type, exc)
+        if self and hasattr(self, 'request') and self.request.retries < self.max_retries:
+            raise self.retry(exc=exc)
+        return {'success': False, 'error': str(exc)}
+

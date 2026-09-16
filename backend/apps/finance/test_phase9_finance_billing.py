@@ -552,3 +552,156 @@ class Phase9FinanceBillingCompletionTests(TestCase):
             job.refresh_from_db()
             self.assertEqual(job.status, NetworkSyncJob.JobStatus.SUCCESS)
             self.assertIsNotNone(job.completed_at)
+
+    def test_advance_and_reversal_ledger_reconciliation_consistency(self):
+        """
+        Verify that apply_advance_to_invoice and reverse_recharge keep
+        BillingAccount.balance perfectly balanced with reconcile_billing_account.
+        """
+        cust = Customer.objects.create(
+            tenant=self.tenant_a,
+            customer_code="REC-001",
+            full_name="Recon Test User",
+            pppoe_username="recon_user",
+            mobile="01799999991",
+            package=self.package_a,
+            advance_amount=Decimal('500.00')
+        )
+        acct = get_or_create_billing_account(self.tenant_a, cust)
+        acct.balance = Decimal('500.00')
+        acct.save()
+
+        # Initial advance entry
+        record_ledger_entry(
+            tenant=self.tenant_a,
+            customer=cust,
+            entry_type=LedgerEntry.EntryType.ADVANCE,
+            amount=Decimal('500.00'),
+            balance_after=acct.balance,
+            reference_id=str(uuid.uuid4()),
+            reference_type='Seed'
+        )
+        recon_init = reconcile_billing_account(acct)
+        self.assertTrue(recon_init['is_balanced'])
+
+        # Create invoice
+        inv = create_invoice_with_lines(
+            tenant=self.tenant_a,
+            customer=cust,
+            package_name=self.package_a.name,
+            package_amount=Decimal('300.00'),
+            total_payable=Decimal('300.00')
+        )
+        acct.refresh_from_db()
+        recon_after_inv = reconcile_billing_account(acct)
+        self.assertTrue(recon_after_inv['is_balanced'], f"Discrepancy: {recon_after_inv['discrepancy']}")
+
+        # Recharge and reversal
+        with patch('apps.network.tasks.process_network_sync_job.delay'):
+            recharge_res = execute_transactional_recharge(
+                tenant=self.tenant_a,
+                customer=cust,
+                package=self.package_a,
+                amount=Decimal('1000.00'),
+                payment_method='CASH'
+            )
+            recharge_obj = Recharge.objects.get(id=recharge_res['recharge_id'])
+            acct.refresh_from_db()
+            recon_recharge = reconcile_billing_account(acct)
+            self.assertTrue(recon_recharge['is_balanced'])
+
+            reverse_recharge(self.tenant_a, recharge_obj, reason="Customer canceled")
+            acct.refresh_from_db()
+            recon_rev = reconcile_billing_account(acct)
+            self.assertTrue(recon_rev['is_balanced'], f"Reversal Discrepancy: {recon_rev['discrepancy']}")
+
+    def test_invoice_creation_due_amount_aggregates_all_open_invoices(self):
+        """
+        Verify that locked_customer.due_amount aggregates all open invoices
+        instead of blindly overwriting with only the newly raised invoice.
+        """
+        cust = Customer.objects.create(
+            tenant=self.tenant_a,
+            customer_code="MULTI-INV-01",
+            full_name="Multi Invoice Customer",
+            pppoe_username="multi_user",
+            mobile="01799999992",
+            package=self.package_a
+        )
+        # Create first unpaid invoice
+        inv1 = Invoice.objects.create(
+            tenant=self.tenant_a,
+            customer=cust,
+            invoice_no="INV-PREV-01",
+            billing_month="September 2026",
+            package_name=self.package_a.name,
+            package_amount=Decimal('500.00'),
+            total_payable=Decimal('500.00'),
+            due_amount=Decimal('500.00'),
+            status=Invoice.InvoiceStatus.UNPAID
+        )
+
+        # Create second invoice using create_invoice_with_lines (different billing month
+        # to satisfy the unique_invoice_per_customer_per_month DB constraint)
+        inv2 = create_invoice_with_lines(
+            tenant=self.tenant_a,
+            customer=cust,
+            billing_month="October 2026",
+            package_name=self.package_a.name,
+            package_amount=Decimal('1000.00'),
+            total_payable=Decimal('1000.00')
+        )
+        cust.refresh_from_db()
+        self.assertEqual(cust.due_amount, Decimal('1500.00'))
+
+    def test_process_network_sync_job_explicit_rejection_for_invalid_operations(self):
+        """
+        Verify that missing router, missing username, unsupported actions (SYNC_ROUTER, REBOOT_ONU),
+        and UPDATE_PACKAGE without a profile are rejected and never marked as SUCCESS.
+        """
+        # 1. Missing router
+        job_no_router = NetworkSyncJob.objects.create(
+            tenant=self.tenant_a,
+            action=NetworkSyncJob.Action.ENABLE_USER,
+            payload={'username': 'user1'}
+        )
+        res = process_network_sync_job(tenant_id=str(self.tenant_a.id), job_id=str(job_no_router.id))
+        self.assertFalse(res['success'])
+        job_no_router.refresh_from_db()
+        self.assertEqual(job_no_router.status, NetworkSyncJob.JobStatus.FAILED)
+
+        # 2. Missing username
+        job_no_user = NetworkSyncJob.objects.create(
+            tenant=self.tenant_a,
+            router=self.router_a,
+            action=NetworkSyncJob.Action.ENABLE_USER,
+            payload={}
+        )
+        res = process_network_sync_job(tenant_id=str(self.tenant_a.id), job_id=str(job_no_user.id))
+        self.assertFalse(res['success'])
+        job_no_user.refresh_from_db()
+        self.assertEqual(job_no_user.status, NetworkSyncJob.JobStatus.FAILED)
+
+        # 3. Unsupported action SYNC_ROUTER
+        job_unsupported = NetworkSyncJob.objects.create(
+            tenant=self.tenant_a,
+            router=self.router_a,
+            action=NetworkSyncJob.Action.SYNC_ROUTER,
+            payload={'username': 'user1'}
+        )
+        res = process_network_sync_job(tenant_id=str(self.tenant_a.id), job_id=str(job_unsupported.id))
+        self.assertFalse(res['success'])
+        job_unsupported.refresh_from_db()
+        self.assertEqual(job_unsupported.status, NetworkSyncJob.JobStatus.FAILED)
+
+        # 4. UPDATE_PACKAGE without profile
+        job_no_profile = NetworkSyncJob.objects.create(
+            tenant=self.tenant_a,
+            router=self.router_a,
+            action=NetworkSyncJob.Action.UPDATE_PACKAGE,
+            payload={'username': 'user1'}
+        )
+        res = process_network_sync_job(tenant_id=str(self.tenant_a.id), job_id=str(job_no_profile.id))
+        self.assertFalse(res['success'])
+        job_no_profile.refresh_from_db()
+        self.assertEqual(job_no_profile.status, NetworkSyncJob.JobStatus.FAILED)

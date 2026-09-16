@@ -16,6 +16,8 @@ export const metadata: Metadata = {
   description: "Enterprise ISP Subscriber Billing, Network Monitoring, OLT Management & Automated Multi-Tenant Platform",
 };
 
+import { AuthProvider } from "@/lib/auth";
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -42,9 +44,11 @@ export default async function RootLayout({
       </head>
       <body className="bg-background text-foreground min-h-screen flex antialiased selection:bg-indigo-500 selection:text-white">
         <ThemeProvider defaultTheme="dark" storageKey="sheba-theme">
-          <AppShell isControlPlaneDomain={isControlPlaneDomain}>
-            {children}
-          </AppShell>
+          <AuthProvider initialContext={isControlPlaneDomain ? "central_admin" : "tenant"}>
+            <AppShell isControlPlaneDomain={isControlPlaneDomain}>
+              {children}
+            </AppShell>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

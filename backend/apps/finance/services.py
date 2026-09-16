@@ -477,8 +477,10 @@ def apply_advance_to_invoice(
         locked_customer.due_amount = open_due
         locked_customer.save(update_fields=['advance_amount', 'due_amount'])
 
-        # 5. Append LedgerEntry: ADVANCE deduction (preserves balance without double-debiting)
-        cur_bal = Decimal(str(billing_acct.balance or '0.00'))
+        # 5. Append LedgerEntry: ADVANCE deduction (keeps billing_acct.balance consistent with ledger)
+        cur_bal = Decimal(str(billing_acct.balance or '0.00')) + deduct_amount
+        billing_acct.balance = cur_bal
+        billing_acct.save(update_fields=['balance'])
 
         record_ledger_entry(
             tenant=tenant,
@@ -595,6 +597,7 @@ def create_invoice_with_lines(
             due_date=due_date or (now.date() + datetime.timedelta(days=10))
         )
 
+        # pyrefly: ignore [missing-import]
         from apps.finance.models import InvoiceLine
         for cl in calculated_lines:
             InvoiceLine.objects.create(
@@ -620,8 +623,12 @@ def create_invoice_with_lines(
                 total=prev_due
             )
 
-        # Update customer due_amount to match computed_total_payable (which already includes prev_due)
-        locked_customer.due_amount = computed_total_payable
+        # Update customer due_amount derived from all open invoices (reusing sync_customer_financial_summary approach)
+        open_due = Invoice.objects.filter(
+            tenant=tenant, customer=locked_customer,
+            status__in=[Invoice.InvoiceStatus.UNPAID, Invoice.InvoiceStatus.PARTIAL]
+        ).aggregate(total=models.Sum('due_amount'))['total'] or Decimal('0.00')
+        locked_customer.due_amount = open_due
         locked_customer.save(update_fields=['due_amount'])
 
         # Update BillingAccount & create LedgerEntry
@@ -717,11 +724,11 @@ def reverse_recharge(
         locked_customer.save(update_fields=['expiry_date', 'status'])
 
         # 3. Adjust BillingAccount and append REVERSAL ledger entry
-        # The original recharge credited payment and debited recharge consumption (net 0 balance change).
-        # Reversal cancels both without applying an extra net balance debit.
-        cur_bal = Decimal(str(billing_acct.balance or '0.00'))
+        # Debit balance by amount_dec according to reconcile_billing_account contract
+        cur_bal = Decimal(str(billing_acct.balance or '0.00')) - amount_dec
+        billing_acct.balance = cur_bal
         billing_acct.total_paid = max(Decimal('0.00'), Decimal(str(billing_acct.total_paid or '0.00')) - amount_dec)
-        billing_acct.save(update_fields=['total_paid'])
+        billing_acct.save(update_fields=['total_paid', 'balance'])
 
         record_ledger_entry(
             tenant=tenant,

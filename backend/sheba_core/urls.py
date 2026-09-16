@@ -8,6 +8,7 @@ from apps.core.views import (
     TenantViewSet, TenantDomainViewSet, CompanySettingViewSet,
     AuditLogViewSet, HealthCheckView, ReadinessView, ApiRootView
 )
+from apps.core.readiness_views import ProductionReadinessView
 from apps.core.saas_views import (
     SaaSOverviewView, SaaSTenantViewSet, SaaSDomainViewSet,
     SaaSTenantRequestViewSet,
@@ -107,6 +108,8 @@ urlpatterns = [
     # Public & Customer Query endpoints
     path('api/v1/health-check/', HealthCheckView.as_view(), name='health-check'),
     path('healthz/', ReadinessView.as_view(), name='readiness'),    # LB / K8s readiness probe
+    path('api/v1/system/readiness/', ProductionReadinessView.as_view(), name='system-readiness'),
+    path('healthz/production-readiness/', ProductionReadinessView.as_view(), name='healthz-production-readiness'),
     path('api/v1/customer/query/', CustomerQueryApiView.as_view(), name='customer-query'),
     path('api/v1/customers/query/', CustomerQueryApiView.as_view(), name='customers-query'),
     
@@ -137,5 +140,9 @@ urlpatterns = [
     # Swagger & OpenAPI Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui-alias'),
+    path('swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui-root'),
+    path('docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='docs-root'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    path('redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc-root'),
 ]

@@ -83,6 +83,16 @@ def can(user, tenant, permission_codename: str, resource=None) -> bool:
         if scope in [StaffMembership.Scope.GLOBAL, StaffMembership.Scope.TENANT]:
             return True
 
+        if scope == StaffMembership.Scope.POP:
+            user_pop = getattr(membership, 'pop_id', None) or getattr(getattr(user, 'profile', None), 'pop_id', None)
+            res_pop = getattr(resource, 'pop_id', None) or getattr(resource, 'pop_branch_id', None)
+            return user_pop is not None and res_pop is not None and user_pop == res_pop
+
+        if scope == StaffMembership.Scope.AREA:
+            user_area = getattr(membership, 'area_id', None) or getattr(getattr(user, 'profile', None), 'area_id', None)
+            res_area = getattr(resource, 'area_id', None) or getattr(resource, 'zone_id', None)
+            return user_area is not None and res_area is not None and user_area == res_area
+
         if scope == StaffMembership.Scope.ASSIGNED:
             if hasattr(resource, 'assigned_to_id'):
                 return resource.assigned_to_id == user.id

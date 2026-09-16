@@ -22,6 +22,7 @@ from apps.customers.portal_serializers import (
     CustomerPortalPackageSerializer,
     CustomerPortalInvoiceSerializer,
 )
+from drf_spectacular.utils import extend_schema
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,11 @@ class CustomerPortalBaseMixin:
         return None
 
 
+@extend_schema(
+    tags=['17. Customer Self-Care Portal'],
+    summary='Customer profile and account summary',
+    responses={200: CustomerPortalProfileSerializer}
+)
 class CustomerPortalProfileView(CustomerPortalBaseMixin, views.APIView):
     """
     Returns the authenticated customer's profile, connection info,
@@ -51,6 +57,11 @@ class CustomerPortalProfileView(CustomerPortalBaseMixin, views.APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    tags=['17. Customer Self-Care Portal'],
+    summary='Customer live PPPoE session diagnostics',
+    responses={200: CustomerPortalSessionSerializer}
+)
 class CustomerPortalSessionView(CustomerPortalBaseMixin, views.APIView):
     """
     Returns live PPPoE session diagnostics (IP, MAC, uptime, bytes in/out).
@@ -93,6 +104,11 @@ class CustomerPortalSessionView(CustomerPortalBaseMixin, views.APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    tags=['17. Customer Self-Care Portal'],
+    summary='Available broadband packages for customer',
+    responses={200: CustomerPortalPackageSerializer(many=True)}
+)
 class CustomerPortalPackagesView(CustomerPortalBaseMixin, views.APIView):
     """
     Lists active broadband packages available within the customer's tenant.
@@ -197,6 +213,11 @@ class CustomerPortalNotificationView(CustomerPortalBaseMixin, views.APIView):
         return Response({"notifications": notifications}, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    tags=['17. Customer Self-Care Portal'],
+    summary='Customer self-care subscription recharge',
+    responses={200: dict, 400: dict, 402: dict, 404: dict}
+)
 class CustomerPortalRechargeView(CustomerPortalBaseMixin, views.APIView):
     """
     Self-care subscription recharge endpoint.
@@ -285,6 +306,11 @@ class CustomerPortalRechargeView(CustomerPortalBaseMixin, views.APIView):
         }, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    tags=['17. Customer Self-Care Portal'],
+    summary='Customer subscription recharge history',
+    responses={200: dict, 404: dict}
+)
 class CustomerPortalRechargeHistoryView(CustomerPortalBaseMixin, views.APIView):
     """
     Returns history of subscription recharges for the authenticated customer.
@@ -315,6 +341,11 @@ class CustomerPortalRechargeHistoryView(CustomerPortalBaseMixin, views.APIView):
         return Response({"recharges": data}, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    tags=['17. Customer Self-Care Portal'],
+    summary='Customer confirmed payment ledger history',
+    responses={200: dict, 404: dict}
+)
 class CustomerPortalPaymentHistoryView(CustomerPortalBaseMixin, views.APIView):
     """
     Returns ledger of confirmed payments for the authenticated customer.

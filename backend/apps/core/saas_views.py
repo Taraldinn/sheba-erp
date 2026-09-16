@@ -278,6 +278,12 @@ class SaaSAuditLogSerializer(serializers.ModelSerializer):
 
 # ════════════════════════ VIEWSETS & VIEWS ════════════════════════
 
+@extend_schema(
+    tags=['16. Multi-Tenant SaaS & Control Plane'],
+    summary='SaaS platform global overview metrics',
+    description='Aggregated telemetry, tenant counts, active subscriptions, revenue metrics, and hardware fleet counts.',
+    responses={200: dict}
+)
 class SaaSOverviewView(views.APIView):
     """
     Central SaaS Control Plane telemetry and aggregate business metrics.
@@ -1201,6 +1207,33 @@ class SaaSDomainViewSet(viewsets.ModelViewSet):
         })
 
 
+@extend_schema_view(
+    list=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='List SaaS platform administrators and tenant master owners',
+        responses={200: dict}
+    ),
+    create=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Provision a new platform admin or tenant owner',
+        responses={201: dict, 400: dict, 404: dict}
+    ),
+    destroy=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Delete a platform user',
+        responses={200: dict, 400: dict, 404: dict}
+    ),
+    toggle_status=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Toggle user active / suspended status',
+        responses={200: dict, 400: dict, 404: dict}
+    ),
+    reset_password=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Reset user password',
+        responses={200: dict, 404: dict}
+    ),
+)
 class SaaSUserViewSet(viewsets.ViewSet):
     """
     Global Software User Management: Directory, Creation, Status Toggling, Password Reset, and Deletion.
@@ -1403,6 +1436,12 @@ class SaaSAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = SaaSAuditLogSerializer
 
 
+@extend_schema(
+    tags=['16. Multi-Tenant SaaS & Control Plane'],
+    summary='SaaS control plane administrator login',
+    description='Authenticates central platform administrators with Token return.',
+    responses={200: dict, 400: dict, 401: dict, 403: dict}
+)
 class SaaSLoginView(views.APIView):
     """
     Central SaaS Control Plane authentication endpoint.
@@ -1448,6 +1487,12 @@ class SaaSLoginView(views.APIView):
         })
 
 
+@extend_schema(
+    tags=['16. Multi-Tenant SaaS & Control Plane'],
+    summary='Current SaaS administrator details',
+    description='Returns profile and identity information for the authenticated SaaS central administrator.',
+    responses={200: dict}
+)
 class SaaSMeView(views.APIView):
     """Returns profile information for the authenticated Central SaaS Administrator."""
     permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]

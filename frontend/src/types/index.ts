@@ -844,6 +844,11 @@ export interface PathImpactAnalysis {
     pon_ports: string[];
     onus_sample: Array<{ id: string; pon_port: string; serial_number: string; mac_address?: string }>;
   };
+  package_breakdown?: Array<{
+    package_name: string;
+    subscribers_count: number;
+    mrr_at_risk: string;
+  }>;
   affected_customers_sample: Array<{
     id: string;
     customer_code: string;
@@ -910,5 +915,129 @@ export interface ONUAutoMatchResult {
   total_candidates: number;
   matched_count: number;
   matches: ONUAutoMatchCandidate[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 20: Authoritative Topology & Impact Analysis
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface AuthoritativePonNode {
+  id: string;
+  name: string;
+  type: 'PON';
+  olt_id: string;
+  pon_port: string;
+  health: 'Online' | 'Warning' | 'Critical';
+  total_onus: number;
+  online_onus: number;
+  alarm_onus: number;
+  customer_count: number;
+  drilldown_available: boolean;
+}
+
+export interface AuthoritativeOltNode {
+  id: string;
+  raw_id: string;
+  name: string;
+  type: 'OLT';
+  brand: string;
+  ip_address: string;
+  status: string;
+  health: 'Online' | 'Degraded' | 'Offline';
+  total_onus: number;
+  online_onus: number;
+  customer_count: number;
+  pon_count: number;
+  children: AuthoritativePonNode[];
+}
+
+export interface AuthoritativePopNode {
+  id: string;
+  raw_id: string;
+  name: string;
+  code: string;
+  type: 'POP';
+  location: string;
+  status: string;
+  health: 'Online' | 'Degraded' | 'Offline';
+  power_backup?: string;
+  olt_count: number;
+  total_onus: number;
+  online_onus: number;
+  customer_count: number;
+  children: AuthoritativeOltNode[];
+}
+
+export interface AuthoritativeRouterNode {
+  id: string;
+  raw_id: string;
+  name: string;
+  type: 'Router' | 'RouterGroup';
+  ip_address: string;
+  effective_host?: string;
+  status: string;
+  health: 'Online' | 'Degraded' | 'Offline';
+  cpu_usage: number;
+  memory_usage: number;
+  active_sessions: number;
+  customer_count: number;
+  pop_count: number;
+  children: AuthoritativePopNode[];
+}
+
+export interface AuthoritativeInternetNode {
+  id: string;
+  name: string;
+  type: 'Internet';
+  status: string;
+  health: 'Online';
+  total_routers: number;
+  total_pops: number;
+  total_olts: number;
+  total_customers: number;
+  online_customers: number;
+  children: AuthoritativeRouterNode[];
+}
+
+export interface AuthoritativeHierarchyResponse {
+  authoritative_hierarchy: AuthoritativeInternetNode;
+  chain: string;
+  timestamp: string;
+}
+
+export interface OnuDrilldownItem {
+  id: string;
+  serial_number: string;
+  mac_address: string;
+  pon_port: string;
+  status: string;
+  optical_status: string;
+  rx_power: string;
+  health: 'Online' | 'Warning' | 'Critical' | 'Offline';
+  olt_id: string;
+  olt_name: string;
+  customer?: {
+    id: string;
+    customer_code: string;
+    name: string;
+    pppoe_username: string;
+    mobile: string;
+    package_name: string;
+    monthly_bill: string;
+    status: string;
+    is_online: boolean;
+    router_name: string;
+  } | null;
+}
+
+export interface TopologyDrilldownResponse {
+  node_type: string;
+  node_id: string;
+  pon_port?: string;
+  page: number;
+  page_size: number;
+  total_count: number;
+  total_pages: number;
+  results: OnuDrilldownItem[];
 }
 

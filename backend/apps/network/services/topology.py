@@ -810,7 +810,7 @@ class NetworkTopologyService:
         """
         node_type = node_type.lower().strip()
         page = max(1, int(page))
-        page_size = min(100, max(5, int(page_size)))
+        page_size = min(100, max(1, int(page_size)))
         active_sessions = set(UserSession.objects.filter(tenant=tenant).values_list('username', flat=True))
 
         if node_type in ('pon', 'pon_port'):

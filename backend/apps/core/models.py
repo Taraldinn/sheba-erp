@@ -42,6 +42,12 @@ class Tenant(models.Model):
 class TenantDomain(models.Model):
     """Proper multi-domain management (Plan Phase 4).
     Replaces the single nullable Tenant.domain field.
+
+    DNS TXT Verification (Stage 13.1):
+    To verify a custom domain, the tenant must create a DNS TXT record:
+        _sheba-verify.{hostname}  IN  TXT  "{dns_challenge_token}"
+    The control plane then calls verify_dns_txt() to confirm the record exists.
+    Only verified domains are activated in TenantResolutionMiddleware.
     """
 
     class DomainType(models.TextChoices):
@@ -51,6 +57,11 @@ class TenantDomain(models.Model):
         PORTAL = 'portal', 'Customer Portal'
         CONTROL = 'control', 'Control Plane'
 
+    class VerificationMethod(models.TextChoices):
+        DNS_TXT = 'dns_txt', 'DNS TXT Record'
+        PLATFORM_SUBDOMAIN = 'platform_subdomain', 'Platform Subdomain (Auto-Verified)'
+        MANUAL = 'manual', 'Manual Admin Override'
+
     tenant = models.ForeignKey(
         Tenant, on_delete=models.CASCADE, related_name='tenant_domains'
     )
@@ -58,6 +69,14 @@ class TenantDomain(models.Model):
     is_primary = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     verified = models.BooleanField(default=False)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verification_method = models.CharField(
+        max_length=30,
+        choices=VerificationMethod.choices,
+        default=VerificationMethod.DNS_TXT,
+    )
+    # The value the tenant must publish at _sheba-verify.{hostname} IN TXT
+    dns_challenge_token = models.CharField(max_length=64, blank=True, db_index=True)
     domain_type = models.CharField(
         max_length=20, choices=DomainType.choices, default=DomainType.PRIMARY
     )
@@ -73,19 +92,160 @@ class TenantDomain(models.Model):
     def __str__(self):
         return f"{self.hostname} → {self.tenant.slug} ({'primary' if self.is_primary else self.domain_type})"
 
+    @classmethod
+    def generate_challenge_token(cls) -> str:
+        """Generate a cryptographically random DNS challenge token."""
+        import secrets
+        return 'sheba-verify-' + secrets.token_urlsafe(24)
+
+    def verify_dns_txt(self) -> bool:
+        """
+        Attempt DNS TXT verification of this domain.
+        Looks up _sheba-verify.{hostname} and checks for dns_challenge_token.
+        Returns True and updates verified/verified_at on success.
+
+        Requires dnspython: pip install dnspython
+        """
+        if not self.dns_challenge_token:
+            return False
+        try:
+            import dns.resolver
+            challenge_host = f'_sheba-verify.{self.hostname}'
+            answers = dns.resolver.resolve(challenge_host, 'TXT', lifetime=10)
+            for rdata in answers:
+                for txt_string in rdata.strings:
+                    if txt_string.decode('utf-8', errors='ignore') == self.dns_challenge_token:
+                        from django.utils import timezone
+                        self.verified = True
+                        self.verified_at = timezone.now()
+                        self.verification_method = self.VerificationMethod.DNS_TXT
+                        self.save(update_fields=['verified', 'verified_at', 'verification_method', 'updated_at'])
+                        return True
+        except Exception:
+            pass
+        return False
+
 
 class TenantApiToken(models.Model):
+    """
+    Secure API application key for external frontend/machine integrations.
+
+    Security properties:
+    - The raw secret is NEVER stored. Only a SHA-256 hash is persisted.
+    - A short key_prefix (e.g. 'shb_Ab3xY9') is stored for identification
+      without revealing the full key. Use it in logs and UI listings.
+    - The secret is displayed exactly once at creation time via generate().
+    - Keys can be revoked (revoked_at timestamp) and rotated.
+    - Keys are tenant-bound and do NOT bypass staff authentication or RBAC.
+    - An API key alone is not sufficient for staff access — the staff user
+      must also authenticate separately with their own credentials.
+
+    Bootstrap flow:
+        1. Central admin creates Tenant.
+        2. Central admin calls TenantApiToken.generate(tenant, name, created_by=admin).
+        3. The one-time secret is displayed to the admin and NEVER shown again.
+        4. The frontend is configured with the API URL + secret.
+        5. Staff users still authenticate with their own username/token.
+    """
+
+    KEY_PREFIX_LENGTH = 6  # characters after 'shb_'
+    KEY_SECRET_BYTES = 32  # 256 bits of entropy
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='api_tokens')
     name = models.CharField(max_length=100)
-    token = models.CharField(max_length=255, unique=True)
+
+    # Stored prefix for identification (safe to display in logs/UI)
+    key_prefix = models.CharField(max_length=16, blank=True, db_index=True)
+
+    # SHA-256 hash of the full raw key — never the key itself
+    token_hash = models.CharField(max_length=64, unique=True, db_index=True, default='')
+
+    # Legacy field kept for DB compatibility during migration — DO NOT USE for new tokens
+    token = models.CharField(max_length=255, unique=True, null=True, blank=True)
+
     permissions = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     expires_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        'auth.User', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='created_api_tokens'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.name} - {self.tenant.slug}"
+        return f"{self.name} [{self.key_prefix}***] - {self.tenant.slug}"
+
+    @staticmethod
+    def _hash_secret(raw_secret: str) -> str:
+        """Compute the SHA-256 hex digest of a raw key."""
+        import hashlib
+        return hashlib.sha256(raw_secret.encode('utf-8')).hexdigest()
+
+    @staticmethod
+    def _make_prefix(raw_secret: str) -> str:
+        """Return a safe 10-char display prefix from the raw key."""
+        return 'shb_' + raw_secret[:6]
+
+    @classmethod
+    def generate(cls, tenant, name: str, permissions: list = None,
+                 expires_at=None, created_by=None) -> tuple:
+        """
+        Create a new API token and return (instance, raw_secret).
+
+        The raw_secret is the ONLY time the plaintext key is available.
+        It is the caller's responsibility to display it to the admin user
+        exactly once and then discard it.
+
+        Returns:
+            (TenantApiToken instance, raw_secret_string)
+        """
+        import secrets as secrets_module
+        raw_secret = secrets_module.token_urlsafe(cls.KEY_SECRET_BYTES)
+        token_hash = cls._hash_secret(raw_secret)
+        key_prefix = cls._make_prefix(raw_secret)
+        instance = cls.objects.create(
+            tenant=tenant,
+            name=name,
+            key_prefix=key_prefix,
+            token_hash=token_hash,
+            token=None,  # never store raw token
+            permissions=permissions or [],
+            expires_at=expires_at,
+            created_by=created_by,
+            is_active=True,
+        )
+        return instance, raw_secret
+
+    def verify(self, candidate_secret: str) -> bool:
+        """
+        Verify a candidate secret against the stored hash.
+        Returns False if the key is inactive, expired, or revoked.
+        """
+        from django.utils import timezone as tz
+        if not self.is_active:
+            return False
+        if self.revoked_at is not None:
+            return False
+        if self.expires_at is not None and self.expires_at < tz.now():
+            return False
+        import hmac as hmac_module
+        expected = self._hash_secret(candidate_secret).encode()
+        actual = self.token_hash.encode()
+        return hmac_module.compare_digest(expected, actual)
+
+    def revoke(self):
+        """Revoke this key immediately."""
+        from django.utils import timezone as tz
+        self.is_active = False
+        self.revoked_at = tz.now()
+        self.save(update_fields=['is_active', 'revoked_at', 'updated_at'])
 
 
 class CompanySetting(models.Model):

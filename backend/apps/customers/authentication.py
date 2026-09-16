@@ -72,3 +72,21 @@ class CustomerJWTAuthentication(authentication.BaseAuthentication):
 
     def authenticate_header(self, request):
         return 'Bearer realm="customer_portal"'
+
+
+try:
+    from drf_spectacular.extensions import OpenApiAuthenticationExtension
+
+    class CustomerJWTScheme(OpenApiAuthenticationExtension):
+        target_class = 'apps.customers.authentication.CustomerJWTAuthentication'
+        name = 'customerJwtAuth'
+
+        def get_security_definition(self, auto_schema):
+            return {
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+                'description': 'Customer Portal signed JWT access token (`Bearer <token>`)',
+            }
+except ImportError:
+    pass

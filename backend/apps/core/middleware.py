@@ -29,11 +29,16 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         '/api-auth/',
         '/healthz/',
         '/api/v1/health-check/',
+        '/api/v1/system/',
         '/api/v1/auth/',
         '/api/v1/saas/',
         '/api/schema/',
         '/api/docs/',
+        '/api/swagger/',
+        '/swagger/',
+        '/docs/',
         '/api/redoc/',
+        '/redoc/',
         '/admin/',
     )
 
@@ -61,8 +66,8 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         request.tenant = None
         request.is_control_plane = False
 
-        # 1. Root API landing, healthz, & SaaS paths — bypass tenant resolution
-        if path in ('', '/') or path.startswith('/healthz/'):
+        # 1. Root API landing, healthz, system probes, & SaaS paths — bypass tenant resolution & ORM lookups
+        if path in ('', '/') or path.startswith('/healthz/') or path.startswith('/api/v1/system/'):
             return None
 
         if path.startswith('/api/v1/saas/'):

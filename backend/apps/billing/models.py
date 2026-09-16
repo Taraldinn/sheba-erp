@@ -75,6 +75,16 @@ class Invoice(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            # Prevent duplicate monthly invoices from concurrent Celery beat runs.
+            # A second invoice for the same (tenant, customer, billing_month) will
+            # raise IntegrityError at the DB level even if the task-level exists()
+            # check is bypassed under race conditions.
+            models.UniqueConstraint(
+                fields=['tenant', 'customer', 'billing_month'],
+                name='unique_invoice_per_customer_per_month',
+            ),
+        ]
         indexes = [
             models.Index(fields=['tenant', 'status', 'due_date'], name='inv_tenant_status_due_idx'),
             models.Index(fields=['tenant', 'created_at'], name='inv_tenant_created_idx'),

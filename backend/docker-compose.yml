@@ -33,6 +33,64 @@ services:
       retries: 3
       start_period: 15s
 
+  # ── Celery Worker ──────────────────────────────────────────────────────────
+  # Processes async tasks: payment events, network sync jobs, SMS delivery.
+  # Run multiple replicas by setting CELERY_WORKER_CONCURRENCY.
+  # IMPORTANT: This service MUST be running for recharges, webhook processing,
+  #            network sync, and SMS tasks to execute.
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sheba-celery-worker
+    restart: unless-stopped
+    command: celery -A sheba_core worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-4} --queues=default,network,billing
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-change-in-dokploy-production}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - DATABASE_URL=postgres://${POSTGRES_USER:-sheba_user}:${POSTGRES_PASSWORD:-sheba_secure_password}@postgres:5432/${POSTGRES_DB:-sheba_erp}
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - backend_media:/app/media
+    healthcheck:
+      test: ["CMD", "celery", "-A", "sheba_core", "inspect", "ping", "--timeout", "5"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ── Celery Beat Scheduler ──────────────────────────────────────────────────
+  # Triggers periodic tasks: daily expiry, monthly invoices, hourly reconcile.
+  # Only ONE beat instance must run at a time — do not scale this service.
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sheba-celery-beat
+    restart: unless-stopped
+    command: celery -A sheba_core beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-change-in-dokploy-production}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - DATABASE_URL=postgres://${POSTGRES_USER:-sheba_user}:${POSTGRES_PASSWORD:-sheba_secure_password}@postgres:5432/${POSTGRES_DB:-sheba_erp}
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      celery-worker:
+        condition: service_started
+
   postgres:
     image: postgres:16-alpine
     container_name: sheba-postgres

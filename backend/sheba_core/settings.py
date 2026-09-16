@@ -186,17 +186,55 @@ REST_FRAMEWORK = {
 
 # ─── Swagger / OpenAPI ────────────────────────────────────────────────────────
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Sheba ISP ERP API',
-    'DESCRIPTION': 'Next-Gen Multi-Tenant ISP ERP, MikroTik / OLT Automation, Subscriber Billing & CRM API Engine',
+    'TITLE': 'ShebaFi ISP ERP & SaaS Control Plane API',
+    'DESCRIPTION': (
+        'Production-grade, Multi-Tenant ISP Operations, MikroTik/OLT Automation, '
+        'Double-Entry Financial Ledgers, Hierarchical Network Topology & Impact Analysis, '
+        'Customer Self-Care Portal, and SaaS Global Control Plane.'
+    ),
     'VERSION': '2.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'SWAGGER_UI_SETTINGS': {
         'deepLinking': True,
         'persistAuthorization': True,
         'displayOperationId': False,
-        'docExpansion': 'list',
+        'docExpansion': 'none',
         'filter': True,
         'tagsSorter': 'alpha',
+        'tryItOutEnabled': True,
+        'syntaxHighlight': {
+            'activate': True,
+            'theme': 'monokai',
+        },
+    },
+    'REDOC_UI_SETTINGS': {
+        'expandResponses': 'all',
+        'hideDownloadButton': False,
+        'pathInMiddlePanel': True,
+        'requiredPropsFirst': True,
+        'sortPropsAlphabetically': True,
+        'theme': {
+            'colors': {
+                'primary': {
+                    'main': '#4f46e5',
+                },
+                'success': {
+                    'main': '#10b981',
+                },
+                'warning': {
+                    'main': '#f59e0b',
+                },
+                'error': {
+                    'main': '#ef4444',
+                },
+            },
+            'typography': {
+                'fontFamily': 'Inter, system-ui, -apple-system, sans-serif',
+                'headings': {
+                    'fontFamily': 'Inter, system-ui, -apple-system, sans-serif',
+                },
+            },
+        },
     },
     'TAGS': [
         {'name': '1. Authentication & Users', 'description': 'User login, token generation, active session, and staff profiles.'},
@@ -213,6 +251,11 @@ SPECTACULAR_SETTINGS = {
         {'name': '12. Call Center & Voice Reminders', 'description': 'Call logs, IVR voice templates, and automated bill payment voice reminder broadcasts.'},
         {'name': '13. Reports & Analytics', 'description': 'Real-time aggregated KPIs, revenue trends, and bandwidth distribution.'},
         {'name': '14. Core & Tenant Settings', 'description': 'Multi-tenant organization profiles, company branding, audit logs, and health checks.'},
+        {'name': '15. Network Operations, Topology & Impact Analysis', 'description': 'Hierarchical hardware topology tree, live drill-downs, and blast-radius failure impact simulations.'},
+        {'name': '16. Multi-Tenant SaaS & Control Plane', 'description': 'Global central control plane, tenant provisioning, subscription packages, and cross-tenant overview.'},
+        {'name': '17. Customer Self-Care Portal', 'description': 'Subscriber self-service portal, usage stats, online payments, and support ticketing.'},
+        {'name': '18. Financial Reconciliations & Ledgers', 'description': 'Double-entry ledger journal, advance credit adjustments, compensating reversals, and reconciliation audits.'},
+        {'name': '19. Production Readiness & Observability Probes', 'description': 'Comprehensive production readiness verification, database latencies, Redis lock safety, and disaster recovery status.'},
     ],
 }
 
@@ -332,6 +375,13 @@ CELERY_BEAT_SCHEDULE = {
     'reconcile_payments_hourly': {
         'task': 'apps.core.tasks.reconcile_payments',
         'schedule': crontab(minute=30),
+        'args': (),
+    },
+    # Stage 13.3 — auto-suspend tenants whose subscription has expired.
+    # Runs daily at 00:30, staggered 30 min after expire_customers to avoid lock contention.
+    'enforce_subscription_lifecycle_daily': {
+        'task': 'apps.core.tasks.enforce_subscription_lifecycle',
+        'schedule': crontab(hour=0, minute=30),
         'args': (),
     },
 }

@@ -89,7 +89,7 @@ export default function ProfileSettingsPage() {
     fetchSettings();
   }, []);
 
-  const handleChange = (field: string, value: any) => {
+  const handleChange = (field: string, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 

@@ -1,3 +1,14 @@
+"""
+apps/core/permissions.py — DRF permission classes for the Sheba ISP ERP.
+
+Authorization chain (single authoritative source):
+    Host → Tenant → User → StaffMembership (active) → Role → Permission
+
+StaffProfile is a legacy user-profile model and MUST NOT be used for
+authorization decisions in this file. All role/capability checks go
+exclusively through StaffMembership + the `can()` helper.
+"""
+
 from rest_framework import permissions
 from apps.authentication.models import UserRole, StaffMembership
 
@@ -24,12 +35,10 @@ class IsTenantMember(permissions.BasePermission):
 
         # Central control plane: ordinary ISP users are denied access
         if getattr(request, 'is_control_plane', False):
+            # Only superusers may reach the control plane; all StaffMembership holders are denied.
             if StaffMembership.objects.filter(user=request.user, is_active=True).exists():
                 return False
-            profile = getattr(request.user, 'profile', None)
-            if profile and profile.tenant:
-                return False
-            return bool(profile and profile.role == UserRole.SUPER_ADMIN)
+            return False  # non-superuser, non-staff: also deny (require explicit superuser)
 
         tenant = getattr(request, 'tenant', None)
         if not tenant:
@@ -38,7 +47,7 @@ class IsTenantMember(permissions.BasePermission):
         if not tenant.is_active:
             return False
 
-        # Authoritative identity check: StaffMembership
+        # Authoritative identity check: StaffMembership only.
         membership = StaffMembership.objects.filter(
             user=request.user,
             tenant=tenant
@@ -50,13 +59,18 @@ class IsTenantMember(permissions.BasePermission):
             request.membership = membership
             return True
 
-        # Backward compatibility: Fallback sync for unmigrated legacy StaffProfile
+        # Backward-compatibility: auto-create StaffMembership from legacy StaffProfile
+        # This ensures migrated tenants continue working while StaffProfile is deprecated.
+        # The auto-created membership is what carries authorization — never StaffProfile.role.
         profile = getattr(request.user, 'profile', None)
         if profile and profile.tenant_id == tenant.id and profile.is_active:
             role_obj = None
             if profile.role:
                 from apps.authentication.models import Role
-                role_obj = Role.objects.filter(tenant=tenant, name__iexact=profile.get_role_display()).first() or Role.objects.filter(tenant=tenant, name__iexact=profile.role).first()
+                role_obj = (
+                    Role.objects.filter(tenant=tenant, name__iexact=profile.get_role_display()).first()
+                    or Role.objects.filter(tenant=tenant, name__iexact=profile.role).first()
+                )
             membership, _ = StaffMembership.objects.get_or_create(
                 user=request.user,
                 tenant=tenant,
@@ -92,12 +106,10 @@ class IsCentralAdmin(permissions.BasePermission):
             return False
         if request.user.is_superuser:
             return True
+        # Any tenant-scoped membership holder is denied control-plane access.
         if StaffMembership.objects.filter(user=request.user, is_active=True).exists():
             return False
-        profile = getattr(request.user, 'profile', None)
-        if profile and profile.tenant:
-            return False
-        return bool(profile and profile.role == UserRole.SUPER_ADMIN)
+        return False  # non-superuser always denied
 
 
 from apps.core.authorization import can
@@ -162,6 +174,9 @@ def requires_permission(permission_codename: str):
 class IsAdminOrManager(permissions.BasePermission):
     """
     Full administrative access within the tenant (Super Admin or Admin / Managing Director).
+
+    Authorization source: StaffMembership.role exclusively.
+    StaffProfile.role is NOT consulted — it is a legacy user profile, not an auth record.
     """
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
@@ -172,21 +187,28 @@ class IsAdminOrManager(permissions.BasePermission):
             return False
 
         tenant = getattr(request, 'tenant', None)
+        # Preferred path: capability check via RBAC
         if can(request.user, tenant, 'staff.manage') or can(request.user, tenant, 'setting.manage'):
             return True
 
+        # Fallback: role name check via StaffMembership only
         membership = getattr(request, 'membership', None)
         if membership and membership.role:
-            if membership.role.name in [UserRole.SUPER_ADMIN, UserRole.ADMIN, 'Admin', 'Super Admin', 'Admin / Managing Director']:
+            if membership.role.name in [
+                UserRole.SUPER_ADMIN, UserRole.ADMIN,
+                'Admin', 'Super Admin', 'Admin / Managing Director'
+            ]:
                 return True
 
-        profile = getattr(request.user, 'profile', None)
-        return bool(profile and profile.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN])
+        return False  # Never fall through to StaffProfile
 
 
 class IsBillingStaff(permissions.BasePermission):
     """
     Access for Admins, Billing Operators, and Agents within the tenant.
+
+    Authorization source: StaffMembership.role exclusively.
+    StaffProfile.role is NOT consulted.
     """
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
@@ -197,6 +219,7 @@ class IsBillingStaff(permissions.BasePermission):
             return False
 
         tenant = getattr(request, 'tenant', None)
+        # Preferred path: capability check via RBAC
         if (
             can(request.user, tenant, 'customer.recharge') or
             can(request.user, tenant, 'invoice.create') or
@@ -205,6 +228,7 @@ class IsBillingStaff(permissions.BasePermission):
         ):
             return True
 
+        # Fallback: role name check via StaffMembership only
         membership = getattr(request, 'membership', None)
         if membership and membership.role:
             allowed_role_names = [
@@ -215,14 +239,15 @@ class IsBillingStaff(permissions.BasePermission):
             if membership.role.name in allowed_role_names:
                 return True
 
-        profile = getattr(request.user, 'profile', None)
-        allowed_roles = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.BILLING_OPERATOR, UserRole.BILLING, UserRole.AGENT, UserRole.RESELLER]
-        return bool(profile and profile.role in allowed_roles)
+        return False  # Never fall through to StaffProfile
 
 
 class IsTechnicalStaff(permissions.BasePermission):
     """
     Access for Admins, Support Staff, and Line Men within the tenant.
+
+    Authorization source: StaffMembership.role exclusively.
+    StaffProfile.role is NOT consulted.
     """
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
@@ -233,6 +258,7 @@ class IsTechnicalStaff(permissions.BasePermission):
             return False
 
         tenant = getattr(request, 'tenant', None)
+        # Preferred path: capability check via RBAC
         if (
             can(request.user, tenant, 'router.view') or
             can(request.user, tenant, 'router.manage') or
@@ -242,6 +268,7 @@ class IsTechnicalStaff(permissions.BasePermission):
         ):
             return True
 
+        # Fallback: role name check via StaffMembership only
         membership = getattr(request, 'membership', None)
         if membership and membership.role:
             allowed_role_names = [
@@ -252,14 +279,15 @@ class IsTechnicalStaff(permissions.BasePermission):
             if membership.role.name in allowed_role_names:
                 return True
 
-        profile = getattr(request.user, 'profile', None)
-        allowed_roles = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SUPPORT_STAFF, UserRole.TECHNICIAN, UserRole.LINE_MAN]
-        return bool(profile and profile.role in allowed_roles)
+        return False  # Never fall through to StaffProfile
 
 
 class IsAdminUserOrReadOnly(permissions.BasePermission):
     """
     Authenticated staff can read; only Admins can create/update/delete.
+
+    Authorization source: StaffMembership.role exclusively.
+    StaffProfile.role is NOT consulted.
     """
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
@@ -272,15 +300,14 @@ class IsAdminUserOrReadOnly(permissions.BasePermission):
             return True
 
         tenant = getattr(request, 'tenant', None)
+        # Preferred path: capability check via RBAC
         if can(request.user, tenant, 'setting.manage') or can(request.user, tenant, 'staff.manage'):
             return True
 
+        # Fallback: role name check via StaffMembership only
         membership = getattr(request, 'membership', None)
         if membership and membership.role:
             if membership.role.name in [UserRole.SUPER_ADMIN, UserRole.ADMIN, 'Admin', 'Super Admin']:
                 return True
 
-        profile = getattr(request.user, 'profile', None)
-        return bool(profile and profile.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN])
-
-
+        return False  # Never fall through to StaffProfile
