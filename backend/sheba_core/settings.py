@@ -58,8 +58,6 @@ INSTALLED_APPS = [
     'corsheaders',
     'drf_spectacular',
     'whitenoise.runserver_nostatic',   # serve compressed statics in dev too
-    'sslserver',
-
     # Sheba ISP Core Apps
     'apps.core',
     'apps.authentication',
@@ -75,6 +73,14 @@ INSTALLED_APPS = [
     'apps.reports',
     'apps.finance',     # Financial ledger, billing accounts, idempotency (Phase E/F/34)
 ]
+
+# Development-only SSL server (only if installed and DEBUG is enabled)
+if DEBUG:
+    try:
+        import sslserver  # noqa: F401
+        INSTALLED_APPS.append('sslserver')
+    except ImportError:
+        pass
 
 # ─── Middleware ───────────────────────────────────────────────────────────────
 MIDDLEWARE = [
