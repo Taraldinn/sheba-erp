@@ -628,6 +628,8 @@ def create_invoice_with_lines(
             tenant=tenant, customer=locked_customer,
             status__in=[Invoice.InvoiceStatus.UNPAID, Invoice.InvoiceStatus.PARTIAL]
         ).aggregate(total=models.Sum('due_amount'))['total'] or Decimal('0.00')
+        if prev_due > 0:
+            open_due = max(Decimal('0.00'), open_due - prev_due)
         locked_customer.due_amount = open_due
         locked_customer.save(update_fields=['due_amount'])
 

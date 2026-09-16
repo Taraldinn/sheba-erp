@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Globe,
   Search,
@@ -49,6 +49,12 @@ export function SaaSDomainsManagement({
   const [domainType, setDomainType] = useState('primary');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (!selectedTenant && tenants.length > 0) {
+      setSelectedTenant(tenants[0]?.id || '');
+    }
+  }, [tenants, selectedTenant]);
 
   const [domainToDelete, setDomainToDelete] = useState<SaaSDomain | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);

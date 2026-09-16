@@ -166,27 +166,45 @@ function SaaSAdminContent() {
   };
 
   const handleToggleTenantStatus = async (tenantId: string) => {
-    const res = await SaaSClient.toggleTenantStatus(tenantId);
-    setTenants((prev) =>
-      prev.map((t) => (t.id === tenantId ? { ...t, is_active: res.is_active } : t))
-    );
-    if (selectedTenantDetail?.id === tenantId) {
-      setSelectedTenantDetail((prev) => (prev ? { ...prev, is_active: res.is_active } : null));
+    try {
+      const res = await SaaSClient.toggleTenantStatus(tenantId);
+      setTenants((prev) =>
+        prev.map((t) => (t.id === tenantId ? { ...t, is_active: res.is_active } : t))
+      );
+      if (selectedTenantDetail?.id === tenantId) {
+        setSelectedTenantDetail((prev) => (prev ? { ...prev, is_active: res.is_active } : null));
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update tenant status.';
+      setPageError(msg);
+      throw err;
     }
   };
 
   const handleDeleteTenant = async (tenantId: string) => {
-    await SaaSClient.deleteTenant(tenantId);
-    setTenants((prev) => prev.filter((t) => t.id !== tenantId));
-    if (selectedTenantDetail?.id === tenantId) {
-      setSelectedTenantDetail(null);
+    try {
+      await SaaSClient.deleteTenant(tenantId);
+      setTenants((prev) => prev.filter((t) => t.id !== tenantId));
+      if (selectedTenantDetail?.id === tenantId) {
+        setSelectedTenantDetail(null);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete tenant.';
+      setPageError(msg);
+      throw err;
     }
   };
 
   const handleImpersonate = async (tenantId: string) => {
-    const res = await SaaSClient.impersonateTenant(tenantId);
-    if (res.target_url) {
-      window.open(res.target_url, '_blank');
+    try {
+      const res = await SaaSClient.impersonateTenant(tenantId);
+      if (res.target_url) {
+        window.open(res.target_url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to impersonate tenant.';
+      setPageError(msg);
+      throw err;
     }
   };
 
@@ -197,111 +215,219 @@ function SaaSAdminContent() {
     is_primary?: boolean;
     domain_type?: string;
   }) => {
-    const created = await SaaSClient.createDomain(payload);
-    setDomains((prev) => [created, ...prev]);
+    try {
+      const created = await SaaSClient.createDomain(payload);
+      setDomains((prev) => [created, ...prev]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create domain.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   const handleToggleDomainVerify = async (domainId: string | number) => {
-    const res = await SaaSClient.toggleDomainVerify(domainId);
-    setDomains((prev) =>
-      prev.map((d) => (d.id === domainId ? { ...d, verified: res.verified } : d))
-    );
+    try {
+      const res = await SaaSClient.toggleDomainVerify(domainId);
+      setDomains((prev) =>
+        prev.map((d) => (d.id === domainId ? { ...d, verified: res.verified } : d))
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to verify domain.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   const handleDeleteDomain = async (domainId: string | number) => {
-    await SaaSClient.deleteDomain(domainId);
-    setDomains((prev) => prev.filter((d) => d.id !== domainId));
+    try {
+      await SaaSClient.deleteDomain(domainId);
+      setDomains((prev) => prev.filter((d) => d.id !== domainId));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete domain.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   // ════════════════════════ ONBOARDING REQUEST HANDLERS ════════════════════════
   const handleApproveRequest = async (requestId: string) => {
-    const res = await SaaSClient.approveRequest(requestId);
-    setRequests((prev) =>
-      prev.map((r) => (r.id === requestId ? { ...r, status: 'approved' } : r))
-    );
-    if (res.tenant) {
-      setTenants((prev) => [res.tenant, ...prev]);
+    try {
+      const res = await SaaSClient.approveRequest(requestId);
+      setRequests((prev) =>
+        prev.map((r) => (r.id === requestId ? { ...r, status: 'approved' } : r))
+      );
+      if (res.tenant) {
+        setTenants((prev) => [res.tenant, ...prev]);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to approve request.';
+      setPageError(msg);
+      throw err;
     }
   };
 
   const handleRejectRequest = async (requestId: string, reason: string) => {
-    await SaaSClient.rejectRequest(requestId, reason);
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === requestId ? { ...r, status: 'rejected', rejection_reason: reason } : r
-      )
-    );
+    try {
+      await SaaSClient.rejectRequest(requestId, reason);
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.id === requestId ? { ...r, status: 'rejected', rejection_reason: reason } : r
+        )
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to reject request.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   // ════════════════════════ PACKAGE HANDLERS ════════════════════════
   const handleCreatePackage = async (payload: Partial<SaaSPackage>) => {
-    const created = await SaaSClient.createPackage(payload);
-    setPackages((prev) => [...prev, created]);
+    try {
+      const created = await SaaSClient.createPackage(payload);
+      setPackages((prev) => [...prev, created]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create package.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   const handleUpdatePackage = async (id: string, payload: Partial<SaaSPackage>) => {
-    const updated = await SaaSClient.updatePackage(id, payload);
-    setPackages((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    try {
+      const updated = await SaaSClient.updatePackage(id, payload);
+      setPackages((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update package.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   const handleDeletePackage = async (id: string) => {
-    await SaaSClient.deletePackage(id);
-    setPackages((prev) => prev.filter((p) => p.id !== id));
+    try {
+      await SaaSClient.deletePackage(id);
+      setPackages((prev) => prev.filter((p) => p.id !== id));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete package.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   const handleTogglePackageStatus = async (id: string) => {
-    const res = await SaaSClient.togglePackageStatus(id);
-    setPackages((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, is_active: res.is_active } : p))
-    );
+    try {
+      const res = await SaaSClient.togglePackageStatus(id);
+      setPackages((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, is_active: res.is_active } : p))
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update package status.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   // ════════════════════════ SUBSCRIPTION HANDLERS ════════════════════════
   const handleCreateSubscription = async (payload: Partial<TenantSubscription>) => {
-    const created = await SaaSClient.createSubscription(payload);
-    setSubscriptions((prev) => [created, ...prev]);
+    try {
+      const created = await SaaSClient.createSubscription(payload);
+      setSubscriptions((prev) => [created, ...prev]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create subscription.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   const handleRenewSubscription = async (id: string) => {
-    const renewed = await SaaSClient.renewSubscription(id);
-    setSubscriptions((prev) => prev.map((s) => (s.id === id ? renewed : s)));
+    try {
+      const renewed = await SaaSClient.renewSubscription(id);
+      setSubscriptions((prev) => prev.map((s) => (s.id === id ? renewed : s)));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to renew subscription.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   const handleCancelSubscription = async (id: string) => {
-    const cancelled = await SaaSClient.cancelSubscription(id);
-    setSubscriptions((prev) => prev.map((s) => (s.id === id ? cancelled : s)));
+    try {
+      const cancelled = await SaaSClient.cancelSubscription(id);
+      setSubscriptions((prev) => prev.map((s) => (s.id === id ? cancelled : s)));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to cancel subscription.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   // ════════════════════════ PAYMENT HANDLERS ════════════════════════
   const handleCreatePayment = async (payload: Partial<SaaSPayment>) => {
-    const created = await SaaSClient.createPayment(payload);
-    setPayments((prev) => [created, ...prev]);
+    try {
+      const created = await SaaSClient.createPayment(payload);
+      setPayments((prev) => [created, ...prev]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to record payment.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   const handleDeletePayment = async (id: string) => {
-    await SaaSClient.deletePayment(id);
-    setPayments((prev) => prev.filter((p) => p.id !== id));
+    try {
+      await SaaSClient.deletePayment(id);
+      setPayments((prev) => prev.filter((p) => p.id !== id));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete payment.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   // ════════════════════════ BACKUP HANDLERS ════════════════════════
   const handleCreateBackup = async (name?: string, backup_type?: string) => {
-    const created = await SaaSClient.createBackup(name, backup_type);
-    setBackups((prev) => [created, ...prev]);
+    try {
+      const created = await SaaSClient.createBackup(name, backup_type);
+      setBackups((prev) => [created, ...prev]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create backup.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   const handleExportTenant = async (tenantId: string) => {
-    await SaaSClient.exportTenantData(tenantId);
-    loadTabData();
+    try {
+      await SaaSClient.exportTenantData(tenantId);
+      loadTabData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to export tenant data.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   const handleRestoreBackup = async (backupId: string) => {
-    await SaaSClient.restoreBackup(backupId);
-    loadTabData();
+    try {
+      await SaaSClient.restoreBackup(backupId);
+      loadTabData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to restore backup.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   const handleDeleteBackup = async (backupId: string) => {
-    await SaaSClient.deleteBackup(backupId);
-    setBackups((prev) => prev.filter((b) => b.id !== backupId));
+    try {
+      await SaaSClient.deleteBackup(backupId);
+      setBackups((prev) => prev.filter((b) => b.id !== backupId));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete backup.';
+      setPageError(msg);
+      throw err;
+    }
   };
 
   // ════════════════════════ USER HANDLERS ════════════════════════

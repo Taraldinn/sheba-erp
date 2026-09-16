@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Receipt,
   Search,
@@ -43,6 +43,12 @@ export function SaaSPaymentsLedger({
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (!selectedTenant && tenants.length > 0) {
+      setSelectedTenant(tenants[0]?.id || '');
+    }
+  }, [tenants, selectedTenant]);
 
   const [paymentToDelete, setPaymentToDelete] = useState<SaaSPayment | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);

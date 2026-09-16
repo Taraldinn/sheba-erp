@@ -53,6 +53,7 @@ export function SaaSTenantsList({
   // Status Toggle Confirmation State
   const [tenantToToggle, setTenantToToggle] = useState<SaaSTenant | null>(null);
   const [isToggling, setIsToggling] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const normalizedSearchTerm = searchTerm.toLowerCase();
   const filteredTenants = tenants.filter((t) => {
@@ -82,9 +83,14 @@ export function SaaSTenantsList({
   const handleDeleteConfirm = async () => {
     if (!tenantToDelete) return;
     setIsDeleting(true);
+    setActionError(null);
     try {
       await onDeleteTenant(tenantToDelete.id);
       setTenantToDelete(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete tenant.';
+      setActionError(msg);
+      throw err;
     } finally {
       setIsDeleting(false);
     }
@@ -93,9 +99,14 @@ export function SaaSTenantsList({
   const handleToggleConfirm = async () => {
     if (!tenantToToggle) return;
     setIsToggling(true);
+    setActionError(null);
     try {
       await onToggleStatus(tenantToToggle.id);
       setTenantToToggle(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update tenant status.';
+      setActionError(msg);
+      throw err;
     } finally {
       setIsToggling(false);
     }

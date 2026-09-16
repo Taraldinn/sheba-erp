@@ -21,7 +21,7 @@ The following endpoints have duplicates registered in `sheba_core/urls.py`. The 
 | `/api/v1/payments/sms/webhook/` | `/api/v1/payments/webhook/sms/` | `SmsWebhookView` | Alias — kept for backward compat |
 | `/api/schema/` (SpectacularAPIView) | `/api/docs/`, `/api/swagger/`, `/swagger/`, `/docs/` | OpenAPI schema | Aliases for browser convenience |
 | `/api/redoc/` | `/redoc/` | SpectacularRedocView | Alias |
-| `/healthz/` | `/api/v1/health-check/` | `HealthCheckView` | Both canonical (different use cases: LB probe vs API) |
+| `/healthz/` | `/api/v1/health-check/` | `ReadinessView` | Both canonical (different use cases: LB probe vs API) |
 
 > **Rule for new code:** Only register **one** path per resource. Do not add new aliases.
 

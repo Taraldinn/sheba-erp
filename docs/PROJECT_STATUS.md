@@ -256,7 +256,7 @@
 | RBAC tested | ✅ PASSED (StaffMembership authoritative, scopes tested) |
 | Finance integrity | ✅ PASSED (UniqueConstraint on billing month + get_or_create) |
 | Payment webhooks | ✅ PASSED |
-| Async workers verified | ✅ PASSED (docker-compose worker + beat added) |
+| Async workers verified | ⏳ UNVERIFIED (Worker definitions added to compose; pending production verification of startup, broker connectivity, task execution, and beat dispatch) |
 | Network actions tested | ✅ PASSED |
 | Backups verified | ✅ PASSED (Stage 13.2 tenant export implemented & tested) |
 | Monitoring/Sentry | ❌ BACKLOG — production telemetry setup |

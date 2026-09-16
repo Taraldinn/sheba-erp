@@ -59,26 +59,6 @@ class IsTenantMember(permissions.BasePermission):
             request.membership = membership
             return True
 
-        # Backward-compatibility: auto-create StaffMembership from legacy StaffProfile
-        # This ensures migrated tenants continue working while StaffProfile is deprecated.
-        # The auto-created membership is what carries authorization — never StaffProfile.role.
-        profile = getattr(request.user, 'profile', None)
-        if profile and profile.tenant_id == tenant.id and profile.is_active:
-            role_obj = None
-            if profile.role:
-                from apps.authentication.models import Role
-                role_obj = (
-                    Role.objects.filter(tenant=tenant, name__iexact=profile.get_role_display()).first()
-                    or Role.objects.filter(tenant=tenant, name__iexact=profile.role).first()
-                )
-            membership, _ = StaffMembership.objects.get_or_create(
-                user=request.user,
-                tenant=tenant,
-                defaults={'is_active': True, 'role': role_obj}
-            )
-            request.membership = membership
-            return True
-
         return False
 
     def has_object_permission(self, request, view, obj):

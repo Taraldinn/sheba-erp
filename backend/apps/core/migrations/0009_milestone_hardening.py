@@ -5,6 +5,28 @@ from django.conf import settings
 from django.db import migrations, models
 
 
+def backfill_token_hashes(apps, schema_editor):
+    import hashlib
+    import secrets
+    TenantApiToken = apps.get_model('core', 'TenantApiToken')
+    for token_obj in TenantApiToken.objects.all():
+        if token_obj.token and not token_obj.token_hash:
+            token_obj.token_hash = hashlib.sha256(token_obj.token.encode('utf-8')).hexdigest()
+            token_obj.key_prefix = 'shb_' + token_obj.token[:6]
+            token_obj.token = None
+            token_obj.save(update_fields=['token_hash', 'key_prefix', 'token'])
+        elif not token_obj.token_hash:
+            raw = secrets.token_urlsafe(32)
+            token_obj.token_hash = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+            token_obj.key_prefix = 'shb_' + raw[:6]
+            token_obj.token = None
+            token_obj.save(update_fields=['token_hash', 'key_prefix', 'token'])
+        else:
+            if token_obj.token:
+                token_obj.token = None
+                token_obj.save(update_fields=['token'])
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -40,8 +62,13 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='tenantapitoken',
             name='token_hash',
+            field=models.CharField(blank=True, db_index=True, max_length=64, null=True),
+        ),
+        migrations.RunPython(backfill_token_hashes, reverse_code=migrations.RunPython.noop),
+        migrations.AlterField(
+            model_name='tenantapitoken',
+            name='token_hash',
             field=models.CharField(db_index=True, default='', max_length=64, unique=True),
-            preserve_default=False,
         ),
         migrations.AddField(
             model_name='tenantapitoken',

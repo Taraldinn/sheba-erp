@@ -22,8 +22,12 @@ import { AuthContextType } from '@/lib/auth/auth-types';
 
 function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const returnTo = searchParams.get('returnTo');
+  const rawReturnTo = searchParams.get('returnTo');
+  const isValidRelativePath = (path: string | null): boolean => {
+    if (!path) return false;
+    return path.startsWith('/') && !path.startsWith('//') && !path.includes('\\');
+  };
+  const returnTo = isValidRelativePath(rawReturnTo) ? rawReturnTo : null;
 
   const {
     login,
@@ -38,8 +42,8 @@ function LoginForm() {
 
   const activeContext = contextType || 'tenant';
   const [tenantId, setTenantId] = useState<string>('shebafi');
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // If already authenticated, redirect to destination
@@ -58,10 +62,6 @@ function LoginForm() {
   const handleContextChange = (newContext: AuthContextType) => {
     setContextType(newContext);
     clearError();
-    if (newContext === 'central_admin') {
-      setUsername('admin');
-      setPassword('admin123');
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

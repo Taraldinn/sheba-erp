@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CreditCard,
   Search,
@@ -49,6 +49,18 @@ export function SaaSSubscriptionsManagement({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  useEffect(() => {
+    if (!selectedTenant && tenants.length > 0) {
+      setSelectedTenant(tenants[0].id);
+    }
+  }, [tenants, selectedTenant]);
+
+  useEffect(() => {
+    if (!selectedPackage && packages.length > 0) {
+      setSelectedPackage(packages[0].id);
+    }
+  }, [packages, selectedPackage]);
+
   // Cancellation State
   const [subToCancel, setSubToCancel] = useState<TenantSubscription | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -58,9 +70,12 @@ export function SaaSSubscriptionsManagement({
   const [isRenewing, setIsRenewing] = useState(false);
 
   const filteredSubs = subscriptions.filter((s) => {
+    const term = searchTerm.trim().toLowerCase();
     const matchesSearch =
-      (s.tenant_name && s.tenant_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (s.package_name && s.package_name.toLowerCase().includes(searchTerm.toLowerCase()));
+      !term ||
+      (s.tenant_name && s.tenant_name.toLowerCase().includes(term)) ||
+      (s.package_name && s.package_name.toLowerCase().includes(term)) ||
+      (s.tenant && String(s.tenant).toLowerCase().includes(term));
 
     const matchesStatus = statusFilter === 'ALL' || s.status === statusFilter;
     return matchesSearch && matchesStatus;

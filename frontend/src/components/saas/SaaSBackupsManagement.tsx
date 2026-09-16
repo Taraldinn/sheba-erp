@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Database,
   RotateCcw,
@@ -42,6 +42,12 @@ export function SaaSBackupsManagement({
   const [selectedTenant, setSelectedTenant] = useState(tenants[0]?.id || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (tenants.length > 0 && (!selectedTenant || !tenants.some((t) => t.id === selectedTenant))) {
+      setSelectedTenant(tenants[0]?.id || '');
+    }
+  }, [tenants, selectedTenant]);
 
   // Restore Confirmation
   const [backupToRestore, setBackupToRestore] = useState<DatabaseBackup | null>(null);

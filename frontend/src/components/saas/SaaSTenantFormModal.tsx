@@ -32,7 +32,7 @@ export function SaaSTenantFormModal({
     contact_email: '',
     address: '',
     admin_username: 'admin',
-    admin_password: 'Password123!',
+    admin_password: '',
     admin_email: '',
     notes: '',
   });
@@ -66,7 +66,7 @@ export function SaaSTenantFormModal({
           contact_email: '',
           address: '',
           admin_username: 'admin',
-          admin_password: 'Password123!',
+          admin_password: '',
           admin_email: '',
           notes: '',
         });

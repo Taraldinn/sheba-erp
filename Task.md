@@ -288,8 +288,8 @@ API Key
 For normal staff frontend requests:
 
 ```text
-Authorization: Api-Key <application-key>
 Authorization: Token <staff-token>
+X-Application-Key: <application-key>
 ```
 
 Or preferably, use the API key as an application identifier and retain user authentication separately.

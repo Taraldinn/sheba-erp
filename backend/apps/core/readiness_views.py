@@ -156,14 +156,12 @@ class ProductionReadinessView(views.APIView):
         total_probe_duration_ms = round((time.time() - start_time) * 1000, 2)
         http_status = status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
 
-        # Operator check for detailed diagnostics vs minimal public liveness
-        is_operator = (
+        is_operator = bool(
             request.user
             and request.user.is_authenticated
             and (
                 request.user.is_staff
                 or getattr(request.user, 'is_superuser', False)
-                or getattr(request.user, 'profile', None) is not None
             )
         )
 
