@@ -370,10 +370,11 @@ The following reproducible baseline commands were executed on the repository:
   - [x] S10.12 Backup & Recovery: Management commands `backup_database` (compressed, SHA-256 checksummed, tracked) and `restore_database` operational.
   - [x] S10.13 Documentation Freeze: `ARCHITECTURE.md`, `MASTER_TASK.md`, `API_CONTRACT.md` synchronized.
   - [x] S10.14 Production Readiness Gate: Django checks pass with 0 issues, OpenAPI validates, and all Next.js frontends (`super-admin`, `frontend`, `docs`) build cleanly.
+  - [x] S10.15 Transactional Mailing & S3/R2 Storage: Automated tenant onboarding welcome email with credentials, dual-plane (Super Admin + ISP Admin) forgot/reset password with single-use HMAC tokens, and Cloudflare R2 / AWS S3 storage backend (`apps.core.storage.MediaS3Storage`, `StaticS3Storage`).
 - **ACCEPTANCE CRITERIA**:
-  - 32 automated Stage 10 gate tests passing (0 failures, 0 errors).
+  - 44 automated Stage 10 & infrastructure gate tests passing (0 failures, 0 errors across isolation, RBAC, finance, network, and mailing/storage).
   - 39 frontend unit/integration tests passing.
-  - Full production builds of `super-admin`, `frontend`, and `docs` passing.
+  - Full production builds of `super-admin`, `frontend`, and `docs` passing with all forgot/reset password routes.
 
 ---
 

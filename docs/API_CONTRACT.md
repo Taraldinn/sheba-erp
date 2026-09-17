@@ -36,9 +36,13 @@ The following endpoints have duplicates registered in `sheba_core/urls.py`. The 
 | POST | `/api/v1/auth/login/` | None | Public | Tenant staff login → returns `Token` |
 | GET | `/api/v1/auth/me/` | Token | `IsAuthenticated` | Current user profile |
 | POST | `/api/v1/auth/logout/` | Token | `IsAuthenticated` | Invalidate tenant user session |
+| POST | `/api/v1/auth/password-reset/` | None | Public | Tenant staff forgot password request (email dispatched) |
+| POST | `/api/v1/auth/password-reset-confirm/` | None | Public | Tenant staff password reset with cryptographic HMAC token |
 | POST | `/api/v1/saas/auth/login/` | None | Public | Control plane superuser login |
 | GET | `/api/v1/saas/auth/me/` | Token | `IsCentralAdmin` | Control plane user profile |
 | POST | `/api/v1/saas/auth/logout/` | Token | `IsCentralAdmin` | Invalidate control plane superuser session |
+| POST | `/api/v1/saas/auth/password-reset/` | None | Public | Control plane superadmin forgot password request |
+| POST | `/api/v1/saas/auth/password-reset-confirm/` | None | Public | Control plane superadmin password reset with HMAC token |
 
 ---
 
