@@ -34,15 +34,10 @@ FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY', default=env('ENCRYPTION_KEY',
 if IS_LOCAL:
     DEBUG = env.bool('DEBUG', default=True)
     ALLOWED_HOSTS = ['*']
-    CORS_ALLOW_ALL_ORIGINS = True
-    CORS_ALLOWED_ORIGINS = ['*']
 else:
     DEBUG = env.bool('DEBUG', default=False)
-    ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
-    CORS_ALLOW_ALL_ORIGINS = env.bool('CORS_ALLOW_ALL_ORIGINS', default=False)
-    CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
+    ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1', '.shebafi.xyz', 'shebafi.xyz', '*'])
 
-CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
 
 # ─── Installed apps ──────────────────────────────────────────────────────────
 INSTALLED_APPS = [
@@ -288,8 +283,35 @@ SPECTACULAR_SETTINGS = {
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
 # In production: CORS_ALLOW_ALL_ORIGINS=False  CORS_ALLOWED_ORIGINS=https://app.myisp.com
-CORS_ALLOW_ALL_ORIGINS = env('CORS_ALLOW_ALL_ORIGINS')
-CORS_ALLOWED_ORIGINS = env('CORS_ALLOWED_ORIGINS')
+CORS_ALLOW_ALL_ORIGINS = env.bool('CORS_ALLOW_ALL_ORIGINS', default=IS_LOCAL)
+
+# Built-in allowed origins across control plane, admin panels, and common preview environments
+DEFAULT_CORS_ORIGINS = [
+    'https://shebafi-admin.vercel.app',
+    'https://admin.shebafi.xyz',
+    'https://app.shebafi.xyz',
+    'https://shebafi.xyz',
+    'https://api.shebafi.xyz',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:3002',
+]
+
+_env_cors_origins = env.list('CORS_ALLOWED_ORIGINS', default=[])
+CORS_ALLOWED_ORIGINS = list(dict.fromkeys(
+    DEFAULT_CORS_ORIGINS + [o.strip() for o in _env_cors_origins if o.strip() and o.strip() != '*']
+))
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https:\/\/([a-zA-Z0-9_-]+\.)*vercel\.app$",
+    r"^https:\/\/([a-zA-Z0-9_-]+\.)*shebafi\.xyz$",
+    r"^http:\/\/localhost(:[0-9]+)?$",
+    r"^http:\/\/127\.0\.0\.1(:[0-9]+)?$",
+]
+
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'authorization',
@@ -307,6 +329,21 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+
+# ─── CSRF Trusted Origins ─────────────────────────────────────────────────────
+DEFAULT_CSRF_TRUSTED_ORIGINS = [
+    'https://shebafi-admin.vercel.app',
+    'https://*.vercel.app',
+    'https://*.shebafi.xyz',
+    'https://shebafi.xyz',
+    'https://api.shebafi.xyz',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+_env_csrf_trusted = env.list('CSRF_TRUSTED_ORIGINS', default=[])
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(
+    DEFAULT_CSRF_TRUSTED_ORIGINS + [o.strip() for o in _env_csrf_trusted if o.strip()]
+))
 
 # ─── Security Headers ────────────────────────────────────────────────────────
 SECURE_CONTENT_TYPE_NOSNIFF = True
