@@ -14,7 +14,11 @@ import {
   TenantSummary,
 } from './auth-types';
 
-const API_BASE = process.env.NEXT_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE =
+  process.env.NEXT_API_URL ||
+  (typeof window !== 'undefined' && window.location.hostname.endsWith('shebafi.xyz')
+    ? 'https://api.shebafi.xyz/api/v1'
+    : 'http://localhost:8000/api/v1');
 
 export class AuthService {
   /**
