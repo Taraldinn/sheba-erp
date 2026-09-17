@@ -85,3 +85,70 @@ class TenantOnboardingEmailTest(TestCase):
         self.assertIn("barisal_root", sent_email.body)
         self.assertIn("CustomPassword99!", sent_email.body)
         self.assertIn("barisal.shebafi.xyz", sent_email.body)
+
+
+class SuperAdminPasswordResetTest(TestCase):
+    def setUp(self):
+        from rest_framework.test import APIClient
+        from rest_framework.authtoken.models import Token
+        self.client = APIClient()
+        self.superuser = User.objects.create_superuser(
+            username="master_superadmin",
+            email="root@shebafi.xyz",
+            password="OriginalSuperPassword123!"
+        )
+        self.token, _ = Token.objects.get_or_create(user=self.superuser)
+
+    def test_request_password_reset_for_valid_superadmin(self):
+        mail.outbox.clear()
+        response = self.client.post("/api/v1/saas/auth/password-reset/", {"email": "root@shebafi.xyz"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("detail", response.data)
+        self.assertEqual(len(mail.outbox), 1)
+        sent = mail.outbox[0]
+        self.assertEqual(sent.to, ["root@shebafi.xyz"])
+        self.assertIn("reset-password?uid=", sent.body)
+
+    def test_request_password_reset_nonexistent_email_no_leak(self):
+        mail.outbox.clear()
+        response = self.client.post("/api/v1/saas/auth/password-reset/", {"email": "unknown@hacker.io"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("detail", response.data)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_confirm_password_reset_updates_credentials_and_revokes_tokens(self):
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+        from django.contrib.auth.tokens import default_token_generator
+        from rest_framework.authtoken.models import Token
+
+        uid = urlsafe_base64_encode(force_bytes(self.superuser.pk))
+        token = default_token_generator.make_token(self.superuser)
+
+        response = self.client.post("/api/v1/saas/auth/password-reset-confirm/", {
+            "uid": uid,
+            "token": token,
+            "new_password": "BrandNewSuperSecretPass456!"
+        }, format="json")
+        self.assertEqual(response.status_code, 200)
+
+        # Token must be revoked
+        self.assertFalse(Token.objects.filter(user=self.superuser).exists())
+
+        # Old password must fail
+        self.superuser.refresh_from_db()
+        self.assertFalse(self.superuser.check_password("OriginalSuperPassword123!"))
+        self.assertTrue(self.superuser.check_password("BrandNewSuperSecretPass456!"))
+
+    def test_confirm_password_reset_rejects_invalid_token(self):
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+        uid = urlsafe_base64_encode(force_bytes(self.superuser.pk))
+
+        response = self.client.post("/api/v1/saas/auth/password-reset-confirm/", {
+            "uid": uid,
+            "token": "completely-forged-token",
+            "new_password": "NewSecretPassword123!"
+        }, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.data)

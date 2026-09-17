@@ -15,7 +15,8 @@ from apps.core.saas_views import (
     SaaSPackageViewSet, SaaSSubscriptionViewSet, SaaSPaymentViewSet,
     SaaSBackupViewSet, SaaSUserViewSet, SaaSAuditLogViewSet,
     SaaSApiCredentialViewSet,
-    SaaSLoginView, SaaSMeView, SaaSLogoutView
+    SaaSLoginView, SaaSMeView, SaaSLogoutView,
+    SaaSPasswordResetView, SaaSPasswordResetConfirmView
 )
 from apps.authentication.views import (
     LoginView, CurrentUserView, LogoutView, StaffProfileViewSet, RoleViewSet, PermissionViewSet
@@ -143,6 +144,8 @@ urlpatterns = [
     path('api/v1/saas/auth/login/', SaaSLoginView.as_view(), name='saas-auth-login'),
     path('api/v1/saas/auth/me/', SaaSMeView.as_view(), name='saas-auth-me'),
     path('api/v1/saas/auth/logout/', SaaSLogoutView.as_view(), name='saas-auth-logout'),
+    path('api/v1/saas/auth/password-reset/', SaaSPasswordResetView.as_view(), name='saas-auth-password-reset'),
+    path('api/v1/saas/auth/password-reset-confirm/', SaaSPasswordResetConfirmView.as_view(), name='saas-auth-password-reset-confirm'),
     
     # Customer Portal APIs
     path('api/v1/portal/', include('apps.customers.portal_urls')),

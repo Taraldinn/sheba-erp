@@ -1547,6 +1547,109 @@ class SaaSLogoutView(views.APIView):
         return Response({'message': 'Logged out successfully.'}, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    tags=['16. Multi-Tenant SaaS & Control Plane'],
+    summary='SaaS Administrator Password Reset Request',
+    description='Requests a password reset link for a platform super administrator. Always returns HTTP 200.',
+    request=serializers.Serializer,
+    responses={200: dict}
+)
+class SaaSPasswordResetView(views.APIView):
+    """
+    Public endpoint for Central Super Admin to request a password reset email.
+    Always returns HTTP 200 to prevent user enumeration attacks.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+        from django.contrib.auth.tokens import default_token_generator
+
+        email = request.data.get('email', '').strip().lower()
+        if email:
+            user = User.objects.filter(email__iexact=email, is_superuser=True, is_active=True).first()
+            if user:
+                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                token = default_token_generator.make_token(user)
+                super_admin_domain = getattr(settings, 'SUPER_ADMIN_DOMAIN', 'super-admin.shebafi.xyz')
+                frontend_origin = request.headers.get('origin') or f"https://{super_admin_domain}"
+                reset_url = f"{frontend_origin}/reset-password?uid={uid}&token={token}"
+
+                try:
+                    from apps.core.email.service import EmailService
+                    EmailService.send_password_reset_email(
+                        user=user,
+                        reset_url=reset_url,
+                        recipient_email=user.email,
+                        is_superadmin=True
+                    )
+                except Exception as mail_exc:
+                    logger.error(f"SaaSPasswordResetView: failed to dispatch email: {mail_exc}")
+
+        return Response({
+            'detail': 'If an account exists with this email, a password reset link has been sent.'
+        }, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=['16. Multi-Tenant SaaS & Control Plane'],
+    summary='SaaS Administrator Password Reset Confirm',
+    description='Validates token and updates the platform super administrator password.',
+    request=serializers.Serializer,
+    responses={200: dict, 400: dict}
+)
+class SaaSPasswordResetConfirmView(views.APIView):
+    """
+    Public endpoint for Central Super Admin to confirm password reset with cryptographic token.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from django.utils.http import urlsafe_base64_decode
+        from django.utils.encoding import force_str
+        from django.contrib.auth.tokens import default_token_generator
+
+        uidb64 = request.data.get('uid')
+        token = request.data.get('token')
+        new_password = request.data.get('new_password')
+
+        if not uidb64 or not token or not new_password:
+            return Response({'error': 'UID, token, and new_password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(new_password) < 8:
+            return Response({'error': 'Password must be at least 8 characters long.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid, is_superuser=True, is_active=True)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({'error': 'Invalid or expired password reset link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not default_token_generator.check_token(user, token):
+            return Response({'error': 'Invalid or expired password reset link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+
+        # Revoke existing auth tokens to enforce fresh authentication
+        Token.objects.filter(user=user).delete()
+
+        AuditLog.objects.create(
+            tenant=None,
+            actor_username=user.username,
+            action='saas_password_reset_confirmed',
+            module='saas_control_plane',
+            resource_type='User',
+            resource_id=str(user.id),
+            details={'username': user.username, 'email': user.email}
+        )
+
+        return Response({
+            'detail': 'Password has been successfully updated. Please sign in with your new credentials.'
+        }, status=status.HTTP_200_OK)
+
+
 # ════════════════════════ 12. API CREDENTIALS MANAGEMENT ════════════════════════
 
 class SaaSApiCredentialSerializer(serializers.ModelSerializer):
