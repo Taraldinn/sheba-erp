@@ -109,9 +109,17 @@ function SuperAdminLoginForm() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
-                  Password
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-foreground">
+                    Password
+                  </label>
+                  <a
+                    href="/forgot-password"
+                    className="text-[11px] font-medium text-violet-500 hover:text-violet-400 transition-colors"
+                  >
+                    Forgot password?
+                  </a>
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
