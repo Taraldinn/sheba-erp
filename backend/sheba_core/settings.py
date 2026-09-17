@@ -94,6 +94,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.core.middleware.CorrelationIdMiddleware',
     'apps.core.middleware.TenantResolutionMiddleware',
 ]
 
@@ -175,6 +176,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_THROTTLE_CLASSES': [
+        'apps.core.throttling.TenantApiKeyRateThrottle',
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
         'rest_framework.throttling.ScopedRateThrottle',
@@ -265,6 +267,22 @@ SPECTACULAR_SETTINGS = {
         {'name': '18. Financial Reconciliations & Ledgers', 'description': 'Double-entry ledger journal, advance credit adjustments, compensating reversals, and reconciliation audits.'},
         {'name': '19. Production Readiness & Observability Probes', 'description': 'Comprehensive production readiness verification, database latencies, Redis lock safety, and disaster recovery status.'},
     ],
+    'APPEND_COMPONENTS': {
+        'securitySchemes': {
+            'apiKeyHeaderAuth': {
+                'type': 'apiKey',
+                'in': 'header',
+                'name': 'X-API-Key',
+                'description': 'Secret ISP API Key (Server-to-Server / BFF integration)',
+            },
+            'apiKeyAuthorizationAuth': {
+                'type': 'apiKey',
+                'in': 'header',
+                'name': 'Authorization',
+                'description': 'Secret ISP API Key using Authorization header with prefix "Api-Key <key>"',
+            },
+        }
+    },
 }
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
@@ -275,6 +293,8 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'authorization',
     'content-type',
+    'x-api-key',
+    'x-request-id',
     'x-tenant-id',
     'x-tenant-key',
     'x-signature',

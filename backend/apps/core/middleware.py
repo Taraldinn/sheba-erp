@@ -1,9 +1,39 @@
 import uuid
+import threading
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.conf import settings
 from django.utils.deprecation import MiddlewareMixin
 from .models import Tenant, TenantDomain
+
+_local = threading.local()
+
+
+def get_current_request_id():
+    """Retrieve the correlation ID of the current request from thread-local storage."""
+    return getattr(_local, 'request_id', None)
+
+
+class CorrelationIdMiddleware(MiddlewareMixin):
+    """
+    Observability Middleware (Stage 10 / S10.11).
+    Attaches a correlation/request ID to every incoming HTTP request and passes it to response headers.
+    """
+    def process_request(self, request):
+        correlation_id = (
+            request.headers.get('X-Request-ID') or
+            request.headers.get('X-Correlation-ID') or
+            uuid.uuid4().hex[:16]
+        )
+        request.correlation_id = correlation_id
+        request.request_id = correlation_id
+        _local.request_id = correlation_id
+
+    def process_response(self, request, response):
+        cid = getattr(request, 'correlation_id', None)
+        if cid:
+            response['X-Request-ID'] = cid
+        return response
 
 
 class TenantResolutionMiddleware(MiddlewareMixin):
@@ -48,12 +78,14 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         '/api/v1/payments/sms/webhook/',
         '/api/v1/payments/webhook/sms/',
         '/api/v1/payments/bkash/paybill/',
-        '/api/queryBill',
-        '/api/payBill',
-        '/api/searchTransaction',
+        '/api/v1/network/reconciliation/report/',
     )
 
-    CONTROL_PLANE_PREFIXES = ('admin.', 'control.', 'saas.')
+    CONTROL_PLANE_PREFIXES = (
+        'admin.',
+        'control.',
+        'saas.',
+    )
 
     def _is_public(self, path, check_inactive=False):
         if path in ('', '/', '/api/v1', '/api/v1/') or any(path.startswith(p) for p in self.PUBLIC_PATHS):
@@ -63,6 +95,10 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         return False
 
     def process_request(self, request):
+        # 0. CORS preflight OPTIONS requests must bypass tenant resolution
+        if request.method == 'OPTIONS':
+            return None
+
         path = request.path_info
         raw_host = request.get_host().split(':')[0].lower()
 
