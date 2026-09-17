@@ -29,6 +29,7 @@ IS_LOCAL = not IS_PRODUCTION
 
 # ─── Core security ───────────────────────────────────────────────────────────
 SECRET_KEY = env('SECRET_KEY', default='django-insecure-sheba-erp-development-key-change-in-prod-xyz123')
+FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY', default=env('ENCRYPTION_KEY', default=''))
 
 if IS_LOCAL:
     DEBUG = env.bool('DEBUG', default=True)
@@ -166,6 +167,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ─── Django REST Framework ────────────────────────────────────────────────────
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'apps.core.authentication.TenantApiKeyAuthentication',
         'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
@@ -394,3 +396,5 @@ CELERY_BEAT_SCHEDULE = {
 
 if 'test' in sys.argv:
     REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = []
+    if not FIELD_ENCRYPTION_KEY:
+        FIELD_ENCRYPTION_KEY = 'test-encryption-key-for-running-tests-cleanly-32chars!'

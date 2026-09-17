@@ -44,7 +44,7 @@ export function SaaSHeader() {
         </div>
 
         {/* Quick Launch Tenant Onboard */}
-        <Link href="/saas-admin?action=onboard">
+        <Link href="/?action=onboard">
           <Button
             size="sm"
             className="h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700 text-white shadow-xs shadow-violet-600/30 font-medium"

@@ -302,7 +302,16 @@ export class SettingsClient {
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : (data.results || []);
-        return list[0] || null;
+        const item = list[0] || null;
+        if (item) {
+          return {
+            ...item,
+            call_time: item.call_time ?? null,
+            safe_hours_start: item.safe_hours_start ?? null,
+            safe_hours_end: item.safe_hours_end ?? null,
+          };
+        }
+        return null;
       }
     } catch {
       // Ignore network failure

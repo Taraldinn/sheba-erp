@@ -18,7 +18,8 @@ from rest_framework.authtoken.models import Token
 
 from .models import (
     Tenant, TenantDomain, CompanySetting, AuditLog,
-    TenantOnboardingRequest, SaaSPackage, TenantSubscription, SaaSPayment, DatabaseBackup
+    TenantOnboardingRequest, SaaSPackage, TenantSubscription, SaaSPayment, DatabaseBackup,
+    TenantApiToken
 )
 from .permissions import IsCentralAdmin
 from apps.authentication.models import StaffProfile, StaffMembership, UserRole
@@ -1508,3 +1509,204 @@ class SaaSMeView(views.APIView):
             'platform': 'ShebaFi Global Control Plane (admin.shebafi.xyz)',
             'timestamp': timezone.now().isoformat(),
         })
+
+
+# ════════════════════════ 12. API CREDENTIALS MANAGEMENT ════════════════════════
+
+class SaaSApiCredentialSerializer(serializers.ModelSerializer):
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    tenant_slug = serializers.CharField(source='tenant.slug', read_only=True)
+    created_by_username = serializers.SerializerMethodField()
+    status = serializers.CharField(source='effective_status', read_only=True)
+
+    class Meta:
+        model = TenantApiToken
+        fields = [
+            'id', 'tenant', 'tenant_name', 'tenant_slug', 'name',
+            'key_prefix', 'status', 'rate_limit', 'permissions', 'is_active',
+            'expires_at', 'revoked_at', 'last_used_at',
+            'created_by', 'created_by_username', 'created_at', 'updated_at',
+        ]
+        read_only_fields = (
+            'id', 'key_prefix', 'status', 'revoked_at', 'last_used_at',
+            'created_by', 'created_at', 'updated_at'
+        )
+
+    def get_created_by_username(self, obj):
+        return obj.created_by.username if obj.created_by else 'system'
+
+
+@extend_schema_view(
+    list=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='List ISP API credentials across all tenants',
+        description='Returns all issued ISP Secret API keys. Filterable by tenant UUID or slug.'
+    ),
+    create=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Generate a new ISP Secret API Key',
+        description='Generates a cryptographically random 256-bit API key. The full secret is returned ONCE in secret_key.'
+    ),
+    retrieve=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Retrieve ISP API credential metadata',
+        description='Returns credential metadata (safe key prefix, permissions, status). Does NOT return the secret key.'
+    ),
+)
+class SaaSApiCredentialViewSet(viewsets.ModelViewSet):
+    """
+    Super Admin ViewSet to manage, generate, rotate, revoke, and monitor secret API credentials
+    for each ISP tenant.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    serializer_class = SaaSApiCredentialSerializer
+    queryset = TenantApiToken.objects.select_related('tenant', 'created_by').all().order_by('-created_at')
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        tenant_param = self.request.query_params.get('tenant')
+        if tenant_param:
+            t = get_tenant_by_id_or_slug(tenant_param)
+            if t:
+                qs = qs.filter(tenant=t)
+            else:
+                qs = qs.none()
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param.upper())
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        tenant_identifier = request.data.get('tenant')
+        name = (request.data.get('name') or '').strip()
+        permissions_list = request.data.get('permissions') or []
+        expires_at = request.data.get('expires_at') or None
+        rate_limit = request.data.get('rate_limit') or 1000
+
+        if not tenant_identifier:
+            return Response({'error': 'tenant is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not name:
+            return Response({'error': 'name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        tenant = get_tenant_by_id_or_slug(tenant_identifier)
+        if not tenant:
+            return Response({'error': f'Tenant "{tenant_identifier}" not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            rate_limit = int(rate_limit)
+        except (ValueError, TypeError):
+            rate_limit = 1000
+
+        token_obj, raw_secret = TenantApiToken.generate(
+            tenant=tenant,
+            name=name,
+            permissions=permissions_list,
+            expires_at=expires_at,
+            created_by=request.user,
+            rate_limit=rate_limit,
+        )
+
+        AuditLog.objects.create(
+            tenant=tenant,
+            actor_username=request.user.username,
+            action='api_credential_created',
+            module='api_credentials',
+            resource_type='TenantApiToken',
+            resource_id=str(token_obj.id),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            after={
+                'name': token_obj.name,
+                'key_prefix': token_obj.key_prefix,
+                'permissions': token_obj.permissions,
+                'rate_limit': token_obj.rate_limit,
+                'expires_at': str(token_obj.expires_at) if token_obj.expires_at else None,
+            }
+        )
+
+        data = SaaSApiCredentialSerializer(token_obj).data
+        data['secret_key'] = raw_secret  # Return ONE-TIME secret
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def rotate(self, request, pk=None):
+        """Rotate an existing API key. Returns a new one-time secret."""
+        token_obj = self.get_object()
+        old_prefix = token_obj.key_prefix
+        token_obj, raw_secret = token_obj.rotate(created_by=request.user)
+
+        AuditLog.objects.create(
+            tenant=token_obj.tenant,
+            actor_username=request.user.username,
+            action='api_credential_rotated',
+            module='api_credentials',
+            resource_type='TenantApiToken',
+            resource_id=str(token_obj.id),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            before={'old_prefix': old_prefix},
+            after={'new_prefix': token_obj.key_prefix, 'status': token_obj.status}
+        )
+
+        data = SaaSApiCredentialSerializer(token_obj).data
+        data['secret_key'] = raw_secret
+        return Response(data)
+
+    @action(detail=True, methods=['post'])
+    def revoke(self, request, pk=None):
+        """Immediately revokes an API credential."""
+        token_obj = self.get_object()
+        token_obj.revoke()
+
+        AuditLog.objects.create(
+            tenant=token_obj.tenant,
+            actor_username=request.user.username,
+            action='api_credential_revoked',
+            module='api_credentials',
+            resource_type='TenantApiToken',
+            resource_id=str(token_obj.id),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            after={'status': token_obj.status, 'revoked_at': str(token_obj.revoked_at)}
+        )
+
+        return Response(SaaSApiCredentialSerializer(token_obj).data)
+
+    @action(detail=True, methods=['post'])
+    def suspend(self, request, pk=None):
+        """Temporarily suspends an API credential without revoking it."""
+        token_obj = self.get_object()
+        token_obj.suspend()
+
+        AuditLog.objects.create(
+            tenant=token_obj.tenant,
+            actor_username=request.user.username,
+            action='api_credential_suspended',
+            module='api_credentials',
+            resource_type='TenantApiToken',
+            resource_id=str(token_obj.id),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            after={'status': token_obj.status}
+        )
+
+        return Response(SaaSApiCredentialSerializer(token_obj).data)
+
+    @action(detail=True, methods=['post'])
+    def reactivate(self, request, pk=None):
+        """Reactivates a suspended API credential."""
+        token_obj = self.get_object()
+        try:
+            token_obj.reactivate()
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        AuditLog.objects.create(
+            tenant=token_obj.tenant,
+            actor_username=request.user.username,
+            action='api_credential_reactivated',
+            module='api_credentials',
+            resource_type='TenantApiToken',
+            resource_id=str(token_obj.id),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            after={'status': token_obj.status}
+        )
+
+        return Response(SaaSApiCredentialSerializer(token_obj).data)
+

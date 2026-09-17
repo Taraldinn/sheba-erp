@@ -47,6 +47,14 @@ class IsTenantMember(permissions.BasePermission):
         if not tenant.is_active:
             return False
 
+        # API Key machine caller verification
+        if getattr(request, 'auth_type', None) == 'api_key':
+            token = getattr(request, 'api_token', None)
+            tenant = getattr(request, 'tenant', None)
+            if token and tenant and token.tenant_id == tenant.id and token.effective_status == 'ACTIVE' and tenant.is_active:
+                return True
+            return False
+
         # Authoritative identity check: StaffMembership only.
         membership = StaffMembership.objects.filter(
             user=request.user,
@@ -69,6 +77,11 @@ class IsTenantMember(permissions.BasePermission):
         if not tenant:
             return False
 
+        if getattr(request, 'auth_type', None) == 'api_key':
+            token = getattr(request, 'api_token', None)
+            if not token or token.tenant_id != tenant.id or token.effective_status != 'ACTIVE':
+                return False
+
         obj_tenant_id = getattr(obj, 'tenant_id', None)
         if obj_tenant_id is not None:
             return obj_tenant_id == tenant.id
@@ -79,9 +92,12 @@ class IsTenantMember(permissions.BasePermission):
 class IsCentralAdmin(permissions.BasePermission):
     """
     Restricts access to Central Platform Administrators on the Control Plane.
-    ISP staff are completely blocked.
+    ISP staff and API Key clients are completely blocked.
     """
     def has_permission(self, request, view):
+        # API Keys are strictly forbidden from accessing SaaS Control Plane endpoints
+        if getattr(request, 'auth_type', None) == 'api_key':
+            return False
         if not request.user or not request.user.is_authenticated:
             return False
         if request.user.is_superuser:
@@ -92,17 +108,128 @@ class IsCentralAdmin(permissions.BasePermission):
         return False  # non-superuser always denied
 
 
+class HasApiKeyScope(permissions.BasePermission):
+    """
+    Evaluates required permission scopes for machine API clients.
+    Standard scopes:
+        customers:read, customers:write
+        billing:read, billing:write
+        invoices:read, invoices:write
+        payments:read, payments:write
+        network:read, network:write
+        mikrotik:read, mikrotik:write
+        olt:read, olt:write
+        reports:read
+        settings:read, settings:write
+        * (all scopes)
+    """
+    message = "API key lacks the required permission scope for this operation."
+
+    MODULE_MAP = {
+        'customer': 'customers',
+        'customers': 'customers',
+        'package': 'billing',
+        'packages': 'billing',
+        'offer': 'billing',
+        'offers': 'billing',
+        'invoice': 'invoices',
+        'invoices': 'invoices',
+        'invoice-line': 'invoices',
+        'recharge': 'billing',
+        'recharges': 'billing',
+        'billing-account': 'billing',
+        'billing-accounts': 'billing',
+        'ledger-entry': 'billing',
+        'ledger-entries': 'billing',
+        'payment-gateway': 'payments',
+        'payment-gateways': 'payments',
+        'gateways': 'payments',
+        'transaction': 'payments',
+        'transactions': 'payments',
+        'payment-transaction': 'payments',
+        'payments': 'payments',
+        'inbound-payment-event': 'payments',
+        'payment-event': 'payments',
+        'router': 'network',
+        'routers': 'network',
+        'olt': 'olt',
+        'olts': 'olt',
+        'onu': 'network',
+        'onus': 'network',
+        'branch': 'network',
+        'branches': 'network',
+        'setting': 'settings',
+        'settings': 'settings',
+        'voice-setting': 'settings',
+        'voice-template': 'settings',
+        'report': 'reports',
+        'reports': 'reports',
+        'ticket': 'support',
+        'tickets': 'support',
+        'task': 'tasks',
+        'tasks': 'tasks',
+        'employee': 'hr',
+        'employees': 'hr',
+        'attendance': 'hr',
+        'leave': 'hr',
+        'leaves': 'hr',
+        'advance-salary': 'hr',
+        'advance-salaries': 'hr',
+        'payroll': 'hr',
+        'payrolls': 'hr',
+        'store-item': 'store',
+        'store-items': 'store',
+        'stock-transaction': 'store',
+        'stock-transactions': 'store',
+    }
+
+    def has_permission(self, request, view):
+        if getattr(request, 'auth_type', None) != 'api_key':
+            return True
+
+        api_scopes = getattr(request, 'api_scopes', set())
+        if '*' in api_scopes:
+            return True
+
+        # Derive module from view basename or app_label
+        basename = getattr(view, 'basename', '')
+        module = self.MODULE_MAP.get(basename)
+        if not module and hasattr(view, 'queryset') and view.queryset is not None:
+            module = getattr(view.queryset.model._meta, 'app_label', '')
+
+        if not module:
+            path_parts = [p for p in request.path.strip('/').split('/') if p not in ('api', 'v1')]
+            if path_parts:
+                module = self.MODULE_MAP.get(path_parts[0], path_parts[0])
+
+        is_read_only = request.method in permissions.SAFE_METHODS
+        action_type = 'read' if is_read_only else 'write'
+
+        needed_scope = f"{module}:{action_type}"
+        write_fallback_for_read = f"{module}:write" if is_read_only else None
+
+        if needed_scope in api_scopes or (write_fallback_for_read and write_fallback_for_read in api_scopes):
+            return True
+
+        # Also support legacy dot notation (e.g. 'customers.view')
+        legacy_read = f"{module}.view" if is_read_only else f"{module}.manage"
+        if legacy_read in api_scopes:
+            return True
+
+        self.message = f"API key lacks required permission scope: {needed_scope}"
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        return self.has_permission(request, view)
+
+
 from apps.core.authorization import can
 
 
 class HasTenantPermission(permissions.BasePermission):
     """
-    Evaluates fine-grained RBAC permissions against the central authorization service.
-    Usage on ViewSet:
-        permission_classes = [permissions.IsAuthenticated, IsTenantMember, HasTenantPermission]
-        required_permission = 'customer.recharge'
-    Or action-level:
-        action_permissions = {'recharge': 'customer.recharge'}
+    Evaluates fine-grained RBAC permissions against the central authorization service
+    for staff users, and evaluates API scopes for machine API clients.
     """
     def __init__(self, permission_codename=None):
         self.permission_codename = permission_codename
@@ -110,6 +237,14 @@ class HasTenantPermission(permissions.BasePermission):
     def has_permission(self, request, view):
         if not IsTenantMember().has_permission(request, view):
             return False
+
+        # If authenticated via API Key, evaluate API scopes
+        if getattr(request, 'auth_type', None) == 'api_key':
+            scope_perm = HasApiKeyScope()
+            allowed = scope_perm.has_permission(request, view)
+            if not allowed:
+                self.message = scope_perm.message
+            return allowed
 
         perm = self.permission_codename or getattr(view, 'required_permission', None)
         if not perm and hasattr(view, 'action_permissions'):
@@ -123,6 +258,9 @@ class HasTenantPermission(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if not IsTenantMember().has_object_permission(request, view, obj):
             return False
+
+        if getattr(request, 'auth_type', None) == 'api_key':
+            return HasApiKeyScope().has_object_permission(request, view, obj)
 
         perm = self.permission_codename or getattr(view, 'required_permission', None)
         if not perm and hasattr(view, 'action_permissions'):

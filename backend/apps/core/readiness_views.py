@@ -40,6 +40,32 @@ class ProductionReadinessView(views.APIView):
         responses={200: dict, 503: dict}
     )
     def get(self, request):
+        is_operator = bool(
+            request.user
+            and request.user.is_authenticated
+            and (
+                request.user.is_staff
+                or getattr(request.user, 'is_superuser', False)
+                or getattr(request.user, 'profile', None) is not None
+                or getattr(request.user, 'memberships', None) is not None
+            )
+        )
+
+        if not is_operator:
+            # Minimal inexpensive probe for unauthenticated / non-operator requests
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT 1;")
+                    cursor.fetchone()
+                is_live = True
+            except Exception:
+                is_live = False
+
+            return Response({
+                'status': 'READY' if is_live else 'NOT_READY',
+                'version': '2.0.0',
+            }, status=status.HTTP_200_OK if is_live else status.HTTP_503_SERVICE_UNAVAILABLE)
+
         start_time = time.time()
         is_ready = True
         critical_errors = []
@@ -155,22 +181,6 @@ class ProductionReadinessView(views.APIView):
         # Overall execution
         total_probe_duration_ms = round((time.time() - start_time) * 1000, 2)
         http_status = status.HTTP_200_OK if is_ready else status.HTTP_503_SERVICE_UNAVAILABLE
-
-        is_operator = bool(
-            request.user
-            and request.user.is_authenticated
-            and (
-                request.user.is_staff
-                or getattr(request.user, 'is_superuser', False)
-            )
-        )
-
-        if not is_operator:
-            # Minimal liveness response for unauthenticated / external load-balancer probes
-            return Response({
-                'status': 'READY' if is_ready else 'NOT_READY',
-                'version': '2.0.0',
-            }, status=http_status)
 
         # Full diagnostic report for authenticated operators & staff
         payload = {

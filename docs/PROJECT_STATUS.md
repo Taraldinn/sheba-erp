@@ -161,7 +161,7 @@
 | Reconciliation engine | ✅ | ✅ | ❓ | `TESTED` | PPPoE secret reconciliation |
 | Network cockpit views | ✅ | ✅ | ❓ | `TESTED` | Tenant-scoped with `get_object_or_404(..., tenant=tenant)` |
 | Credentials never in task payload | ✅ | ⚠️ | ❓ | `TESTED` | Tasks receive `router_id`, load credentials in worker |
-| Credentials exposed by serializer | ⚠️ | ❌ | ❌ | `DESIGNED` | `PaymentGateway` stores raw `app_secret`, `password`, `private_key` in plaintext (not encrypted) |
+| Credentials exposed by serializer | ✅ | ✅ | ❓ | `TESTED` | DEF-008: `PaymentGateway` credentials encrypted at rest with MultiFernet, masked in serializer responses |
 | Desired vs actual state model | ✅ | ✅ | ❓ | `TESTED` | `ReconciliationStatus` enum covers MATCHED/MISSING/MISMATCH etc. |
 
 ---
@@ -228,7 +228,7 @@
 | DEF-005 | **P1** | `sheba_core/urls.py` | Duplicate endpoints: `gateways/` + `payment-gateways/`, `transactions/` + `payments/transactions/`, `payment-events/` + `payments/events/` | ✅ **RESOLVED**: Fully catalogued in `docs/API_CONTRACT.md` with canonical vs alias routing & deprecation policies. |
 | DEF-006 | **P1** | `docker-compose.yml` | No `celery-worker` or `celery-beat` services — async tasks never run in deployed stack | ✅ **RESOLVED**: Added `celery-worker` and `celery-beat` containers to `backend/docker-compose.yml`. |
 | DEF-007 | **P1** | `apps/billing/models.py` | No DB `unique_together` constraint on invoice billing period — concurrent generation creates duplicates | ✅ **RESOLVED**: Added `UniqueConstraint(tenant, customer, billing_month)` via migration `0006_milestone_hardening.py`. |
-| DEF-008 | **P1** | `apps/payments/models.py` | `PaymentGateway` stores `app_secret`, `password`, `private_key` in plaintext | ⚠️ **PENDING**: Next iteration credential encryption. |
+| DEF-008 | **P1** | `apps/payments/models.py` | `PaymentGateway` stores `app_secret`, `password`, `private_key` in plaintext | ✅ **RESOLVED**: Application-level MultiFernet reversible encryption at rest, EncryptedCharField/TextField, masked serializer responses, management command, 11 dedicated tests. |
 | DEF-009 | **P1** | `apps/core/tasks.py` | `send_sms` task has no `max_retries` — SMS delivery failures are silent | ✅ **RESOLVED**: Added `max_retries=3, default_retry_delay=60`. |
 | DEF-010 | **P2** | All models | No explicit `currency` field on `LedgerEntry` — multi-currency not future-safe | ⚠️ **BACKLOG**: Schema evolution for multi-currency. |
 

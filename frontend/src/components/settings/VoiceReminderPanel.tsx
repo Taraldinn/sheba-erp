@@ -110,7 +110,7 @@ export function VoiceReminderPanel({
                 Call Schedule Time
               </span>
               <Input
-                value={voice.call_time || '10:00 AM'}
+                value={voice.call_time ?? ''}
                 onChange={(e) => onChange({ call_time: e.target.value })}
                 className="bg-background text-xs h-8 font-mono"
               />
@@ -122,7 +122,7 @@ export function VoiceReminderPanel({
                 Safe Window Start
               </span>
               <Input
-                value={voice.safe_hours_start || '09:00 AM'}
+                value={voice.safe_hours_start ?? ''}
                 onChange={(e) => onChange({ safe_hours_start: e.target.value })}
                 className="bg-background text-xs h-8 font-mono"
               />
@@ -134,7 +134,7 @@ export function VoiceReminderPanel({
                 Safe Window End
               </span>
               <Input
-                value={voice.safe_hours_end || '08:00 PM'}
+                value={voice.safe_hours_end ?? ''}
                 onChange={(e) => onChange({ safe_hours_end: e.target.value })}
                 className="bg-background text-xs h-8 font-mono"
               />

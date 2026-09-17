@@ -2,6 +2,7 @@
   "title": "Integrations",
   "pages": [
     "overview",
+    "custom-frontend-bff",
     "bkash",
     "sms-forwarder",
     "mikrotik",

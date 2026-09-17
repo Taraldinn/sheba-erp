@@ -47,6 +47,10 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         '/api/v1/customers/query/',
         '/api/v1/payments/sms/webhook/',
         '/api/v1/payments/webhook/sms/',
+        '/api/v1/payments/bkash/paybill/',
+        '/api/queryBill',
+        '/api/payBill',
+        '/api/searchTransaction',
     )
 
     CONTROL_PLANE_PREFIXES = ('admin.', 'control.', 'saas.')
@@ -88,21 +92,63 @@ class TenantResolutionMiddleware(MiddlewareMixin):
             request.is_control_plane = True
             return None
 
-        # 3. Domain-based resolution (multi-stage)
+        # 3. API Key-based resolution (Server-to-Server / BFF Integrations)
         tenant = None
+        from apps.core.authentication import extract_raw_api_key
+        raw_key = extract_raw_api_key(request)
+        if raw_key:
+            from apps.core.models import TenantApiToken
+            prefix = TenantApiToken._make_prefix(raw_key)
+            candidates = TenantApiToken.objects.select_related('tenant').filter(key_prefix=prefix)
+            matched_candidate = None
+            for candidate in candidates:
+                if candidate.check_hash(raw_key):
+                    matched_candidate = candidate
+                    break
 
+            if not matched_candidate:
+                return JsonResponse({
+                    'detail': 'Invalid API key provided.',
+                    'code': 'INVALID_API_KEY'
+                }, status=401)
+
+            status_val = matched_candidate.effective_status
+            if status_val == TenantApiToken.CredentialStatus.REVOKED:
+                return JsonResponse({
+                    'detail': 'API key has been revoked.',
+                    'code': 'CREDENTIAL_REVOKED'
+                }, status=401)
+            if status_val == TenantApiToken.CredentialStatus.EXPIRED:
+                return JsonResponse({
+                    'detail': 'API key has expired.',
+                    'code': 'CREDENTIAL_EXPIRED'
+                }, status=401)
+            if status_val == TenantApiToken.CredentialStatus.SUSPENDED:
+                return JsonResponse({
+                    'detail': 'API key is suspended.',
+                    'code': 'CREDENTIAL_SUSPENDED'
+                }, status=401)
+
+            tenant = matched_candidate.tenant
+            request.tenant = tenant
+            request.auth_type = 'api_key'
+            request.api_token = matched_candidate
+            request.api_scopes = set(matched_candidate.permissions or [])
+
+        # 4. Domain-based resolution (multi-stage)
         # A. TenantDomain table — preferred (Plan Phase 4)
-        try:
-            domain_record = (
-                TenantDomain.objects
-                .select_related('tenant')
-                .filter(hostname__iexact=raw_host, is_active=True)
-                .first()
-            )
-            if domain_record:
-                tenant = domain_record.tenant
-        except Exception:
-            pass  # Table may not exist yet during first migration
+        if not tenant:
+            try:
+                domain_record = (
+                    TenantDomain.objects
+                    .select_related('tenant')
+                    .filter(hostname__iexact=raw_host, is_active=True)
+                    .first()
+                )
+                if domain_record:
+                    tenant = domain_record.tenant
+            except Exception:
+                pass  # Table may not exist yet during first migration
 
         # B. Legacy Tenant.domain field fallback
         if not tenant:

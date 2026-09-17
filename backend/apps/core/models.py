@@ -148,6 +148,12 @@ class TenantApiToken(models.Model):
         5. Staff users still authenticate with their own username/token.
     """
 
+    class CredentialStatus(models.TextChoices):
+        ACTIVE = 'ACTIVE', 'Active'
+        REVOKED = 'REVOKED', 'Revoked'
+        EXPIRED = 'EXPIRED', 'Expired'
+        SUSPENDED = 'SUSPENDED', 'Suspended'
+
     KEY_PREFIX_LENGTH = 6  # characters after 'shb_'
     KEY_SECRET_BYTES = 32  # 256 bits of entropy
 
@@ -164,6 +170,16 @@ class TenantApiToken(models.Model):
     # Legacy field kept for DB compatibility during migration — DO NOT USE for new tokens
     token = models.CharField(max_length=255, unique=True, null=True, blank=True)
 
+    status = models.CharField(
+        max_length=20,
+        choices=CredentialStatus.choices,
+        default=CredentialStatus.ACTIVE,
+        db_index=True,
+    )
+    rate_limit = models.PositiveIntegerField(
+        default=1000,
+        help_text="Permitted requests per minute per credential"
+    )
     permissions = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     expires_at = models.DateTimeField(null=True, blank=True)
@@ -180,7 +196,21 @@ class TenantApiToken(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.name} [{self.key_prefix}***] - {self.tenant.slug}"
+        return f"{self.name} [{self.key_prefix}***] - {self.tenant.slug} ({self.effective_status})"
+
+    @property
+    def effective_status(self) -> str:
+        """Dynamically computes lifecycle status including expiration."""
+        from django.utils import timezone as tz
+        if self.revoked_at is not None or self.status == self.CredentialStatus.REVOKED:
+            return self.CredentialStatus.REVOKED
+        if self.status == self.CredentialStatus.SUSPENDED:
+            return self.CredentialStatus.SUSPENDED
+        if self.expires_at is not None and self.expires_at < tz.now():
+            return self.CredentialStatus.EXPIRED
+        if not self.is_active:
+            return self.CredentialStatus.SUSPENDED
+        return self.CredentialStatus.ACTIVE
 
     @staticmethod
     def _hash_secret(raw_secret: str) -> str:
@@ -195,7 +225,7 @@ class TenantApiToken(models.Model):
 
     @classmethod
     def generate(cls, tenant, name: str, permissions: list = None,
-                 expires_at=None, created_by=None) -> tuple:
+                 expires_at=None, created_by=None, rate_limit: int = 1000) -> tuple:
         """
         Create a new API token and return (instance, raw_secret).
 
@@ -216,6 +246,8 @@ class TenantApiToken(models.Model):
             key_prefix=key_prefix,
             token_hash=token_hash,
             token=None,  # never store raw token
+            status=cls.CredentialStatus.ACTIVE,
+            rate_limit=rate_limit or 1000,
             permissions=permissions or [],
             expires_at=expires_at,
             created_by=created_by,
@@ -223,29 +255,63 @@ class TenantApiToken(models.Model):
         )
         return instance, raw_secret
 
-    def verify(self, candidate_secret: str) -> bool:
+    def rotate(self, created_by=None) -> tuple:
         """
-        Verify a candidate secret against the stored hash.
-        Returns False if the key is inactive, expired, or revoked.
+        Rotates this credential with a freshly generated secret.
+        Resets revocation state, updates prefix and hash, and returns (self, raw_secret).
         """
-        from django.utils import timezone as tz
-        if not self.is_active:
-            return False
-        if self.revoked_at is not None:
-            return False
-        if self.expires_at is not None and self.expires_at < tz.now():
-            return False
+        import secrets as secrets_module
+        raw_secret = secrets_module.token_urlsafe(self.KEY_SECRET_BYTES)
+        self.token_hash = self._hash_secret(raw_secret)
+        self.key_prefix = self._make_prefix(raw_secret)
+        self.is_active = True
+        self.status = self.CredentialStatus.ACTIVE
+        self.revoked_at = None
+        if created_by:
+            self.created_by = created_by
+        self.save(update_fields=['token_hash', 'key_prefix', 'is_active', 'status', 'revoked_at', 'created_by', 'updated_at'])
+        return self, raw_secret
+
+    def check_hash(self, candidate_secret: str) -> bool:
+        """
+        Constant-time verification of candidate secret against the stored SHA-256 hash.
+        Does not check status or expiration.
+        """
         import hmac as hmac_module
         expected = self._hash_secret(candidate_secret).encode()
         actual = self.token_hash.encode()
         return hmac_module.compare_digest(expected, actual)
 
+    def verify(self, candidate_secret: str) -> bool:
+        """
+        Verify candidate secret against stored hash AND check that credential is active.
+        Returns False if candidate does not match or the key is inactive, expired, revoked, or suspended.
+        """
+        if not self.check_hash(candidate_secret):
+            return False
+        return self.effective_status == self.CredentialStatus.ACTIVE
+
     def revoke(self):
         """Revoke this key immediately."""
         from django.utils import timezone as tz
         self.is_active = False
+        self.status = self.CredentialStatus.REVOKED
         self.revoked_at = tz.now()
-        self.save(update_fields=['is_active', 'revoked_at', 'updated_at'])
+        self.save(update_fields=['is_active', 'status', 'revoked_at', 'updated_at'])
+
+    def suspend(self):
+        """Suspend this key temporarily without revoking it."""
+        self.is_active = False
+        self.status = self.CredentialStatus.SUSPENDED
+        self.save(update_fields=['is_active', 'status', 'updated_at'])
+
+    def reactivate(self):
+        """Reactivate a suspended key."""
+        if self.revoked_at is not None or self.status == self.CredentialStatus.REVOKED:
+            raise ValueError("Cannot reactivate a revoked API credential. Please generate a new key.")
+        self.is_active = True
+        self.status = self.CredentialStatus.ACTIVE
+        self.save(update_fields=['is_active', 'status', 'updated_at'])
 
 
 class CompanySetting(models.Model):

@@ -22,6 +22,7 @@ import { AuthContextType } from '@/lib/auth/auth-types';
 
 function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const rawReturnTo = searchParams.get('returnTo');
   const isValidRelativePath = (path: string | null): boolean => {
     if (!path) return false;

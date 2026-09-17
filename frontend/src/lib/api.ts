@@ -22,7 +22,18 @@ if (typeof window !== 'undefined') {
     const response = await _originalFetch(...args);
     if (response.status === 401) {
       const url = typeof args[0] === 'string' ? args[0] : args[0] instanceof URL ? args[0].href : args[0]?.url || '';
-      if (!url.includes('/auth/login/')) {
+      let isShebaApi = false;
+      try {
+        const reqUrl = new URL(url, window.location.origin);
+        const configuredUrl = new URL(API_BASE, window.location.origin);
+        if (reqUrl.origin === configuredUrl.origin) {
+          const confPath = configuredUrl.pathname.replace(/\/+$/, '');
+          isShebaApi = reqUrl.pathname === confPath || reqUrl.pathname.startsWith(`${confPath}/`);
+        }
+      } catch {
+        isShebaApi = false;
+      }
+      if (isShebaApi && !url.includes('/auth/login/')) {
         TokenStorage.clearStoredAuth();
         window.dispatchEvent(new CustomEvent('sheba:unauthorized', { detail: { url } }));
       }

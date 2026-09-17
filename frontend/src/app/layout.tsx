@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { headers } from "next/headers";
 import "./globals.css";
 import { AppShell } from "@/components/layouts/AppShell";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -23,13 +22,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const headersList = await headers();
-  const host = (headersList.get("host") || "").toLowerCase();
-  const isControlPlaneDomain =
-    host.startsWith("admin.") ||
-    host.startsWith("control.") ||
-    host.startsWith("saas.");
-
   return (
     <html lang="en" className={cn("font-sans", spaceGrotesk.variable)} suppressHydrationWarning>
       <head>
@@ -44,8 +36,8 @@ export default async function RootLayout({
       </head>
       <body className="bg-background text-foreground min-h-screen flex antialiased selection:bg-indigo-500 selection:text-white">
         <ThemeProvider defaultTheme="dark" storageKey="sheba-theme">
-          <AuthProvider initialContext={isControlPlaneDomain ? "central_admin" : "tenant"}>
-            <AppShell isControlPlaneDomain={isControlPlaneDomain}>
+          <AuthProvider initialContext="tenant">
+            <AppShell>
               {children}
             </AppShell>
           </AuthProvider>

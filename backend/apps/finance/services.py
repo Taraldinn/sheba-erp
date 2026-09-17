@@ -579,7 +579,7 @@ def create_invoice_with_lines(
         if total_payable is not None:
             computed_total_payable = Decimal(str(total_payable))
         else:
-            computed_total_payable = max(Decimal('0.00'), computed_pkg_amount + prev_due - disc_amount)
+            computed_total_payable = max(Decimal('0.00'), computed_pkg_amount - disc_amount)
 
         invoice = Invoice.objects.create(
             tenant=tenant,
@@ -611,25 +611,11 @@ def create_invoice_with_lines(
                 total=cl['total']
             )
 
-        if prev_due > 0:
-            InvoiceLine.objects.create(
-                tenant=tenant,
-                invoice=invoice,
-                description="Previous Outstanding Due",
-                quantity=1,
-                unit_price=prev_due,
-                discount=Decimal('0.00'),
-                tax_amount=Decimal('0.00'),
-                total=prev_due
-            )
-
-        # Update customer due_amount derived from all open invoices (reusing sync_customer_financial_summary approach)
+        # Update customer due_amount derived from all open invoices (matching sync_customer_financial_summary approach)
         open_due = Invoice.objects.filter(
             tenant=tenant, customer=locked_customer,
             status__in=[Invoice.InvoiceStatus.UNPAID, Invoice.InvoiceStatus.PARTIAL]
         ).aggregate(total=models.Sum('due_amount'))['total'] or Decimal('0.00')
-        if prev_due > 0:
-            open_due = max(Decimal('0.00'), open_due - prev_due)
         locked_customer.due_amount = open_due
         locked_customer.save(update_fields=['due_amount'])
 

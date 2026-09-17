@@ -116,47 +116,62 @@ class BKashAndForwarderPaymentTests(TestCase):
         self.assertIsNotNone(recharge)
 
     def test_bkash_paybill_query_and_settle(self):
-        """bKash App queries subscriber bill and executes instant settlement."""
+        """bKash App queries subscriber bill and executes instant settlement (v1.4 compliant)."""
         # 1. Query Bill
         query_res = self.client.post(
             "/api/v1/payments/bkash/paybill/query/",
-            {"account_no": "CUST-PRIME-101"},
+            {
+                "UserName": "test_username",
+                "Password": "test_password",
+                "CustomerNo": "CUST-PRIME-101"
+            },
             HTTP_HOST="prime.localhost"
         )
         self.assertEqual(query_res.status_code, status.HTTP_200_OK)
-        self.assertEqual(query_res.data["status"], "0000")
-        self.assertEqual(query_res.data["customer_name"], "Mahmudur Rahman")
-        self.assertEqual(query_res.data["amount_due"], "1000.00")
+        self.assertEqual(query_res.data["ErrorCode"], "200")
+        self.assertEqual(query_res.data["ErrorMsg"], "Successful")
+        self.assertEqual(query_res.data["ConsumerName"], "Mahmudur Rahman")
+        self.assertEqual(query_res.data["BillAmount"], "1000.00")
+        self.assertTrue("QueryTime" in query_res.data)
 
         # 2. Settle Bill
         pay_res = self.client.post(
             "/api/v1/payments/bkash/paybill/pay/",
             {
-                "account_no": "CUST-PRIME-101",
-                "amount": "1000.00",
-                "trx_id": "BKA_PAYBILL_998811"
+                "UserName": "test_username",
+                "Password": "test_password",
+                "CustomerNo": "CUST-PRIME-101",
+                "Amount": "1000.00",
+                "TrxId": "BKA_PAYBILL_998811"
             },
             HTTP_HOST="prime.localhost"
         )
         self.assertEqual(pay_res.status_code, status.HTTP_200_OK)
-        self.assertEqual(pay_res.data["status"], "0000")
+        self.assertEqual(pay_res.data["ErrorCode"], "200")
+        self.assertEqual(pay_res.data["ErrorMsg"], "Successful")
+        self.assertEqual(pay_res.data["TotalAmount"], "1000.00")
+        self.assertEqual(pay_res.data["TrxId"], "BKA_PAYBILL_998811")
+        self.assertTrue("MiddlewarePayTime" in pay_res.data)
 
         # Verify customer refreshed
         self.customer.refresh_from_db()
         self.assertEqual(self.customer.due_amount, Decimal("0.00"))
         self.assertEqual(self.customer.status, CustomerStatus.ACTIVE)
 
-        # 3. Idempotency test (duplicate payment returns success 0000 without double balance crediting)
+        # 3. Idempotency test (duplicate payment returns success 200 without double balance crediting)
         dup_res = self.client.post(
             "/api/v1/payments/bkash/paybill/pay/",
             {
-                "account_no": "CUST-PRIME-101",
-                "amount": "1000.00",
-                "trx_id": "BKA_PAYBILL_998811"
+                "UserName": "test_username",
+                "Password": "test_password",
+                "CustomerNo": "CUST-PRIME-101",
+                "Amount": "1000.00",
+                "TrxId": "BKA_PAYBILL_998811"
             },
             HTTP_HOST="prime.localhost"
         )
         self.assertEqual(dup_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(dup_res.data["ErrorCode"], "200")
         self.customer.refresh_from_db()
         self.assertEqual(self.customer.advance_amount, Decimal("0.00"))
 

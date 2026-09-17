@@ -4,6 +4,8 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 from apps.core.models import Tenant
 from apps.customers.models import Customer
+from apps.core.fields import EncryptedCharField, EncryptedTextField
+from apps.core.encryption import mask_credential, verify_webhook_signature
 
 
 class ImmutablePaymentTransactionQuerySet(models.QuerySet):
@@ -41,31 +43,46 @@ class PaymentGateway(models.Model):
     # bKash specific
     shop_payment_enabled = models.BooleanField(default=False)
     shop_base_url = models.CharField(max_length=255, blank=True, default='https://shop.bkash.com/merchant')
-    app_key = models.CharField(max_length=255, blank=True)
-    app_secret = models.CharField(max_length=255, blank=True)
-    username = models.CharField(max_length=100, blank=True)
-    password = models.CharField(max_length=255, blank=True)
+    app_key = EncryptedTextField(blank=True, default='')
+    app_secret = EncryptedTextField(blank=True, default='')
+    username = EncryptedTextField(blank=True, default='')
+    password = EncryptedTextField(blank=True, default='')
     
     # Sandbox credentials
-    sandbox_app_key = models.CharField(max_length=255, blank=True)
-    sandbox_app_secret = models.CharField(max_length=255, blank=True)
-    sandbox_username = models.CharField(max_length=100, blank=True)
-    sandbox_password = models.CharField(max_length=255, blank=True)
+    sandbox_app_key = EncryptedTextField(blank=True, default='')
+    sandbox_app_secret = EncryptedTextField(blank=True, default='')
+    sandbox_username = EncryptedTextField(blank=True, default='')
+    sandbox_password = EncryptedTextField(blank=True, default='')
     
     # Nagad specific
-    merchant_number = models.CharField(max_length=50, blank=True)
-    merchant_phone = models.CharField(max_length=50, blank=True)
-    public_key = models.TextField(blank=True)
-    private_key = models.TextField(blank=True)
+    merchant_number = EncryptedTextField(blank=True, default='')
+    merchant_phone = EncryptedTextField(blank=True, default='')
+    public_key = EncryptedTextField(blank=True, default='')
+    private_key = EncryptedTextField(blank=True, default='')
     
     # SSLCommerz specific
-    store_id = models.CharField(max_length=100, blank=True)
-    store_password = models.CharField(max_length=255, blank=True)
+    store_id = EncryptedTextField(blank=True, default='')
+    store_password = EncryptedTextField(blank=True, default='')
+    
+    # Webhook integration
+    webhook_secret = EncryptedTextField(blank=True, default='')
     
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.get_provider_display()} ({'Sandbox' if self.is_sandbox else 'Live'})"
+
+    def verify_webhook_signature(self, provided_signature: str, payload_bytes: bytes) -> bool:
+        """Verifies webhook signature using decrypted webhook_secret and constant-time comparison."""
+        return verify_webhook_signature(provided_signature, payload_bytes, self.webhook_secret)
+
+    @property
+    def masked_merchant_number(self) -> str:
+        return mask_credential(self.merchant_number)
+
+    @property
+    def masked_app_key(self) -> str:
+        return mask_credential(self.app_key)
 
 
 class SmsLog(models.Model):

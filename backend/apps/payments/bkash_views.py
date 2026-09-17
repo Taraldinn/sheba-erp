@@ -6,13 +6,14 @@ Complies with bKash Developer Specs (https://developer.bka.sh/docs/product-overv
 import logging
 import uuid
 from decimal import Decimal
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
-from rest_framework import views, status, permissions
+from rest_framework import views, status, permissions, parsers
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema
 
 from apps.core.utils import get_tenant_for_request
+from apps.core.encryption import constant_time_compare
 from apps.customers.models import Customer, CustomerStatus
 from apps.customers.authentication import CustomerJWTAuthentication
 from apps.billing.models import Package, Invoice, Recharge
@@ -42,7 +43,7 @@ def _settle_customer_payment(tenant, customer, amount: Decimal, trx_id: str, pay
     """
     with transaction.atomic():
         # Check idempotency
-        existing_txn = PaymentTransaction.objects.filter(trx_id=trx_id).first()
+        existing_txn = PaymentTransaction.objects.filter(tenant=tenant, trx_id=trx_id).first()
         if existing_txn:
             return existing_txn, False
 
@@ -301,127 +302,391 @@ class BKashCheckoutExecuteView(views.APIView):
         }, status=status.HTTP_200_OK)
 
 
+def _authenticate_bkash_biller(request):
+    """
+    Authenticate bKash Outbound API caller credentials against active PaymentGateway.
+    Handles both domain-resolved tenant and multi-tenant credential matching.
+    Returns: (tenant, gateway, error_code, error_msg)
+    """
+    username = (
+        request.data.get('UserName') or
+        request.data.get('username') or
+        ''
+    )
+    if isinstance(username, str):
+        username = username.strip().strip('"\'')
+
+    password = (
+        request.data.get('Password') or
+        request.data.get('password') or
+        ''
+    )
+    if isinstance(password, str):
+        password = password.strip().strip('"\'')
+
+    if not username or not password:
+        return None, None, "406", "Mandatory Field missing"
+
+    # Try tenant resolved by domain middleware
+    tenant = get_tenant_for_request(request)
+    if tenant:
+        gateways = PaymentGateway.objects.filter(
+            tenant=tenant,
+            provider=GatewayProvider.BKASH,
+            is_active=True
+        )
+        for gw in gateways:
+            if (gw.username and gw.username == username and gw.password and constant_time_compare(gw.password, password)) or \
+               (gw.sandbox_username and gw.sandbox_username == username and gw.sandbox_password and constant_time_compare(gw.sandbox_password, password)):
+                return tenant, gw, None, None
+        return None, None, "403", "Authentication failed"
+
+    # Fallback: Find matching tenant across active bKash gateways
+    gateways = PaymentGateway.objects.filter(
+        provider=GatewayProvider.BKASH,
+        is_active=True
+    ).select_related('tenant')
+    for gw in gateways:
+        if (gw.username and gw.username == username and gw.password and constant_time_compare(gw.password, password)) or \
+           (gw.sandbox_username and gw.sandbox_username == username and gw.sandbox_password and constant_time_compare(gw.sandbox_password, password)):
+            return gw.tenant, gw, None, None
+
+    return None, None, "403", "Authentication failed"
+
+
+def _extract_customer_no(request_data):
+    """
+    Extracts customer reference identifier according to bKash Outbound Specification:
+    AccNo / MeterNo / CustomerNo / BillNo / RefID
+    """
+    val = (
+        request_data.get('CustomerNo') or
+        request_data.get('AccNo') or
+        request_data.get('MeterNo') or
+        request_data.get('BillNo') or
+        request_data.get('RefID') or
+        request_data.get('account_no') or
+        request_data.get('subscriber_id') or
+        request_data.get('customer_no') or
+        request_data.get('acc_no') or
+        ''
+    )
+    if isinstance(val, str):
+        val = val.strip().strip('"\'')
+    return val
+
+
 class BKashPayBillQueryView(views.APIView):
     """
-    Official bKash PayBill Biller Query API.
-    bKash App calls this to validate subscriber account and get outstanding bill.
-    POST /api/v1/payments/bkash/paybill/query/
+    Official bKash PayBill Biller Query API (v1.4 Section 1.1).
+    bKash Middleware calls this to validate subscriber account and get outstanding bill.
+    POST /api/queryBill/ or /api/v1/payments/bkash/paybill/query/
     """
     permission_classes = [permissions.AllowAny]
+    parser_classes = [parsers.JSONParser, parsers.FormParser, parsers.MultiPartParser]
 
     def post(self, request, *args, **kwargs):
-        tenant = get_tenant_for_request(request)
-        if not tenant:
-            return Response({"status": "2001", "message": "Tenant not resolved"}, status=status.HTTP_400_BAD_REQUEST)
+        # 1. Mandatory parameter checks
+        customer_no = _extract_customer_no(request.data)
+        username = request.data.get('UserName') or request.data.get('username')
+        password = request.data.get('Password') or request.data.get('password')
 
-        account_no = (request.data.get('account_no') or request.data.get('subscriber_id') or '').strip()
-        if not account_no:
-            return Response({"status": "2002", "message": "Account number is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not customer_no or not username or not password:
+            return Response({
+                "ErrorCode": "406",
+                "ErrorMsg": "Mandatory Field missing",
+                "status": "406",
+                "message": "Mandatory Field missing"
+            }, status=status.HTTP_200_OK)
 
-        # Lookup customer by customer_code, pppoe_username, or mobile
+        # 2. Authentication
+        tenant, gateway, err_code, err_msg = _authenticate_bkash_biller(request)
+        if err_code:
+            return Response({
+                "ErrorCode": err_code,
+                "ErrorMsg": err_msg,
+                "status": err_code,
+                "message": err_msg
+            }, status=status.HTTP_200_OK)
+
+        # 3. Lookup customer by customer_code, pppoe_username, or mobile
         customer = Customer.objects.filter(
             tenant=tenant
         ).filter(
-            models.Q(customer_code=account_no) |
-            models.Q(pppoe_username=account_no) |
-            models.Q(mobile=account_no)
-        ).select_related('package').first()
+            models.Q(customer_code=customer_no) |
+            models.Q(pppoe_username=customer_no) |
+            models.Q(mobile=customer_no)
+        ).select_related('package', 'router').first()
 
         if not customer:
             return Response({
-                "status": "2003",
-                "message": "Subscriber account not found"
-            }, status=status.HTTP_404_NOT_FOUND)
+                "ErrorCode": "404",
+                "ErrorMsg": "Data not found",
+                "status": "404",
+                "message": "Data not found"
+            }, status=status.HTTP_200_OK)
 
-        amount_due = customer.due_amount if customer.due_amount > 0 else customer.monthly_bill
+        bill_month_req = request.data.get('BillMonth') or request.data.get('bill_month') or ''
+        if isinstance(bill_month_req, str):
+            bill_month_req = bill_month_req.strip().strip('"\'')
+
+        bill_month_str = bill_month_req if bill_month_req else timezone.now().strftime("%m%Y")
+        query_time_str = timezone.now().strftime("%Y%m%d%H%M%S")
+
+        # 4. Check outstanding bill / invoices
+        unpaid_invoice = Invoice.objects.filter(
+            tenant=tenant,
+            customer=customer,
+            status__in=[Invoice.InvoiceStatus.UNPAID, Invoice.InvoiceStatus.PARTIAL]
+        ).order_by('created_at').first()
+
+        due_date_str = ""
+        if unpaid_invoice:
+            bill_amount = unpaid_invoice.due_amount
+            if unpaid_invoice.due_date:
+                due_date_str = unpaid_invoice.due_date.strftime("%Y%m%d")
+        elif customer.due_amount > Decimal('0.00'):
+            bill_amount = customer.due_amount
+            if customer.expiry_date:
+                due_date_str = customer.expiry_date.strftime("%Y%m%d")
+        elif customer.status == CustomerStatus.EXPIRED or (customer.expiry_date and customer.expiry_date <= timezone.localdate()):
+            bill_amount = customer.monthly_bill or (customer.package.regular_price if customer.package else Decimal('0.00'))
+            if customer.expiry_date:
+                due_date_str = customer.expiry_date.strftime("%Y%m%d")
+        else:
+            # Customer is active with no outstanding dues: Bill already paid
+            return Response({
+                "ErrorCode": "436",
+                "ErrorMsg": "Already paid",
+                "ConsumerName": customer.full_name,
+                "BillMonth": bill_month_str,
+                "BillAmount": "0.00",
+                "QueryTime": query_time_str,
+                "status": "436",
+                "message": "Already paid"
+            }, status=status.HTTP_200_OK)
 
         return Response({
+            "ErrorCode": "200",
+            "ErrorMsg": "Successful",
+            "ConsumerName": customer.full_name,
+            "BillMonth": bill_month_str,
+            "BillAmount": f"{bill_amount:.2f}",
+            "BillDueDate(YYYYMMDD)": due_date_str,
+            "BillDueDate": due_date_str,
+            "QueryTime": query_time_str,
+            "Amount Breakdown(if available)": f"{{Package Cost: {bill_amount:.2f}}}",
+            # Backward compatibility fields
             "status": "0000",
             "message": "Success",
             "account_no": customer.customer_code or customer.pppoe_username,
             "customer_name": customer.full_name,
-            "bill_month": timezone.now().strftime("%B %Y"),
-            "amount_due": f"{amount_due:.2f}",
+            "amount_due": f"{bill_amount:.2f}",
             "min_amount": "10.00",
             "max_amount": "50000.00",
             "currency": "BDT"
         }, status=status.HTTP_200_OK)
 
 
-from django.db import models
-
-
 class BKashPayBillPayView(views.APIView):
     """
-    Official bKash PayBill Biller Payment Settlement API.
-    bKash App calls this when a customer pays their ISP bill through bKash.
-    POST /api/v1/payments/bkash/paybill/pay/
+    Official bKash PayBill Biller Payment Settlement API (v1.4 Section 1.2).
+    bKash Middleware calls this when a customer pays their ISP bill through bKash.
+    POST /api/payBill/ or /api/v1/payments/bkash/paybill/pay/
     """
     permission_classes = [permissions.AllowAny]
+    parser_classes = [parsers.JSONParser, parsers.FormParser, parsers.MultiPartParser]
 
     def post(self, request, *args, **kwargs):
-        tenant = get_tenant_for_request(request)
-        if not tenant:
-            return Response({"status": "2001", "message": "Tenant not resolved"}, status=status.HTTP_400_BAD_REQUEST)
+        # 1. Mandatory parameter checks
+        customer_no = _extract_customer_no(request.data)
+        username = request.data.get('UserName') or request.data.get('username')
+        password = request.data.get('Password') or request.data.get('password')
+        trx_id = (
+            request.data.get('TrxId') or
+            request.data.get('trx_id') or
+            request.data.get('transaction_id') or
+            ''
+        )
+        if isinstance(trx_id, str):
+            trx_id = trx_id.strip().strip('"\'')
 
-        account_no = (request.data.get('account_no') or request.data.get('subscriber_id') or '').strip()
-        trx_id = (request.data.get('trx_id') or request.data.get('transaction_id') or '').strip()
-        raw_amount = request.data.get('amount')
+        raw_amount = request.data.get('Amount') or request.data.get('amount')
 
-        if not account_no or not trx_id or not raw_amount:
+        if not customer_no or not username or not password or not trx_id or raw_amount is None:
             return Response({
-                "status": "2002",
-                "message": "account_no, trx_id, and amount are mandatory"
-            }, status=status.HTTP_400_BAD_REQUEST)
+                "ErrorCode": "406",
+                "ErrorMsg": "Mandatory Field missing",
+                "status": "406",
+                "message": "Mandatory Field missing"
+            }, status=status.HTTP_200_OK)
 
+        # 2. Authentication
+        tenant, gateway, err_code, err_msg = _authenticate_bkash_biller(request)
+        if err_code:
+            return Response({
+                "ErrorCode": err_code,
+                "ErrorMsg": err_msg,
+                "status": err_code,
+                "message": err_msg
+            }, status=status.HTTP_200_OK)
+
+        # 3. Validate Amount
         try:
-            amount = Decimal(str(raw_amount))
+            amount = Decimal(str(raw_amount).strip().strip('"\''))
             if amount <= Decimal('0.00'):
-                raise ValueError()
+                return Response({
+                    "ErrorCode": "438",
+                    "ErrorMsg": "Minimum amount not paid",
+                    "status": "438",
+                    "message": "Minimum amount not paid"
+                }, status=status.HTTP_200_OK)
+            if amount < Decimal('10.00'):
+                return Response({
+                    "ErrorCode": "438",
+                    "ErrorMsg": "Minimum amount not paid",
+                    "status": "438",
+                    "message": "Minimum amount not paid"
+                }, status=status.HTTP_200_OK)
         except Exception:
-            return Response({"status": "2004", "message": "Invalid payment amount"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "ErrorCode": "435",
+                "ErrorMsg": "Data Mismatch",
+                "status": "435",
+                "message": "Data Mismatch"
+            }, status=status.HTTP_200_OK)
 
-        # Lookup customer
+        # 4. Customer Lookup
         customer = Customer.objects.filter(
             tenant=tenant
         ).filter(
-            models.Q(customer_code=account_no) |
-            models.Q(pppoe_username=account_no) |
-            models.Q(mobile=account_no)
-        ).select_related('package').first()
+            models.Q(customer_code=customer_no) |
+            models.Q(pppoe_username=customer_no) |
+            models.Q(mobile=customer_no)
+        ).select_related('package', 'router').first()
 
         if not customer:
             return Response({
-                "status": "2003",
-                "message": "Subscriber account not found"
-            }, status=status.HTTP_404_NOT_FOUND)
+                "ErrorCode": "404",
+                "ErrorMsg": "Data not found",
+                "status": "404",
+                "message": "Data not found"
+            }, status=status.HTTP_200_OK)
 
-        # Idempotency check
-        existing_txn = PaymentTransaction.objects.filter(trx_id=trx_id).first()
+        # 5. Idempotency check: duplicate bKash TrxId
+        existing_txn = PaymentTransaction.objects.filter(tenant=tenant, trx_id=trx_id).first()
         if existing_txn:
             return Response({
+                "ErrorCode": "200",
+                "ErrorMsg": "Successful",
+                "ConsumerName": existing_txn.customer.full_name,
+                "TotalAmount": f"{existing_txn.amount:.2f}",
+                "TrxId": existing_txn.trx_id,
+                "MiddlewarePayTime": existing_txn.created_at.strftime("%Y%m%d%H%M%S"),
+                "RefNumber": str(existing_txn.id),
+                "CustomMessage": "Payment already processed",
+                "Amount Breakdown(if available)": f"{{Paid: {existing_txn.amount:.2f}}}",
                 "status": "0000",
                 "message": "Payment already processed",
                 "trx_id": trx_id,
-                "account_no": account_no
+                "account_no": customer_no
             }, status=status.HTTP_200_OK)
 
+        # 6. Settle Customer Payment
         txn, created = _settle_customer_payment(
             tenant=tenant,
             customer=customer,
             amount=amount,
             trx_id=trx_id,
             payment_method="bKash PayBill",
+            gateway=gateway,
             raw_payload=request.data
         )
 
+        customer.refresh_from_db()
+        pay_time_str = timezone.now().strftime("%Y%m%d%H%M%S")
+
         return Response({
+            "ErrorCode": "200",
+            "ErrorMsg": "Successful",
+            "ConsumerName": customer.full_name,
+            "TotalAmount": f"{amount:.2f}",
+            "TrxId": trx_id,
+            "MiddlewarePayTime": pay_time_str,
+            "RefNumber": str(txn.id),
+            "CustomMessage": f"Account {customer.customer_code or customer.pppoe_username} recharged successfully",
+            "Amount Breakdown(if available)": f"{{Paid: {amount:.2f}}}",
             "status": "0000",
             "message": "Bill payment processed successfully",
             "trx_id": trx_id,
             "account_no": customer.customer_code or customer.pppoe_username,
             "paid_amount": f"{amount:.2f}",
             "new_expiry": customer.expiry_date
+        }, status=status.HTTP_200_OK)
+
+
+class BKashPayBillSearchView(views.APIView):
+    """
+    Official bKash PayBill Transaction Search Query API (v1.4 Section 1.3).
+    bKash Middleware calls this to check whether a transaction was successful at the biller.
+    POST /api/searchTransaction/ or /api/v1/payments/bkash/paybill/search/
+    """
+    permission_classes = [permissions.AllowAny]
+    parser_classes = [parsers.JSONParser, parsers.FormParser, parsers.MultiPartParser]
+
+    def post(self, request, *args, **kwargs):
+        username = request.data.get('UserName') or request.data.get('username')
+        password = request.data.get('Password') or request.data.get('password')
+        trx_id = (
+            request.data.get('TrxId') or
+            request.data.get('trx_id') or
+            request.data.get('transaction_id') or
+            ''
+        )
+        if isinstance(trx_id, str):
+            trx_id = trx_id.strip().strip('"\'')
+
+        if not trx_id or not username or not password:
+            return Response({
+                "ErrorCode": "406",
+                "ErrorMsg": "Mandatory Field missing",
+                "status": "406",
+                "message": "Mandatory Field missing"
+            }, status=status.HTTP_200_OK)
+
+        tenant, gateway, err_code, err_msg = _authenticate_bkash_biller(request)
+        if err_code:
+            return Response({
+                "ErrorCode": err_code,
+                "ErrorMsg": err_msg,
+                "status": err_code,
+                "message": err_msg
+            }, status=status.HTTP_200_OK)
+
+        txn = PaymentTransaction.objects.filter(
+            tenant=tenant,
+            trx_id=trx_id
+        ).select_related('customer').first()
+
+        if not txn:
+            return Response({
+                "ErrorCode": "404",
+                "ErrorMsg": "Data not found",
+                "status": "404",
+                "message": "Data not found"
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            "ErrorCode": "200",
+            "ErrorMsg": "Successful",
+            "TotalAmount": f"{txn.amount:.2f}",
+            "TrxId": txn.trx_id,
+            "MiddlewarePayTime": txn.created_at.strftime("%Y%m%d%H%M%S"),
+            "RefNumber": str(txn.id),
+            "CustomMessage": f"Customer: {txn.customer.full_name} ({txn.customer.customer_code or txn.customer.pppoe_username})",
+            "Amount Breakdown(if available)": f"{{Paid: {txn.amount:.2f}}}",
+            "status": "0000",
+            "message": "Transaction found"
         }, status=status.HTTP_200_OK)
 
 

@@ -4,9 +4,9 @@ from .models import PaymentGateway, PaymentTransaction, SmsLog
 
 @admin.register(PaymentGateway)
 class PaymentGatewayAdmin(admin.ModelAdmin):
-    list_display = ('title', 'provider', 'is_active', 'is_sandbox', 'shop_payment_enabled', 'merchant_number', 'tenant', 'created_at')
+    list_display = ('title', 'provider', 'is_active', 'is_sandbox', 'shop_payment_enabled', 'masked_merchant_number', 'tenant', 'created_at')
     list_filter = ('provider', 'is_active', 'is_sandbox', 'shop_payment_enabled', 'tenant', 'created_at')
-    search_fields = ('title', 'username', 'merchant_number', 'store_id')
+    search_fields = ('title', 'tenant__name')
     readonly_fields = ('id', 'created_at')
 
     fieldsets = (
@@ -25,6 +25,9 @@ class PaymentGatewayAdmin(admin.ModelAdmin):
         }),
         ('SSLCommerz Configuration', {
             'fields': ('store_id', 'store_password')
+        }),
+        ('Webhook Integration', {
+            'fields': ('webhook_secret',)
         }),
     )
 

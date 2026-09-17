@@ -14,6 +14,7 @@ from apps.core.saas_views import (
     SaaSTenantRequestViewSet,
     SaaSPackageViewSet, SaaSSubscriptionViewSet, SaaSPaymentViewSet,
     SaaSBackupViewSet, SaaSUserViewSet, SaaSAuditLogViewSet,
+    SaaSApiCredentialViewSet,
     SaaSLoginView, SaaSMeView
 )
 from apps.authentication.views import LoginView, CurrentUserView, StaffProfileViewSet, RoleViewSet, PermissionViewSet
@@ -25,7 +26,7 @@ from apps.payments.views import (
     SmsWebhookView, InboundPaymentEventViewSet
 )
 from apps.payments.bkash_views import (
-    BKashPayBillQueryView, BKashPayBillPayView, ManualSMSForwarderView
+    BKashPayBillQueryView, BKashPayBillPayView, BKashPayBillSearchView, ManualSMSForwarderView
 )
 from apps.network.views import RouterViewSet, OLTViewSet, ONUViewSet, UserSessionViewSet, POPBranchViewSet
 from apps.support.views import TicketViewSet
@@ -49,6 +50,7 @@ router.register(r'saas/payments', SaaSPaymentViewSet, basename='saas-payment')
 router.register(r'saas/backups', SaaSBackupViewSet, basename='saas-backup')
 router.register(r'saas/users', SaaSUserViewSet, basename='saas-user')
 router.register(r'saas/audit-logs', SaaSAuditLogViewSet, basename='saas-audit-log')
+router.register(r'saas/api-credentials', SaaSApiCredentialViewSet, basename='saas-api-credential')
 router.register(r'settings', CompanySettingViewSet, basename='setting')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 router.register(r'staff', StaffProfileViewSet, basename='staff')
@@ -118,6 +120,16 @@ urlpatterns = [
     path('api/v1/payments/webhook/sms/', SmsWebhookView.as_view(), name='sms-webhook-alias'),
     path('api/v1/payments/bkash/paybill/query/', BKashPayBillQueryView.as_view(), name='bkash-paybill-query'),
     path('api/v1/payments/bkash/paybill/pay/', BKashPayBillPayView.as_view(), name='bkash-paybill-pay'),
+    path('api/v1/payments/bkash/paybill/search/', BKashPayBillSearchView.as_view(), name='bkash-paybill-search'),
+    
+    # Official bKash Outbound Partner Integration URL endpoints (matches documentation sample curl)
+    path('api/queryBill/', BKashPayBillQueryView.as_view(), name='bkash-outbound-query-bill'),
+    path('api/queryBill', BKashPayBillQueryView.as_view(), name='bkash-outbound-query-bill-noslash'),
+    path('api/payBill/', BKashPayBillPayView.as_view(), name='bkash-outbound-pay-bill'),
+    path('api/payBill', BKashPayBillPayView.as_view(), name='bkash-outbound-pay-bill-noslash'),
+    path('api/searchTransaction/', BKashPayBillSearchView.as_view(), name='bkash-outbound-search-transaction'),
+    path('api/searchTransaction', BKashPayBillSearchView.as_view(), name='bkash-outbound-search-transaction-noslash'),
+
     path('api/v1/payments/forwarder/webhook/', ManualSMSForwarderView.as_view(), name='manual-sms-forwarder-webhook'),
     
     # Analytics & Reports

@@ -41,6 +41,10 @@ def get_scoped_queryset(request, queryset_or_model):
     if not user or not user.is_authenticated or user.is_superuser:
         return qs
 
+    # API Key Principal has tenant-level scope for its granted permissions
+    if getattr(request, 'auth_type', None) == 'api_key' or hasattr(user, 'api_token'):
+        return qs
+
     # Retrieve membership scope
     from apps.authentication.models import StaffMembership
     membership = getattr(request, 'membership', None)

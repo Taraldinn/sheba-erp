@@ -114,8 +114,9 @@ The following endpoints have duplicates registered in `sheba_core/urls.py`. The 
 | POST | `/api/v1/payments/events/{id}/resolve/` | Token | `customer.recharge` | Resolve unmatched SMS |
 | GET | `/api/v1/sms-logs/` | Token | `IsBillingStaff` | Raw SMS log |
 | POST | `/api/v1/payments/sms/webhook/` | HMAC | Public (webhook) | **Canonical** SMS webhook ingestion |
-| POST | `/api/v1/payments/bkash/paybill/query/` | App Secret | Public (bKash) | bKash PayBill query |
-| POST | `/api/v1/payments/bkash/paybill/pay/` | App Secret | Public (bKash) | bKash PayBill pay |
+| POST | `/api/queryBill/`<br>`/api/v1/payments/bkash/paybill/query/` | Credentials | Public (bKash) | bKash PayBill Check Bill (v1.4) |
+| POST | `/api/payBill/`<br>`/api/v1/payments/bkash/paybill/pay/` | Credentials | Public (bKash) | bKash PayBill Bill Payment (v1.4) |
+| POST | `/api/searchTransaction/`<br>`/api/v1/payments/bkash/paybill/search/` | Credentials | Public (bKash) | bKash PayBill Transaction Search (v1.4) |
 | POST | `/api/v1/payments/forwarder/webhook/` | App Secret | Public | Android SMS forwarder |
 
 #### Network (routers, OLT, ONU, sessions)

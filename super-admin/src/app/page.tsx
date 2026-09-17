@@ -17,6 +17,7 @@ import {
   SaaSUserDirectory,
   SaaSAuditLog,
   SaaSOverviewMetrics,
+  SaaSApiCredential,
 } from '@/lib/saas-types';
 import {
   SaaSDashboardOverview,
@@ -31,6 +32,7 @@ import {
   SaaSBackupsManagement,
   SaaSUsersManagement,
   SaaSAuditLogsViewer,
+  SaaSApiCredentialsManagement,
 } from '@/components/saas';
 
 function SaaSAdminContent() {
@@ -43,6 +45,7 @@ function SaaSAdminContent() {
   // Core Data States
   const [overview, setOverview] = useState<SaaSOverviewMetrics | null>(null);
   const [tenants, setTenants] = useState<SaaSTenant[]>([]);
+  const [apiCredentials, setApiCredentials] = useState<SaaSApiCredential[]>([]);
   const [domains, setDomains] = useState<SaaSDomain[]>([]);
   const [requests, setRequests] = useState<TenantOnboardingRequest[]>([]);
   const [packages, setPackages] = useState<SaaSPackage[]>([]);
@@ -55,6 +58,7 @@ function SaaSAdminContent() {
   // Page States
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState<string | null>(null);
 
   // Tenant Modals State
   const [selectedTenantDetail, setSelectedTenantDetail] = useState<SaaSTenant | null>(null);
@@ -64,7 +68,8 @@ function SaaSAdminContent() {
 
   const setTab = useCallback(
     (tab: string) => {
-      router.push(`/saas-admin?tab=${tab}`);
+      setOperationError(null);
+      router.push(`/?tab=${tab}`);
     },
     [router]
   );
@@ -73,6 +78,7 @@ function SaaSAdminContent() {
   const loadTabData = useCallback(async () => {
     setIsLoading(true);
     setPageError(null);
+    setOperationError(null);
     try {
       if (activeTab === 'overview') {
         const [ov, tn] = await Promise.all([
@@ -83,6 +89,13 @@ function SaaSAdminContent() {
         setTenants(tn);
       } else if (activeTab === 'tenants') {
         const tn = await SaaSClient.getTenants();
+        setTenants(tn);
+      } else if (activeTab === 'api-credentials') {
+        const [creds, tn] = await Promise.all([
+          SaaSClient.getApiCredentials(),
+          SaaSClient.getTenants().catch(() => []),
+        ]);
+        setApiCredentials(creds);
         setTenants(tn);
       } else if (activeTab === 'domains') {
         const [dm, tn] = await Promise.all([
@@ -167,6 +180,7 @@ function SaaSAdminContent() {
 
   const handleToggleTenantStatus = async (tenantId: string) => {
     try {
+      setOperationError(null);
       const res = await SaaSClient.toggleTenantStatus(tenantId);
       setTenants((prev) =>
         prev.map((t) => (t.id === tenantId ? { ...t, is_active: res.is_active } : t))
@@ -176,13 +190,14 @@ function SaaSAdminContent() {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to update tenant status.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleDeleteTenant = async (tenantId: string) => {
     try {
+      setOperationError(null);
       await SaaSClient.deleteTenant(tenantId);
       setTenants((prev) => prev.filter((t) => t.id !== tenantId));
       if (selectedTenantDetail?.id === tenantId) {
@@ -190,20 +205,33 @@ function SaaSAdminContent() {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to delete tenant.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleImpersonate = async (tenantId: string) => {
+    // Open a placeholder window synchronously to avoid popup blocker after await
+    const targetWindow = typeof window !== 'undefined' ? window.open('about:blank', '_blank') : null;
     try {
+      setOperationError(null);
       const res = await SaaSClient.impersonateTenant(tenantId);
       if (res.target_url) {
-        window.open(res.target_url, '_blank', 'noopener,noreferrer');
+        if (targetWindow) {
+          targetWindow.opener = null;
+          targetWindow.location.href = res.target_url;
+        } else {
+          window.open(res.target_url, '_blank', 'noopener,noreferrer');
+        }
+      } else if (targetWindow) {
+        targetWindow.close();
       }
     } catch (err: unknown) {
+      if (targetWindow) {
+        targetWindow.close();
+      }
       const msg = err instanceof Error ? err.message : 'Failed to impersonate tenant.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
@@ -216,35 +244,38 @@ function SaaSAdminContent() {
     domain_type?: string;
   }) => {
     try {
+      setOperationError(null);
       const created = await SaaSClient.createDomain(payload);
       setDomains((prev) => [created, ...prev]);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create domain.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleToggleDomainVerify = async (domainId: string | number) => {
     try {
+      setOperationError(null);
       const res = await SaaSClient.toggleDomainVerify(domainId);
       setDomains((prev) =>
         prev.map((d) => (d.id === domainId ? { ...d, verified: res.verified } : d))
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to verify domain.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleDeleteDomain = async (domainId: string | number) => {
     try {
+      setOperationError(null);
       await SaaSClient.deleteDomain(domainId);
       setDomains((prev) => prev.filter((d) => d.id !== domainId));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to delete domain.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
@@ -252,6 +283,7 @@ function SaaSAdminContent() {
   // ════════════════════════ ONBOARDING REQUEST HANDLERS ════════════════════════
   const handleApproveRequest = async (requestId: string) => {
     try {
+      setOperationError(null);
       const res = await SaaSClient.approveRequest(requestId);
       setRequests((prev) =>
         prev.map((r) => (r.id === requestId ? { ...r, status: 'approved' } : r))
@@ -261,13 +293,14 @@ function SaaSAdminContent() {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to approve request.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleRejectRequest = async (requestId: string, reason: string) => {
     try {
+      setOperationError(null);
       await SaaSClient.rejectRequest(requestId, reason);
       setRequests((prev) =>
         prev.map((r) =>
@@ -276,7 +309,7 @@ function SaaSAdminContent() {
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to reject request.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
@@ -284,46 +317,50 @@ function SaaSAdminContent() {
   // ════════════════════════ PACKAGE HANDLERS ════════════════════════
   const handleCreatePackage = async (payload: Partial<SaaSPackage>) => {
     try {
+      setOperationError(null);
       const created = await SaaSClient.createPackage(payload);
       setPackages((prev) => [...prev, created]);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create package.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleUpdatePackage = async (id: string, payload: Partial<SaaSPackage>) => {
     try {
+      setOperationError(null);
       const updated = await SaaSClient.updatePackage(id, payload);
       setPackages((prev) => prev.map((p) => (p.id === id ? updated : p)));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to update package.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleDeletePackage = async (id: string) => {
     try {
+      setOperationError(null);
       await SaaSClient.deletePackage(id);
       setPackages((prev) => prev.filter((p) => p.id !== id));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to delete package.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleTogglePackageStatus = async (id: string) => {
     try {
+      setOperationError(null);
       const res = await SaaSClient.togglePackageStatus(id);
       setPackages((prev) =>
         prev.map((p) => (p.id === id ? { ...p, is_active: res.is_active } : p))
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to update package status.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
@@ -331,33 +368,36 @@ function SaaSAdminContent() {
   // ════════════════════════ SUBSCRIPTION HANDLERS ════════════════════════
   const handleCreateSubscription = async (payload: Partial<TenantSubscription>) => {
     try {
+      setOperationError(null);
       const created = await SaaSClient.createSubscription(payload);
       setSubscriptions((prev) => [created, ...prev]);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create subscription.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleRenewSubscription = async (id: string) => {
     try {
+      setOperationError(null);
       const renewed = await SaaSClient.renewSubscription(id);
       setSubscriptions((prev) => prev.map((s) => (s.id === id ? renewed : s)));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to renew subscription.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleCancelSubscription = async (id: string) => {
     try {
+      setOperationError(null);
       const cancelled = await SaaSClient.cancelSubscription(id);
       setSubscriptions((prev) => prev.map((s) => (s.id === id ? cancelled : s)));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to cancel subscription.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
@@ -365,22 +405,24 @@ function SaaSAdminContent() {
   // ════════════════════════ PAYMENT HANDLERS ════════════════════════
   const handleCreatePayment = async (payload: Partial<SaaSPayment>) => {
     try {
+      setOperationError(null);
       const created = await SaaSClient.createPayment(payload);
       setPayments((prev) => [created, ...prev]);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to record payment.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleDeletePayment = async (id: string) => {
     try {
+      setOperationError(null);
       await SaaSClient.deletePayment(id);
       setPayments((prev) => prev.filter((p) => p.id !== id));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to delete payment.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
@@ -388,44 +430,48 @@ function SaaSAdminContent() {
   // ════════════════════════ BACKUP HANDLERS ════════════════════════
   const handleCreateBackup = async (name?: string, backup_type?: string) => {
     try {
+      setOperationError(null);
       const created = await SaaSClient.createBackup(name, backup_type);
       setBackups((prev) => [created, ...prev]);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create backup.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleExportTenant = async (tenantId: string) => {
     try {
+      setOperationError(null);
       await SaaSClient.exportTenantData(tenantId);
       loadTabData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to export tenant data.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleRestoreBackup = async (backupId: string) => {
     try {
+      setOperationError(null);
       await SaaSClient.restoreBackup(backupId);
       loadTabData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to restore backup.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
 
   const handleDeleteBackup = async (backupId: string) => {
     try {
+      setOperationError(null);
       await SaaSClient.deleteBackup(backupId);
       setBackups((prev) => prev.filter((b) => b.id !== backupId));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to delete backup.';
-      setPageError(msg);
+      setOperationError(msg);
       throw err;
     }
   };
@@ -517,7 +563,7 @@ function SaaSAdminContent() {
         </div>
       </div>
 
-      {/* Global Error Alert */}
+      {/* Global Load Error Alert */}
       {pageError && (
         <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -530,6 +576,34 @@ function SaaSAdminContent() {
           >
             Retry
           </button>
+        </div>
+      )}
+
+      {/* Mutation Operation Error Alert */}
+      {operationError && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{operationError}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={loadTabData}
+              className="underline font-semibold hover:opacity-80 transition-opacity"
+            >
+              Refresh
+            </button>
+            <button
+              onClick={() => setOperationError(null)}
+              className="text-muted-foreground hover:text-foreground font-semibold transition-colors"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
 
@@ -559,6 +633,15 @@ function SaaSAdminContent() {
           onToggleStatus={handleToggleTenantStatus}
           onDeleteTenant={handleDeleteTenant}
           onImpersonate={handleImpersonate}
+        />
+      )}
+
+      {activeTab === 'api-credentials' && (
+        <SaaSApiCredentialsManagement
+          credentials={apiCredentials}
+          tenants={tenants}
+          onRefresh={loadTabData}
+          onError={setOperationError}
         />
       )}
 

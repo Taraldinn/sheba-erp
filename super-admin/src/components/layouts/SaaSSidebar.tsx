@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ApiClient } from "@/lib/api";
+import { SaaSClient } from "@/lib/saas-api";
 
 export function SaaSSidebar() {
   const [collapsed, setCollapsed] = useState(false);
@@ -36,9 +36,9 @@ export function SaaSSidebar() {
   useEffect(() => {
     async function checkPending() {
       try {
-        const reqs = await ApiClient.getSaaSTenantRequests();
+        const reqs = await SaaSClient.getRequests();
         if (Array.isArray(reqs)) {
-          const pending = reqs.filter((r: any) => r.status === "pending").length;
+          const pending = reqs.filter((r) => r.status === "pending").length;
           setPendingRequestsCount(pending);
         }
       } catch {}
@@ -54,7 +54,7 @@ export function SaaSSidebar() {
           tab: "overview",
           label: "SaaS Command Center",
           icon: LayoutDashboard,
-          href: "/saas-admin?tab=overview",
+          href: "/?tab=overview",
         },
       ],
     },
@@ -65,13 +65,19 @@ export function SaaSSidebar() {
           tab: "tenants",
           label: "Active ISP Tenants",
           icon: Building2,
-          href: "/saas-admin?tab=tenants",
+          href: "/?tab=tenants",
+        },
+        {
+          tab: "api-credentials",
+          label: "ISP API Credentials",
+          icon: KeyRound,
+          href: "/?tab=api-credentials",
         },
         {
           tab: "requests",
           label: "Onboarding Requests",
           icon: Inbox,
-          href: "/saas-admin?tab=requests",
+          href: "/?tab=requests",
           badge: pendingRequestsCount > 0 ? `${pendingRequestsCount} Pending` : undefined,
           badgeColor: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30",
         },
@@ -79,7 +85,7 @@ export function SaaSSidebar() {
           tab: "domains",
           label: "Domain Routing & DNS",
           icon: Globe,
-          href: "/saas-admin?tab=domains",
+          href: "/?tab=domains",
         },
       ],
     },
@@ -90,13 +96,13 @@ export function SaaSSidebar() {
           tab: "users",
           label: "Platform Super Admins",
           icon: ShieldCheck,
-          href: "/saas-admin?tab=users",
+          href: "/?tab=users",
         },
         {
           tab: "tenant-owners",
           label: "Tenant Master Accounts",
           icon: Users,
-          href: "/saas-admin?tab=tenant-owners",
+          href: "/?tab=tenant-owners",
         },
       ],
     },
@@ -107,19 +113,19 @@ export function SaaSSidebar() {
           tab: "packages",
           label: "SaaS Packages & Tiers",
           icon: Layers,
-          href: "/saas-admin?tab=packages",
+          href: "/?tab=packages",
         },
         {
           tab: "subscriptions",
           label: "Tenant Subscriptions",
           icon: CreditCard,
-          href: "/saas-admin?tab=subscriptions",
+          href: "/?tab=subscriptions",
         },
         {
           tab: "payments",
           label: "Software Payment Ledger",
           icon: Receipt,
-          href: "/saas-admin?tab=payments",
+          href: "/?tab=payments",
         },
       ],
     },
@@ -130,13 +136,13 @@ export function SaaSSidebar() {
           tab: "backups",
           label: "Database Backups",
           icon: Database,
-          href: "/saas-admin?tab=backups",
+          href: "/?tab=backups",
         },
         {
           tab: "export",
           label: "Single-Tenant Data Export",
           icon: DownloadCloud,
-          href: "/saas-admin?tab=export",
+          href: "/?tab=export",
         },
       ],
     },
@@ -147,7 +153,7 @@ export function SaaSSidebar() {
           tab: "audit",
           label: "Global Audit Stream",
           icon: FileText,
-          href: "/saas-admin?tab=audit",
+          href: "/?tab=audit",
         },
       ],
     },
