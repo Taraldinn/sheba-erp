@@ -153,10 +153,26 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# P1.5 — WhiteNoise: serve gzipped + br compressed static files
+# Cloudflare R2 / AWS S3 Configuration
+USE_S3_STORAGE = env.bool('USE_S3_STORAGE', default=False)
+USE_S3_STATIC = env.bool('USE_S3_STATIC', default=False)
+AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID', default='')
+AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY', default='')
+AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME', default='')
+AWS_S3_ENDPOINT_URL = env('AWS_S3_ENDPOINT_URL', default=None)  # Cloudflare R2 or MinIO endpoint
+AWS_S3_REGION_NAME = env('AWS_S3_REGION_NAME', default='auto')
+AWS_S3_CUSTOM_DOMAIN = env('AWS_S3_CUSTOM_DOMAIN', default=None)
+AWS_S3_SIGNATURE_VERSION = 's3v4'
+AWS_S3_FILE_OVERWRITE = False
+
+# Dynamic STORAGES configuration: S3/R2 with WhiteNoise / Local fallback
 STORAGES = {
-    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
-    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+    'default': {
+        'BACKEND': 'apps.core.storage.MediaS3Storage' if USE_S3_STORAGE else 'django.core.files.storage.FileSystemStorage'
+    },
+    'staticfiles': {
+        'BACKEND': 'apps.core.storage.StaticS3Storage' if USE_S3_STATIC else 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    },
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

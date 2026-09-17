@@ -229,3 +229,20 @@ class TenantPasswordResetTest(TestCase):
         # Verify new password active
         self.staff1.refresh_from_db()
         self.assertTrue(self.staff1.check_password("NewDeltaSecurePass789!"))
+
+
+class CloudStorageConfigurationTest(TestCase):
+    def test_default_storage_backends(self):
+        from django.conf import settings
+        self.assertEqual(settings.STORAGES['default']['BACKEND'], 'django.core.files.storage.FileSystemStorage')
+        self.assertEqual(settings.STORAGES['staticfiles']['BACKEND'], 'whitenoise.storage.CompressedManifestStaticFilesStorage')
+
+    def test_s3_storage_classes(self):
+        from apps.core.storage import MediaS3Storage, StaticS3Storage
+        media_storage = MediaS3Storage()
+        static_storage = StaticS3Storage()
+
+        self.assertEqual(media_storage.location, 'media')
+        self.assertFalse(media_storage.file_overwrite)
+        self.assertEqual(static_storage.location, 'static')
+        self.assertTrue(static_storage.file_overwrite)
