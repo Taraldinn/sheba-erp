@@ -1,8 +1,11 @@
+import logging
 from rest_framework import status, views, viewsets, permissions
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+
+logger = logging.getLogger(__name__)
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import StaffProfile, StaffMembership, UserRole, Role, Permission
 from .serializers import (
@@ -174,6 +177,113 @@ class LogoutView(views.APIView):
         except Exception:
             pass
         return Response({'message': 'Logged out successfully.'}, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=['1. Authentication & Users'],
+    summary='Tenant User Password Reset Request',
+    description='Requests a password reset email for an ISP staff/admin user. Always returns HTTP 200.',
+    responses={200: dict}
+)
+class TenantPasswordResetView(views.APIView):
+    """
+    Public endpoint for ISP tenant staff/admin to request a password reset email.
+    Scoped strictly to request.tenant. Always returns HTTP 200 to avoid enumeration.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+        from django.contrib.auth.tokens import default_token_generator
+
+        email = request.data.get('email', '').strip().lower()
+        tenant = getattr(request, 'tenant', None)
+
+        if email and tenant:
+            profile = StaffProfile.objects.filter(
+                tenant=tenant,
+                user__email__iexact=email,
+                user__is_active=True
+            ).select_related('user').first()
+
+            if profile and profile.user:
+                user = profile.user
+                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                token = default_token_generator.make_token(user)
+                host = request.get_host()
+                scheme = 'https' if request.is_secure() else 'http'
+                frontend_origin = request.headers.get('origin') or f"{scheme}://{host}"
+                reset_url = f"{frontend_origin}/reset-password?uid={uid}&token={token}"
+
+                try:
+                    from apps.core.email.service import EmailService
+                    EmailService.send_password_reset_email(
+                        user=user,
+                        reset_url=reset_url,
+                        recipient_email=user.email,
+                        is_superadmin=False,
+                        tenant=tenant
+                    )
+                except Exception as mail_exc:
+                    logger.error(f"TenantPasswordResetView: failed to dispatch email: {mail_exc}")
+
+        return Response({
+            'detail': 'If an account exists with this email, a password reset link has been sent.'
+        }, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=['1. Authentication & Users'],
+    summary='Tenant User Password Reset Confirm',
+    description='Validates cryptographic token and resets the ISP staff/admin user password.',
+    responses={200: dict, 400: dict}
+)
+class TenantPasswordResetConfirmView(views.APIView):
+    """
+    Public endpoint to confirm password reset for tenant staff.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from django.utils.http import urlsafe_base64_decode
+        from django.utils.encoding import force_str
+        from django.contrib.auth.tokens import default_token_generator
+
+        uidb64 = request.data.get('uid')
+        token = request.data.get('token')
+        new_password = request.data.get('new_password')
+
+        if not uidb64 or not token or not new_password:
+            return Response({'error': 'UID, token, and new_password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(new_password) < 8:
+            return Response({'error': 'Password must be at least 8 characters long.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid, is_active=True)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({'error': 'Invalid or expired password reset link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        tenant = getattr(request, 'tenant', None)
+        if tenant:
+            is_member = StaffProfile.objects.filter(tenant=tenant, user=user).exists()
+            if not is_member and not user.is_superuser:
+                return Response({'error': 'Invalid user for current tenant domain.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not default_token_generator.check_token(user, token):
+            return Response({'error': 'Invalid or expired password reset link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+
+        # Invalidate existing auth tokens
+        Token.objects.filter(user=user).delete()
+
+        return Response({
+            'detail': 'Password has been successfully updated. Please sign in with your new credentials.'
+        }, status=status.HTTP_200_OK)
 
 
 

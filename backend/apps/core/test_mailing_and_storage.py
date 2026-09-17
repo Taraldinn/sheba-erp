@@ -152,3 +152,80 @@ class SuperAdminPasswordResetTest(TestCase):
         }, format="json")
         self.assertEqual(response.status_code, 400)
         self.assertIn("error", response.data)
+
+
+class TenantPasswordResetTest(TestCase):
+    def setUp(self):
+        from rest_framework.test import APIClient
+        from rest_framework.authtoken.models import Token
+        from apps.authentication.models import StaffProfile, UserRole
+
+        self.client = APIClient()
+
+        # Tenant 1
+        self.tenant1 = Tenant.objects.create(name="Delta ISP", slug="delta-isp", domain="delta.shebafi.xyz")
+        TenantDomain.objects.create(tenant=self.tenant1, hostname="delta.shebafi.xyz", is_primary=True, is_active=True, verified=True)
+        self.staff1 = User.objects.create_user(username="delta_tech", email="tech@delta.net", password="OldPassword123!")
+        StaffProfile.objects.create(user=self.staff1, tenant=self.tenant1, role=UserRole.TECHNICIAN)
+        Token.objects.create(user=self.staff1)
+
+        # Tenant 2
+        self.tenant2 = Tenant.objects.create(name="Gamma Net", slug="gamma-net", domain="gamma.shebafi.xyz")
+        TenantDomain.objects.create(tenant=self.tenant2, hostname="gamma.shebafi.xyz", is_primary=True, is_active=True, verified=True)
+        self.staff2 = User.objects.create_user(username="gamma_tech", email="tech@gamma.net", password="OldPassword456!")
+        StaffProfile.objects.create(user=self.staff2, tenant=self.tenant2, role=UserRole.TECHNICIAN)
+
+    def test_request_password_reset_for_tenant_staff(self):
+        mail.outbox.clear()
+        response = self.client.post(
+            "/api/v1/auth/password-reset/",
+            {"email": "tech@delta.net"},
+            format="json",
+            HTTP_HOST="delta.shebafi.xyz"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("detail", response.data)
+        self.assertEqual(len(mail.outbox), 1)
+        sent = mail.outbox[0]
+        self.assertEqual(sent.to, ["tech@delta.net"])
+        self.assertIn("delta.shebafi.xyz/reset-password?uid=", sent.body)
+
+    def test_cross_tenant_password_reset_isolation(self):
+        mail.outbox.clear()
+        # Request reset for Gamma's staff on Delta's domain -> must NOT send email
+        response = self.client.post(
+            "/api/v1/auth/password-reset/",
+            {"email": "tech@gamma.net"},
+            format="json",
+            HTTP_HOST="delta.shebafi.xyz"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_confirm_tenant_password_reset(self):
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+        from django.contrib.auth.tokens import default_token_generator
+        from rest_framework.authtoken.models import Token
+
+        uid = urlsafe_base64_encode(force_bytes(self.staff1.pk))
+        token = default_token_generator.make_token(self.staff1)
+
+        response = self.client.post(
+            "/api/v1/auth/password-reset-confirm/",
+            {
+                "uid": uid,
+                "token": token,
+                "new_password": "NewDeltaSecurePass789!"
+            },
+            format="json",
+            HTTP_HOST="delta.shebafi.xyz"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify old token revoked
+        self.assertFalse(Token.objects.filter(user=self.staff1).exists())
+
+        # Verify new password active
+        self.staff1.refresh_from_db()
+        self.assertTrue(self.staff1.check_password("NewDeltaSecurePass789!"))

@@ -19,7 +19,8 @@ from apps.core.saas_views import (
     SaaSPasswordResetView, SaaSPasswordResetConfirmView
 )
 from apps.authentication.views import (
-    LoginView, CurrentUserView, LogoutView, StaffProfileViewSet, RoleViewSet, PermissionViewSet
+    LoginView, CurrentUserView, LogoutView, StaffProfileViewSet, RoleViewSet, PermissionViewSet,
+    TenantPasswordResetView, TenantPasswordResetConfirmView
 )
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
@@ -110,6 +111,8 @@ urlpatterns = [
     path('api/v1/auth/login/', LoginView.as_view(), name='auth-login'),
     path('api/v1/auth/me/', CurrentUserView.as_view(), name='auth-me'),
     path('api/v1/auth/logout/', LogoutView.as_view(), name='auth-logout'),
+    path('api/v1/auth/password-reset/', TenantPasswordResetView.as_view(), name='auth-password-reset'),
+    path('api/v1/auth/password-reset-confirm/', TenantPasswordResetConfirmView.as_view(), name='auth-password-reset-confirm'),
     
     # Public & Customer Query endpoints
     path('api/v1/health-check/', HealthCheckView.as_view(), name='health-check'),
