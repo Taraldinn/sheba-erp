@@ -15,9 +15,11 @@ from apps.core.saas_views import (
     SaaSPackageViewSet, SaaSSubscriptionViewSet, SaaSPaymentViewSet,
     SaaSBackupViewSet, SaaSUserViewSet, SaaSAuditLogViewSet,
     SaaSApiCredentialViewSet,
-    SaaSLoginView, SaaSMeView
+    SaaSLoginView, SaaSMeView, SaaSLogoutView
 )
-from apps.authentication.views import LoginView, CurrentUserView, StaffProfileViewSet, RoleViewSet, PermissionViewSet
+from apps.authentication.views import (
+    LoginView, CurrentUserView, LogoutView, StaffProfileViewSet, RoleViewSet, PermissionViewSet
+)
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
 from apps.finance.views import BillingAccountViewSet, LedgerEntryViewSet, PaymentAllocationViewSet, AdjustmentViewSet, InvoiceLineViewSet
@@ -106,6 +108,7 @@ urlpatterns = [
     # Auth endpoints
     path('api/v1/auth/login/', LoginView.as_view(), name='auth-login'),
     path('api/v1/auth/me/', CurrentUserView.as_view(), name='auth-me'),
+    path('api/v1/auth/logout/', LogoutView.as_view(), name='auth-logout'),
     
     # Public & Customer Query endpoints
     path('api/v1/health-check/', HealthCheckView.as_view(), name='health-check'),
@@ -139,6 +142,7 @@ urlpatterns = [
     path('api/v1/saas/overview/', SaaSOverviewView.as_view(), name='saas-overview'),
     path('api/v1/saas/auth/login/', SaaSLoginView.as_view(), name='saas-auth-login'),
     path('api/v1/saas/auth/me/', SaaSMeView.as_view(), name='saas-auth-me'),
+    path('api/v1/saas/auth/logout/', SaaSLogoutView.as_view(), name='saas-auth-logout'),
     
     # Customer Portal APIs
     path('api/v1/portal/', include('apps.customers.portal_urls')),

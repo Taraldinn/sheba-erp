@@ -58,6 +58,7 @@ import {
   SlidersHorizontal,
   User,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 interface SubMenuItem {
   href: string;
@@ -320,11 +321,10 @@ export function Sidebar() {
     setUserName(name);
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("sheba_auth_token");
-    localStorage.removeItem("sheba_user_role");
-    localStorage.removeItem("sheba_user_name");
-    window.location.href = "/login";
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout("/login");
   };
 
   // Compute filtered sections based on userRole

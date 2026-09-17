@@ -140,3 +140,23 @@ class TenantApiKeyAuthentication(authentication.BaseAuthentication):
 
     def authenticate_header(self, request):
         return 'Api-Key'
+
+
+try:
+    from drf_spectacular.extensions import OpenApiAuthenticationExtension
+
+    class TenantApiKeyScheme(OpenApiAuthenticationExtension):
+        target_class = 'apps.core.authentication.TenantApiKeyAuthentication'
+        name = 'apiKeyAuth'
+        match_subclasses = True
+        priority = 1
+
+        def get_security_definition(self, auto_schema):
+            return {
+                'type': 'apiKey',
+                'in': 'header',
+                'name': 'X-API-Key',
+                'description': 'Secret ISP API Key (prefix: shb_). Passed via X-API-Key or Authorization: Api-Key <key>',
+            }
+except ImportError:
+    pass

@@ -26,6 +26,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SaaSClient } from "@/lib/saas-api";
+import { useAuth } from "@/lib/auth";
 
 export function SaaSSidebar() {
   const [collapsed, setCollapsed] = useState(false);
@@ -159,12 +160,10 @@ export function SaaSSidebar() {
     },
   ];
 
-  const handleLogout = () => {
-    localStorage.removeItem("sheba_access_token");
-    localStorage.removeItem("sheba_refresh_token");
-    localStorage.removeItem("sheba_user_role");
-    localStorage.removeItem("sheba_user_name");
-    window.location.href = "/login";
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout("/login");
   };
 
   return (
@@ -264,7 +263,15 @@ export function SaaSSidebar() {
       {/* Footer / Switcher / Logout */}
       <div className="p-3 border-t border-border space-y-2">
         {!collapsed && (
-          <Link href="/">
+          <a
+            href={
+              typeof window !== "undefined" && window.location.hostname.endsWith("shebafi.xyz")
+                ? "https://app.shebafi.xyz"
+                : "http://localhost:3000"
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             <Button
               size="sm"
               variant="outline"
@@ -273,7 +280,7 @@ export function SaaSSidebar() {
               <span>Launch ISP ERP</span>
               <ExternalLink className="h-3 w-3" />
             </Button>
-          </Link>
+          </a>
         )}
 
         <Button

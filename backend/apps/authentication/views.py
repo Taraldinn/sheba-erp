@@ -158,6 +158,24 @@ class CurrentUserView(views.APIView):
         return Response(UserDetailSerializer(request.user, context={'request': request}).data)
 
 
+@extend_schema(
+    tags=['1. Authentication & Users'],
+    description='Logout active user and invalidate authentication token.',
+    responses={200: dict}
+)
+class LogoutView(views.APIView):
+    """Terminates active session and invalidates auth token."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        try:
+            if hasattr(request.user, 'auth_token'):
+                request.user.auth_token.delete()
+        except Exception:
+            pass
+        return Response({'message': 'Logged out successfully.'}, status=status.HTTP_200_OK)
+
+
 
 @extend_schema_view(
     list=extend_schema(tags=['1. Authentication & Users']),

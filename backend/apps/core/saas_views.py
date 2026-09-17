@@ -1511,6 +1511,25 @@ class SaaSMeView(views.APIView):
         })
 
 
+@extend_schema(
+    tags=['16. Multi-Tenant SaaS & Control Plane'],
+    summary='SaaS Administrator Logout',
+    description='Invalidates the active SaaS control plane session token.',
+    responses={200: dict}
+)
+class SaaSLogoutView(views.APIView):
+    """Terminates session for the authenticated Central SaaS Administrator."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        try:
+            if hasattr(request.user, 'auth_token'):
+                request.user.auth_token.delete()
+        except Exception:
+            pass
+        return Response({'message': 'Logged out successfully.'}, status=status.HTTP_200_OK)
+
+
 # ════════════════════════ 12. API CREDENTIALS MANAGEMENT ════════════════════════
 
 class SaaSApiCredentialSerializer(serializers.ModelSerializer):

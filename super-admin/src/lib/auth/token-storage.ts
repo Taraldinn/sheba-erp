@@ -231,18 +231,53 @@ export class TokenStorage {
     if (typeof window === 'undefined') return;
 
     try {
-      localStorage.removeItem(STORAGE_KEYS.TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.LEGACY_TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.USER);
-      localStorage.removeItem(STORAGE_KEYS.TENANT);
-      localStorage.removeItem(STORAGE_KEYS.TENANT_ID);
-      localStorage.removeItem(STORAGE_KEYS.ROLE);
-      localStorage.removeItem(STORAGE_KEYS.CONTEXT);
+      const keysToRemove = [
+        STORAGE_KEYS.TOKEN,
+        STORAGE_KEYS.LEGACY_TOKEN,
+        STORAGE_KEYS.USER,
+        STORAGE_KEYS.TENANT,
+        STORAGE_KEYS.TENANT_ID,
+        STORAGE_KEYS.ROLE,
+        STORAGE_KEYS.CONTEXT,
+        'sheba_access_token',
+        'sheba_refresh_token',
+        'sheba_user_role',
+        'sheba_user_name',
+        'sheba_role',
+        'token',
+        'authToken',
+      ];
+      for (const k of keysToRemove) {
+        localStorage.removeItem(k);
+      }
+      try {
+        sessionStorage.clear();
+      } catch {}
 
       if (typeof document !== 'undefined') {
-        document.cookie = `${STORAGE_KEYS.TOKEN}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-        document.cookie = `${STORAGE_KEYS.CONTEXT}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-        document.cookie = `${STORAGE_KEYS.TENANT_ID}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+        const cookieNames = [
+          STORAGE_KEYS.TOKEN,
+          STORAGE_KEYS.LEGACY_TOKEN,
+          STORAGE_KEYS.CONTEXT,
+          STORAGE_KEYS.TENANT_ID,
+          'sheba_access_token',
+          'sheba_refresh_token',
+        ];
+        const hostname = window.location.hostname;
+        const domainsToClear = [''];
+        if (hostname.includes('.')) {
+          const parts = hostname.split('.');
+          if (parts.length >= 2) {
+            domainsToClear.push(`; domain=.${parts.slice(-2).join('.')}`);
+          }
+          domainsToClear.push(`; domain=${hostname}`);
+        }
+
+        for (const name of cookieNames) {
+          for (const d of domainsToClear) {
+            document.cookie = `${name}=; path=/${d}; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+          }
+        }
       }
     } catch (e) {
       console.error('Failed to clear storage credentials', e);

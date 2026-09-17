@@ -186,27 +186,28 @@ export function AuthProvider({ children, initialContext }: AuthProviderProps) {
 
   const logout = useCallback(
     async (redirectUrl?: string) => {
-      setIsLoading(true);
       const activeToken = token || TokenStorage.getStoredToken();
       const activeContext = contextType || TokenStorage.getStoredContextType();
 
-      try {
-        if (activeToken) {
-          await AuthService.logout(activeToken, activeContext);
-        }
-      } catch (err) {
-        console.warn('Backend logout encountered error, cleaning client state:', err);
-      } finally {
-        TokenStorage.clearStoredAuth();
-        setUser(null);
-        setToken(null);
-        setTenantIdState(null);
-        setError(null);
-        setIsLoading(false);
+      // Immediately purge all local storage, cookies, and context state
+      TokenStorage.clearStoredAuth();
+      setUser(null);
+      setToken(null);
+      setTenantIdState(null);
+      setError(null);
+      setIsLoading(false);
 
-        if (redirectUrl && typeof window !== 'undefined') {
-          window.location.href = redirectUrl;
+      // Invalidate on backend asynchronously
+      if (activeToken) {
+        try {
+          await AuthService.logout(activeToken, activeContext);
+        } catch (err) {
+          console.warn('Backend logout encountered error, local state cleaned:', err);
         }
+      }
+
+      if (redirectUrl && typeof window !== 'undefined') {
+        window.location.href = redirectUrl;
       }
     },
     [token, contextType]
