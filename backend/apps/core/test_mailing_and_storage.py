@@ -51,3 +51,37 @@ class EmailServiceTest(TestCase):
         email = mail.outbox[0]
         self.assertIn("Password Reset", email.subject)
         self.assertIn("https://super-admin.shebafi.xyz/reset-password?uid=MQ&token=test-token", email.body)
+
+
+class TenantOnboardingEmailTest(TestCase):
+    def setUp(self):
+        from rest_framework.test import APIClient
+        self.client = APIClient()
+        self.superuser = User.objects.create_superuser(
+            username="central_admin",
+            email="superadmin@shebafi.xyz",
+            password="MasterSecretPassword123!"
+        )
+        self.client.force_authenticate(user=self.superuser)
+
+    def test_tenant_creation_sends_welcome_email(self):
+        mail.outbox.clear()
+        payload = {
+            "name": "Barisal Broadband",
+            "slug": "barisal-bb",
+            "domain": "barisal.shebafi.xyz",
+            "contact_email": "owner@barisal.net",
+            "contact_phone": "+880 1811-999888",
+            "plan": "Growth",
+            "admin_username": "barisal_root",
+            "admin_password": "CustomPassword99!"
+        }
+        response = self.client.post("/api/v1/saas/tenants/", payload, format="json")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(len(mail.outbox), 1)
+        sent_email = mail.outbox[0]
+        self.assertEqual(sent_email.to, ["owner@barisal.net"])
+        self.assertIn("Welcome to ShebaFi", sent_email.subject)
+        self.assertIn("barisal_root", sent_email.body)
+        self.assertIn("CustomPassword99!", sent_email.body)
+        self.assertIn("barisal.shebafi.xyz", sent_email.body)

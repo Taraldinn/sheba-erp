@@ -3,7 +3,10 @@ import shutil
 import hashlib
 import json
 import uuid
+import logging
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 from rest_framework import views, viewsets, permissions, status, serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -482,6 +485,20 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
             resource_id=str(tenant.id),
             details={'tenant_name': name, 'slug': slug, 'plan': plan, 'domain': domain}
         )
+
+        # 7. Dispatch Onboarding Welcome Email
+        portal_url = f"https://{domain}/login" if 'localhost' not in domain else f"http://{local_host}:3000/login"
+        try:
+            from apps.core.email.service import EmailService
+            EmailService.send_client_onboarding_email(
+                tenant=tenant,
+                admin_username=admin_username,
+                temporary_password=admin_password,
+                portal_url=portal_url,
+                recipient_email=tenant.contact_email
+            )
+        except Exception as mail_exc:
+            logger.warning(f"Failed to dispatch onboarding email for tenant {slug}: {mail_exc}")
 
         serializer = self.get_serializer(tenant)
         return Response({
