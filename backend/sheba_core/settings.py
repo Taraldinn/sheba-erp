@@ -182,6 +182,7 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.ScopedRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
+        'api_key': env('THROTTLE_API_KEY_RATE', default='1000/minute'),
         'anon': env('THROTTLE_ANON_RATE', default='100/minute'),
         'user': env('THROTTLE_USER_RATE', default='1000/minute'),
         'auth': env('THROTTLE_AUTH_RATE', default='30/minute'),

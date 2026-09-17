@@ -1,13 +1,13 @@
 {
-  "name": "frontend",
+  "name": "sheba-super-admin",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3001",
     "lint": "eslint",
-    "test": "npx tsx --test src/lib/auth/__tests__/auth.test.ts src/lib/__tests__/saas-api.test.ts src/lib/settings/__tests__/settings-api.test.ts"
+    "test": "npx tsx --test src/lib/auth/__tests__/auth.test.ts src/lib/__tests__/saas-api.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

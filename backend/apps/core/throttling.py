@@ -13,6 +13,12 @@ class TenantApiKeyRateThrottle(throttling.SimpleRateThrottle):
     """
     scope = 'api_key'
 
+    def get_rate(self):
+        try:
+            return super().get_rate()
+        except Exception:
+            return '1000/minute'
+
     def get_cache_key(self, request, view):
         if getattr(request, 'auth_type', None) != 'api_key':
             return None

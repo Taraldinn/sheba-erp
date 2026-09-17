@@ -14,7 +14,7 @@ import {
   TenantSummary,
 } from './auth-types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_API_URL || 'http://localhost:8000/api/v1';
 
 export class AuthService {
   /**
@@ -197,8 +197,8 @@ export class AuthService {
       role: data.user.role || 'PLATFORM_SUPER_ADMIN',
       tenant: null,
       tenant_id: null,
-      dashboardUrl: '/saas-admin',
-      dashboard_url: '/saas-admin',
+      dashboardUrl: '/',
+      dashboard_url: '/',
     };
 
     return {
@@ -328,8 +328,8 @@ export class AuthService {
       role: data.role || 'PLATFORM_SUPER_ADMIN',
       tenant: null,
       tenant_id: null,
-      dashboardUrl: '/saas-admin',
-      dashboard_url: '/saas-admin',
+      dashboardUrl: '/',
+      dashboard_url: '/',
     };
   }
 
