@@ -1,0 +1,22 @@
+Welcome to ShebaFi ISP Platform
+==================================================
+
+Hello {{ tenant_name }} Team,
+
+Your ISP tenant environment has been successfully provisioned on the ShebaFi Platform.
+
+Your administrative credentials:
+- ISP Tenant: {{ tenant_name }} ({{ tenant_slug }})
+- Portal URL: {{ portal_url }}
+- Admin Username: {{ admin_username }}
+- Temporary Password: {{ temporary_password }}
+
+Access your portal here:
+{{ portal_url }}
+
+SECURITY NOTICE:
+Please log in immediately and update your administrative password under Settings -> Profile.
+
+--
+ShebaFi Platform
+Automated administrative notification dispatched from SaaS Control Plane.

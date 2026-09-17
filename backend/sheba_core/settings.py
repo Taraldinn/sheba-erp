@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'drf_spectacular',
     'whitenoise.runserver_nostatic',   # serve compressed statics in dev too
+    'storages',                        # Cloudflare R2 / AWS S3 storage backend
     # Sheba ISP Core Apps
     'apps.core',
     'apps.authentication',
@@ -456,3 +457,16 @@ if 'test' in sys.argv:
     REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = []
     if not FIELD_ENCRYPTION_KEY:
         FIELD_ENCRYPTION_KEY = 'test-encryption-key-for-running-tests-cleanly-32chars!'
+
+# ─── Transactional Mailing Configuration ────────────────────────────────────
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='ShebaFi Platform <noreply@shebafi.xyz>')
+PASSWORD_RESET_TIMEOUT = env.int('PASSWORD_RESET_TIMEOUT', default=900)  # 15 minutes
+
+if 'test' in sys.argv:
+    EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'

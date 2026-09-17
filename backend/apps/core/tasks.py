@@ -938,3 +938,31 @@ def emit_platform_audit_event(
             raise self.retry(exc=exc)
         return {'success': False, 'error': str(exc)}
 
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=15)
+def send_transactional_email_task(self, subject: str, recipient_list: list, text_body: str, html_body: str = None, from_email: str = None):
+    """
+    Asynchronous Celery worker task for sending transactional emails (onboarding, password reset, etc.).
+    """
+    from django.core.mail import EmailMultiAlternatives
+    from django.conf import settings
+
+    sender = from_email or getattr(settings, 'DEFAULT_FROM_EMAIL', 'ShebaFi Platform <noreply@shebafi.xyz>')
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_body,
+            from_email=sender,
+            to=recipient_list
+        )
+        if html_body:
+            msg.attach_alternative(html_body, "text/html")
+        sent_count = msg.send(fail_silently=False)
+        logger.info(f"send_transactional_email_task succeeded: sent to {recipient_list}")
+        return {'success': True, 'recipients': recipient_list, 'sent_count': sent_count}
+    except Exception as exc:
+        logger.error(f"send_transactional_email_task error sending to {recipient_list}: {exc}", exc_info=True)
+        if hasattr(self, 'retry') and hasattr(self, 'request') and self.request.retries < self.max_retries:
+            raise self.retry(exc=exc)
+        return {'success': False, 'error': str(exc), 'recipients': recipient_list}
+
