@@ -107,8 +107,20 @@ To prevent architectural regressions, all downstream development adheres to the 
                             │
                             ▼
 ┌────────────────────────────────────────────────────────┐
-│                        STAGE 9+                        │
-│   Product Features: Portal, CRM, Corporate, Reports    │
+│                        STAGE 9                         │
+│   Product / SaaS Features (Super Admin Separation)     │ [DONE]
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                        STAGE 10                        │
+│   External Frontend Platform & Production Hardening    │ [ACTIVE]
+└───────────────────────────┬────────────────────────────┘
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                        STAGE 11                        │
+│                   Production Launch                    │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -118,19 +130,23 @@ To prevent architectural regressions, all downstream development adheres to the 
 
 ```mermaid
 graph TB
-    subgraph Clients["Client Layer"]
-        Browser["Next.js Web Client<br/>(Staff / Management Dashboard)"]
+    subgraph Clients["Client & Integration Layer"]
+        SuperAdminUI["Super Admin Dashboard<br/>(admin.shebafi.xyz / super-admin/)"]
+        ISPAdminUI["ISP Admin & Staff Dashboard<br/>({tenant}.shebafi.xyz / frontend/)"]
+        ExternalBFF["External ISP Frontend / BFF<br/>(Secret API Key: X-API-Key)"]
+        CustomerPortal["Customer Self-Care Portal<br/>(portal.shebafi.xyz / JWT Auth)"]
         MobileSMS["Android SMS Gateway<br/>(Payment SMS Forwarder)"]
-        CustomerPortal["Customer Self-Care Portal<br/>(Future App)"]
     end
 
     subgraph Edge["Edge / Reverse Proxy"]
-        Nginx["Nginx Reverse Proxy<br/>(SSL Termination & Host Routing)"]
+        Nginx["Nginx Reverse Proxy<br/>(SSL Termination, Host Routing, Rate Limiting)"]
     end
 
-    subgraph Backend["Application Server (Django 5.x REST Framework)"]
+    subgraph Backend["Application Server (Django 5.x / 6.x REST Framework)"]
         MW["TenantResolutionMiddleware<br/>(Host -> TenantDomain -> Tenant)"]
-        Auth["Authentication & RBAC<br/>(StaffMembership + HasTenantPermission)"]
+        CID["CorrelationIdMiddleware<br/>(X-Request-ID & Request Tracing)"]
+        Auth["Authentication & RBAC<br/>(StaffMembership + HasTenantPermission + ApiKeyAuth)"]
+        Throttle["Dynamic Throttle<br/>(TenantApiKeyRateThrottle)"]
         API["Hardened ViewSets & Action Serializers<br/>(TenantScopedViewSetMixin)"]
         NetService["Network Services Layer<br/>(MikroTikService & OpticalPowerService)"]
     end
@@ -142,7 +158,7 @@ graph TB
     end
 
     subgraph Storage["Persistence Layer"]
-        Postgres[("PostgreSQL 16+<br/>(Shared Schema, Application-Enforced Tenant Isolation)")]
+        Postgres[("PostgreSQL 16+ / 18.x<br/>(Shared Schema, Application-Enforced Tenant Isolation)")]
     end
 
     subgraph Hardware["Physical Network Infrastructure"]
@@ -151,13 +167,17 @@ graph TB
         ONU["Customer ONUs / CPEs"]
     end
 
-    Browser --> Nginx
-    MobileSMS --> Nginx
+    SuperAdminUI --> Nginx
+    ISPAdminUI --> Nginx
+    ExternalBFF --> Nginx
     CustomerPortal --> Nginx
+    MobileSMS --> Nginx
 
-    Nginx --> MW
+    Nginx --> CID
+    CID --> MW
     MW --> Auth
-    Auth --> API
+    Auth --> Throttle
+    Throttle --> API
 
     API --> Postgres
     API -->|task.delay| Redis

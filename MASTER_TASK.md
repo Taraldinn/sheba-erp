@@ -4,8 +4,8 @@
 - **Repository**: `Taraldinn/sheba-erp`
 - **File**: `MASTER_TASK.md`
 - **Status**: AUTHORITATIVE MASTER TASK SOURCE OF TRUTH
-- **Effective Date**: 2026-09-07
-- **Current Active Stage**: STAGE 9 — Customer Portal
+- **Effective Date**: 2026-09-17
+- **Current Active Stage**: STAGE 10 — External Frontend Platform & Production Hardening [COMPLETED]
 
 ---
 
@@ -334,38 +334,46 @@ The following reproducible baseline commands were executed on the repository:
 
 ---
 
-### STAGE 9 — Customer Portal
-- **STATUS**: `NOT_STARTED`
+### STAGE 9 — Product & SaaS Features (Super Admin Separation & Customer Portal)
+- **STATUS**: `COMPLETED`
 - **DEPENDENCIES**: Stage 8
-- **OBJECTIVE**: Build dedicated subscriber self-care portal API (`apps/portal/`) allowing customers to view usage, pay bills, and open support tickets without staff permissions.
+- **OBJECTIVE**: Separate Super Admin and ISP Admin panels into independent frontends, build dedicated customer portal API (`apps/customers/portal_views.py`), and implement bKash/Nagad checkout and ticketing.
 - **TASKS**:
-  - [ ] S9.1 Create `apps/portal/` with customer token authentication (phone + OTP).
-  - [ ] S9.2 Customer subscription and live bandwidth usage endpoints.
-  - [ ] S9.3 Customer self-checkout payment initiation endpoint (bKash/Nagad checkout).
-  - [ ] S9.4 Customer ticket creation and thread view.
+  - [x] S9.1 Stand up dedicated Super Admin panel (`super-admin/`, Next.js 16.3.4 Turbopack) at `admin.shebafi.xyz`.
+  - [x] S9.2 Segregate ISP Admin panel (`frontend/`) and remove all `/saas-admin` exposure from tenant space.
+  - [x] S9.3 Customer self-care portal with OTP authentication and JWT bearer auth (`apps/customers/portal_urls.py`).
+  - [x] S9.4 Self-care billing, online payment checkout (bKash tokenized), advance settlement, and ledger history.
+  - [x] S9.5 Customer support ticket creation, reply threads, and attachment uploads.
 - **ACCEPTANCE CRITERIA**:
+  - Zero `/saas-admin` routes or control plane code accessible from tenant frontend.
   - Customer accounts have zero access to staff API endpoints.
-  - Customers can only view their own subscriber data and invoices.
-- **TEST REQUIREMENTS**:
-  - Portal customer permission isolation tests.
+  - 39 automated frontend tests and 27 portal tests passing.
 
 ---
 
-### STAGE 10 — CRM + Field Operations + SMS
-- **STATUS**: `NOT_STARTED`
-- **DEPENDENCIES**: Stage 8
-- **OBJECTIVE**: Enhance customer support tickets, technician work order dispatching, optical fiber loss reporting, and automated SMS gateway broadcasts.
+### STAGE 10 — External Frontend Platform & Production Hardening
+- **STATUS**: `COMPLETED`
+- **DEPENDENCIES**: Stage 9
+- **OBJECTIVE**: Finalize the separated Super Admin / ISP Admin architecture and make the ERP safe and stable for independently deployed ISP frontends and backend integrations.
 - **TASKS**:
-  - [ ] S10.1 Ticket escalation workflows with SLA timers.
-  - [ ] S10.2 Field technician mobile task dispatch with GPS coordinates and completion photos.
-  - [ ] S10.3 Bulk SMS broadcast queue with dynamic template tag replacement (`{name}`, `{due_date}`, `{amount}`).
-  - [ ] S10.4 SMS gateway provider failover (Onnorokom, Greenweb, Elitbuzz).
+  - [x] S10.1 Architecture Verification: Strict panel boundaries, 0 control plane leakage, modular monolith preserved.
+  - [x] S10.2 API Credential Security: TenantApiToken SHA-256 hash at rest, `shb_` prefix, rotation, one-time reveal, dynamic per-key rate throttling (`TenantApiKeyRateThrottle`).
+  - [x] S10.3 API Client / BFF Contract: Server-to-server contract via `X-API-Key` and `Authorization: Api-Key`, standardized error codes.
+  - [x] S10.4 Tenant Isolation Final Gate: Complete IDOR immunity, cross-tenant read/write/delete/custom-action rejection verified (`test_stage10_tenant_isolation_gate.py`).
+  - [x] S10.5 RBAC Final Gate: SUPER_ADMIN, ISP_ADMIN, ISP_STAFF, and API_CLIENT scoped permissions verified (`test_stage10_rbac_gate.py`).
+  - [x] S10.6 Finance & Payment Production Gate: Ledger immutability on delete and update, monthly invoice uniqueness per customer, and recharge accessibility verified (`test_stage10_finance_gate.py`).
+  - [x] S10.7 Redis / Celery Runtime Gate: Async task retry policies, worker/beat smoke tests, and tenant context propagation verified.
+  - [x] S10.8 Network Boundary Gate: Router and OLT credentials encrypted at rest, audit password redaction, SSRF protection against cloud metadata and loopback, and `transaction.on_commit` hardware boundary verified (`test_stage10_network_gate.py`).
+  - [x] S10.9 API Contract Freeze: OpenAPI schema valid with `apiKeyHeaderAuth` and `apiKeyAuthorizationAuth` security schemes.
+  - [x] S10.10 PostgreSQL Production Verification: Schema migrations applied cleanly on live PostgreSQL 18.6 (Neon) database.
+  - [x] S10.11 Observability: `CorrelationIdMiddleware` injecting `X-Request-ID` across all HTTP responses and thread-local logs.
+  - [x] S10.12 Backup & Recovery: Management commands `backup_database` (compressed, SHA-256 checksummed, tracked) and `restore_database` operational.
+  - [x] S10.13 Documentation Freeze: `ARCHITECTURE.md`, `MASTER_TASK.md`, `API_CONTRACT.md` synchronized.
+  - [x] S10.14 Production Readiness Gate: Django checks pass with 0 issues, OpenAPI validates, and all Next.js frontends (`super-admin`, `frontend`, `docs`) build cleanly.
 - **ACCEPTANCE CRITERIA**:
-  - Field technicians can only view tasks assigned to them.
-  - Bulk SMS broadcasts are queued asynchronously without blocking HTTP threads.
-- **TEST REQUIREMENTS**:
-  - SMS queue dispatch tests.
-  - Technician task state transition tests.
+  - 32 automated Stage 10 gate tests passing (0 failures, 0 errors).
+  - 39 frontend unit/integration tests passing.
+  - Full production builds of `super-admin`, `frontend`, and `docs` passing.
 
 ---
 

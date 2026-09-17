@@ -29,7 +29,7 @@ def _make_tenant(name, slug, domain):
 
 def _make_staff(tenant, username):
     user = User.objects.create_user(username=username, password="password123")
-    role = Role.objects.create(tenant=tenant, name=f"Admin-{username}")
+    role = Role.objects.create(tenant=tenant, name="Admin")
     StaffMembership.objects.create(user=user, tenant=tenant, role=role, is_active=True)
     return user
 

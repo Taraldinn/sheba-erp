@@ -10,6 +10,9 @@ class ImmutableQuerySet(models.QuerySet):
     def delete(self):
         raise ValidationError("Financial records are immutable and cannot be deleted. Use compensating reversal or adjustment entries.")
 
+    def update(self, **kwargs):
+        raise ValidationError("Financial records are immutable and cannot be updated. Use compensating reversal or adjustment entries.")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BillingAccount — per-customer billing summary (Plan Phase E)

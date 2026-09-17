@@ -54,6 +54,9 @@ The following endpoints have duplicates registered in `sheba_core/urls.py`. The 
 | POST | `/api/v1/saas/backups/export-tenant/` | Token | `IsCentralAdmin` | Export single-tenant data snapshot |
 | GET | `/api/v1/saas/backups/{id}/download/` | Token | `IsCentralAdmin` | Download backup file |
 | GET/POST | `/api/v1/saas/users/` | Token | `IsCentralAdmin` | Central user management |
+| GET/POST | `/api/v1/saas/api-credentials/` | Token | `IsCentralAdmin` | Secret ISP API Key credentials CRUD & rotation |
+| POST | `/api/v1/saas/api-credentials/{id}/rotate/` | Token | `IsCentralAdmin` | Rotate API credential, returning new secret once |
+| POST | `/api/v1/saas/api-credentials/{id}/revoke/` | Token | `IsCentralAdmin` | Instantly revoke API credential |
 | GET | `/api/v1/saas/audit-logs/` | Token | `IsCentralAdmin` | Platform audit log |
 | GET | `/api/v1/saas/overview/` | Token | `IsCentralAdmin` | Platform summary stats |
 
@@ -201,15 +204,45 @@ Common error codes:
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | Request data failed validation |
 | 401 | `AUTHENTICATION_REQUIRED` | No or expired token |
+| 401 | `INVALID_API_KEY` | Provided API key does not match hash or prefix |
+| 401 | `CREDENTIAL_REVOKED` | API key has been explicitly revoked |
+| 401 | `CREDENTIAL_EXPIRED` | API key expiration timestamp has passed |
+| 401 | `CREDENTIAL_SUSPENDED` | API key is temporarily suspended |
 | 403 | `CROSS_TENANT_LOGIN` | User belongs to different tenant |
 | 403 | `TENANT_INACTIVE` | Tenant is suspended |
-| 403 | `CONTROL_PLANE_ACCESS_DENIED` | Tenant staff on control plane |
-| 403 | `PERMISSION_DENIED` | Authenticated but lacking capability |
+| 403 | `CONTROL_PLANE_ACCESS_DENIED` | Tenant staff or API client on control plane |
+| 403 | `PERMISSION_DENIED` | Authenticated but lacking capability/scope |
 | 404 | `TENANT_NOT_FOUND` | Unknown domain |
 | 404 | `NOT_FOUND` | Object does not exist in this tenant |
 | 409 | `DUPLICATE_EVENT` | Idempotent webhook replayed |
 | 423 | `LOCKED` | Distributed lock held — retry later |
+| 429 | `THROTTLED` | API key rate limit exceeded |
 | 500 | `INTERNAL_ERROR` | Server error |
+
+---
+
+## Machine-to-Machine & BFF API Key Authentication (Stage 10)
+
+Independently hosted ISP frontends, Backend-For-Frontend (BFF) layers, and automated scripts authenticate using Secret ISP API Keys.
+
+### Request Headers
+```http
+X-API-Key: shb_abc123_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+*Or alternatively:*
+```http
+Authorization: Api-Key shb_abc123_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### Rate Limiting & Throttling
+- Configured dynamically per credential (`rate_limit` field, e.g. 1000 requests/minute).
+- Throttled via `TenantApiKeyRateThrottle` with cache keys scoped to `throttle_api_key_{token_id}`.
+- Exceeding limit returns `HTTP 429 Too Many Requests`.
+
+### End-to-End Request Tracing (Correlation IDs)
+- All requests are traced using `X-Request-ID` or `X-Correlation-ID`.
+- Incoming IDs from client headers are preserved; missing IDs are auto-generated.
+- Responses echo back `X-Request-ID: <id>`.
 
 ---
 
