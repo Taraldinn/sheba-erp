@@ -33,3 +33,43 @@ The production infrastructure is orchestrated using **Dokploy**, a self-hosted P
   3. Waits for the container healthcheck to pass.
   4. Flips the Traefik proxy routes to the new container.
   5. Terminates the old container without dropping active HTTP connections.
+
+---
+
+## 3. Redis Setup & Dokploy Networking
+
+In Dokploy, Redis can be deployed via Dokploy Managed Database or Dokploy Compose.
+
+### Why `localhost` Fails in Dokploy
+Inside a Docker container, `localhost` (or `127.0.0.1`) refers strictly to the container itself. Because Redis runs in a separate container, connecting to `redis://localhost:6379/0` will fail with `Connection refused (Errno 111)`.
+
+### Option A: Dokploy Managed Database (Recommended in UI)
+1. In Dokploy, go to your Project -> **Create Database** -> **Redis**.
+2. Note the **Service Name** (e.g., `sheba-redis`) and generated **Password**.
+3. In your Backend Application -> **Configuration** -> **Network**, ensure both services are connected to the same network (`dokploy-network`).
+4. In Backend Application -> **Environment Variables**, set:
+   ```bash
+   REDIS_URL=redis://:your_password@sheba-redis:6379/0
+   ```
+   Or set discrete variables (auto-assembled by Django):
+   ```bash
+   REDIS_HOST=sheba-redis
+   REDIS_PORT=6379
+   REDIS_PASSWORD=your_password
+   REDIS_DB=0
+   ```
+
+### Option B: Dokploy Compose (Stack)
+If deploying via `docker-compose.yml`, the Redis service is named `redis`:
+```bash
+REDIS_URL=redis://redis:6379/0
+# Or if password is set:
+REDIS_URL=redis://:your_password@redis:6379/0
+```
+
+### Diagnostic Command
+To verify Redis connectivity inside the Dokploy container, execute:
+```bash
+python manage.py check_redis
+```
+This inspects DNS resolution, TCP handshakes, authentication, latency, and distributed lock safety.

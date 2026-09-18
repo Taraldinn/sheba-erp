@@ -17,6 +17,7 @@ import uuid
 import logging
 from typing import Any, Optional, Tuple, Dict
 from django.conf import settings
+from django.core.serializers.json import DjangoJSONEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +77,10 @@ class RedisService:
         if cls._client is None:
             try:
                 # Configure robust connection pool with aggressive timeouts
+                redis_password = getattr(settings, 'REDIS_PASSWORD', None) or None
                 cls._connection_pool = redis.ConnectionPool.from_url(
                     redis_url,
+                    password=redis_password,
                     socket_connect_timeout=1.0,
                     socket_timeout=1.0,
                     retry_on_timeout=True,
@@ -146,28 +149,36 @@ class RedisService:
             return default
 
     @classmethod
-    def set(cls, key: str, value: Any, timeout: Optional[int] = None) -> bool:
+    def set(cls, key: str, value: Any, timeout: Optional[int] = None, ttl: Optional[int] = None) -> bool:
         """
         Stores an item in Redis with an optional TTL (in seconds).
-        Serializes dicts, lists, and booleans to JSON automatically.
+        Serializes dicts, lists, and booleans to JSON automatically using DjangoJSONEncoder.
         """
+        effective_timeout = timeout if timeout is not None else ttl
         cls._metrics['operations'] += 1
         client = cls.get_client()
 
-        # Serialize complex types to JSON
-        if isinstance(value, (dict, list, tuple, bool)):
-            payload = json.dumps(value)
-        else:
-            payload = str(value)
+        # Serialize complex types to JSON safely with UUID, Decimal, and datetime support
+        try:
+            if isinstance(value, (dict, list, tuple, bool)):
+                payload = json.dumps(value, cls=DjangoJSONEncoder, default=str)
+            else:
+                payload = str(value)
+        except Exception as err:
+            logger.warning("RedisService.set serialization failed on key '%s': %s", key, err)
+            try:
+                payload = json.dumps(str(value))
+            except Exception:
+                return False
 
         if client is None:
-            expires_at = (time.time() + timeout) if timeout else None
+            expires_at = (time.time() + effective_timeout) if effective_timeout else None
             cls._memory_cache[key] = (value, expires_at)
             return True
 
         try:
-            if timeout:
-                return bool(client.setex(key, timeout, payload))
+            if effective_timeout:
+                return bool(client.setex(key, effective_timeout, payload))
             else:
                 return bool(client.set(key, payload))
         except (RedisError, RedisConnectionError, RedisTimeoutError, OSError) as exc:

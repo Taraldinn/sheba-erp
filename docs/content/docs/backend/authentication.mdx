@@ -27,7 +27,7 @@ description: Authentication tokens, staff profiles, multi-tenant RBAC permission
 
 ## 2. Authorization & RBAC Workflow
 
-Permissions are defined in `apps.authentication.permissions`:
+Permissions are defined in `apps.authentication.permissions` and verified via `StaffMembership`:
 
 ```python
 class HasPermissionScope(permissions.BasePermission):
@@ -51,11 +51,17 @@ class HasPermissionScope(permissions.BasePermission):
         return membership.role.permissions.filter(code=required_perm).exists()
 ```
 
+### Authoritative Role Assignment & Seeding
+- **Default Roles**: Initialized per tenant via `seed_default_roles_for_tenant(tenant)` in `apps.authentication.services.rbac`. Seeds default roles: `Admin` (`permissions='__all__'`), `Manager`, `Accountant`, `Technician`, and `Support`.
+- **Tenant Administrator**: Provisioned via `provision_tenant_admin()` in `apps.core.saas_views`. Guarantees default role seeding, binds an authoritative `StaffMembership(role=admin_role, scope='TENANT')`, and generates auth tokens.
+- **Office Staff Delegation**: Once authenticated with `role: "Admin"`, the ISP Admin has access to `/staff/` to provision and manage employee accounts with specific roles.
+
 ---
 
 ## 3. Endpoints
 
 - `POST /api/v1/auth/login/`: Validates credentials, returns Token and tenant membership.
 - `GET /api/v1/auth/me/`: Returns current profile, assigned role, and permitted capability flags.
-- `GET/POST /api/v1/staff/`: Staff CRUD within tenant.
+- `GET/POST /api/v1/staff/`: Office staff CRUD within tenant (managed by ISP Admin).
 - `GET/POST /api/v1/roles/`: Custom role management with permission checkbox assignment.
+

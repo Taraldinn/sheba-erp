@@ -1,0 +1,163 @@
+---
+title: ISP Admin & Staff Delegation Architecture
+description: Comprehensive architecture of authoritative ISP Admin provisioning, RBAC seeding, and office staff delegation.
+---
+
+# ISP Admin Provisioning & Office Staff Delegation
+
+`IMPLEMENTED`
+
+- **Location**: `backend/apps/core/saas_views.py`, `backend/apps/authentication/`, `super-admin/`
+- **Key Responsibilities**: Direct provisioning of authoritative ISP Administrators from the central control plane, automatic multi-tenant RBAC role seeding, and subsequent office staff delegation.
+
+---
+
+## 1. Architectural Overview
+
+Sheba ISP ERP establishes a strict three-tier administrative hierarchy:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   PLATFORM SUPER ADMIN                      │
+│                  (Central Control Plane)                    │
+│  • Manages ISP Tenant accounts, SaaS tiers & domains        │
+│  • Provisions authoritative ISP Admin accounts              │
+│  • Monitors global infrastructure, MRR & Redis caching      │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ Provisions ISP Admin
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      ISP ADMINISTRATOR                      │
+│                  (ISP Managing Director)                    │
+│  • Full administrative authority within their ISP tenant   │
+│  • Configures MikroTik routers, OLTs, and IP pools          │
+│  • Configures billing packages, zones & payment gateways    │
+│  • Directly provisions & delegates ISP Office Staff         │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ Provisions & Delegates
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      ISP OFFICE STAFF                       │
+│             (Technicians, Accountants, Support)             │
+│  • Managers: Operational management & customer onboarding   │
+│  • Accountants: Billing verification & ledger balancing     │
+│  • Technicians: Router telemetry, fiber cuts & tasks        │
+│  • Support Agents: Ticketing, complaints & call-logging     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Authoritative RBAC Architecture
+
+Role-based access control relies on two distinct database models:
+1. `StaffProfile` (`role=ADMIN | STAFF`): Legacy indicator.
+2. `StaffMembership` (linked to `Role` and `Tenant`): **The authoritative RBAC source**.
+
+### Provisioning Pipeline (`provision_tenant_admin`)
+All tenant administrator creation paths flow through `provision_tenant_admin()` in `backend/apps/core/saas_views.py`:
+
+```python
+def provision_tenant_admin(
+    tenant, username, password, email='', phone='', first_name='', last_name=''
+):
+    # 1. Guarantee tenant default RBAC roles exist
+    seed_default_roles_for_tenant(tenant)
+    
+    # 2. Retrieve the authoritative 'Admin' role
+    admin_role = (
+        Role.objects.filter(tenant=tenant, name__iexact='Admin').first()
+        or Role.objects.filter(tenant=tenant, name__iexact='ADMIN').first()
+    )
+    if not admin_role:
+        admin_role = Role.objects.create(
+            tenant=tenant,
+            name='Admin',
+            description='Full administrator access',
+            is_system_default=True,
+            permissions=['__all__'],
+        )
+    
+    # 3. Create or update Django User
+    user, _ = User.objects.get_or_create(username=username, defaults={
+        'email': email,
+        'first_name': first_name,
+        'last_name': last_name,
+        'is_staff': True,
+        'is_superuser': False,
+    })
+    user.set_password(password)
+    user.save()
+    
+    # 4. Create or update legacy StaffProfile
+    StaffProfile.objects.update_or_create(
+        user=user,
+        defaults={'role': UserRole.ADMIN, 'phone': phone, 'is_active': True}
+    )
+    
+    # 5. Create or update authoritative StaffMembership
+    StaffMembership.objects.update_or_create(
+        tenant=tenant,
+        user=user,
+        defaults={
+            'role': admin_role,
+            'scope': StaffMembership.Scope.TENANT,
+            'is_active': True,
+        }
+    )
+    
+    # 6. Issue Authentication Token & Invalidate Caches
+    Token.objects.get_or_create(user=user)
+    invalidate_saas_tenant_cache(tenant.id)
+    return user
+```
+
+---
+
+## 3. Control Plane Endpoints
+
+| Method | Endpoint | Purpose | Access |
+|---|---|---|---|
+| `GET` | `/api/v1/saas/tenants/{id}/admins/` | List all ISP Admins for a tenant | Super Admin |
+| `POST` | `/api/v1/saas/tenants/{id}/create-admin/` | Directly provision an ISP Admin | Super Admin |
+| `POST` | `/api/v1/saas/users/` | Provision ISP Admin via User Directory | Super Admin |
+| `POST` | `/api/v1/saas/tenants/` | Onboard new tenant & provision initial admin | Super Admin |
+| `POST` | `/api/v1/saas/requests/{id}/approve/` | Approve onboarding request & create admin | Super Admin |
+
+---
+
+## 4. Super Admin Management Workflows
+
+### Tenant Detail Modal
+In the Super Admin portal (`super-admin`):
+1. Open **Tenant Management** and click on any tenant.
+2. The **ISP Administrators** card shows all provisioned administrators and active status.
+3. Click **+ Add ISP Admin** to expand the form and provision additional administrators (supporting multi-admin policies for Managing Directors, Operations Directors, and CTOs).
+
+### Quick Row Action
+Click the **User Plus** icon on any tenant row in the table to open the administrator view instantly.
+
+### User Directory
+In the **User Directory**, select role **"ISP Administrator / Managing Director (Full ISP Authority)"**, pick the target tenant, and enter the account details.
+
+---
+
+## 5. ISP Portal Staff Delegation (`/staff`)
+
+When the provisioned administrator authenticates at `/api/v1/auth/login/`:
+1. The token returns authoritative tenant membership with `role: "Admin"`.
+2. The **Office Staff** (`/staff`) module becomes accessible.
+3. The administrator can create and manage their own office staff:
+   - **Managers**: Day-to-day operations and customer lifecycle management.
+   - **Accountants**: Invoicing, collections, payments, and bank ledgers.
+   - **Technicians**: MikroTik router health, fiber cuts, and task tickets.
+   - **Support Agents**: Customer CRM, complaint management, and call center logs.
+   - **Custom Roles**: Custom granular permissions created in `/roles/`.
+
+---
+
+## 6. Security Boundaries
+
+- **Strict Tenant Isolation**: Office staff provisioned by an ISP Admin are strictly partitioned to that tenant's database records.
+- **Control Plane Isolation**: ISP Admins cannot authenticate on `/saas-admin` or call `/api/v1/saas/*` endpoints.
+- **Audit Trails**: All staff provisioning and permission alterations are logged in `AuditLog`.

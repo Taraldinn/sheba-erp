@@ -11,6 +11,7 @@ import {
   Trash2,
   Eye,
   RefreshCw,
+  UserPlus,
 } from 'lucide-react';
 import { SaaSTenant } from '@/lib/saas-types';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +27,7 @@ export interface SaaSTenantsListProps {
   onSelectDetail: (tenant: SaaSTenant) => void;
   onOpenCreate: () => void;
   onOpenEdit: (tenant: SaaSTenant) => void;
+  onAddAdmin?: (tenant: SaaSTenant) => void;
   onToggleStatus: (tenantId: string) => Promise<void>;
   onDeleteTenant: (tenantId: string) => Promise<void>;
   onImpersonate: (tenantId: string) => Promise<void>;
@@ -38,6 +40,7 @@ export function SaaSTenantsList({
   onSelectDetail,
   onOpenCreate,
   onOpenEdit,
+  onAddAdmin,
   onToggleStatus,
   onDeleteTenant,
   onImpersonate,
@@ -311,6 +314,16 @@ export function SaaSTenantsList({
                           title="Inspect ISP Detail"
                         >
                           <Eye className="w-3.5 h-3.5" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => (onAddAdmin ? onAddAdmin(tenant) : onSelectDetail(tenant))}
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-emerald-400"
+                          title="Create ISP Admin"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
                         </Button>
 
                         <Button

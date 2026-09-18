@@ -254,6 +254,50 @@ class SuperAdminPerformanceCachingTests(TestCase):
         self.client.post(f'/api/v1/saas/packages/{pkg.id}/toggle-status/', HTTP_HOST='admin.shebafi.xyz')
         self.assertFalse(RedisService.exists('saas:packages:list'))
 
+    def test_14_tenant_list_caching_and_uuid_serialization(self):
+        """Validates that /api/v1/saas/tenants/ caches responses containing UUIDs and Decimal values."""
+        # Warm cache on tenant list
+        res1 = self.client.get('/api/v1/saas/tenants/', HTTP_HOST='admin.shebafi.xyz')
+        self.assertEqual(res1.status_code, status.HTTP_200_OK)
+        self.assertEqual(res1.headers.get('X-Cache'), 'MISS')
+
+        # Verify key exists in cache and has data
+        cached_data = RedisService.get('saas:tenants:list::::1')
+        self.assertIsNotNone(cached_data)
+
+        # Second fetch must be a HIT and data intact
+        res2 = self.client.get('/api/v1/saas/tenants/', HTTP_HOST='admin.shebafi.xyz')
+        self.assertEqual(res2.status_code, status.HTTP_200_OK)
+        self.assertEqual(res2.headers.get('X-Cache'), 'HIT')
+        results = res2.data.get('results', res2.data)
+        self.assertEqual(len(results), 2)
+
+    def test_15_domain_and_token_cache_invalidation(self):
+        """Validates that creating domains or tokens invalidates corresponding caches."""
+        from apps.core.models import TenantDomain, TenantApiToken
+
+        # Cache domain list
+        self.client.get('/api/v1/saas/domains/', HTTP_HOST='admin.shebafi.xyz')
+        self.assertTrue(RedisService.exists('saas:domains:list:1'))
+
+        # Create new domain -> signal should evict cache
+        TenantDomain.objects.create(
+            tenant=self.t1,
+            domain_type=TenantDomain.DomainType.PRIMARY,
+            hostname='alpha.example.com',
+            is_primary=True,
+            verified=True
+        )
+        self.assertFalse(RedisService.exists('saas:domains:list:1'))
+
+        # Cache API tokens
+        self.client.get('/api/v1/saas/api-credentials/', HTTP_HOST='admin.shebafi.xyz')
+        self.assertTrue(RedisService.exists('saas:api-credentials:list:::1'))
+
+        # Generate new token -> signal should evict cache
+        TenantApiToken.generate(tenant=self.t1, name='Test Integration', created_by=self.admin_user)
+        self.assertFalse(RedisService.exists('saas:api-credentials:list:::1'))
+
 
 class HealthCheckEndpointTests(TestCase):
     """Tests for the multi-tier health and readiness endpoints."""

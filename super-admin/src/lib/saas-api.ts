@@ -18,6 +18,8 @@ import {
   SaaSAuditLog,
   SaaSOverviewMetrics,
   PaginatedResponse,
+  TenantAdminUser,
+  CreateTenantAdminPayload,
 } from './saas-types';
 
 const API_BASE =
@@ -172,6 +174,23 @@ export class SaaSClient {
     return this.request<{ token: string; target_url: string }>(
       `/saas/tenants/${tenantId}/impersonate/`,
       { method: 'POST' }
+    );
+  }
+
+  static async getTenantAdmins(tenantId: string): Promise<TenantAdminUser[]> {
+    return this.request<TenantAdminUser[]>(`/saas/tenants/${tenantId}/admins/`);
+  }
+
+  static async createTenantAdmin(
+    tenantId: string,
+    payload: CreateTenantAdminPayload
+  ): Promise<{ id: number | string; username: string; message: string }> {
+    return this.request<{ id: number | string; username: string; message: string }>(
+      `/saas/tenants/${tenantId}/create-admin/`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
     );
   }
 

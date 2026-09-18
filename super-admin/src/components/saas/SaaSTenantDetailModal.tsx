@@ -1,15 +1,22 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   X,
   Globe,
   Phone,
   ExternalLink,
+  ShieldCheck,
+  UserPlus,
+  CheckCircle2,
+  AlertCircle,
+  Sparkles,
 } from 'lucide-react';
-import { SaaSTenant } from '@/lib/saas-types';
+import { SaaSTenant, TenantAdminUser } from '@/lib/saas-types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { SaaSClient } from '@/lib/saas-api';
 import { formatCurrency } from '@/lib/utils';
 
 export interface SaaSTenantDetailModalProps {
@@ -19,6 +26,7 @@ export interface SaaSTenantDetailModalProps {
   onEdit: (tenant: SaaSTenant) => void;
   onToggleStatus: (tenantId: string) => void;
   onImpersonate: (tenantId: string) => void;
+  onAdminCreated?: () => void;
 }
 
 export function SaaSTenantDetailModal({
@@ -28,7 +36,76 @@ export function SaaSTenantDetailModal({
   onEdit,
   onToggleStatus,
   onImpersonate,
+  onAdminCreated,
 }: SaaSTenantDetailModalProps) {
+  const [admins, setAdmins] = useState<TenantAdminUser[]>([]);
+  const [isAddAdminOpen, setIsAddAdminOpen] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newFullName, setNewFullName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [adminError, setAdminError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const loadAdmins = useCallback(async () => {
+    if (!tenant) return;
+    try {
+      const res = await SaaSClient.getTenantAdmins(tenant.id);
+      setAdmins(res);
+    } catch {
+      setAdmins(tenant.admins || []);
+    }
+  }, [tenant]);
+
+  useEffect(() => {
+    if (isOpen && tenant) {
+      setAdmins(tenant.admins || []);
+      loadAdmins();
+      setIsAddAdminOpen(false);
+      setAdminError('');
+      setSuccessMsg('');
+    }
+  }, [isOpen, tenant, loadAdmins]);
+
+  const handleCreateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tenant) return;
+    setIsSubmitting(true);
+    setAdminError('');
+    setSuccessMsg('');
+
+    const parts = newFullName.trim().split(/\s+/);
+    const firstName = parts[0] || '';
+    const lastName = parts.slice(1).join(' ');
+
+    try {
+      const res = await SaaSClient.createTenantAdmin(tenant.id, {
+        username: newUsername.trim(),
+        password: newPassword,
+        first_name: firstName,
+        last_name: lastName,
+        email: newEmail.trim() || undefined,
+        phone: newPhone.trim() || undefined,
+      });
+
+      setSuccessMsg(`ISP Admin "${res.username}" created successfully.`);
+      setIsAddAdminOpen(false);
+      setNewUsername('');
+      setNewPassword('');
+      setNewFullName('');
+      setNewEmail('');
+      setNewPhone('');
+      await loadAdmins();
+      if (onAdminCreated) onAdminCreated();
+    } catch (err: unknown) {
+      setAdminError(err instanceof Error ? err.message : 'Failed to create ISP Admin');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (!isOpen || !tenant) return null;
 
   const tenantName = typeof tenant.name === 'string' && tenant.name.trim()
@@ -167,6 +244,171 @@ export function SaaSTenantDetailModal({
                   </span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* ISP Administrators Section */}
+          <div className="p-4 bg-muted/20 rounded-xl border border-border space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                <h4 className="font-bold text-foreground">ISP Administrators</h4>
+                <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                  {admins.length} {admins.length === 1 ? 'Admin' : 'Admins'}
+                </Badge>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setIsAddAdminOpen(!isAddAdminOpen);
+                  setAdminError('');
+                  setSuccessMsg('');
+                }}
+                className="text-xs h-7 gap-1 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>{isAddAdminOpen ? 'Cancel' : '+ Add ISP Admin'}</span>
+              </Button>
+            </div>
+
+            {successMsg && (
+              <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{successMsg}</span>
+              </div>
+            )}
+
+            {adminError && (
+              <div className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{adminError}</span>
+              </div>
+            )}
+
+            {/* Quick Add Admin Form */}
+            {isAddAdminOpen && (
+              <form onSubmit={handleCreateAdmin} className="p-3.5 bg-card/80 border border-border rounded-xl space-y-3 animate-in fade-in duration-150">
+                <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+                  <span>Provision New ISP Administrator for {tenantName}</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  This user will have full authoritative ISP Admin access to configure routers, manage billing, and create office staff members.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-foreground">Username *</label>
+                    <Input
+                      required
+                      placeholder="e.g. jdoe_admin"
+                      value={newUsername}
+                      onChange={(e) => setNewUsername(e.target.value)}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-foreground">Password *</label>
+                    <Input
+                      required
+                      type="password"
+                      placeholder="Secure password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-foreground">Full Name</label>
+                    <Input
+                      placeholder="e.g. John Doe"
+                      value={newFullName}
+                      onChange={(e) => setNewFullName(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-foreground">Email Address</label>
+                    <Input
+                      type="email"
+                      placeholder="admin@isp.net"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[11px] font-semibold text-foreground">Contact Phone</label>
+                    <Input
+                      type="tel"
+                      placeholder="+880 1700-000000"
+                      value={newPhone}
+                      onChange={(e) => setNewPhone(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsAddAdminOpen(false)}
+                    className="h-7 text-xs"
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={isSubmitting}
+                    className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                  >
+                    {isSubmitting ? 'Creating Admin...' : 'Create ISP Admin'}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {/* Existing Admins List */}
+            <div className="space-y-2">
+              {admins.length === 0 ? (
+                <div className="p-3 bg-muted/10 rounded-lg text-center text-xs text-muted-foreground">
+                  No administrators recorded yet. Click &quot;+ Add ISP Admin&quot; above to create one.
+                </div>
+              ) : (
+                admins.map((adm) => (
+                  <div
+                    key={adm.id}
+                    className="p-2.5 bg-card/60 border border-border/80 rounded-lg flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0">
+                        {adm.username.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-semibold text-foreground truncate">{adm.username}</span>
+                          {adm.full_name && adm.full_name !== adm.username && (
+                            <span className="text-muted-foreground text-[11px] truncate">({adm.full_name})</span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-2 truncate">
+                          {adm.email && <span>{adm.email}</span>}
+                          {adm.phone && <span>• {adm.phone}</span>}
+                          <span>• Last active: {adm.last_login || 'Never'}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shrink-0">
+                      ISP Admin
+                    </Badge>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

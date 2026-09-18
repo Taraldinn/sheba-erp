@@ -33,6 +33,9 @@ description: Architectural foundation managing tenant resolution, domains, audit
 ## 2. Controllers & API Endpoints
 
 - `GET/POST /api/v1/tenants/`: CRUD for tenants (SaaS SuperAdmin only).
+- `GET /api/v1/saas/tenants/{id}/admins/`: List authoritative ISP Administrators for a tenant.
+- `POST /api/v1/saas/tenants/{id}/create-admin/`: Directly provision a new ISP Administrator.
+- `POST /api/v1/saas/users/`: Provision Platform Super Admins or ISP Administrators via User Directory.
 - `GET/POST /api/v1/tenant-domains/`: Domain mapping and verification.
 - `GET/PATCH /api/v1/settings/`: Company branding and operational configurations.
 - `GET /api/v1/audit-logs/`: Auditable search logs for security compliance.

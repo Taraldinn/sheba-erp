@@ -80,10 +80,13 @@ function SaaSAdminContent() {
     setPageError(null);
     setOperationError(null);
     try {
+      const getTenantsCached = () =>
+        tenants.length > 0 ? Promise.resolve(tenants) : SaaSClient.getTenants().catch(() => []);
+
       if (activeTab === 'overview') {
         const [ov, tn] = await Promise.all([
           SaaSClient.getOverview().catch(() => null),
-          SaaSClient.getTenants().catch(() => []),
+          getTenantsCached(),
         ]);
         if (ov) setOverview(ov);
         setTenants(tn);
@@ -93,14 +96,14 @@ function SaaSAdminContent() {
       } else if (activeTab === 'api-credentials') {
         const [creds, tn] = await Promise.all([
           SaaSClient.getApiCredentials(),
-          SaaSClient.getTenants().catch(() => []),
+          getTenantsCached(),
         ]);
         setApiCredentials(creds);
         setTenants(tn);
       } else if (activeTab === 'domains') {
         const [dm, tn] = await Promise.all([
           SaaSClient.getDomains(),
-          SaaSClient.getTenants().catch(() => []),
+          getTenantsCached(),
         ]);
         setDomains(dm);
         setTenants(tn);
@@ -113,7 +116,7 @@ function SaaSAdminContent() {
       } else if (activeTab === 'subscriptions') {
         const [sb, tn, pk] = await Promise.all([
           SaaSClient.getSubscriptions(),
-          SaaSClient.getTenants().catch(() => []),
+          getTenantsCached(),
           SaaSClient.getPackages().catch(() => []),
         ]);
         setSubscriptions(sb);
@@ -122,21 +125,21 @@ function SaaSAdminContent() {
       } else if (activeTab === 'payments') {
         const [pm, tn] = await Promise.all([
           SaaSClient.getPayments(),
-          SaaSClient.getTenants().catch(() => []),
+          getTenantsCached(),
         ]);
         setPayments(pm);
         setTenants(tn);
       } else if (activeTab === 'backups' || activeTab === 'export') {
         const [bk, tn] = await Promise.all([
           SaaSClient.getBackups(),
-          SaaSClient.getTenants().catch(() => []),
+          getTenantsCached(),
         ]);
         setBackups(bk);
         setTenants(tn);
       } else if (activeTab === 'users' || activeTab === 'tenant-owners') {
         const [ud, tn] = await Promise.all([
           SaaSClient.getUsers(),
-          SaaSClient.getTenants().catch(() => []),
+          getTenantsCached(),
         ]);
         setUserDirectory(ud);
         setTenants(tn);
@@ -622,6 +625,7 @@ function SaaSAdminContent() {
           isLoading={isLoading}
           onRefresh={loadTabData}
           onSelectDetail={(t) => setSelectedTenantDetail(t)}
+          onAddAdmin={(t) => setSelectedTenantDetail(t)}
           onOpenCreate={() => {
             setTenantToEdit(null);
             setIsTenantFormOpen(true);
@@ -749,6 +753,7 @@ function SaaSAdminContent() {
         }}
         onToggleStatus={handleToggleTenantStatus}
         onImpersonate={handleImpersonate}
+        onAdminCreated={loadTabData}
       />
 
       {/* Tenant Create / Edit Form Modal */}

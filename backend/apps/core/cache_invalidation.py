@@ -42,6 +42,36 @@ def invalidate_saas_package_cache() -> None:
     logger.debug("Cache invalidated: saas:packages")
 
 
+def invalidate_saas_domain_cache() -> None:
+    """Purges SaaS domains cache."""
+    RedisService.delete_pattern('saas:domains:*')
+
+
+def invalidate_saas_subscription_cache() -> None:
+    """Purges SaaS subscriptions cache."""
+    RedisService.delete_pattern('saas:subscriptions:*')
+
+
+def invalidate_saas_request_cache() -> None:
+    """Purges SaaS onboarding requests cache."""
+    RedisService.delete_pattern('saas:requests:*')
+
+
+def invalidate_saas_payment_cache() -> None:
+    """Purges SaaS payments ledger cache."""
+    RedisService.delete_pattern('saas:payments:*')
+
+
+def invalidate_saas_backup_cache() -> None:
+    """Purges SaaS database backups cache."""
+    RedisService.delete_pattern('saas:backups:*')
+
+
+def invalidate_saas_credential_cache() -> None:
+    """Purges SaaS API credentials cache."""
+    RedisService.delete_pattern('saas:api-credentials:*')
+
+
 def invalidate_tenant_dashboard_cache(tenant_id: str) -> None:
     """Purges the operational dashboard aggregates for a specific tenant."""
     if tenant_id:
@@ -56,7 +86,10 @@ def invalidate_tenant_dashboard_cache(tenant_id: str) -> None:
 
 def register_cache_invalidation_signals():
     """Connects Django signals to guarantee cache freshness across all entrypoints."""
-    from apps.core.models import Tenant, TenantDomain, SaaSPackage, TenantSubscription
+    from apps.core.models import (
+        Tenant, TenantDomain, SaaSPackage, TenantSubscription,
+        TenantOnboardingRequest, SaaSPayment, DatabaseBackup, TenantApiToken
+    )
 
     @receiver(post_save, sender=Tenant, weak=False)
     @receiver(post_delete, sender=Tenant, weak=False)
@@ -66,6 +99,7 @@ def register_cache_invalidation_signals():
     @receiver(post_save, sender=TenantDomain, weak=False)
     @receiver(post_delete, sender=TenantDomain, weak=False)
     def handle_domain_mutation(sender, instance, **kwargs):
+        invalidate_saas_domain_cache()
         if instance.tenant_id:
             invalidate_saas_tenant_cache(tenant_id=str(instance.tenant_id))
 
@@ -77,5 +111,26 @@ def register_cache_invalidation_signals():
     @receiver(post_save, sender=TenantSubscription, weak=False)
     @receiver(post_delete, sender=TenantSubscription, weak=False)
     def handle_subscription_mutation(sender, instance, **kwargs):
+        invalidate_saas_subscription_cache()
         if instance.tenant_id:
             invalidate_saas_tenant_cache(tenant_id=str(instance.tenant_id))
+
+    @receiver(post_save, sender=TenantOnboardingRequest, weak=False)
+    @receiver(post_delete, sender=TenantOnboardingRequest, weak=False)
+    def handle_request_mutation(sender, instance, **kwargs):
+        invalidate_saas_request_cache()
+
+    @receiver(post_save, sender=SaaSPayment, weak=False)
+    @receiver(post_delete, sender=SaaSPayment, weak=False)
+    def handle_payment_mutation(sender, instance, **kwargs):
+        invalidate_saas_payment_cache()
+
+    @receiver(post_save, sender=DatabaseBackup, weak=False)
+    @receiver(post_delete, sender=DatabaseBackup, weak=False)
+    def handle_backup_mutation(sender, instance, **kwargs):
+        invalidate_saas_backup_cache()
+
+    @receiver(post_save, sender=TenantApiToken, weak=False)
+    @receiver(post_delete, sender=TenantApiToken, weak=False)
+    def handle_api_key_mutation(sender, instance, **kwargs):
+        invalidate_saas_credential_cache()

@@ -35,6 +35,31 @@ export interface SaaSTenant {
   primary_domain: string;
   domains_count: number;
   admin_username: string;
+  admins?: TenantAdminUser[];
+  admins_count?: number;
+}
+
+export interface TenantAdminUser {
+  id: number | string;
+  username: string;
+  email?: string;
+  phone?: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  role?: string;
+  is_active: boolean;
+  last_login?: string;
+  membership_id?: string | null;
+}
+
+export interface CreateTenantAdminPayload {
+  username: string;
+  password: string;
+  email?: string;
+  phone?: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 export interface SaaSTenantCreatePayload {
@@ -190,6 +215,8 @@ export interface SaaSOverviewMetrics {
   cluster_name: string;
   cluster_status: string;
   sla_target: string;
+  redis_status?: string;
+  redis_latency_ms?: number;
   telemetry: {
     tenants_total: number;
     tenants_active: number;

@@ -170,7 +170,7 @@ export function SaaSUsersManagement({
           >
             <option value="all">All Software Users</option>
             <option value="admins">Platform Super Admins ({platformAdmins.length})</option>
-            <option value="owners">Tenant Master Accounts ({tenantOwners.length})</option>
+            <option value="owners">ISP Administrators ({tenantOwners.length})</option>
           </select>
         </div>
 
@@ -243,8 +243,8 @@ export function SaaSUsersManagement({
                         Platform Super Admin
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-[10px]">
-                        {user.role || 'Tenant Master'}
+                      <Badge variant="outline" className="text-[10px] bg-sky-500/10 text-sky-400 border-sky-500/30">
+                        ISP Administrator
                       </Badge>
                     )}
                   </td>
@@ -325,7 +325,7 @@ export function SaaSUsersManagement({
           <div className="max-w-md w-full bg-card border border-border rounded-2xl shadow-2xl p-6 relative">
             <h3 className="text-base font-bold text-foreground mb-1">Provision Software User</h3>
             <p className="text-xs text-muted-foreground mb-4">
-              Create a Platform Super Admin or ISP Tenant Master account.
+              Create a Platform Super Admin or authoritative ISP Administrator account.
             </p>
 
             {errorMsg && (
@@ -348,7 +348,7 @@ export function SaaSUsersManagement({
                   className="w-full h-9 rounded-md border border-input bg-card px-3 text-xs text-foreground focus:outline-none"
                 >
                   <option value="SUPERADMIN">Platform Super Admin (Full Control Plane)</option>
-                  <option value="TENANT_OWNER">Tenant Master Account (ISP Managing Director)</option>
+                  <option value="TENANT_OWNER">ISP Administrator / Managing Director (Full ISP Authority)</option>
                 </select>
               </div>
 

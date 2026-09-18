@@ -84,6 +84,21 @@ export function SaaSDashboardOverview({
               <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 text-[10px]">
                 {overview?.cluster_status || 'Operational'}
               </Badge>
+              {overview?.redis_status && (
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] ${
+                    overview.redis_status === 'Healthy'
+                      ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
+                      : 'bg-amber-500/10 text-amber-500 border-amber-500/30 animate-pulse'
+                  }`}
+                >
+                  Redis: {overview.redis_status}
+                  {overview.redis_latency_ms !== undefined && overview.redis_status === 'Healthy'
+                    ? ` (${overview.redis_latency_ms}ms)`
+                    : ''}
+                </Badge>
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               Authoritative overseer operations across all multi-tenant ISP instances.

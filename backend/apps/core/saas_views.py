@@ -11,7 +11,7 @@ from rest_framework import views, viewsets, permissions, status, serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.contrib.auth.models import User
-from django.db.models import Count, Sum
+from django.db.models import Count, Sum, Q
 from django.utils import timezone
 from django.conf import settings
 from django.http import FileResponse, Http404
@@ -31,7 +31,7 @@ from .cache_invalidation import (
     invalidate_saas_tenant_cache,
     invalidate_saas_package_cache,
 )
-from apps.authentication.models import StaffProfile, StaffMembership, UserRole
+from apps.authentication.models import StaffProfile, StaffMembership, UserRole, Role
 
 
 from apps.customers.models import Customer
@@ -54,6 +54,67 @@ def get_tenant_by_id_or_slug(identifier):
     return Tenant.objects.filter(slug__iexact=str(identifier).strip()).first()
 
 
+def provision_tenant_admin(tenant, username, password, email='', phone='', first_name='', last_name=''):
+    """
+    Guarantees complete provisioning of an authoritative ISP Admin:
+    1. Seeds default tenant roles (including 'Admin' with full capabilities).
+    2. Creates User with is_staff=True, is_superuser=False.
+    3. Creates/updates StaffProfile with role=UserRole.ADMIN.
+    4. Creates/updates StaffMembership with role=admin_role, scope=TENANT, is_active=True.
+    5. Creates auth token.
+    6. Invalidates tenant caches.
+    """
+    from apps.authentication.services.rbac import seed_default_roles_for_tenant
+    seed_default_roles_for_tenant(tenant)
+    admin_role = Role.objects.filter(tenant=tenant, name__in=['Admin', 'ADMIN', 'Super Admin', 'SUPER_ADMIN']).first()
+
+    user, created = User.objects.get_or_create(
+        username=username,
+        defaults={
+            'email': email or tenant.contact_email or '',
+            'first_name': first_name,
+            'last_name': last_name,
+            'is_staff': True,
+            'is_superuser': False,
+        }
+    )
+    if not created:
+        if email:
+            user.email = email
+        if first_name:
+            user.first_name = first_name
+        if last_name:
+            user.last_name = last_name
+        user.is_staff = True
+        user.is_superuser = False
+    user.set_password(password)
+    user.save()
+
+    StaffProfile.objects.update_or_create(
+        user=user,
+        defaults={
+            'tenant': tenant,
+            'role': UserRole.ADMIN,
+            'phone': phone or tenant.contact_phone or '',
+            'is_active': True,
+        }
+    )
+
+    StaffMembership.objects.update_or_create(
+        user=user,
+        tenant=tenant,
+        defaults={
+            'role': admin_role,
+            'scope': StaffMembership.Scope.TENANT,
+            'is_active': True,
+        }
+    )
+
+    Token.objects.get_or_create(user=user)
+    invalidate_saas_tenant_cache(tenant_id=str(tenant.id), slug=tenant.slug)
+    return user
+
+
 # ════════════════════════ SERIALIZERS ════════════════════════
 
 class SaaSTenantSerializer(serializers.ModelSerializer):
@@ -72,6 +133,8 @@ class SaaSTenantSerializer(serializers.ModelSerializer):
     primary_domain = serializers.SerializerMethodField()
     domains_count = serializers.SerializerMethodField()
     admin_username = serializers.SerializerMethodField()
+    admins = serializers.SerializerMethodField()
+    admins_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Tenant
@@ -85,77 +148,102 @@ class SaaSTenantSerializer(serializers.ModelSerializer):
             'pop_count', 'active_pop_count',
             'olt_count', 'onu_count',
             'staff_count', 'package_count', 'monthly_billing_volume',
-            'primary_domain', 'domains_count', 'admin_username'
+            'primary_domain', 'domains_count', 'admin_username',
+            'admins', 'admins_count'
         ]
         read_only_fields = ('created_at', 'updated_at')
 
     def get_subscriber_count(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('subscriber_count', 0)
         try:
             return Customer.objects.filter(tenant=obj).count()
         except Exception:
             return 0
 
     def get_active_subscribers_count(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('active_subscribers_count', 0)
         try:
             return Customer.objects.filter(tenant=obj, status='Active').count()
         except Exception:
             return 0
 
     def get_expired_subscribers_count(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('expired_subscribers_count', 0)
         try:
             return Customer.objects.filter(tenant=obj, status='Expired').count()
         except Exception:
             return 0
 
     def get_router_count(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('router_count', 0)
         try:
             return Router.objects.filter(tenant=obj).count()
         except Exception:
             return 0
 
     def get_online_router_count(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('online_router_count', 0)
         try:
             return Router.objects.filter(tenant=obj, status='Online').count()
         except Exception:
             return 0
 
     def get_pop_count(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('pop_count', 0)
         try:
             return POPBranch.objects.filter(tenant=obj).count()
         except Exception:
             return 0
 
     def get_active_pop_count(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('active_pop_count', 0)
         try:
             return POPBranch.objects.filter(tenant=obj, status='Active').count()
         except Exception:
             return 0
 
     def get_olt_count(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('olt_count', 0)
         try:
             return OLT.objects.filter(tenant=obj).count()
         except Exception:
             return 0
 
     def get_onu_count(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('onu_count', 0)
         try:
             return ONU.objects.filter(tenant=obj).count()
         except Exception:
             return 0
 
     def get_staff_count(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('staff_count', 0)
         try:
             return StaffProfile.objects.filter(tenant=obj).count()
         except Exception:
             return 0
 
     def get_package_count(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('package_count', 0)
         try:
             return Package.objects.filter(tenant=obj).count()
         except Exception:
             return 0
 
     def get_monthly_billing_volume(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('monthly_billing_volume', 0.0)
         try:
             res = Customer.objects.filter(tenant=obj).aggregate(total=Sum('monthly_bill'))
             return float(res['total'] or 0)
@@ -163,6 +251,8 @@ class SaaSTenantSerializer(serializers.ModelSerializer):
             return 0.0
 
     def get_primary_domain(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('primary_domain', obj.domain or f"{obj.slug}.shebafi.xyz")
         try:
             primary = TenantDomain.objects.filter(tenant=obj, is_primary=True).first()
             return primary.hostname if primary else (obj.domain or f"{obj.slug}.shebafi.xyz")
@@ -170,17 +260,49 @@ class SaaSTenantSerializer(serializers.ModelSerializer):
             return obj.domain or f"{obj.slug}.shebafi.xyz"
 
     def get_domains_count(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('domains_count', 0)
         try:
             return TenantDomain.objects.filter(tenant=obj).count()
         except Exception:
             return 0
 
     def get_admin_username(self, obj):
+        if hasattr(obj, '_precomputed_stats'):
+            return obj._precomputed_stats.get('admin_username', f"{obj.slug}_admin")
         try:
             staff = StaffProfile.objects.filter(tenant=obj, role__in=[UserRole.ADMIN, UserRole.SUPER_ADMIN]).first()
             return staff.user.username if staff and staff.user else f"{obj.slug}_admin"
         except Exception:
             return f"{obj.slug}_admin"
+
+    def get_admins(self, obj):
+        if hasattr(obj, '_precomputed_stats') and 'admins' in obj._precomputed_stats:
+            return obj._precomputed_stats['admins']
+        try:
+            admins = []
+            for sp in StaffProfile.objects.filter(tenant=obj, role__in=[UserRole.ADMIN, UserRole.SUPER_ADMIN]).select_related('user'):
+                if sp.user:
+                    admins.append({
+                        'id': sp.user.id,
+                        'username': sp.user.username,
+                        'email': sp.user.email or '',
+                        'phone': sp.phone or obj.contact_phone or '',
+                        'full_name': f"{sp.user.first_name} {sp.user.last_name}".strip() or sp.user.username,
+                        'is_active': sp.user.is_active and sp.is_active,
+                        'last_login': sp.user.last_login.strftime('%Y-%m-%d %H:%M') if sp.user.last_login else 'Never',
+                    })
+            return admins
+        except Exception:
+            return []
+
+    def get_admins_count(self, obj):
+        if hasattr(obj, '_precomputed_stats') and 'admins_count' in obj._precomputed_stats:
+            return obj._precomputed_stats['admins_count']
+        try:
+            return StaffProfile.objects.filter(tenant=obj, role__in=[UserRole.ADMIN, UserRole.SUPER_ADMIN]).count()
+        except Exception:
+            return 0
 
 
 class SaaSDomainSerializer(serializers.ModelSerializer):
@@ -309,26 +431,56 @@ class SaaSOverviewView(views.APIView):
             response['X-Cache'] = 'HIT'
             return response
 
-        total_tenants = Tenant.objects.count()
-        active_tenants = Tenant.objects.filter(is_active=True).count()
-        suspended_tenants = Tenant.objects.filter(is_active=False).count()
+        redis_ok, redis_latency, redis_err = RedisService.ping()
+
+        tenant_agg = Tenant.objects.aggregate(
+            total=Count('id'),
+            active=Count('id', filter=Q(is_active=True)),
+            suspended=Count('id', filter=Q(is_active=False)),
+        )
+        total_tenants = tenant_agg['total'] or 0
+        active_tenants = tenant_agg['active'] or 0
+        suspended_tenants = tenant_agg['suspended'] or 0
         pending_requests = TenantOnboardingRequest.objects.filter(status='pending').count()
 
-        total_subscribers = Customer.objects.count()
-        active_subscribers = Customer.objects.filter(status='Active').count()
-        
-        total_routers = Router.objects.count()
-        online_routers = Router.objects.filter(status='Online').count()
+        cust_agg = Customer.objects.aggregate(
+            total=Count('id'),
+            active=Count('id', filter=Q(status='Active')),
+        )
+        total_subscribers = cust_agg['total'] or 0
+        active_subscribers = cust_agg['active'] or 0
 
-        total_pops = POPBranch.objects.count()
-        active_pops = POPBranch.objects.filter(status='Active').count()
+        rtr_agg = Router.objects.aggregate(
+            total=Count('id'),
+            online=Count('id', filter=Q(status='Online')),
+        )
+        total_routers = rtr_agg['total'] or 0
+        online_routers = rtr_agg['online'] or 0
+
+        pop_agg = POPBranch.objects.aggregate(
+            total=Count('id'),
+            active=Count('id', filter=Q(status='Active')),
+        )
+        total_pops = pop_agg['total'] or 0
+        active_pops = pop_agg['active'] or 0
+
         total_olts = OLT.objects.count()
-        total_onus = ONU.objects.count()
-        online_onus = ONU.objects.filter(status='Online').count()
+
+        onu_agg = ONU.objects.aggregate(
+            total=Count('id'),
+            online=Count('id', filter=Q(status='Online')),
+        )
+        total_onus = onu_agg['total'] or 0
+        online_onus = onu_agg['online'] or 0
+
         total_staff = StaffProfile.objects.count()
 
-        total_packages = SaaSPackage.objects.count()
-        active_packages = SaaSPackage.objects.filter(is_active=True).count()
+        pkg_agg = SaaSPackage.objects.aggregate(
+            total=Count('id'),
+            active=Count('id', filter=Q(is_active=True)),
+        )
+        total_packages = pkg_agg['total'] or 0
+        active_packages = pkg_agg['active'] or 0
         total_backups = DatabaseBackup.objects.count()
 
         # Calculate estimated SaaS platform MRR based on active tenant subscriptions or packages
@@ -341,8 +493,14 @@ class SaaSOverviewView(views.APIView):
             plan_pricing[pkg.name] = float(pkg.monthly_price)
             plan_pricing[pkg.code] = float(pkg.monthly_price)
 
+        plan_counts = dict(
+            Tenant.objects.filter(is_active=True)
+            .values('plan')
+            .annotate(c=Count('id'))
+            .values_list('plan', 'c')
+        )
         platform_mrr = sum(
-            plan_pricing.get(t.plan, 15000) for t in Tenant.objects.filter(is_active=True)
+            plan_pricing.get(p, 15000) * c for p, c in plan_counts.items()
         )
 
         data = {
@@ -351,9 +509,14 @@ class SaaSOverviewView(views.APIView):
                 'control_domain': 'admin.shebafi.xyz',
                 'version': 'v2.4-ControlPlane',
                 'environment': 'Production',
-                'system_status': 'Healthy',
+                'system_status': 'Healthy' if redis_ok else 'Degraded (Redis Offline)',
                 'database_cluster': 'Online',
             },
+            'cluster_name': 'Production Primary Cluster',
+            'cluster_status': 'Operational' if redis_ok else 'Degraded (Redis Offline)',
+            'sla_target': '99.98%',
+            'redis_status': 'Healthy' if redis_ok else 'Degraded',
+            'redis_latency_ms': redis_latency,
             'kpis': {
                 'total_tenants': total_tenants,
                 'active_tenants': active_tenants,
@@ -374,6 +537,32 @@ class SaaSOverviewView(views.APIView):
                 'total_backups': total_backups,
                 'platform_mrr': platform_mrr,
             },
+            'telemetry': {
+                'tenants_total': total_tenants,
+                'tenants_active': active_tenants,
+                'subscribers_managed': total_subscribers,
+                'routers_online': online_routers,
+                'routers_total': total_routers,
+                'olts_total': total_olts,
+                'onus_total': total_onus,
+                'monthly_billing_volume': platform_mrr,
+            },
+            'financial': {
+                'monthly_recurring_revenue': platform_mrr,
+                'annual_run_rate': platform_mrr * 12,
+                'total_revenue_collected': platform_mrr,
+                'pending_invoices_count': 0,
+            },
+            'fleet': {
+                'total_pops': total_pops,
+                'active_pops': active_pops,
+                'total_packages': total_packages,
+            },
+            'backups': {
+                'total_backups': total_backups,
+                'latest_backup_time': None,
+                'total_storage_mb': 0,
+            },
         }
         ttl = getattr(settings, 'CACHE_TTL_SUPER_ADMIN_OVERVIEW', 120)
         RedisService.set('saas:overview', data, timeout=ttl)
@@ -390,10 +579,123 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
     queryset = Tenant.objects.all().order_by('-created_at')
     serializer_class = SaaSTenantSerializer
 
+    @staticmethod
+    def precompute_tenant_stats(tenants):
+        """
+        Eliminates N+1 query overhead by executing batch aggregation across all tenants
+        in the page (9 bulk queries instead of 15 queries per tenant).
+        """
+        if not tenants:
+            return
+        tenant_ids = [t.id for t in tenants]
+
+        # 1. Customer metrics by tenant
+        cust_agg = (
+            Customer.objects.filter(tenant_id__in=tenant_ids)
+            .values('tenant_id')
+            .annotate(
+                total=Count('id'),
+                active=Count('id', filter=Q(status='Active')),
+                expired=Count('id', filter=Q(status='Expired')),
+                billing=Sum('monthly_bill'),
+            )
+        )
+        cust_map = {row['tenant_id']: row for row in cust_agg}
+
+        # 2. Router metrics by tenant
+        rtr_agg = (
+            Router.objects.filter(tenant_id__in=tenant_ids)
+            .values('tenant_id')
+            .annotate(
+                total=Count('id'),
+                online=Count('id', filter=Q(status='Online')),
+            )
+        )
+        rtr_map = {row['tenant_id']: row for row in rtr_agg}
+
+        # 3. POPBranch metrics by tenant
+        pop_agg = (
+            POPBranch.objects.filter(tenant_id__in=tenant_ids)
+            .values('tenant_id')
+            .annotate(
+                total=Count('id'),
+                active=Count('id', filter=Q(status='Active')),
+            )
+        )
+        pop_map = {row['tenant_id']: row for row in pop_agg}
+
+        # 4. OLT counts
+        olt_map = {row['tenant_id']: row['total'] for row in OLT.objects.filter(tenant_id__in=tenant_ids).values('tenant_id').annotate(total=Count('id'))}
+
+        # 5. ONU counts
+        onu_map = {row['tenant_id']: row['total'] for row in ONU.objects.filter(tenant_id__in=tenant_ids).values('tenant_id').annotate(total=Count('id'))}
+
+        # 6. Staff counts
+        staff_map = {row['tenant_id']: row['total'] for row in StaffProfile.objects.filter(tenant_id__in=tenant_ids).values('tenant_id').annotate(total=Count('id'))}
+
+        # 7. Package counts
+        pkg_map = {row['tenant_id']: row['total'] for row in Package.objects.filter(tenant_id__in=tenant_ids).values('tenant_id').annotate(total=Count('id'))}
+
+        # 8. Domain counts & primary hostnames
+        dom_map = {row['tenant_id']: row['total'] for row in TenantDomain.objects.filter(tenant_id__in=tenant_ids).values('tenant_id').annotate(total=Count('id'))}
+        primary_doms = {d.tenant_id: d.hostname for d in TenantDomain.objects.filter(tenant_id__in=tenant_ids, is_primary=True)}
+
+        # 9. Admin staff list & usernames
+        admin_staff = (
+            StaffProfile.objects.filter(tenant_id__in=tenant_ids, role__in=[UserRole.ADMIN, UserRole.SUPER_ADMIN])
+            .select_related('user')
+        )
+        admin_map = {}
+        admin_list_map = {}
+        for sp in admin_staff:
+            if not sp.user:
+                continue
+            tid = sp.tenant_id
+            if tid not in admin_map:
+                admin_map[tid] = sp.user.username
+            if tid not in admin_list_map:
+                admin_list_map[tid] = []
+            admin_list_map[tid].append({
+                'id': sp.user.id,
+                'username': sp.user.username,
+                'email': sp.user.email or '',
+                'phone': sp.phone or '',
+                'full_name': f"{sp.user.first_name} {sp.user.last_name}".strip() or sp.user.username,
+                'is_active': sp.user.is_active and sp.is_active,
+                'last_login': sp.user.last_login.strftime('%Y-%m-%d %H:%M') if sp.user.last_login else 'Never',
+            })
+
+        for tenant in tenants:
+            tid = tenant.id
+            c_info = cust_map.get(tid, {})
+            r_info = rtr_map.get(tid, {})
+            p_info = pop_map.get(tid, {})
+
+            t_admins = admin_list_map.get(tid, [])
+            tenant._precomputed_stats = {
+                'subscriber_count': c_info.get('total', 0),
+                'active_subscribers_count': c_info.get('active', 0),
+                'expired_subscribers_count': c_info.get('expired', 0),
+                'monthly_billing_volume': float(c_info.get('billing') or 0.0),
+                'router_count': r_info.get('total', 0),
+                'online_router_count': r_info.get('online', 0),
+                'pop_count': p_info.get('total', 0),
+                'active_pop_count': p_info.get('active', 0),
+                'olt_count': olt_map.get(tid, 0),
+                'onu_count': onu_map.get(tid, 0),
+                'staff_count': staff_map.get(tid, 0),
+                'package_count': pkg_map.get(tid, 0),
+                'domains_count': dom_map.get(tid, 0),
+                'primary_domain': primary_doms.get(tid) or tenant.domain or f"{tenant.slug}.shebafi.xyz",
+                'admin_username': admin_map.get(tid) or f"{tenant.slug}_admin",
+                'admins': t_admins,
+                'admins_count': len(t_admins),
+            }
+
     def list(self, request, *args, **kwargs):
         search = request.query_params.get('search', '')
         plan = request.query_params.get('plan', '')
-        status_param = request.query_params.get('status', '')
+        status_param = request.query_params.get('status', '') or request.query_params.get('subscription_status', '')
         page = request.query_params.get('page', '1')
         cache_key = f"saas:tenants:list:{search}:{plan}:{status_param}:{page}"
         cached = RedisService.get(cache_key)
@@ -402,9 +704,31 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
             response['X-Cache'] = 'HIT'
             return response
 
-        response = super().list(request, *args, **kwargs)
+        queryset = self.filter_queryset(self.get_queryset())
+        if search:
+            queryset = queryset.filter(Q(name__icontains=search) | Q(slug__icontains=search) | Q(domain__icontains=search))
+        if plan and plan != 'ALL':
+            queryset = queryset.filter(plan__iexact=plan)
+        if status_param and status_param != 'ALL':
+            if status_param.lower() in ('active', 'online'):
+                queryset = queryset.filter(is_active=True)
+            elif status_param.lower() in ('suspended', 'inactive'):
+                queryset = queryset.filter(is_active=False)
+            else:
+                queryset = queryset.filter(subscription_status__iexact=status_param)
+
+        page_data = self.paginate_queryset(queryset)
+        targets = page_data if page_data is not None else list(queryset)
+
+        # Batch precompute to eliminate N+1 queries
+        self.precompute_tenant_stats(targets)
+
+        serializer = self.get_serializer(targets, many=True)
+        data = self.get_paginated_response(serializer.data).data if page_data is not None else serializer.data
+
         ttl = getattr(settings, 'CACHE_TTL_TENANT_LIST', 300)
-        RedisService.set(cache_key, response.data, timeout=ttl)
+        RedisService.set(cache_key, data, timeout=ttl)
+        response = Response(data)
         response['X-Cache'] = 'MISS'
         return response
 
@@ -418,9 +742,14 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
             response['X-Cache'] = 'HIT'
             return response
 
-        response = super().retrieve(request, *args, **kwargs)
+        tenant = self.get_object()
+        self.precompute_tenant_stats([tenant])
+        serializer = self.get_serializer(tenant)
+        data = serializer.data
+
         ttl = getattr(settings, 'CACHE_TTL_TENANT_LIST', 300)
-        RedisService.set(cache_key, response.data, timeout=ttl)
+        RedisService.set(cache_key, data, timeout=ttl)
+        response = Response(data)
         response['X-Cache'] = 'MISS'
         return response
 
@@ -511,20 +840,15 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
         # 4. Create Initial Tenant Admin User
         admin_username = data.get('admin_username') or f"{slug}_admin"
         admin_password = data.get('admin_password') or "sheba1234"
-        admin_email = tenant.contact_email
+        admin_email = data.get('admin_email') or tenant.contact_email
 
-        user, created = User.objects.get_or_create(
+        user = provision_tenant_admin(
+            tenant=tenant,
             username=admin_username,
-            defaults={'email': admin_email, 'is_staff': True}
+            password=admin_password,
+            email=admin_email,
+            phone=tenant.contact_phone
         )
-        user.set_password(admin_password)
-        user.save()
-
-        StaffProfile.objects.update_or_create(
-            user=user,
-            defaults={'tenant': tenant, 'role': UserRole.ADMIN, 'phone': tenant.contact_phone}
-        )
-
         token, _ = Token.objects.get_or_create(user=user)
 
         # 5. Create SaaS Subscription Link
@@ -620,6 +944,80 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
             'role': staff.role,
             'redirect_url': '/',
         })
+
+    @action(detail=True, methods=['get'], url_path='admins')
+    def list_admins(self, request, pk=None):
+        """Returns all ISP administrators for this tenant."""
+        tenant = self.get_object()
+        admins = []
+        for sp in StaffProfile.objects.filter(tenant=tenant, role__in=[UserRole.ADMIN, UserRole.SUPER_ADMIN]).select_related('user'):
+            if sp.user:
+                membership = StaffMembership.objects.filter(user=sp.user, tenant=tenant).first()
+                admins.append({
+                    'id': sp.user.id,
+                    'username': sp.user.username,
+                    'email': sp.user.email or '',
+                    'first_name': sp.user.first_name or '',
+                    'last_name': sp.user.last_name or '',
+                    'full_name': f"{sp.user.first_name} {sp.user.last_name}".strip() or sp.user.username,
+                    'phone': sp.phone or tenant.contact_phone or '',
+                    'role': 'Admin',
+                    'is_active': sp.user.is_active and sp.is_active,
+                    'last_login': sp.user.last_login.strftime('%Y-%m-%d %H:%M') if sp.user.last_login else 'Never',
+                    'membership_id': str(membership.id) if membership else None,
+                })
+        return Response(admins)
+
+    @action(detail=True, methods=['post'], url_path='create-admin')
+    def create_admin(self, request, pk=None):
+        """Directly provisions an ISP Administrator account for this tenant with authoritative RBAC."""
+        tenant = self.get_object()
+        data = request.data
+        username = (data.get('username') or '').strip().lower()
+        password = data.get('password')
+        email = (data.get('email') or '').strip()
+        phone = (data.get('phone') or '').strip()
+        first_name = (data.get('first_name') or '').strip()
+        last_name = (data.get('last_name') or '').strip()
+
+        if not username or not password:
+            return Response({'error': 'Username and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if User.objects.filter(username=username).exists():
+            return Response({'error': f'User "{username}" already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = provision_tenant_admin(
+            tenant=tenant,
+            username=username,
+            password=password,
+            email=email,
+            phone=phone,
+            first_name=first_name,
+            last_name=last_name
+        )
+
+        AuditLog.objects.create(
+            tenant=tenant,
+            actor_username=request.user.username,
+            action='create_isp_admin',
+            module='saas_control_plane',
+            resource_type='User',
+            resource_id=str(user.id),
+            details={'username': username, 'tenant': tenant.name, 'role': 'Admin'}
+        )
+
+        return Response({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'phone': phone or tenant.contact_phone,
+            'role': 'Admin',
+            'tenant_id': str(tenant.id),
+            'tenant_name': tenant.name,
+            'message': f'ISP Admin "{username}" successfully created for {tenant.name}.'
+        }, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, *args, **kwargs):
         tenant = self.get_object()
@@ -810,6 +1208,20 @@ class SaaSTenantRequestViewSet(viewsets.ModelViewSet):
     queryset = TenantOnboardingRequest.objects.all().order_by('-created_at')
     serializer_class = TenantOnboardingRequestSerializer
 
+    def list(self, request, *args, **kwargs):
+        status_filter = request.query_params.get('status', '')
+        page = request.query_params.get('page', '1')
+        cache_key = f"saas:requests:list:{status_filter}:{page}"
+        cached = RedisService.get(cache_key)
+        if cached is not None:
+            res = Response(cached)
+            res['X-Cache'] = 'HIT'
+            return res
+        res = super().list(request, *args, **kwargs)
+        RedisService.set(cache_key, res.data, timeout=120)
+        res['X-Cache'] = 'MISS'
+        return res
+
     @action(detail=True, methods=['post'], url_path='approve')
     def approve(self, request, pk=None):
         req_obj = self.get_object()
@@ -857,11 +1269,13 @@ class SaaSTenantRequestViewSet(viewsets.ModelViewSet):
 
         admin_username = f"{slug}_admin"
         admin_pass = "sheba1234"
-        user, _ = User.objects.get_or_create(username=admin_username, defaults={'email': tenant.contact_email, 'is_staff': True})
-        user.set_password(admin_pass)
-        user.save()
-
-        StaffProfile.objects.update_or_create(user=user, defaults={'tenant': tenant, 'role': UserRole.ADMIN, 'phone': tenant.contact_phone})
+        user = provision_tenant_admin(
+            tenant=tenant,
+            username=admin_username,
+            password=admin_pass,
+            email=tenant.contact_email,
+            phone=tenant.contact_phone
+        )
         token, _ = Token.objects.get_or_create(user=user)
 
         req_obj.status = 'approved'
@@ -948,6 +1362,20 @@ class SaaSSubscriptionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
     queryset = TenantSubscription.objects.select_related('tenant', 'package').all().order_by('-created_at')
     serializer_class = TenantSubscriptionSerializer
+
+    def list(self, request, *args, **kwargs):
+        status_param = request.query_params.get('status', '')
+        page = request.query_params.get('page', '1')
+        cache_key = f"saas:subscriptions:list:{status_param}:{page}"
+        cached = RedisService.get(cache_key)
+        if cached is not None:
+            res = Response(cached)
+            res['X-Cache'] = 'HIT'
+            return res
+        res = super().list(request, *args, **kwargs)
+        RedisService.set(cache_key, res.data, timeout=300)
+        res['X-Cache'] = 'MISS'
+        return res
 
     def create(self, request, *args, **kwargs):
         data = request.data
@@ -1082,6 +1510,19 @@ class SaaSPaymentViewSet(viewsets.ModelViewSet):
     queryset = SaaSPayment.objects.select_related('tenant', 'subscription').all().order_by('-paid_at')
     serializer_class = SaaSPaymentSerializer
 
+    def list(self, request, *args, **kwargs):
+        page = request.query_params.get('page', '1')
+        cache_key = f"saas:payments:list:{page}"
+        cached = RedisService.get(cache_key)
+        if cached is not None:
+            res = Response(cached)
+            res['X-Cache'] = 'HIT'
+            return res
+        res = super().list(request, *args, **kwargs)
+        RedisService.set(cache_key, res.data, timeout=120)
+        res['X-Cache'] = 'MISS'
+        return res
+
     def create(self, request, *args, **kwargs):
         data = request.data
         tenant_id = data.get('tenant')
@@ -1142,6 +1583,19 @@ class SaaSBackupViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
     queryset = DatabaseBackup.objects.select_related('tenant').all().order_by('-created_at')
     serializer_class = DatabaseBackupSerializer
+
+    def list(self, request, *args, **kwargs):
+        page = request.query_params.get('page', '1')
+        cache_key = f"saas:backups:list:{page}"
+        cached = RedisService.get(cache_key)
+        if cached is not None:
+            res = Response(cached)
+            res['X-Cache'] = 'HIT'
+            return res
+        res = super().list(request, *args, **kwargs)
+        RedisService.set(cache_key, res.data, timeout=120)
+        res['X-Cache'] = 'MISS'
+        return res
 
     @action(detail=False, methods=['post'], url_path='create-backup')
     def create_backup(self, request):
@@ -1316,6 +1770,19 @@ class SaaSDomainViewSet(viewsets.ModelViewSet):
     queryset = TenantDomain.objects.select_related('tenant').all().order_by('hostname')
     serializer_class = SaaSDomainSerializer
 
+    def list(self, request, *args, **kwargs):
+        page = request.query_params.get('page', '1')
+        cache_key = f"saas:domains:list:{page}"
+        cached = RedisService.get(cache_key)
+        if cached is not None:
+            res = Response(cached)
+            res['X-Cache'] = 'HIT'
+            return res
+        res = super().list(request, *args, **kwargs)
+        RedisService.set(cache_key, res.data, timeout=300)
+        res['X-Cache'] = 'MISS'
+        return res
+
     @action(detail=True, methods=['post'], url_path='toggle-verify')
     def toggle_verify(self, request, pk=None):
         domain = self.get_object()
@@ -1419,10 +1886,37 @@ class SaaSUserViewSet(viewsets.ViewSet):
         tenant = None
         if role == 'TENANT_OWNER':
             if not tenant_id:
-                return Response({'error': 'tenant_id is required when creating a Tenant Owner.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'tenant_id is required when creating an ISP Admin.'}, status=status.HTTP_400_BAD_REQUEST)
             tenant = get_tenant_by_id_or_slug(tenant_id)
             if not tenant:
                 return Response({'error': 'Tenant not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            user = provision_tenant_admin(
+                tenant=tenant,
+                username=username,
+                password=password,
+                email=email,
+                phone=phone,
+            )
+
+            AuditLog.objects.create(
+                tenant=tenant,
+                actor_username=request.user.username,
+                action='create_isp_admin',
+                module='saas_user_management',
+                resource_type='User',
+                resource_id=str(user.id),
+                details={'username': username, 'role': 'Admin', 'tenant': tenant.name}
+            )
+
+            return Response({
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'role': 'Tenant Master Owner',
+                'tenant_name': tenant.name,
+                'message': f'ISP Admin "{username}" successfully created for {tenant.name}.'
+            }, status=status.HTTP_201_CREATED)
 
         is_superuser = (role == 'PLATFORM_ADMIN')
         user = User.objects.create_user(
@@ -1433,11 +1927,10 @@ class SaaSUserViewSet(viewsets.ViewSet):
             is_superuser=is_superuser
         )
 
-        staff_role = UserRole.SUPER_ADMIN if is_superuser else UserRole.ADMIN
         StaffProfile.objects.create(
             user=user,
-            tenant=tenant,
-            role=staff_role,
+            tenant=None,
+            role=UserRole.SUPER_ADMIN,
             phone=phone,
             is_active=True
         )
@@ -1445,21 +1938,21 @@ class SaaSUserViewSet(viewsets.ViewSet):
         Token.objects.create(user=user)
 
         AuditLog.objects.create(
-            tenant=tenant,
+            tenant=None,
             actor_username=request.user.username,
             action='create_software_user',
             module='saas_user_management',
             resource_type='User',
             resource_id=str(user.id),
-            details={'username': username, 'role': role, 'tenant': tenant.name if tenant else 'Global Control Plane'}
+            details={'username': username, 'role': role, 'tenant': 'Global Control Plane'}
         )
 
         return Response({
             'id': user.id,
             'username': user.username,
             'email': user.email,
-            'role': 'Platform Super Admin' if is_superuser else 'Tenant Master Owner',
-            'tenant_name': tenant.name if tenant else 'Global Control Plane',
+            'role': 'Platform Super Admin',
+            'tenant_name': 'Global Control Plane',
             'message': f'User "{username}" successfully created.'
         }, status=status.HTTP_201_CREATED)
 
@@ -1818,6 +2311,21 @@ class SaaSApiCredentialViewSet(viewsets.ModelViewSet):
         if status_param:
             qs = qs.filter(status=status_param.upper())
         return qs
+
+    def list(self, request, *args, **kwargs):
+        tenant_param = request.query_params.get('tenant', '')
+        status_param = request.query_params.get('status', '')
+        page = request.query_params.get('page', '1')
+        cache_key = f"saas:api-credentials:list:{tenant_param}:{status_param}:{page}"
+        cached = RedisService.get(cache_key)
+        if cached is not None:
+            res = Response(cached)
+            res['X-Cache'] = 'HIT'
+            return res
+        res = super().list(request, *args, **kwargs)
+        RedisService.set(cache_key, res.data, timeout=300)
+        res['X-Cache'] = 'MISS'
+        return res
 
     def create(self, request, *args, **kwargs):
         tenant_identifier = request.data.get('tenant')

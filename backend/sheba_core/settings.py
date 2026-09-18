@@ -16,6 +16,10 @@ env = environ.Env(
     CSRF_TRUSTED_ORIGINS=(list, []),
     DATABASE_URL=(str, f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
     REDIS_URL=(str, ''),
+    REDIS_HOST=(str, ''),
+    REDIS_PORT=(str, '6379'),
+    REDIS_PASSWORD=(str, ''),
+    REDIS_DB=(str, '0'),
     LOG_LEVEL=(str, 'INFO'),
 )
 
@@ -369,9 +373,26 @@ SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
 
 # ─── Cache & Session Backend (Redis / Stateless LB) ─────────────────────────
-REDIS_URL = env('REDIS_URL', default='')
-REDIS_PASSWORD = env('REDIS_PASSWORD', default='')
-REDIS_MAX_MEMORY = env('REDIS_MAX_MEMORY', default='256mb')
+REDIS_URL = env('REDIS_URL', default='').strip()
+REDIS_HOST = env('REDIS_HOST', default='').strip()
+REDIS_PORT = env('REDIS_PORT', default='6379').strip()
+REDIS_PASSWORD = env('REDIS_PASSWORD', default='').strip()
+REDIS_DB = env('REDIS_DB', default='0').strip()
+REDIS_MAX_MEMORY = env('REDIS_MAX_MEMORY', default='256mb').strip()
+
+# Dokploy & Container auto-resolution:
+# 1. If REDIS_URL is not set but REDIS_HOST is provided, auto-assemble REDIS_URL:
+if not REDIS_URL and REDIS_HOST:
+    auth_part = f":{REDIS_PASSWORD}@" if REDIS_PASSWORD else ""
+    REDIS_URL = f"redis://{auth_part}{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+# 2. If REDIS_URL was provided without auth credentials (e.g. redis://redis:6379/0),
+#    but REDIS_PASSWORD is provided separately, inject the password into REDIS_URL:
+elif REDIS_URL and REDIS_PASSWORD and '@' not in REDIS_URL:
+    try:
+        scheme, rest = REDIS_URL.split('://', 1)
+        REDIS_URL = f"{scheme}://:{REDIS_PASSWORD}@{rest}"
+    except ValueError:
+        pass
 
 # Performance cache TTL constants (seconds)
 CACHE_TTL_SUPER_ADMIN_OVERVIEW = env.int('CACHE_TTL_SUPER_ADMIN_OVERVIEW', default=120)
@@ -456,8 +477,6 @@ LOGGING = {
 }
 
 # ─── Celery & Redis Configuration (Stage 4) ──────────────────────────────────
-REDIS_URL = env('REDIS_URL')
-
 if 'test' not in sys.argv and REDIS_URL:
     CELERY_BROKER_URL = REDIS_URL
     CELERY_RESULT_BACKEND = REDIS_URL
