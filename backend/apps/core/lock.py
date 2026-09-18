@@ -1,9 +1,10 @@
 """
-Distributed Locking Infrastructure (Stage 4).
-============================================
+Distributed Locking Infrastructure (Stage 4 & Stage 10 Hardened).
+================================================================
 Provides distributed locking across Celery workers and HTTP processes.
-Uses Redis locks when available; falls back to an in-process thread-safe
-lock registry when Redis is unreachable or during unit tests.
+Uses Redis locks with SET NX and atomic Lua script release via RedisService;
+falls back to thread-safe in-process lock registry when Redis is unreachable
+or during standalone unit tests.
 
 Usage:
     from apps.core.lock import distributed_lock, LockAcquisitionError
@@ -17,18 +18,9 @@ Usage:
         ...
 """
 
-import time
-import uuid
 import logging
-import threading
 from contextlib import contextmanager
-from django.conf import settings
-
-# redis is optional — falls back to the in-memory lock when the package is absent.
-try:
-    import redis as _redis_module
-except ImportError:
-    _redis_module = None
+from apps.core.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 
@@ -38,15 +30,10 @@ class LockAcquisitionError(Exception):
     pass
 
 
-# Thread-safe in-memory fallback lock registry for test / standalone environments
-_in_memory_locks = {}
-_in_memory_registry_lock = threading.Lock()
-
-
 @contextmanager
 def distributed_lock(lock_key: str, timeout: int = 30, blocking: bool = True, blocking_timeout: float = 5.0):
     """
-    Context manager that acquires a lock for `lock_key`.
+    Context manager that acquires a distributed lock for `lock_key`.
 
     Args:
         lock_key: Unique lock identifier (e.g. 'lock:recharge:tenant_id:customer_id')
@@ -57,74 +44,19 @@ def distributed_lock(lock_key: str, timeout: int = 30, blocking: bool = True, bl
     Raises:
         LockAcquisitionError: If the lock could not be acquired within the timeout.
     """
-    # 1. Attempt Redis Lock if configured and not in eager memory test mode
-    redis_url = getattr(settings, 'REDIS_URL', '')
-    is_eager = getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', False)
-    redis_lock_obj = None
+    owner_token = RedisService.acquire_lock(
+        lock_name=lock_key,
+        timeout=timeout,
+        blocking=blocking,
+        blocking_timeout=blocking_timeout
+    )
 
-    if redis_url and not is_eager and not redis_url.startswith('memory://'):
-        try:
-            if _redis_module is None:
-                raise ImportError("redis package is not installed")
-            client = _redis_module.Redis.from_url(redis_url, socket_connect_timeout=1.0)
-            redis_lock_obj = client.lock(
-                name=f"sheba:{lock_key}",
-                timeout=timeout,
-                blocking=blocking,
-                blocking_timeout=blocking_timeout if blocking else None
-            )
-            acquired = redis_lock_obj.acquire()
-            if not acquired:
-                raise LockAcquisitionError(f"Could not acquire Redis lock for '{lock_key}' within {blocking_timeout}s")
-        except LockAcquisitionError:
-            raise
-        except (_redis_module.ConnectionError, _redis_module.TimeoutError) if _redis_module is not None else ():
-            # Redis is reachable but the connection dropped — fall back silently.
-            logger.debug("Redis unavailable for lock '%s', falling back to in-memory lock", lock_key)
-            redis_lock_obj = None
-        except Exception as exc:
-            logger.warning("Redis lock error on '%s': %s", lock_key, exc)
-            redis_lock_obj = None
-
-    # 2. In-memory fallback if Redis is unavailable or in eager test mode
-    acquired_memory_lock = False
-    owner_token = None
-    if redis_lock_obj is None:
-        start_time = time.time()
-        while True:
-            with _in_memory_registry_lock:
-                current_time = time.time()
-                # Check if lock exists and is not expired
-                lock_info = _in_memory_locks.get(lock_key)
-                if lock_info is None or lock_info['expires_at'] <= current_time:
-                    owner_token = uuid.uuid4().hex
-                    _in_memory_locks[lock_key] = {
-                        'expires_at': current_time + timeout,
-                        'thread_id': threading.get_ident(),
-                        'owner_token': owner_token
-                    }
-                    acquired_memory_lock = True
-                    break
-
-            if not blocking:
-                raise LockAcquisitionError(f"Lock '{lock_key}' already held (non-blocking).")
-
-            if (time.time() - start_time) >= blocking_timeout:
-                raise LockAcquisitionError(f"Timed out waiting for in-memory lock '{lock_key}' after {blocking_timeout}s.")
-
-            time.sleep(0.05)
+    if not owner_token:
+        if not blocking:
+            raise LockAcquisitionError(f"Lock '{lock_key}' already held (non-blocking).")
+        raise LockAcquisitionError(f"Could not acquire distributed lock for '{lock_key}' within {blocking_timeout}s")
 
     try:
-        yield
+        yield owner_token
     finally:
-        if redis_lock_obj is not None:
-            try:
-                redis_lock_obj.release()
-            except Exception as exc:
-                logger.debug("Redis lock release warning for '%s': %s", lock_key, exc)
-
-        if acquired_memory_lock:
-            with _in_memory_registry_lock:
-                lock_info = _in_memory_locks.get(lock_key)
-                if lock_info and lock_info.get('owner_token') == owner_token:
-                    _in_memory_locks.pop(lock_key, None)
+        RedisService.release_lock(lock_key, owner_token)

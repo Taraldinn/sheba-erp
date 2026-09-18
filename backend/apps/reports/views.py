@@ -14,6 +14,9 @@ from apps.store.models import StoreItem, StockTransaction
 from apps.tasks.models import Task
 from apps.core.permissions import IsTenantMember
 from apps.core.utils import get_scoped_queryset
+from apps.core.redis_service import RedisService
+from django.conf import settings
+
 
 
 @extend_schema(
@@ -66,7 +69,17 @@ class DashboardAnalyticsView(views.APIView):
             role = allowed_dashboard_roles[0]
 
         today = timezone.now().date()
+        tenant_id = str(request.tenant.id) if getattr(request, 'tenant', None) else 'main'
+        user_id = str(request.user.id) if request.user.is_authenticated else 'anon'
+        cache_key = f"tenant:{tenant_id}:dashboard:{role}:{user_id}:{today}"
+        cached = RedisService.get(cache_key)
+        if cached is not None:
+            res = Response(cached)
+            res['X-Cache'] = 'HIT'
+            return res
+
         first_day_month = today.replace(day=1)
+
 
         # Tenant-scoped base querysets
         customer_qs = get_scoped_queryset(request, Customer)
@@ -352,5 +365,9 @@ class DashboardAnalyticsView(views.APIView):
                     {'client': 'Square Textiles Hub', 'vlan': 212, 'cir_mbps': 400, 'utilization_mbps': 310, 'status': 'Up'},
                 ]
             }
+        ttl = getattr(settings, 'CACHE_TTL_DASHBOARD_ANALYTICS', 60)
+        RedisService.set(cache_key, base_data, timeout=ttl)
+        response = Response(base_data)
+        response['X-Cache'] = 'MISS'
+        return response
 
-        return Response(base_data)

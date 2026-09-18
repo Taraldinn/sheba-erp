@@ -369,16 +369,42 @@ SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
 
 # ─── Cache & Session Backend (Redis / Stateless LB) ─────────────────────────
-REDIS_URL = env('REDIS_URL')
-if REDIS_URL:
+REDIS_URL = env('REDIS_URL', default='')
+REDIS_PASSWORD = env('REDIS_PASSWORD', default='')
+REDIS_MAX_MEMORY = env('REDIS_MAX_MEMORY', default='256mb')
+
+# Performance cache TTL constants (seconds)
+CACHE_TTL_SUPER_ADMIN_OVERVIEW = env.int('CACHE_TTL_SUPER_ADMIN_OVERVIEW', default=120)
+CACHE_TTL_TENANT_LIST = env.int('CACHE_TTL_TENANT_LIST', default=300)
+CACHE_TTL_DASHBOARD_ANALYTICS = env.int('CACHE_TTL_DASHBOARD_ANALYTICS', default=60)
+
+if REDIS_URL and not ('test' in sys.argv):
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.redis.RedisCache',
             'LOCATION': REDIS_URL,
+            'TIMEOUT': env.int('CACHE_DEFAULT_TIMEOUT', default=300),
+            'OPTIONS': {
+                'socket_connect_timeout': 1.0,
+                'socket_timeout': 1.0,
+                'retry_on_timeout': True,
+                'health_check_interval': 30,
+            }
         }
     }
-    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+    # Fast reads from Redis cache, durable persistence in PostgreSQL:
+    SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
     SESSION_CACHE_ALIAS = 'default'
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'sheba-local-memory-cache',
+            'TIMEOUT': 300,
+        }
+    }
+    SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+
 
 # ─── Reverse Proxy & Security Configuration ──────────────────────────────────
 if IS_PRODUCTION and not DEBUG:

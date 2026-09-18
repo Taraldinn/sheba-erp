@@ -47,4 +47,9 @@ class TenantApiKeyRateThrottle(throttling.SimpleRateThrottle):
 
         # Dynamically set num_requests and duration
         self.num_requests, self.duration = self.parse_rate(rate_str)
-        return super().allow_request(request, view)
+        try:
+            return super().allow_request(request, view)
+        except Exception:
+            # If Redis/cache backend is temporarily unavailable, degrade gracefully
+            return True
+

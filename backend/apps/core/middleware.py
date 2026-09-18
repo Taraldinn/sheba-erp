@@ -58,6 +58,8 @@ class TenantResolutionMiddleware(MiddlewareMixin):
     PUBLIC_PATHS = (
         '/api-auth/',
         '/healthz/',
+        '/health/',
+        '/health',
         '/api/v1/health-check/',
         '/api/v1/system/',
         '/api/v1/auth/',
@@ -106,9 +108,10 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         request.tenant = None
         request.is_control_plane = False
 
-        # 1. Root API landing, healthz, system probes, & SaaS paths — bypass tenant resolution & ORM lookups
-        if path in ('', '/') or path.startswith('/healthz/') or path.startswith('/api/v1/system/'):
+        # 1. Root API landing, healthz, health, system probes, & SaaS paths — bypass tenant resolution & ORM lookups
+        if path in ('', '/') or path.startswith('/healthz/') or path.startswith('/health') or path.startswith('/api/v1/system/'):
             return None
+
 
         if path.startswith('/api/v1/saas/'):
             request.is_control_plane = True

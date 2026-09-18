@@ -1,3 +1,4 @@
+import time
 from rest_framework import serializers, viewsets, permissions, views
 from rest_framework.response import Response
 from django.db import connection
@@ -7,6 +8,8 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from .models import Tenant, TenantApiToken, CompanySetting, AuditLog, TenantDomain
 from .permissions import IsCentralAdmin, IsTenantMember, IsAdminOrManager
 from .utils import get_scoped_queryset, get_tenant_for_request
+from .redis_service import RedisService
+
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -133,40 +136,71 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         return get_scoped_queryset(self.request, AuditLog)
 
 
-@extend_schema(tags=['14. Core & Tenant Settings'], description='Public health check and tenant status endpoint.', request=None, responses={200: dict})
+@extend_schema(tags=['14. Core & Tenant Settings'], description='Public health check and tenant status endpoint distinguishing DATABASE, REDIS, and APPLICATION.', request=None, responses={200: dict})
 class HealthCheckView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
+        db_ok = False
+        try:
+            connection.ensure_connection()
+            db_ok = True
+        except Exception:
+            db_ok = False
+
+        redis_ok, _, _ = RedisService.ping()
+
         return Response({
-            'status': 'healthy',
+            'status': 'healthy' if db_ok else 'degraded',
             'system': 'Sheba ISP ERP API',
             'version': '2.0.0',
+            'application': 'healthy',
+            'database': 'healthy' if db_ok else 'offline',
+            'redis': 'healthy' if redis_ok else 'degraded',
             'tenant_detected': request.tenant.slug if getattr(request, 'tenant', None) else 'main',
             'is_control_plane': getattr(request, 'is_control_plane', False),
         })
 
 
-@extend_schema(tags=['14. Core & Tenant Settings'], description='Readiness probe for load balancers and Kubernetes. Returns 200 when DB is reachable, 503 when not.', request=None, responses={200: dict, 503: dict})
+@extend_schema(tags=['14. Core & Tenant Settings'], description='Readiness probe for load balancers and Kubernetes. Distinguishes DATABASE, REDIS, and APPLICATION health without leaking credentials. Returns 200 when DB is reachable, 503 when not.', request=None, responses={200: dict, 503: dict})
 class ReadinessView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
+        db_start = time.time()
         db_ok = False
         db_error = ''
         try:
             connection.ensure_connection()
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1;")
+                cursor.fetchone()
             db_ok = True
         except Exception as e:
             db_error = str(e)
+        db_latency = round((time.time() - db_start) * 1000, 2)
+
+        redis_ok, redis_latency, _ = RedisService.ping()
+
+        overall_ready = db_ok  # PostgreSQL is the authoritative source of truth
 
         payload = {
-            'status': 'ready' if db_ok else 'not_ready',
+            'status': 'ready' if overall_ready else 'not_ready',
+            'application': 'healthy',
             'db': 'ok' if db_ok else f'error: {db_error}',
+            'database': {
+                'status': 'healthy' if db_ok else 'error',
+                'latency_ms': db_latency,
+            },
+            'redis': {
+                'status': 'healthy' if redis_ok else 'degraded',
+                'latency_ms': redis_latency,
+            },
             'version': '2.0.0',
         }
-        http_status = 200 if db_ok else 503
+        http_status = 200 if overall_ready else 503
         return Response(payload, status=http_status)
+
 
 
 @extend_schema(tags=['14. Core & Tenant Settings'], description='Root landing endpoint providing system metadata and quick links.', request=None, responses={200: dict})

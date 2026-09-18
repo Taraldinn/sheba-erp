@@ -25,7 +25,14 @@ from .models import (
     TenantApiToken
 )
 from .permissions import IsCentralAdmin
+from .redis_service import RedisService
+from .cache_invalidation import (
+    invalidate_saas_overview_cache,
+    invalidate_saas_tenant_cache,
+    invalidate_saas_package_cache,
+)
 from apps.authentication.models import StaffProfile, StaffMembership, UserRole
+
 
 from apps.customers.models import Customer
 from apps.network.models import POPBranch, Router, OLT, ONU
@@ -296,6 +303,12 @@ class SaaSOverviewView(views.APIView):
     permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
 
     def get(self, request):
+        cached = RedisService.get('saas:overview')
+        if cached is not None:
+            response = Response(cached)
+            response['X-Cache'] = 'HIT'
+            return response
+
         total_tenants = Tenant.objects.count()
         active_tenants = Tenant.objects.filter(is_active=True).count()
         suspended_tenants = Tenant.objects.filter(is_active=False).count()
@@ -332,7 +345,7 @@ class SaaSOverviewView(views.APIView):
             plan_pricing.get(t.plan, 15000) for t in Tenant.objects.filter(is_active=True)
         )
 
-        return Response({
+        data = {
             'platform': {
                 'name': 'ShebaFi SaaS Multi-Tenant Control Plane',
                 'control_domain': 'admin.shebafi.xyz',
@@ -361,7 +374,12 @@ class SaaSOverviewView(views.APIView):
                 'total_backups': total_backups,
                 'platform_mrr': platform_mrr,
             },
-        })
+        }
+        ttl = getattr(settings, 'CACHE_TTL_SUPER_ADMIN_OVERVIEW', 120)
+        RedisService.set('saas:overview', data, timeout=ttl)
+        response = Response(data)
+        response['X-Cache'] = 'MISS'
+        return response
 
 
 class SaaSTenantViewSet(viewsets.ModelViewSet):
@@ -371,6 +389,52 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
     queryset = Tenant.objects.all().order_by('-created_at')
     serializer_class = SaaSTenantSerializer
+
+    def list(self, request, *args, **kwargs):
+        search = request.query_params.get('search', '')
+        plan = request.query_params.get('plan', '')
+        status_param = request.query_params.get('status', '')
+        page = request.query_params.get('page', '1')
+        cache_key = f"saas:tenants:list:{search}:{plan}:{status_param}:{page}"
+        cached = RedisService.get(cache_key)
+        if cached is not None:
+            response = Response(cached)
+            response['X-Cache'] = 'HIT'
+            return response
+
+        response = super().list(request, *args, **kwargs)
+        ttl = getattr(settings, 'CACHE_TTL_TENANT_LIST', 300)
+        RedisService.set(cache_key, response.data, timeout=ttl)
+        response['X-Cache'] = 'MISS'
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+        lookup_value = self.kwargs.get(lookup_url_kwarg, '')
+        cache_key = f"saas:tenant:{lookup_value}:detail"
+        cached = RedisService.get(cache_key)
+        if cached is not None:
+            response = Response(cached)
+            response['X-Cache'] = 'HIT'
+            return response
+
+        response = super().retrieve(request, *args, **kwargs)
+        ttl = getattr(settings, 'CACHE_TTL_TENANT_LIST', 300)
+        RedisService.set(cache_key, response.data, timeout=ttl)
+        response['X-Cache'] = 'MISS'
+        return response
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        tenant = self.get_object()
+        invalidate_saas_tenant_cache(tenant_id=str(tenant.id), slug=tenant.slug)
+        return response
+
+    def partial_update(self, request, *args, **kwargs):
+        response = super().partial_update(request, *args, **kwargs)
+        tenant = self.get_object()
+        invalidate_saas_tenant_cache(tenant_id=str(tenant.id), slug=tenant.slug)
+        return response
 
     def get_object(self):
         lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
@@ -501,6 +565,7 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
             logger.warning(f"Failed to dispatch onboarding email for tenant {slug}: {mail_exc}")
 
         serializer = self.get_serializer(tenant)
+        invalidate_saas_tenant_cache(tenant_id=str(tenant.id), slug=tenant.slug)
         return Response({
             'message': f'Tenant "{name}" successfully provisioned and onboarded.',
             'tenant': serializer.data,
@@ -528,6 +593,7 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
             resource_id=str(tenant.id),
             details={'new_status': 'active' if tenant.is_active else 'suspended'}
         )
+        invalidate_saas_tenant_cache(tenant_id=str(tenant.id), slug=tenant.slug)
         return Response({
             'id': str(tenant.id),
             'name': tenant.name,
@@ -562,6 +628,7 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
 
         tenant_name = tenant.name
         tenant_id = str(tenant.id)
+        slug = tenant.slug
 
         AuditLog.objects.create(
             tenant=None,
@@ -570,11 +637,13 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
             module='saas_control_plane',
             resource_type='Tenant',
             resource_id=tenant_id,
-            details={'tenant_name': tenant_name, 'slug': tenant.slug}
+            details={'tenant_name': tenant_name, 'slug': slug}
         )
 
         tenant.delete()
+        invalidate_saas_tenant_cache(tenant_id=tenant_id, slug=slug)
         return Response({'message': f'Tenant "{tenant_name}" and all associated isolated configurations successfully deleted.'})
+
 
     @action(detail=True, methods=['get'], url_path='telemetry')
     def telemetry(self, request, pk=None):
@@ -826,17 +895,52 @@ class SaaSPackageViewSet(viewsets.ModelViewSet):
     queryset = SaaSPackage.objects.all().order_by('monthly_price')
     serializer_class = SaaSPackageSerializer
 
+    def list(self, request, *args, **kwargs):
+        cache_key = 'saas:packages:list'
+        cached = RedisService.get(cache_key)
+        if cached is not None:
+            response = Response(cached)
+            response['X-Cache'] = 'HIT'
+            return response
+
+        response = super().list(request, *args, **kwargs)
+        RedisService.set(cache_key, response.data, timeout=600)
+        response['X-Cache'] = 'MISS'
+        return response
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        invalidate_saas_package_cache()
+        return response
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        invalidate_saas_package_cache()
+        return response
+
+    def partial_update(self, request, *args, **kwargs):
+        response = super().partial_update(request, *args, **kwargs)
+        invalidate_saas_package_cache()
+        return response
+
+    def destroy(self, request, *args, **kwargs):
+        response = super().destroy(request, *args, **kwargs)
+        invalidate_saas_package_cache()
+        return response
+
     @action(detail=True, methods=['post'], url_path='toggle-status')
     def toggle_status(self, request, pk=None):
         package = self.get_object()
         package.is_active = not package.is_active
         package.save()
+        invalidate_saas_package_cache()
         return Response({
             'id': str(package.id),
             'name': package.name,
             'is_active': package.is_active,
             'message': f'Package "{package.name}" is now {"Active" if package.is_active else "Paused"}.'
         })
+
 
 
 class SaaSSubscriptionViewSet(viewsets.ModelViewSet):

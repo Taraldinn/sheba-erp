@@ -115,8 +115,10 @@ urlpatterns = [
     path('api/v1/auth/password-reset-confirm/', TenantPasswordResetConfirmView.as_view(), name='auth-password-reset-confirm'),
     
     # Public & Customer Query endpoints
-    path('api/v1/health-check/', HealthCheckView.as_view(), name='health-check'),
+    path('health/', ReadinessView.as_view(), name='health'),
+    path('health', ReadinessView.as_view(), name='health-noslash'),
     path('healthz/', ReadinessView.as_view(), name='readiness'),    # LB / K8s readiness probe
+    path('api/v1/health-check/', HealthCheckView.as_view(), name='health-check'),
     path('api/v1/system/readiness/', ProductionReadinessView.as_view(), name='system-readiness'),
     path('healthz/production-readiness/', ProductionReadinessView.as_view(), name='healthz-production-readiness'),
     path('api/v1/customer/query/', CustomerQueryApiView.as_view(), name='customer-query'),

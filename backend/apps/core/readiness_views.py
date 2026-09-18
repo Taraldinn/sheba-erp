@@ -22,6 +22,7 @@ from drf_spectacular.utils import extend_schema
 
 from apps.network.models import Router, OLT, ONU
 from apps.core.models import DatabaseBackup
+from apps.core.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 
@@ -95,24 +96,22 @@ class ProductionReadinessView(views.APIView):
             critical_errors.append(f"Database error: {str(e)}")
 
         # 2. Redis Health & Distributed Locking Safety
-        redis_health = {'status': 'healthy', 'latency_ms': 0.0, 'lock_safety': 'passed'}
-        try:
-            r_start = time.time()
-            test_key = 'probe:readiness:ping'
-            cache.set(test_key, 'pong', timeout=10)
-            val = cache.get(test_key)
-            redis_health['latency_ms'] = round((time.time() - r_start) * 1000, 2)
-            if val != 'pong':
-                redis_health['status'] = 'degraded'
+        redis_ok, r_latency, r_err = RedisService.ping()
+        redis_health = {'status': 'healthy' if redis_ok else 'degraded', 'latency_ms': r_latency, 'lock_safety': 'passed'}
+        if not redis_ok:
+            redis_health['status'] = 'offline' if 'not configured' not in (r_err or '') else 'local_memory'
+            redis_health['error'] = r_err
+        else:
+            # Verify distributed lock safety
+            test_lock = 'probe:readiness:test_lock'
+            token = RedisService.acquire_lock(test_lock, timeout=5, blocking=False)
+            if token:
+                released = RedisService.release_lock(test_lock, token)
+                if not released:
+                    redis_health['lock_safety'] = 'failed'
+            else:
                 redis_health['lock_safety'] = 'failed'
-                is_ready = False
-                critical_errors.append("Redis cache probe returned unexpected value.")
-        except Exception as e:
-            redis_health['status'] = 'offline'
-            redis_health['error'] = str(e)
-            redis_health['lock_safety'] = 'failed'
-            is_ready = False
-            critical_errors.append(f"Redis cache/locking probe failed: {str(e)}")
+
 
         # 3. Celery Worker Inspection
         celery_health = {'status': 'healthy', 'active_workers': 0}
