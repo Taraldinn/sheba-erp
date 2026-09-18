@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Headphones,
   Plus,
   MessageSquare,
-  AlertTriangle,
-  Clock,
   CheckCircle2,
   Send,
   User,
   Trash2,
-  Check,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ApiClient } from "@/lib/api";
 import { Ticket, Customer } from "@/types";
-import { mockTickets } from "@/lib/mock-data";
 
 export default function SupportPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -30,13 +26,15 @@ export default function SupportPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [replyMessage, setReplyMessage] = useState("");
   const [notification, setNotification] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // New ticket form
   const [newTicketForm, setNewTicketForm] = useState({
     customer: "",
     subject: "",
     category: "Fiber / Optical Loss",
-    priority: "Medium",
+    priority: "Medium" as Ticket["priority"],
     description: "",
   });
 
@@ -45,25 +43,56 @@ export default function SupportPage() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  async function loadData() {
+  const handleRefresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const [tData, cData] = await Promise.all([
         ApiClient.getTickets(),
-        ApiClient.getCustomers(),
+        ApiClient.getCustomers().catch(() => []),
       ]);
       setTickets(tData);
       setCustomers(cData);
       if (cData.length > 0 && !newTicketForm.customer) {
         setNewTicketForm((prev) => ({ ...prev, customer: cData[0].id }));
       }
-    } catch {
-      setTickets(mockTickets);
+    } catch (err: unknown) {
+      console.error("Failed to load tickets:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "Failed to load support tickets.");
+    } finally {
+      setLoading(false);
     }
-  }
+  }, [newTicketForm.customer]);
+
+  useEffect(() => {
+    let ignore = false;
+    Promise.all([
+      ApiClient.getTickets(),
+      ApiClient.getCustomers().catch(() => []),
+    ])
+      .then(([tData, cData]) => {
+        if (ignore) return;
+        setTickets(tData);
+        setCustomers(cData);
+        if (cData.length > 0 && !newTicketForm.customer) {
+          setNewTicketForm((prev) => ({ ...prev, customer: cData[0].id }));
+        }
+      })
+      .catch((err: unknown) => {
+        if (ignore) return;
+        console.error("Failed to load tickets:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(msg || "Failed to load support tickets.");
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [newTicketForm.customer]);
 
   const handleOpenThread = (ticket: Ticket) => {
     setSelectedTicket(ticket);
@@ -101,11 +130,12 @@ export default function SupportPage() {
 
   const handleStatusChange = async (ticket: Ticket, newStatus: string) => {
     try {
-      await ApiClient.updateTicket(ticket.id, { status: newStatus as any });
+      const validStatus = newStatus as Ticket["status"];
+      await ApiClient.updateTicket(ticket.id, { status: validStatus });
       showToast(`Ticket #${ticket.ticket_no} marked as ${newStatus}.`);
-      loadData();
+      handleRefresh();
       if (selectedTicket && selectedTicket.id === ticket.id) {
-        setSelectedTicket({ ...selectedTicket, status: newStatus as any });
+        setSelectedTicket({ ...selectedTicket, status: validStatus });
       }
     } catch {
       showToast(`Updated ticket status to ${newStatus}`);
@@ -118,7 +148,7 @@ export default function SupportPage() {
       const selectedCust = customers.find((c) => c.id === newTicketForm.customer);
       const ticketNo = `TCK-${Math.floor(1000 + Math.random() * 9000)}`;
       
-      const payload: any = {
+      const payload: Partial<Ticket> & Record<string, unknown> = {
         ...newTicketForm,
         ticket_no: ticketNo,
         customer_name: selectedCust?.full_name || "Direct Customer",
@@ -127,10 +157,10 @@ export default function SupportPage() {
         status: "Open",
       };
 
-      await ApiClient.createTicket(payload);
+      await ApiClient.createTicket(payload as Partial<Ticket>);
       showToast(`Created incident ticket #${ticketNo}.`);
       setCreateModalOpen(false);
-      loadData();
+      handleRefresh();
     } catch {
       showToast(`Created ticket: ${newTicketForm.subject}`);
       setCreateModalOpen(false);
@@ -142,7 +172,7 @@ export default function SupportPage() {
     try {
       await ApiClient.deleteTicket(id);
       showToast(`Deleted ticket #${ticketNo}.`);
-      loadData();
+      handleRefresh();
       setThreadModalOpen(false);
     } catch {
       showToast(`Deleted ticket.`);
@@ -175,6 +205,13 @@ export default function SupportPage() {
         </div>
       )}
 
+      {error && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg flex items-center justify-between text-xs font-medium">
+          <span>{error}</span>
+          <Button size="sm" variant="outline" onClick={handleRefresh}>Retry</Button>
+        </div>
+      )}
+
       {/* Tickets List */}
       <Card className="border-border">
         <CardHeader className="pb-3">
@@ -184,63 +221,69 @@ export default function SupportPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="divide-y divide-border">
-            {tickets.map((ticket) => (
-              <div
-                key={ticket.id}
-                className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-muted/30 cursor-pointer transition-colors"
-              >
-                <div className="space-y-1" onClick={() => handleOpenThread(ticket)}>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-indigo-400">#{ticket.ticket_no}</span>
-                    <Badge
-                      variant={
-                        ticket.priority === "Critical"
-                          ? "destructive"
-                          : ticket.priority === "High"
-                          ? "default"
-                          : "outline"
-                      }
-                      className="text-[10px]"
+          {loading ? (
+            <div className="p-12 text-center text-muted-foreground">Loading support incidents...</div>
+          ) : tickets.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground">No support incidents recorded.</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {tickets.map((ticket) => (
+                <div
+                  key={ticket.id}
+                  className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-muted/30 cursor-pointer transition-colors"
+                >
+                  <div className="space-y-1" onClick={() => handleOpenThread(ticket)}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-indigo-400">#{ticket.ticket_no}</span>
+                      <Badge
+                        variant={
+                          ticket.priority === "Critical"
+                            ? "destructive"
+                            : ticket.priority === "High"
+                            ? "default"
+                            : "outline"
+                        }
+                        className="text-[10px]"
+                      >
+                        {ticket.priority} Priority
+                      </Badge>
+                      <span className="font-bold text-foreground">{ticket.subject}</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <User className="h-3 w-3" /> {ticket.customer_name || "Direct Customer"} ({ticket.pppoe_username})
+                      </span>
+                      <span>Category: {ticket.category}</span>
+                      <span>Assigned: {ticket.assigned_to || "NOC Tier-1"}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 self-end md:self-center">
+                    <select
+                      value={ticket.status}
+                      onChange={(e) => handleStatusChange(ticket, e.target.value)}
+                      className="h-7 rounded border border-input bg-card px-2 text-[11px] font-semibold text-foreground"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      {ticket.priority} Priority
-                    </Badge>
-                    <span className="font-bold text-foreground">{ticket.subject}</span>
-                  </div>
-                  <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <User className="h-3 w-3" /> {ticket.customer_name || "Direct Customer"} ({ticket.pppoe_username})
-                    </span>
-                    <span>Category: {ticket.category}</span>
-                    <span>Assigned: {ticket.assigned_to || "NOC Tier-1"}</span>
+                      <option value="Open">Open</option>
+                      <option value="In_Progress">In Progress</option>
+                      <option value="Resolved">Resolved</option>
+                      <option value="Closed">Closed</option>
+                    </select>
+
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleOpenThread(ticket)}
+                      className="text-indigo-400 hover:text-indigo-300 text-xs font-bold h-7"
+                    >
+                      View Thread ({ticket.replies?.length || 0})
+                    </Button>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3 self-end md:self-center">
-                  <select
-                    value={ticket.status}
-                    onChange={(e) => handleStatusChange(ticket, e.target.value)}
-                    className="h-7 rounded border border-input bg-card px-2 text-[11px] font-semibold text-foreground"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <option value="Open">Open</option>
-                    <option value="In_Progress">In Progress</option>
-                    <option value="Resolved">Resolved</option>
-                    <option value="Closed">Closed</option>
-                  </select>
-
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleOpenThread(ticket)}
-                    className="text-indigo-400 hover:text-indigo-300 text-xs font-bold h-7"
-                  >
-                    View Thread ({ticket.replies?.length || 0})
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -298,7 +341,7 @@ export default function SupportPage() {
                 <label className="block font-semibold mb-1">Priority</label>
                 <select
                   value={newTicketForm.priority}
-                  onChange={(e) => setNewTicketForm({ ...newTicketForm, priority: e.target.value })}
+                  onChange={(e) => setNewTicketForm({ ...newTicketForm, priority: e.target.value as Ticket["priority"] })}
                   className="w-full h-9 rounded-md border border-input bg-card px-2.5 text-xs font-semibold"
                 >
                   <option value="Low">Low</option>

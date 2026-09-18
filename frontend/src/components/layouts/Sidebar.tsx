@@ -1,83 +1,52 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
-  Settings,
-  Tag,
   Users,
-  UserPlus,
-  UserCheck,
-  Gift,
-  Clock,
-  AlertTriangle,
-  UserX,
-  UserMinus,
   Activity,
-  Ticket,
-  Network,
-  Radio,
-  FileBarChart,
-  Package,
-  ShoppingCart,
-  HardDrive,
-  ClipboardList,
-  Briefcase,
-  UsersRound,
-  CalendarCheck,
-  CalendarX,
-  Wallet,
-  Coins,
-  ShieldCheck,
-  UserCog,
-  Building2,
-  Building,
+  Receipt,
+  CreditCard,
+  RefreshCw,
   Server,
   Cpu,
-  Globe,
+  Radio,
+  LifeBuoy,
+  UsersRound,
   Layers,
-  CheckCircle2,
-  TrendingUp,
-  FileSpreadsheet,
-  History,
-  AlertOctagon,
-  MessageSquare,
-  PhoneCall,
+  Settings,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
-  Zap,
   LogOut,
-  ListTodo,
-  CreditCard,
-  Bell,
-  Volume2,
-  SlidersHorizontal,
-  User,
+  X,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 interface SubMenuItem {
   href: string;
   label: string;
-  icon: any;
-  statusParam?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tabParam?: string;
 }
 
 interface NavGroup {
   id: string;
   label: string;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
+  requiredRoles?: string[];
   items: SubMenuItem[];
 }
 
 interface SingleNavItem {
   href: string;
   label: string;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
+  requiredRoles?: string[];
   badge?: string;
 }
 
@@ -90,530 +59,349 @@ interface Section {
   entries: NavEntry[];
 }
 
-const navSections: Section[] = [
+// Clean authoritative ISP ERP navigation structure
+const ispNavSections: Section[] = [
   {
-    title: "ISP Billing",
     entries: [
       {
         type: "single",
         data: { href: "/", label: "Dashboard", icon: LayoutDashboard },
       },
-      {
-        type: "single",
-        data: { href: "/configuration", label: "Configuration", icon: Settings },
-      },
-      {
-        type: "single",
-        data: { href: "/offers", label: "Offer & Promotion", icon: Tag },
-      },
+    ],
+  },
+  {
+    title: "Operations",
+    entries: [
       {
         type: "group",
         data: {
-          id: "clients",
-          label: "Client Management",
+          id: "customers",
+          label: "Customers",
           icon: Users,
           items: [
-            { href: "/customers/new", label: "Add New Client", icon: UserPlus },
-            { href: "/customers?status=Active", label: "Active Clients", icon: UserCheck, statusParam: "Active" },
-            { href: "/customers?status=Free", label: "Free Clients", icon: Gift, statusParam: "Free" },
-            { href: "/customers?status=PromiseActive", label: "Promise Active Clients", icon: Clock, statusParam: "PromiseActive" },
-            { href: "/customers?status=Due", label: "Due Clients", icon: AlertTriangle, statusParam: "Due" },
-            { href: "/customers?status=Inactive", label: "Inactive Clients", icon: UserX, statusParam: "Inactive" },
-            { href: "/customers?status=Expired", label: "Expire", icon: Clock, statusParam: "Expired" },
-            { href: "/customers?status=Left", label: "Left Clients", icon: UserMinus, statusParam: "Left" },
-            { href: "/online-sessions", label: "Online Monitoring", icon: Activity },
-            { href: "/support", label: "Tickets", icon: Ticket },
+            { href: "/customers", label: "All Customers", icon: Users },
+            { href: "/online-sessions", label: "Online Sessions", icon: Activity },
           ],
         },
       },
       {
         type: "group",
         data: {
-          id: "corporate",
-          label: "Corporate / Enterprise",
-          icon: Building2,
+          id: "billing",
+          label: "Billing",
+          icon: Receipt,
+          requiredRoles: ["SUPER_ADMIN", "ADMIN", "BILLING", "BILLING_OPERATOR"],
           items: [
-            { href: "/corporate", label: "Enterprise Overview", icon: LayoutDashboard },
-            { href: "/corporate/customers", label: "Corporate Clients", icon: Building },
-            { href: "/corporate/connections", label: "Circuits & Links", icon: Network },
-            { href: "/corporate/telemetry", label: "MRTG & Bandwidth", icon: Activity },
-            { href: "/corporate/ipam", label: "IP & VLAN Pool", icon: Layers },
-            { href: "/corporate/billing", label: "95th Percentile Billing", icon: TrendingUp },
+            { href: "/billing?tab=invoices", label: "Invoices", icon: Receipt, tabParam: "invoices" },
+            { href: "/payments", label: "Payments", icon: CreditCard },
+            { href: "/billing?tab=recharges", label: "Recharges", icon: RefreshCw, tabParam: "recharges" },
           ],
         },
       },
       {
         type: "group",
         data: {
-          id: "bandwidth",
-          label: "Bandwidth Usage",
-          icon: Network,
+          id: "network",
+          label: "Network",
+          icon: Server,
+          requiredRoles: ["SUPER_ADMIN", "ADMIN", "TECHNICIAN", "LINE_MAN"],
           items: [
-            { href: "/bandwidth/live", label: "Live Usage", icon: Radio },
-            { href: "/bandwidth/reports", label: "Usage Reports", icon: FileBarChart },
+            { href: "/routers", label: "Routers", icon: Server },
+            { href: "/olt?tab=olts", label: "OLTs", icon: Cpu, tabParam: "olts" },
+            { href: "/olt?tab=onus", label: "ONUs", icon: Radio, tabParam: "onus" },
           ],
         },
       },
       {
-        type: "group",
+        type: "single",
         data: {
-          id: "store",
-          label: "Store & Devices",
-          icon: Package,
-          items: [
-            { href: "/inventory", label: "Inventory", icon: Package },
-            { href: "/store/sales", label: "Product Sales", icon: ShoppingCart },
-            { href: "/store/support-devices", label: "Support Devices", icon: HardDrive },
-            { href: "/store/reports", label: "Store Reports", icon: ClipboardList },
-          ],
+          href: "/support",
+          label: "Support Tickets",
+          icon: LifeBuoy,
         },
-      },
-      {
-        type: "group",
-        data: {
-          id: "hr",
-          label: "HR Management",
-          icon: Briefcase,
-          items: [
-            { href: "/hr", label: "HR Dashboard", icon: LayoutDashboard },
-            { href: "/hr/employees", label: "Employees", icon: UsersRound },
-            { href: "/hr/attendance", label: "Attendance", icon: CalendarCheck },
-            { href: "/hr/leave", label: "Leave Management", icon: CalendarX },
-            { href: "/hr/advance-salary", label: "Advance Salary", icon: Wallet },
-            { href: "/hr/payroll", label: "Payroll Generation", icon: Coins },
-            { href: "/hr/salary-policies", label: "Salary Policies", icon: ShieldCheck },
-            { href: "/hr/reports", label: "HR Reports", icon: FileBarChart },
-          ],
-        },
-      },
-      {
-        type: "single",
-        data: { href: "/resellers", label: "Manage Agents", icon: UserCog },
-      },
-      {
-        type: "single",
-        data: { href: "/branches", label: "POP/Branch List", icon: Building2 },
-      },
-      {
-        type: "single",
-        data: { href: "/branches/left", label: "Left POP/Branch List", icon: Building },
-      },
-      {
-        type: "single",
-        data: { href: "/staff", label: "Office Staff", icon: UsersRound },
-      },
-      {
-        type: "single",
-        data: { href: "/routers", label: "Routers", icon: Server },
-      },
-      {
-        type: "single",
-        data: { href: "/olt", label: "OLT", icon: Cpu },
-      },
-      {
-        type: "single",
-        data: { href: "/topology", label: "Live Topology", icon: Globe },
-      },
-      {
-        type: "single",
-        data: { href: "/packages", label: "Packages", icon: Layers },
       },
     ],
   },
   {
-    title: "REPORTS & SETTINGS",
+    title: "Administration",
     entries: [
       {
         type: "single",
-        data: { href: "/notifications", label: "Notifications", icon: Bell },
-      },
-      {
-        type: "single",
-        data: { href: "/payments/verification", label: "Payment Verification", icon: CheckCircle2 },
-      },
-      {
-        type: "single",
-        data: { href: "/reports/sales", label: "Monthly Sales", icon: TrendingUp },
-      },
-      {
-        type: "single",
-        data: { href: "/reports/bulk-statement", label: "Bulk Statement", icon: FileSpreadsheet },
-      },
-      {
-        type: "single",
-        data: { href: "/reports/activity-logs", label: "Activity Log", icon: History },
-      },
-      {
-        type: "single",
-        data: { href: "/reports/error-logs", label: "Error Logs", icon: AlertOctagon },
-      },
-      {
-        type: "single",
-        data: { href: "/reports/sms-logs", label: "SMS Logs", icon: MessageSquare },
-      },
-      {
-        type: "single",
-        data: { href: "/reports/voice-logs", label: "Voice Logs", icon: PhoneCall },
-      },
-      {
-        type: "group",
         data: {
-          id: "settings",
+          href: "/staff",
+          label: "Office Staff",
+          icon: UsersRound,
+          requiredRoles: ["SUPER_ADMIN", "ADMIN"],
+        },
+      },
+      {
+        type: "single",
+        data: {
+          href: "/packages",
+          label: "Packages",
+          icon: Layers,
+          requiredRoles: ["SUPER_ADMIN", "ADMIN", "BILLING", "BILLING_OPERATOR"],
+        },
+      },
+      {
+        type: "single",
+        data: {
+          href: "/settings",
           label: "Settings",
           icon: Settings,
-          items: [
-            { href: "/settings/profile", label: "General Settings", icon: SlidersHorizontal },
-            { href: "/settings", label: "Payment Gateways", icon: CreditCard },
-            { href: "/settings?tab=sms", label: "SMS Configuration", icon: Bell },
-            { href: "/settings?tab=templates", label: "SMS Templates", icon: MessageSquare },
-            { href: "/settings?tab=voice", label: "Voice Call Reminder", icon: Volume2 },
-          ],
+          requiredRoles: ["SUPER_ADMIN", "ADMIN"],
         },
       },
     ],
   },
 ];
 
-const footerItems: SingleNavItem[] = [
-  { href: "/wallet", label: "Wallet & Deposit", icon: Wallet },
-  { href: "/tasks", label: "Task Management", icon: ListTodo },
-];
-
-const ROLE_DASHBOARD_MAP: Record<string, { href: string; label: string }> = {
-  admin: { href: "/", label: "Admin Dashboard" },
-  super_admin: { href: "/", label: "Admin Dashboard" },
-  billing: { href: "/dashboards/billing", label: "Billing Dashboard" },
-  billing_operator: { href: "/dashboards/billing", label: "Billing Dashboard" },
-  sales: { href: "/dashboards/sales", label: "Sales Dashboard" },
-  demo: { href: "/dashboards/demo", label: "Demo Accounts Dashboard" },
-  technician: { href: "/dashboards/technician", label: "NOC Dashboard" },
-  line_man: { href: "/dashboards/technician", label: "NOC Dashboard" },
-  staff: { href: "/dashboards/staff", label: "Staff Dashboard" },
-  support_staff: { href: "/dashboards/staff", label: "Staff Dashboard" },
-  reseller_l1: { href: "/dashboards/reseller-l1", label: "Reseller L1 Dashboard" },
-  reseller: { href: "/dashboards/reseller-l1", label: "Reseller L1 Dashboard" },
-  reseller_l2: { href: "/dashboards/reseller-l2", label: "Reseller L2 Dashboard" },
-  agent: { href: "/dashboards/reseller-l2", label: "Reseller L2 Dashboard" },
-  distributor: { href: "/dashboards/distributor", label: "Distributor Dashboard" },
-  bandwidth_reseller: { href: "/dashboards/bandwidth-reseller", label: "Bandwidth Dashboard" },
-};
-
 const ROLE_DISPLAY_NAMES: Record<string, string> = {
-  admin: "Executive Admin",
-  super_admin: "Super Admin",
-  billing: "Billing Operator",
-  billing_operator: "Billing Operator",
-  sales: "Sales Executive",
-  demo: "Demo Manager",
-  technician: "NOC Technician",
-  line_man: "Field Technician",
-  staff: "General Staff",
-  support_staff: "Support Staff",
-  reseller_l1: "Reseller (L1 POP)",
-  reseller: "Reseller (L1 POP)",
-  reseller_l2: "Sub Reseller (L2)",
-  agent: "Agent Dealer (L2)",
-  distributor: "Distributor",
-  bandwidth_reseller: "Bandwidth Carrier",
+  SUPER_ADMIN: "Super Admin",
+  ADMIN: "ISP Admin",
+  BILLING: "Billing Operator",
+  BILLING_OPERATOR: "Billing Operator",
+  TECHNICIAN: "NOC Engineer",
+  LINE_MAN: "Field Technician",
+  SUPPORT_STAFF: "Support Specialist",
+  STAFF: "ISP Staff",
 };
 
-export function Sidebar() {
+export interface SidebarProps {
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
+}
+
+export function Sidebar({ isMobileOpen = false, onCloseMobile }: SidebarProps) {
+  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { user, logout, tenantId } = useAuth();
+
   const [collapsed, setCollapsed] = useState(false);
-  const [userRole, setUserRole] = useState<string>("admin");
-  const [userName, setUserName] = useState<string>("Admin");
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    clients: true,
-    bandwidth: false,
-    store: false,
-    hr: false,
+    customers: true,
+    billing: true,
+    network: true,
   });
 
-  useEffect(() => {
-    const role = (localStorage.getItem("sheba_user_role") || "admin").toLowerCase();
-    const name = localStorage.getItem("sheba_user_name") || "Operator";
-    setUserRole(role);
-    setUserName(name);
-  }, []);
+  const userRole = (user?.role || "ADMIN").toUpperCase();
+  const tenantName = user?.tenant?.name || tenantId || "Active ISP";
 
-  const { logout } = useAuth();
-
-  const handleLogout = async () => {
-    await logout("/login");
+  // Check role authorization for entry
+  const isAuthorized = (requiredRoles?: string[]) => {
+    if (!requiredRoles || requiredRoles.length === 0) return true;
+    if (userRole === "SUPER_ADMIN" || userRole === "ADMIN") return true;
+    return requiredRoles.includes(userRole);
   };
-
-  // Compute filtered sections based on userRole
-  const currentRoleDashboard = ROLE_DASHBOARD_MAP[userRole] || { href: "/", label: "Dashboard" };
-
-  const getFilteredNavSections = () => {
-    if (userRole === "admin" || userRole === "super_admin") {
-      return navSections;
-    }
-
-    const allowedTitlesByRole: Record<string, string[]> = {
-      billing: ["ISP Billing", "Reports"],
-      billing_operator: ["ISP Billing", "Reports"],
-      sales: ["ISP Billing", "Reports"],
-      demo: ["ISP Billing"],
-      technician: ["Network & Infrastructure", "Support Desk"],
-      line_man: ["Network & Infrastructure", "Support Desk"],
-      staff: ["HR & Payroll", "Support Desk"],
-      support_staff: ["HR & Payroll", "Support Desk"],
-      reseller_l1: ["Reseller Network", "ISP Billing"],
-      reseller: ["Reseller Network", "ISP Billing"],
-      reseller_l2: ["ISP Billing"],
-      agent: ["ISP Billing"],
-      distributor: ["Store & Inventory"],
-      bandwidth_reseller: ["Bandwidth Management"],
-    };
-
-    const allowedTitles = allowedTitlesByRole[userRole] || ["ISP Billing"];
-    const filtered = navSections.filter((sec) => !sec.title || allowedTitles.includes(sec.title));
-
-    // Replace first Dashboard entry with the role-specific dashboard link
-    return filtered.map((sec, idx) => {
-      if (idx === 0) {
-        return {
-          ...sec,
-          entries: sec.entries.map((entry) => {
-            if (entry.type === "single" && entry.data.href === "/") {
-              return {
-                type: "single",
-                data: {
-                  href: currentRoleDashboard.href,
-                  label: currentRoleDashboard.label,
-                  icon: LayoutDashboard,
-                },
-              } as NavEntry;
-            }
-            return entry;
-          }),
-        };
-      }
-      return sec;
-    });
-  };
-
-  const activeNavSections = getFilteredNavSections();
-
-  // Auto-expand accordion if child path matches
-  useEffect(() => {
-    navSections.forEach((sec) => {
-      sec.entries.forEach((entry) => {
-        if (entry.type === "group") {
-          const isChildActive = entry.data.items.some((item) => {
-            const [itemPath] = item.href.split("?");
-            return pathname === itemPath || (pathname.startsWith(itemPath) && itemPath !== "/");
-          });
-          if (isChildActive) {
-            setOpenGroups((prev) => ({ ...prev, [entry.data.id]: true }));
-          }
-        }
-      });
-    });
-  }, [pathname]);
 
   const toggleGroup = (id: string) => {
-    setOpenGroups((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
-  const isSubItemActive = (item: SubMenuItem) => {
-    const [itemPath, itemQuery] = item.href.split("?");
-
-    if (pathname !== itemPath) {
-      return false;
-    }
-
-    if (itemQuery) {
-      const itemParams = new URLSearchParams(itemQuery);
-      for (const [key, val] of itemParams.entries()) {
-        if (searchParams?.get(key) !== val) {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    // When item has no query parameters (e.g. /settings for Payment Gateways):
-    if (itemPath === "/settings") {
-      const currentTab = searchParams?.get("tab") || "";
-      return currentTab === "";
-    }
-
-    if (item.statusParam || itemPath === "/customers") {
-      const currentStatus = searchParams?.get("status") || "";
-      return currentStatus === (item.statusParam || "");
-    }
-
-    return true;
+    setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const isSingleActive = (href: string) => {
-    const [itemPath] = href.split("?");
-    if (itemPath === "/") return pathname === "/" && !searchParams?.toString();
-    return pathname === itemPath;
+    if (href === "/") return pathname === "/";
+    return pathname === href || pathname.startsWith(`${href}/`);
   };
 
-  return (
-    <aside
-      className={cn(
-        "relative flex flex-col shrink-0 h-screen sticky top-0 border-r border-border bg-card transition-all duration-300 ease-in-out z-30 select-none",
-        collapsed ? "w-16" : "w-64"
-      )}
-    >
+  const isSubItemActive = (sub: SubMenuItem) => {
+    const urlParts = sub.href.split("?");
+    const pathPart = urlParts[0];
+    if (pathname !== pathPart) return false;
+
+    if (sub.tabParam) {
+      const currentTab = searchParams?.get("tab");
+      return currentTab === sub.tabParam;
+    }
+    return true;
+  };
+
+  const handleNavClick = () => {
+    if (isMobileOpen && onCloseMobile) {
+      onCloseMobile();
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout("/login");
+    } catch {
+      router.push("/login");
+    }
+  };
+
+  const sidebarContent = (
+    <div className="flex flex-col h-full bg-card border-r border-border select-none">
       {/* Brand Header */}
-      <div
-        className={cn(
-          "flex items-center gap-2.5 px-4 h-14 border-b border-border shrink-0",
-          collapsed && "justify-center px-0"
-        )}
-      >
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md shadow-indigo-600/30">
-          <Zap className="h-4.5 w-4.5" />
-        </div>
-        {!collapsed && (
-          <div className="flex flex-col min-w-0">
-            <span className="font-bold text-sm tracking-tight text-foreground truncate">
-              Sheba ERP
-            </span>
-            <span className="text-[10px] text-indigo-400 font-semibold truncate leading-none uppercase">
-              {ROLE_DISPLAY_NAMES[userRole] || "Operations"}
-            </span>
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-3.5">
+        <Link
+          href="/"
+          onClick={handleNavClick}
+          className="flex items-center gap-2.5 min-w-0"
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-emerald-500 text-white shadow-md shadow-indigo-600/20">
+            <Radio className="h-4 w-4" />
           </div>
+          {!collapsed && (
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-black tracking-tight text-foreground truncate">
+                SHEBA ISP ERP
+              </span>
+              <span className="text-[10px] text-muted-foreground font-medium truncate uppercase tracking-wider">
+                {tenantName}
+              </span>
+            </div>
+          )}
+        </Link>
+
+        {isMobileOpen && (
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            className="p-1 rounded-lg text-muted-foreground hover:text-foreground lg:hidden"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
         )}
       </div>
 
-      {/* Navigation list */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-4 text-xs">
-        {activeNavSections.map((section, sIdx) => (
-          <div key={sIdx} className="space-y-1">
-            {section.title && !collapsed && (
-              <div className="px-3 py-1 font-semibold text-[10px] tracking-wider uppercase text-muted-foreground/70">
-                {section.title}
-              </div>
-            )}
-            {section.title && collapsed && (
-              <div className="my-1.5 border-t border-border/50" />
-            )}
+      {/* Navigation Sections */}
+      <nav className="flex-1 overflow-y-auto p-2 space-y-4">
+        {ispNavSections.map((section, sIdx) => {
+          // Filter entries by permissions
+          const visibleEntries = section.entries.filter((entry) => {
+            if (entry.type === "single") {
+              return isAuthorized(entry.data.requiredRoles);
+            }
+            return isAuthorized(entry.data.requiredRoles);
+          });
 
-            <div className="space-y-0.5">
-              {section.entries.map((entry, eIdx) => {
-                if (entry.type === "single") {
-                  const active = isSingleActive(entry.data.href);
-                  const Icon = entry.data.icon;
-                  return (
-                    <Link
-                      key={eIdx}
-                      href={entry.data.href}
-                      title={collapsed ? entry.data.label : undefined}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-lg px-3 py-2 font-medium transition-colors group relative",
-                        active
-                          ? "bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 font-semibold"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                        collapsed && "justify-center px-0"
-                      )}
-                    >
-                      <Icon className={cn("h-4 w-4 shrink-0 transition-transform group-hover:scale-105", active ? "text-indigo-600 dark:text-indigo-400" : "")} />
-                      {!collapsed && <span className="truncate">{entry.data.label}</span>}
-                    </Link>
-                  );
-                }
+          if (visibleEntries.length === 0) return null;
 
-                // Collapsible Group
-                const group = entry.data;
-                const isOpen = openGroups[group.id] || false;
-                const GroupIcon = group.icon;
-                const isGroupChildActive = group.items.some((it) => isSubItemActive(it));
-
-                return (
-                  <div key={group.id} className="space-y-0.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleGroup(group.id)}
-                      title={collapsed ? group.label : undefined}
-                      className={cn(
-                        "flex w-full items-center justify-between gap-2.5 rounded-lg px-3 py-2 font-medium transition-colors group cursor-pointer",
-                        isGroupChildActive
-                          ? "text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-600/5"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                        collapsed && "justify-center px-0"
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <GroupIcon className={cn("h-4 w-4 shrink-0 transition-transform group-hover:scale-105", isGroupChildActive ? "text-indigo-600 dark:text-indigo-400" : "")} />
-                        {!collapsed && <span className="truncate">{group.label}</span>}
-                      </div>
-                      {!collapsed && (
-                        <span className="text-muted-foreground/60 transition-transform duration-200">
-                          {isOpen ? (
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          ) : (
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          )}
-                        </span>
-                      )}
-                    </button>
-
-                    {/* Submenu Accordion Items */}
-                    {!collapsed && isOpen && (
-                      <div className="pl-6 pr-1 py-0.5 space-y-0.5 border-l border-border/60 ml-4.5 my-0.5">
-                        {group.items.map((sub, sIndex) => {
-                          const subActive = isSubItemActive(sub);
-                          const SubIcon = sub.icon;
-                          return (
-                            <Link
-                              key={sIndex}
-                              href={sub.href}
-                              className={cn(
-                                "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-                                subActive
-                                  ? "bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 font-semibold"
-                                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                              )}
-                            >
-                              <SubIcon className="h-3.5 w-3.5 shrink-0" />
-                              <span className="truncate">{sub.label}</span>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </nav>
-
-      {/* Footer Items (Wallet, Tasks, Logout) */}
-      <div className="shrink-0 border-t border-border p-2 space-y-0.5 bg-card/60">
-        {footerItems.map((item, fIdx) => {
-          const active = isSingleActive(item.href);
-          const Icon = item.icon;
           return (
-            <Link
-              key={fIdx}
-              href={item.href}
-              title={collapsed ? item.label : undefined}
-              className={cn(
-                "flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                active
-                  ? "bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 font-semibold"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                collapsed && "justify-center px-0"
+            <div key={sIdx} className="space-y-1">
+              {section.title && !collapsed && (
+                <div className="px-2.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                  {section.title}
+                </div>
               )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
+
+              <div className="space-y-0.5">
+                {visibleEntries.map((entry, eIdx) => {
+                  if (entry.type === "single") {
+                    const active = isSingleActive(entry.data.href);
+                    const Icon = entry.data.icon;
+                    return (
+                      <Link
+                        key={eIdx}
+                        href={entry.data.href}
+                        onClick={handleNavClick}
+                        title={collapsed ? entry.data.label : undefined}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors group relative",
+                          active
+                            ? "bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 font-semibold"
+                            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                          collapsed && "justify-center px-0"
+                        )}
+                      >
+                        <Icon className={cn("h-4 w-4 shrink-0 transition-transform group-hover:scale-105", active ? "text-indigo-600 dark:text-indigo-400" : "")} />
+                        {!collapsed && <span className="truncate">{entry.data.label}</span>}
+                        {!collapsed && entry.data.badge && (
+                          <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500">
+                            {entry.data.badge}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  }
+
+                  // Collapsible Group
+                  const group = entry.data;
+                  const isOpen = openGroups[group.id] || false;
+                  const GroupIcon = group.icon;
+                  const isGroupChildActive = group.items.some((it) => isSubItemActive(it));
+
+                  return (
+                    <div key={group.id} className="space-y-0.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(group.id)}
+                        title={collapsed ? group.label : undefined}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors group cursor-pointer",
+                          isGroupChildActive
+                            ? "text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-600/5"
+                            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                          collapsed && "justify-center px-0"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <GroupIcon className={cn("h-4 w-4 shrink-0 transition-transform group-hover:scale-105", isGroupChildActive ? "text-indigo-600 dark:text-indigo-400" : "")} />
+                          {!collapsed && <span className="truncate">{group.label}</span>}
+                        </div>
+                        {!collapsed && (
+                          <span className="text-muted-foreground/60 transition-transform duration-200">
+                            {isOpen ? (
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            )}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Submenu Accordion Items */}
+                      {!collapsed && isOpen && (
+                        <div className="pl-6 pr-1 py-0.5 space-y-0.5 border-l border-border/60 ml-4.5 my-0.5">
+                          {group.items.map((sub, sIndex) => {
+                            const subActive = isSubItemActive(sub);
+                            const SubIcon = sub.icon;
+                            return (
+                              <Link
+                                key={sIndex}
+                                href={sub.href}
+                                onClick={handleNavClick}
+                                className={cn(
+                                  "flex items-center gap-2 rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
+                                  subActive
+                                    ? "bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 font-semibold"
+                                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                                )}
+                              >
+                                <SubIcon className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">{sub.label}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
+      </nav>
+
+      {/* Footer Items (Role badge, Logout, Collapse) */}
+      <div className="shrink-0 border-t border-border p-2 space-y-1 bg-card/60">
+        {/* Active Staff Role Summary */}
+        {!collapsed && user && (
+          <div className="px-2.5 py-1.5 rounded-lg bg-muted/40 border border-border/50 text-[11px] flex items-center justify-between">
+            <div className="flex items-center gap-1.5 truncate">
+              <ShieldCheck className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+              <span className="font-medium text-foreground truncate">
+                {ROLE_DISPLAY_NAMES[userRole] || userRole}
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+              {user.username}
+            </span>
+          </div>
+        )}
 
         {/* Dedicated Logout */}
         <button
@@ -621,21 +409,21 @@ export function Sidebar() {
           onClick={handleLogout}
           title={collapsed ? "Logout" : undefined}
           className={cn(
-            "flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/10 dark:hover:bg-red-950/30 transition-colors cursor-pointer",
+            "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-500 hover:bg-rose-500/10 dark:hover:bg-rose-950/30 transition-colors cursor-pointer",
             collapsed && "justify-center px-0"
           )}
         >
           <LogOut className="h-4 w-4 shrink-0" />
-          {!collapsed && <span>Logout ({ROLE_DISPLAY_NAMES[userRole] || "User"})</span>}
+          {!collapsed && <span>Sign Out</span>}
         </button>
 
-        {/* Sidebar Collapse/Expand button */}
+        {/* Sidebar Desktop Collapse/Expand button */}
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className={cn(
-            "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-muted-foreground/80 hover:bg-accent hover:text-foreground transition-colors mt-1 pt-2 border-t border-border/40",
+            "hidden lg:flex w-full items-center gap-2 rounded-lg px-2.5 py-1 text-xs text-muted-foreground/80 hover:bg-accent hover:text-foreground transition-colors border-t border-border/40 pt-1.5",
             collapsed && "justify-center px-0"
           )}
         >
@@ -644,11 +432,40 @@ export function Sidebar() {
           ) : (
             <>
               <ChevronLeft className="h-4 w-4 shrink-0" />
-              <span>Collapse Menu</span>
+              <span className="text-[11px]">Collapse Menu</span>
             </>
           )}
         </button>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Persistent Sidebar */}
+      <aside
+        className={cn(
+          "hidden lg:flex shrink-0 transition-all duration-300 z-30 h-screen sticky top-0",
+          collapsed ? "w-16" : "w-60"
+        )}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Backdrop & Drawer */}
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+            onClick={onCloseMobile}
+          />
+          {/* Sliding Drawer */}
+          <div className="fixed inset-y-0 left-0 w-72 max-w-[85vw] shadow-2xl z-50 animate-in slide-in-from-left duration-200">
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

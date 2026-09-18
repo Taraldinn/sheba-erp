@@ -1,4 +1,3 @@
-import { mockCustomers, mockKPIs, mockPackages, mockRouters, mockOLTs, mockONUs, mockTransactions, mockSmsLogs, mockTickets } from './mock-data';
 import {
   Customer, DashboardKPIs, Package, Router, OLT, ONU, PaymentTransaction,
   SmsLog, Ticket, NetworkCockpitDashboard, RouterCockpitDetail, OLTCockpitDetail,
@@ -47,7 +46,28 @@ if (typeof window !== 'undefined') {
 
 export class ApiClient {
   private static token: string | null = null;
+  private static apiKey: string | null = null;
   private static tenantId: string = process.env.NEXT_PUBLIC_DEFAULT_TENANT_ID || 'shebafi';
+
+  static setApiKey(key: string | null) {
+    this.apiKey = key;
+    if (typeof window !== 'undefined') {
+      if (key) {
+        localStorage.setItem('sheba_api_key', key);
+      } else {
+        localStorage.removeItem('sheba_api_key');
+      }
+    }
+  }
+
+  static getApiKey(): string | null {
+    if (this.apiKey) return this.apiKey;
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('sheba_api_key');
+      if (stored) return stored;
+    }
+    return process.env.NEXT_PUBLIC_SHEBA_API_KEY || null;
+  }
 
   static setToken(token: string) {
     this.token = token;
@@ -66,12 +86,16 @@ export class ApiClient {
 
   static getHeaders(): Record<string, string> {
     const token = this.getToken();
+    const apiKey = this.getApiKey();
     const storedTenant = typeof window !== 'undefined' ? TokenStorage.getStoredTenantId() : null;
     const activeTenant = storedTenant || this.tenantId;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
+    if (apiKey) {
+      headers['X-API-Key'] = apiKey;
+    }
     if (token) {
       headers['Authorization'] = `Token ${token}`;
     }
@@ -105,41 +129,62 @@ export class ApiClient {
         return data.kpis;
       }
     } catch { }
-    return mockKPIs;
+    return {
+      total_customers: 0,
+      active_customers: 0,
+      expired_customers: 0,
+      suspended_customers: 0,
+      today_collection: 0,
+      month_collection: 0,
+      total_due: 0,
+      total_advance: 0,
+      online_routers: 0,
+      total_routers: 0,
+      total_onus: 0,
+      online_onus: 0,
+      warning_onus: 0,
+      critical_onus: 0,
+      open_tickets: 0,
+    };
   }
 
   static async getDashboardAnalytics(role: string = 'admin') {
-    try {
-      const res = await fetch(`${API_BASE}/reports/dashboard/?role=${role}`, { headers: this.getHeaders() });
-      if (res.ok) return await res.json();
-    } catch { }
-    return { kpis: mockKPIs, monthly_trend: [], traffic_distribution: [], role };
+    const res = await fetch(`${API_BASE}/reports/dashboard/?role=${role}`, { headers: this.getHeaders() });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.detail || `Failed to fetch dashboard analytics (${res.status})`);
+    }
+    return await res.json();
   }
 
   // ════════════════════════ CUSTOMERS (FULL CRUD) ════════════════════════
   static async getCustomers(params?: { search?: string; status?: string; package?: string; router?: string }): Promise<Customer[]> {
-    try {
-      const url = new URL(`${API_BASE}/customers/`);
-      if (params?.search) url.searchParams.append('search', params.search);
-      if (params?.status && params.status !== 'ALL' && params.status !== 'Any Status') url.searchParams.append('status', params.status);
-      if (params?.package && params.package !== 'All Packages') url.searchParams.append('package', params.package);
-      if (params?.router) url.searchParams.append('router', params.router);
+    const url = new URL(`${API_BASE}/customers/`);
+    if (params?.search) url.searchParams.append('search', params.search);
+    if (params?.status && params.status !== 'ALL' && params.status !== 'Any Status' && params.status !== 'All') {
+      url.searchParams.append('status', params.status);
+    }
+    if (params?.package && params.package !== 'All Packages') {
+      url.searchParams.append('package', params.package);
+    }
+    if (params?.router) url.searchParams.append('router', params.router);
 
-      const res = await fetch(url.toString(), { headers: this.getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        return data.results || data;
-      }
-    } catch { }
-    return mockCustomers;
+    const res = await fetch(url.toString(), { headers: this.getHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      return data.results || (Array.isArray(data) ? data : []);
+    }
+    if (res.status === 404) return [];
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || `Failed to fetch customers (${res.status})`);
   }
 
   static async getCustomer(id: string): Promise<Customer | null> {
-    try {
-      const res = await fetch(`${API_BASE}/customers/${id}/`, { headers: this.getHeaders() });
-      if (res.ok) return await res.json();
-    } catch { }
-    return mockCustomers.find(c => c.id === id) || null;
+    const res = await fetch(`${API_BASE}/customers/${id}/`, { headers: this.getHeaders() });
+    if (res.ok) return await res.json();
+    if (res.status === 404) return null;
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || `Failed to fetch customer (${res.status})`);
   }
 
   static async createCustomer(payload: Partial<Customer>) {
@@ -186,7 +231,7 @@ export class ApiClient {
     return await res.json();
   }
 
-  static async rechargeCustomer(customerId: string, payload: { amount: number; validity_days: number; payment_method: string; discount?: number; notes?: string }) {
+  static async rechargeCustomer(customerId: string, payload: { amount: number; validity_days?: number; payment_method?: string; discount?: number; notes?: string; package_id?: string; trx_id?: string }) {
     const res = await fetch(`${API_BASE}/customers/${customerId}/recharge/`, {
       method: 'POST',
       headers: this.getHeaders(),
@@ -201,14 +246,14 @@ export class ApiClient {
 
   // ════════════════════════ PACKAGES & OFFERS (FULL CRUD) ════════════════════════
   static async getPackages(): Promise<Package[]> {
-    try {
-      const res = await fetch(`${API_BASE}/packages/`, { headers: this.getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        return data.results || data;
-      }
-    } catch { }
-    return mockPackages;
+    const res = await fetch(`${API_BASE}/packages/`, { headers: this.getHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      return data.results || (Array.isArray(data) ? data : []);
+    }
+    if (res.status === 404) return [];
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || `Failed to fetch packages (${res.status})`);
   }
 
   static async createPackage(payload: Partial<Package>) {
@@ -267,14 +312,14 @@ export class ApiClient {
 
   // ════════════════════════ ROUTERS & NETWORK (FULL CRUD) ════════════════════════
   static async getRouters(): Promise<Router[]> {
-    try {
-      const res = await fetch(`${API_BASE}/routers/`, { headers: this.getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        return data.results || data;
-      }
-    } catch { }
-    return mockRouters;
+    const res = await fetch(`${API_BASE}/routers/`, { headers: this.getHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      return data.results || (Array.isArray(data) ? data : []);
+    }
+    if (res.status === 404) return [];
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || `Failed to fetch routers (${res.status})`);
   }
 
   static async createRouter(payload: Partial<Router>) {
@@ -347,19 +392,19 @@ export class ApiClient {
       const res = await fetch(`${API_BASE}/routers/${routerId}/live_traffic/`, { headers: this.getHeaders() });
       if (res.ok) return await res.json();
     } catch { }
-    return { download_mbps: 650.4, upload_mbps: 180.2, cpu_percent: 28, active_sessions: 420 };
+    return { download_mbps: 0, upload_mbps: 0, cpu_percent: 0, active_sessions: 0 };
   }
 
   // ════════════════════════ OLTS & ONUS (FULL CRUD) ════════════════════════
   static async getOLTs(): Promise<OLT[]> {
-    try {
-      const res = await fetch(`${API_BASE}/olts/`, { headers: this.getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        return data.results || data;
-      }
-    } catch { }
-    return mockOLTs;
+    const res = await fetch(`${API_BASE}/olts/`, { headers: this.getHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      return data.results || (Array.isArray(data) ? data : []);
+    }
+    if (res.status === 404) return [];
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || `Failed to fetch OLTs (${res.status})`);
   }
 
   static async createOLT(payload: Partial<OLT>) {
@@ -387,18 +432,18 @@ export class ApiClient {
   }
 
   static async getONUs(params?: { olt?: string; search?: string }): Promise<ONU[]> {
-    try {
-      const url = new URL(`${API_BASE}/onus/`);
-      if (params?.olt && params.olt !== 'ALL') url.searchParams.append('olt', params.olt);
-      if (params?.search) url.searchParams.append('search', params.search);
+    const url = new URL(`${API_BASE}/onus/`);
+    if (params?.olt && params.olt !== 'ALL') url.searchParams.append('olt', params.olt);
+    if (params?.search) url.searchParams.append('search', params.search);
 
-      const res = await fetch(url.toString(), { headers: this.getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        return data.results || data;
-      }
-    } catch { }
-    return mockONUs;
+    const res = await fetch(url.toString(), { headers: this.getHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      return data.results || (Array.isArray(data) ? data : []);
+    }
+    if (res.status === 404) return [];
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || `Failed to fetch ONUs (${res.status})`);
   }
 
   static async createONU(payload: Partial<ONU>) {
@@ -487,14 +532,14 @@ export class ApiClient {
 
   // ════════════════════════ SUPPORT & TICKETS (FULL CRUD) ════════════════════════
   static async getTickets(): Promise<Ticket[]> {
-    try {
-      const res = await fetch(`${API_BASE}/tickets/`, { headers: this.getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        return data.results || data;
-      }
-    } catch { }
-    return mockTickets;
+    const res = await fetch(`${API_BASE}/tickets/`, { headers: this.getHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      return data.results || (Array.isArray(data) ? data : []);
+    }
+    if (res.status === 404) return [];
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || `Failed to fetch tickets (${res.status})`);
   }
 
   static async createTicket(payload: Partial<Ticket>) {
@@ -744,17 +789,24 @@ export class ApiClient {
   // ════════════════════════ FINANCE, PAYMENTS & GATEWAYS (FULL CRUD) ════════════════════════
   static async getTransactions(): Promise<PaymentTransaction[]> {
     try {
-      const res = await fetch(`${API_BASE}/transactions/`, { headers: this.getHeaders() });
+      const res = await fetch(`${API_BASE}/payments/transactions/`, { headers: this.getHeaders() });
       if (res.ok) {
         const data = await res.json();
-        return data.results || data;
+        return data.results || (Array.isArray(data) ? data : []);
       }
     } catch { }
-    return mockTransactions;
+    try {
+      const altRes = await fetch(`${API_BASE}/transactions/`, { headers: this.getHeaders() });
+      if (altRes.ok) {
+        const data = await altRes.json();
+        return data.results || (Array.isArray(data) ? data : []);
+      }
+    } catch { }
+    return [];
   }
 
   static async createTransaction(payload: any) {
-    const res = await fetch(`${API_BASE}/transactions/`, {
+    const res = await fetch(`${API_BASE}/payments/transactions/`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload),
@@ -763,16 +815,16 @@ export class ApiClient {
   }
 
   static async getInvoices(status?: string) {
-    try {
-      const url = new URL(`${API_BASE}/invoices/`);
-      if (status && status !== 'ALL') url.searchParams.append('status', status);
-      const res = await fetch(url.toString(), { headers: this.getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        return data.results || data;
-      }
-    } catch { }
-    return [];
+    const url = new URL(`${API_BASE}/invoices/`);
+    if (status && status !== 'ALL' && status !== 'All') url.searchParams.append('status', status);
+    const res = await fetch(url.toString(), { headers: this.getHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      return data.results || (Array.isArray(data) ? data : []);
+    }
+    if (res.status === 404) return [];
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || `Failed to fetch invoices (${res.status})`);
   }
 
   static async createInvoice(payload: any) {
@@ -781,7 +833,28 @@ export class ApiClient {
       headers: this.getHeaders(),
       body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(typeof err === 'object' ? JSON.stringify(err) : 'Failed to create invoice');
+    }
     return await res.json();
+  }
+
+  static async getRecharges(params?: { customer?: string }): Promise<any[]> {
+    const url = new URL(`${API_BASE}/recharges/`);
+    if (params?.customer) url.searchParams.append('customer', params.customer);
+    const res = await fetch(url.toString(), { headers: this.getHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      return data.results || (Array.isArray(data) ? data : []);
+    }
+    if (res.status === 404) return [];
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || err.detail || `Failed to fetch recharges (${res.status})`);
+  }
+
+  static async createRecharge(payload: { customer_id: string; amount: number; validity_days?: number; payment_method?: string; discount?: number; notes?: string; package_id?: string; trx_id?: string }) {
+    return this.rechargeCustomer(payload.customer_id, payload);
   }
 
   static async getPaymentGateways() {
@@ -826,7 +899,7 @@ export class ApiClient {
         return data.results || data;
       }
     } catch { }
-    return mockSmsLogs;
+    return [];
   }
 
   static async createSmsLog(payload: any) {

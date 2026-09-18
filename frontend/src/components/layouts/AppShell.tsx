@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layouts/Sidebar";
 import { Header } from "@/components/layouts/Header";
@@ -12,12 +13,27 @@ export function AppShell({
   isControlPlaneDomain?: boolean;
 }) {
   const pathname = usePathname();
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // Clean layout without Admin Sidebar/Header for Login and Client Portal
-  const isLoginPage = pathname === "/login" || pathname.startsWith("/login/");
-  const isPortalPage = pathname === "/portal" || pathname.startsWith("/portal/");
+  // Close mobile drawer on route transition without effect
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname);
+    setIsMobileOpen(false);
+  }
 
-  if (isLoginPage || isPortalPage) {
+  // Clean layout without Admin Sidebar/Header for Login, Client Portal, and Password Recovery
+  const isPublicPage =
+    pathname === "/login" ||
+    pathname.startsWith("/login/") ||
+    pathname === "/portal" ||
+    pathname.startsWith("/portal/") ||
+    pathname === "/forgot-password" ||
+    pathname.startsWith("/forgot-password/") ||
+    pathname === "/reset-password" ||
+    pathname.startsWith("/reset-password/");
+
+  if (isPublicPage) {
     return (
       <div className="min-h-screen w-full flex flex-col bg-background">
         {children}
@@ -25,13 +41,16 @@ export function AppShell({
     );
   }
 
-  // Default ISP Admin & Staff ERP layout
+  // Authoritative ISP Admin & Staff ERP layout
   return (
     <ProtectedRoute requiredContext="tenant">
-      <div className="min-h-screen flex w-full">
-        <Sidebar />
+      <div className="min-h-screen flex w-full bg-background">
+        <Sidebar
+          isMobileOpen={isMobileOpen}
+          onCloseMobile={() => setIsMobileOpen(false)}
+        />
         <div className="flex-1 flex flex-col min-w-0">
-          <Header />
+          <Header onToggleMobileMenu={() => setIsMobileOpen((prev) => !prev)} />
           <main className="flex-1 overflow-y-auto">
             {children}
           </main>
@@ -40,5 +59,3 @@ export function AppShell({
     </ProtectedRoute>
   );
 }
-
-

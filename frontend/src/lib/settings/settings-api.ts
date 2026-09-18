@@ -20,11 +20,17 @@ export class SettingsClient {
   private static getHeaders(): Record<string, string> {
     const token = TokenStorage.getStoredToken();
     const activeTenant = TokenStorage.getStoredTenantId();
+    const apiKey = typeof window !== 'undefined'
+      ? localStorage.getItem('sheba_api_key')
+      : process.env.NEXT_PUBLIC_SHEBA_API_KEY;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
     };
+    if (apiKey) {
+      headers['X-API-Key'] = apiKey;
+    }
     if (token) {
       headers['Authorization'] = `Token ${token}`;
     }

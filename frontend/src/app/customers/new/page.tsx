@@ -1,604 +1,480 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   UserPlus,
   ArrowLeft,
-  Compass,
   CheckCircle2,
-  Phone,
   CreditCard,
   Network,
-  ShieldCheck,
   User,
-  MapPin,
   Save,
-  Upload,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-
-const DISTRICT_THANA_MAP: Record<string, string[]> = {
-  Dhaka: ["Uttara", "Mirpur", "Dhanmondi", "Gulshan", "Banani", "Mohammadpur", "Badda", "Motijheel"],
-  Chittagong: ["Agrabad", "Panchlaish", "Kotwali", "Halishahar", "Chandgaon", "Khulshi"],
-  Sylhet: ["Kotwali", "Amberkhana", "Zindabazar", "South Surma", "Shahjalal Uposhohor"],
-  Rajshahi: ["Boalia", "Motihar", "Rajpara", "Shah Mokhdum"],
-  Khulna: ["Khalishpur", "Daulatpur", "Sonadanga", "Kotwali"],
-  Gazipur: ["Tongi", "Joydebpur", "Sreepur", "Kaliakair"],
-  Narayanganj: ["Fatullah", "Siddhirganj", "Bandar", "Sonargaon"],
-};
-
-const PACKAGES = [
-  { id: "p1", name: "Starter Fiber - 15 Mbps", price: 500 },
-  { id: "p2", name: "Turbo Stream - 30 Mbps", price: 800 },
-  { id: "p3", name: "Giga Prime - 60 Mbps", price: 1200 },
-  { id: "p4", name: "Enterprise Dedicated - 100 Mbps", price: 2500 },
-];
+import { ApiClient } from "@/lib/api";
+import { Customer, Package, Router } from "@/types";
 
 export default function AddNewClientPage() {
   const router = useRouter();
+  const [packages, setPackages] = useState<Package[]>([]);
+  const [routers, setRouters] = useState<Router[]>([]);
+  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [isGettingGps, setIsGettingGps] = useState(false);
 
   // Form States
   const [formData, setFormData] = useState({
     // Client Identity
     full_name: "",
-    primary_phone: "",
-    alternate_phone: "",
-    nid: "",
-    pppoe_username: "admin",
-    pppoe_password: "••••••••••",
-    client_code: "",
+    mobile: "",
+    email: "",
+    national_id: "",
+    customer_code: "",
     address: "",
-    district: "",
-    thana: "",
+    area_zone: "Default",
+
+    // Network & PPPoE
+    connection_type: "PPPoE" as "PPPoE" | "Static_IP" | "DHCP",
+    pppoe_username: "",
+    pppoe_password: "",
+    router: "",
 
     // Package & Billing
-    package_id: "",
-    discount: "0",
-    bill_amount: "0.00",
-    billing_position: "Active (Billable)",
-    client_status: "Active",
-    joining_date: "2026-09-01",
-    billing_cycle: "Standard 30 Days",
-    sms_notifications: "Enabled (Send SMS)",
-    voice_notifications: "Enabled (Send Voice Call)",
-
-    // Network & Location
-    router_pop: "Core-MikroTik-CCR1036",
-    zone: "Default / No Zone",
-    tj_box: "None",
-    connection_type: "Fiber (FTTH)",
-    client_type: "Home",
-    onu_mac: "",
-    gps_coords: "",
+    package: "",
+    billing_type: "Prepaid" as "Prepaid" | "Postpaid",
+    monthly_bill: "0.00",
+    discount: "0.00",
     remarks: "",
   });
 
+  useEffect(() => {
+    async function loadDropdowns() {
+      try {
+        const [pkgs, rtrs] = await Promise.all([
+          ApiClient.getPackages(),
+          ApiClient.getRouters(),
+        ]);
+        setPackages(pkgs.filter((p) => p.is_active));
+        setRouters(rtrs);
+
+        if (pkgs.length > 0) {
+          const firstPkg = pkgs[0];
+          setFormData((prev) => ({
+            ...prev,
+            package: firstPkg.id,
+            monthly_bill: String(firstPkg.regular_price),
+            router: rtrs.length > 0 ? rtrs[0].id : "",
+          }));
+        } else if (rtrs.length > 0) {
+          setFormData((prev) => ({
+            ...prev,
+            router: rtrs[0].id,
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to load packages/routers for customer creation:", err);
+      } finally {
+        setLoadingInitial(false);
+      }
+    }
+    loadDropdowns();
+  }, []);
+
   const handlePackageChange = (pkgId: string) => {
-    const pkg = PACKAGES.find((p) => p.id === pkgId);
-    const regularPrice = pkg ? pkg.price : 0;
+    const selectedPkg = packages.find((p) => p.id === pkgId);
+    const regularPrice = selectedPkg ? Number(selectedPkg.regular_price) : 0;
     const discountVal = Number(formData.discount) || 0;
     const finalAmount = Math.max(0, regularPrice - discountVal);
 
-    setFormData({
-      ...formData,
-      package_id: pkgId,
-      bill_amount: finalAmount.toFixed(2),
-    });
+    setFormData((prev) => ({
+      ...prev,
+      package: pkgId,
+      monthly_bill: finalAmount.toFixed(2),
+    }));
   };
 
   const handleDiscountChange = (discountStr: string) => {
     const discountVal = Number(discountStr) || 0;
-    const pkg = PACKAGES.find((p) => p.id === formData.package_id);
-    const regularPrice = pkg ? pkg.price : 0;
+    const selectedPkg = packages.find((p) => p.id === formData.package);
+    const regularPrice = selectedPkg ? Number(selectedPkg.regular_price) : 0;
     const finalAmount = Math.max(0, regularPrice - discountVal);
 
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       discount: discountStr,
-      bill_amount: finalAmount.toFixed(2),
-    });
+      monthly_bill: finalAmount.toFixed(2),
+    }));
   };
 
-  const handleGetGps = () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    if (!formData.full_name.trim()) {
+      setErrorMsg("Subscriber full name is required.");
       return;
     }
-    setIsGettingGps(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setFormData((prev) => ({
-          ...prev,
-          gps_coords: `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`,
-        }));
-        setIsGettingGps(false);
-      },
-      () => {
-        setIsGettingGps(false);
-        setFormData((prev) => ({
-          ...prev,
-          gps_coords: "23.872854, 90.398412",
-        }));
+    if (!formData.mobile.trim()) {
+      setErrorMsg("Primary mobile phone number is required.");
+      return;
+    }
+    if (!formData.pppoe_username.trim()) {
+      setErrorMsg("PPPoE username is required for subscriber network authentication.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const payload: Partial<Customer> & Record<string, unknown> = {
+        full_name: formData.full_name.trim(),
+        mobile: formData.mobile.trim(),
+        email: formData.email.trim() || undefined,
+        national_id: formData.national_id.trim() || undefined,
+        address: formData.address.trim() || undefined,
+        area_zone: formData.area_zone.trim() || "Default",
+        connection_type: formData.connection_type,
+        pppoe_username: formData.pppoe_username.trim(),
+        billing_type: formData.billing_type,
+        monthly_bill: Number(formData.monthly_bill),
+        discount: Number(formData.discount || 0),
+        remarks: formData.remarks.trim() || undefined,
+      };
+
+      if (formData.pppoe_password) {
+        payload.pppoe_password = formData.pppoe_password;
       }
-    );
-  };
+      if (formData.customer_code.trim()) {
+        payload.customer_code = formData.customer_code.trim();
+      }
+      if (formData.package) {
+        payload.package = formData.package;
+      }
+      if (formData.router) {
+        payload.router = formData.router;
+      }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSuccess(true);
-    setTimeout(() => {
-      router.push("/customers");
-    }, 1500);
+      await ApiClient.createCustomer(payload as Partial<Customer>);
+      setSuccess(true);
+      setTimeout(() => {
+        router.push("/customers");
+      }, 1200);
+    } catch (err: unknown) {
+      console.error("Customer creation error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg || "Failed to create subscriber. Please review the form inputs.");
+    } finally {
+      setSubmitting(false);
+    }
   };
-
-  const availableThanas = formData.district ? DISTRICT_THANA_MAP[formData.district] || [] : [];
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 lg:p-6 space-y-6 max-w-4xl mx-auto text-xs">
       {/* Top Banner Header */}
-      <div className="bg-emerald-700 text-white rounded-xl p-4 flex items-center justify-between shadow-md">
+      <div className="bg-indigo-700 text-white rounded-xl p-4 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-2.5">
           <Link href="/customers" className="hover:opacity-80 transition-opacity">
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <UserPlus className="h-5 w-5" />
-          <h1 className="text-lg font-bold tracking-tight">Add New Client / Broadband User</h1>
+          <h1 className="text-base lg:text-lg font-bold tracking-tight">
+            Register New Broadband Subscriber
+          </h1>
         </div>
         {success && (
-          <div className="flex items-center gap-1.5 text-xs font-semibold bg-emerald-800 px-3 py-1 rounded-md">
-            <CheckCircle2 className="h-4 w-4 text-emerald-300" /> Client Registered Successfully!
+          <div className="flex items-center gap-1.5 text-xs font-semibold bg-indigo-800 px-3 py-1 rounded-md">
+            <CheckCircle2 className="h-4 w-4 text-emerald-300" /> Customer Created Successfully!
           </div>
         )}
       </div>
 
+      {/* Error alert banner */}
+      {errorMsg && (
+        <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive flex items-start gap-2.5">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-xs">{errorMsg}</p>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="border-border bg-card shadow-xs">
-          <CardContent className="p-6 space-y-8 text-xs">
-            {/* ───────────────────────────────────────────────────────────── */}
-            {/* SECTION 1: Client Identity */}
-            {/* ───────────────────────────────────────────────────────────── */}
+          <CardContent className="p-6 space-y-6">
+            {/* Section 1: Customer Identity */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">
-                Client Identity
+              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2 flex items-center gap-1.5">
+                <User className="h-4 w-4 text-indigo-500" />
+                Subscriber Identity
               </h2>
-
-              {/* Row 1: Full Name, Primary Phone, Alternate Phone */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-foreground mb-1">
-                    Full Name <span className="text-red-500">*</span>
+                  <label className="text-xs font-medium text-foreground">
+                    Full Name <span className="text-rose-500">*</span>
                   </label>
                   <Input
                     required
-                    placeholder="Enter Client Name"
+                    placeholder="e.g. Tanvir Ahmed"
                     value={formData.full_name}
                     onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                    className="bg-background"
+                    className="mt-1 text-xs"
+                    disabled={submitting}
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-foreground mb-1">
-                    Primary Phone No <span className="text-red-500">*</span>
+                  <label className="text-xs font-medium text-foreground">
+                    Mobile Number <span className="text-rose-500">*</span>
                   </label>
                   <Input
                     required
-                    placeholder="c.g. 01711000000"
-                    value={formData.primary_phone}
-                    onChange={(e) => setFormData({ ...formData, primary_phone: e.target.value })}
-                    className="bg-background"
+                    placeholder="e.g. 01711223344"
+                    value={formData.mobile}
+                    onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                    className="mt-1 text-xs font-mono"
+                    disabled={submitting}
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-foreground mb-1">Alternate Phone</label>
+                  <label className="text-xs font-medium text-foreground">Email Address</label>
                   <Input
-                    placeholder="Optional Number"
-                    value={formData.alternate_phone}
-                    onChange={(e) => setFormData({ ...formData, alternate_phone: e.target.value })}
-                    className="bg-background"
+                    type="email"
+                    placeholder="e.g. tanvir@example.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="mt-1 text-xs"
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-foreground">National ID / Passport</label>
+                  <Input
+                    placeholder="e.g. 198926925810001"
+                    value={formData.national_id}
+                    onChange={(e) => setFormData({ ...formData, national_id: e.target.value })}
+                    className="mt-1 text-xs font-mono"
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-foreground">Customer Code (Optional)</label>
+                  <Input
+                    placeholder="Auto-generated if empty (e.g. CUST-001)"
+                    value={formData.customer_code}
+                    onChange={(e) => setFormData({ ...formData, customer_code: e.target.value })}
+                    className="mt-1 text-xs font-mono"
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-foreground">Area / Zone</label>
+                  <Input
+                    placeholder="e.g. Sector-4, Uttara"
+                    value={formData.area_zone}
+                    onChange={(e) => setFormData({ ...formData, area_zone: e.target.value })}
+                    className="mt-1 text-xs"
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-medium text-foreground">Physical Address</label>
+                  <Input
+                    placeholder="House, Road, Apartment, Thana, District"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="mt-1 text-xs"
+                    disabled={submitting}
                   />
                 </div>
               </div>
+            </div>
 
-              {/* Row 2: National ID (NID), PPPoE ID / Username */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Section 2: Network & PPPoE Configuration */}
+            <div className="space-y-4">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2 flex items-center gap-1.5">
+                <Network className="h-4 w-4 text-emerald-500" />
+                Network & Gateway Configuration
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-semibold text-foreground mb-1">
-                    National ID (NID) <span className="text-red-500">*</span>
-                  </label>
-                  <Input
-                    required
-                    placeholder="NID Number"
-                    value={formData.nid}
-                    onChange={(e) => setFormData({ ...formData, nid: e.target.value })}
-                    className="bg-background"
-                  />
+                  <label className="text-xs font-medium text-foreground">Connection Type</label>
+                  <select
+                    value={formData.connection_type}
+                    onChange={(e) => setFormData({ ...formData, connection_type: e.target.value as "PPPoE" | "Static_IP" | "DHCP" })}
+                    className="mt-1 h-9 w-full rounded-md border border-input bg-card px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    disabled={submitting}
+                  >
+                    <option value="PPPoE">PPPoE (Point-to-Point over Ethernet)</option>
+                    <option value="Static_IP">Static IP (Dedicated Allocation)</option>
+                    <option value="DHCP">DHCP / IPoE</option>
+                  </select>
                 </div>
 
-                <div className="md:col-span-2">
-                  <label className="block font-semibold text-foreground mb-1">
-                    PPPoE ID / Username <span className="text-red-500">*</span>
+                <div>
+                  <label className="text-xs font-medium text-foreground">Target Network Router</label>
+                  <select
+                    value={formData.router}
+                    onChange={(e) => setFormData({ ...formData, router: e.target.value })}
+                    className="mt-1 h-9 w-full rounded-md border border-input bg-card px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    disabled={submitting || routers.length === 0}
+                  >
+                    {routers.length === 0 ? (
+                      <option value="">No routers available</option>
+                    ) : (
+                      routers.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name} ({r.ip_address})
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-foreground">
+                    PPPoE Username <span className="text-rose-500">*</span>
                   </label>
                   <Input
                     required
-                    placeholder="admin"
+                    placeholder="e.g. tanvir_home"
                     value={formData.pppoe_username}
                     onChange={(e) => setFormData({ ...formData, pppoe_username: e.target.value })}
-                    className="bg-background font-mono"
+                    className="mt-1 text-xs font-mono"
+                    disabled={submitting}
                   />
                 </div>
-              </div>
 
-              {/* Row 3: PPPoE Password, Client Code / Custom ID, Profile Picture */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-semibold text-foreground mb-1">
-                    PPPoE Password <span className="text-red-500">*</span>
+                  <label className="text-xs font-medium text-foreground">
+                    PPPoE Password (Masked)
                   </label>
                   <Input
                     type="password"
-                    required
+                    placeholder="Enter secret password"
                     value={formData.pppoe_password}
                     onChange={(e) => setFormData({ ...formData, pppoe_password: e.target.value })}
-                    className="bg-background"
+                    className="mt-1 text-xs"
+                    disabled={submitting}
                   />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">
-                    Client Code / Custom ID (Optional)
-                  </label>
-                  <Input
-                    placeholder="Custom ID or Code"
-                    value={formData.client_code}
-                    onChange={(e) => setFormData({ ...formData, client_code: e.target.value })}
-                    className="bg-background font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Profile Picture</label>
-                  <div className="flex items-center gap-2 border border-input rounded-md px-3 py-1.5 bg-background text-muted-foreground">
-                    <input type="file" className="text-[11px] file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-muted file:text-foreground hover:file:bg-accent cursor-pointer w-full" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Row 4: Address, District, Thana / Upazila */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Address</label>
-                  <Input
-                    placeholder="House, Street, Area info"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="bg-background"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">
-                    District <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    required
-                    value={formData.district}
-                    onChange={(e) => setFormData({ ...formData, district: e.target.value, thana: "" })}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="">-- Select District --</option>
-                    {Object.keys(DISTRICT_THANA_MAP).map((dist) => (
-                      <option key={dist} value={dist}>{dist}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">
-                    Thana / Upazila <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    required
-                    value={formData.thana}
-                    onChange={(e) => setFormData({ ...formData, thana: e.target.value })}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="">-- Select Thana --</option>
-                    {availableThanas.map((th) => (
-                      <option key={th} value={th}>{th}</option>
-                    ))}
-                  </select>
                 </div>
               </div>
             </div>
 
-            {/* ───────────────────────────────────────────────────────────── */}
-            {/* SECTION 2: Package & Billing Setup */}
-            {/* ───────────────────────────────────────────────────────────── */}
+            {/* Section 3: Package & Billing Setup */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">
-                Package & Billing Setup
+              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2 flex items-center gap-1.5">
+                <CreditCard className="h-4 w-4 text-indigo-500" />
+                Package & Billing Plan
               </h2>
-
-              {/* Row 1: Select Package, Discount, Bill Amount, Billing Position */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-semibold text-foreground mb-1">
-                    Select Package <span className="text-red-500">*</span>
-                  </label>
+                  <label className="text-xs font-medium text-foreground">Internet Package</label>
                   <select
-                    required
-                    value={formData.package_id}
+                    value={formData.package}
                     onChange={(e) => handlePackageChange(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="mt-1 h-9 w-full rounded-md border border-input bg-card px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    disabled={submitting || packages.length === 0}
                   >
-                    <option value="">-- Choose Package --</option>
-                    {PACKAGES.map((pkg) => (
-                      <option key={pkg.id} value={pkg.id}>
-                        {pkg.name} (৳{pkg.price})
-                      </option>
-                    ))}
+                    {packages.length === 0 ? (
+                      <option value="">No packages available</option>
+                    ) : (
+                      packages.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.speed_mbps} Mbps - Tk {p.regular_price})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-foreground mb-1">Discount (৳)</label>
+                  <label className="text-xs font-medium text-foreground">Billing Type</label>
+                  <select
+                    value={formData.billing_type}
+                    onChange={(e) => setFormData({ ...formData, billing_type: e.target.value as "Prepaid" | "Postpaid" })}
+                    className="mt-1 h-9 w-full rounded-md border border-input bg-card px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                    disabled={submitting}
+                  >
+                    <option value="Prepaid">Prepaid (Payment Before Service)</option>
+                    <option value="Postpaid">Postpaid (Monthly Invoicing)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-foreground">Special Discount (Tk)</label>
                   <Input
                     type="number"
+                    min="0"
+                    placeholder="0.00"
                     value={formData.discount}
                     onChange={(e) => handleDiscountChange(e.target.value)}
-                    className="bg-background"
+                    className="mt-1 text-xs"
+                    disabled={submitting}
                   />
                 </div>
 
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Bill Amount</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">৳</span>
-                    <Input
-                      readOnly
-                      value={formData.bill_amount}
-                      className="pl-7 bg-muted font-bold text-foreground"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Billing Position / Status</label>
-                  <select
-                    value={formData.billing_position}
-                    onChange={(e) => setFormData({ ...formData, billing_position: e.target.value })}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option>Active (Billable)</option>
-                    <option>Free / Complimentary</option>
-                    <option>Suspended</option>
-                    <option>Trial Account</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Row 2: Client Status, Joining Date, Billing Cycle Day, SMS Notifications */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Client Status</label>
-                  <select
-                    value={formData.client_status}
-                    onChange={(e) => setFormData({ ...formData, client_status: e.target.value })}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option>Active</option>
-                    <option>Free</option>
-                    <option>Promise Active</option>
-                    <option>Due</option>
-                    <option>Inactive</option>
-                    <option>Expired</option>
-                    <option>Left</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Joining Date</label>
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-medium text-foreground">Monthly Bill Payable (Tk)</label>
                   <Input
-                    type="date"
-                    value={formData.joining_date}
-                    onChange={(e) => setFormData({ ...formData, joining_date: e.target.value })}
-                    className="bg-background"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.monthly_bill}
+                    onChange={(e) => setFormData({ ...formData, monthly_bill: e.target.value })}
+                    className="mt-1 text-xs font-bold text-foreground"
+                    disabled={submitting}
                   />
                 </div>
 
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Billing Cycle Day</label>
-                  <select
-                    value={formData.billing_cycle}
-                    onChange={(e) => setFormData({ ...formData, billing_cycle: e.target.value })}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option>Standard 30 Days</option>
-                    <option>1st of Month</option>
-                    <option>Fixed Calendar Month</option>
-                    <option>Prepaid (Expiry on Balance Zero)</option>
-                  </select>
-                  <p className="text-[10px] text-muted-foreground mt-1">Calculates pro-rata credit till this day.</p>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">SMS Notifications</label>
-                  <select
-                    value={formData.sms_notifications}
-                    onChange={(e) => setFormData({ ...formData, sms_notifications: e.target.value })}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option>Enabled (Send SMS)</option>
-                    <option>Disabled</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Row 3: Voice Call Notifications */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Voice Call Notifications</label>
-                  <select
-                    value={formData.voice_notifications}
-                    onChange={(e) => setFormData({ ...formData, voice_notifications: e.target.value })}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option>Enabled (Send Voice Call)</option>
-                    <option>Disabled</option>
-                  </select>
+                <div className="sm:col-span-1">
+                  <label className="text-xs font-medium text-foreground">Remarks / Installation Note</label>
+                  <Input
+                    placeholder="Optional note"
+                    value={formData.remarks}
+                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                    className="mt-1 text-xs"
+                    disabled={submitting}
+                  />
                 </div>
               </div>
             </div>
 
-            {/* ───────────────────────────────────────────────────────────── */}
-            {/* SECTION 3: Network & Location */}
-            {/* ───────────────────────────────────────────────────────────── */}
-            <div className="space-y-4">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">
-                Network & Location
-              </h2>
-
-              {/* Row 1: Router / POP, Zone Configuration, TJ Box / Port, Connection Type */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Router / POP</label>
-                  <select
-                    value={formData.router_pop}
-                    onChange={(e) => setFormData({ ...formData, router_pop: e.target.value })}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option>Core-MikroTik-CCR1036</option>
-                    <option>Mirpur-CCR2004</option>
-                    <option>Uttara-CCR1072</option>
-                    <option>Dhanmondi-CCR1016</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Zone Configuration</label>
-                  <select
-                    value={formData.zone}
-                    onChange={(e) => setFormData({ ...formData, zone: e.target.value })}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option>Default / No Zone</option>
-                    <option>Zone 1 - Uttara Sector 10</option>
-                    <option>Zone 2 - Mirpur 10 NOC</option>
-                    <option>Zone 3 - Dhanmondi 27 Hub</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">TJ Box / Port</label>
-                  <select
-                    value={formData.tj_box}
-                    onChange={(e) => setFormData({ ...formData, tj_box: e.target.value })}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option>None</option>
-                    <option>BOX-A1 (Port 1 - Blue)</option>
-                    <option>BOX-A1 (Port 2 - Orange)</option>
-                    <option>BOX-M2 (Port 1 - Blue)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">Connection Type</label>
-                  <select
-                    value={formData.connection_type}
-                    onChange={(e) => setFormData({ ...formData, connection_type: e.target.value })}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option>Fiber (FTTH)</option>
-                    <option>Cat6 / LAN</option>
-                    <option>Wireless PtP</option>
-                    <option>Corporate Dark Core</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Row 2: Client Type, ONU MAC Address, GPS Coordinates */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">
-                    Client Type <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.client_type}
-                    onChange={(e) => setFormData({ ...formData, client_type: e.target.value })}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option>Home</option>
-                    <option>Commercial / Office</option>
-                    <option>SME / Corporate</option>
-                    <option>Reseller Sub-client</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">ONU MAC Address</label>
-                  <Input
-                    placeholder="e.g. AA:BB:CC:11:22:33"
-                    value={formData.onu_mac}
-                    onChange={(e) => setFormData({ ...formData, onu_mac: e.target.value })}
-                    className="bg-background font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-foreground mb-1">GPS Coordinates (Lat, Long)</label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      placeholder="Fetching..."
-                      value={formData.gps_coords}
-                      onChange={(e) => setFormData({ ...formData, gps_coords: e.target.value })}
-                      className="bg-background font-mono flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleGetGps}
-                      disabled={isGettingGps}
-                      className="h-9 px-3 border-border bg-background"
-                      title="Fetch current GPS"
-                    >
-                      <MapPin className={`h-4 w-4 text-indigo-500 ${isGettingGps ? 'animate-bounce' : ''}`} />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Row 3: Remarks */}
-              <div>
-                <label className="block font-semibold text-foreground mb-1">Remarks</label>
-                <Input
-                  placeholder="Any notes..."
-                  value={formData.remarks}
-                  onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                  className="bg-background"
-                />
-              </div>
-            </div>
-
-            {/* ───────────────────────────────────────────────────────────── */}
-            {/* Submit Button */}
-            {/* ───────────────────────────────────────────────────────────── */}
-            <div className="pt-4 border-t border-border">
+            {/* Submission Actions */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
+              <Link href="/customers">
+                <Button variant="outline" size="sm" type="button" disabled={submitting}>
+                  Cancel
+                </Button>
+              </Link>
               <Button
                 type="submit"
-                className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold h-11 text-sm shadow-lg shadow-emerald-700/25 flex items-center justify-center gap-2"
+                size="sm"
+                disabled={submitting || loadingInitial}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 cursor-pointer"
               >
-                <UserPlus className="h-4.5 w-4.5" />
-                Register New Client & Save Profile
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Registering Subscriber...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Register Subscriber
+                  </>
+                )}
               </Button>
             </div>
           </CardContent>

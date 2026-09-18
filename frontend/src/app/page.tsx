@@ -1,520 +1,492 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   Users,
-  UserPlus,
-  CheckCircle,
-  Handshake,
   UserCheck,
-  FileText,
-  AlertTriangle,
-  Clock,
   UserX,
-  Ticket,
-  Activity,
-  UserMinus,
-  TrendingUp,
   CreditCard,
+  DollarSign,
+  TrendingUp,
+  Server,
   Radio,
-  Wifi,
-  WifiOff,
+  LifeBuoy,
+  Layers,
+  Activity,
+  AlertTriangle,
+  RefreshCw,
+  ArrowUpRight,
+  Receipt,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { ApiClient } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
-import { DashboardKPIs, Router, PaymentTransaction, ONU } from "@/types";
-import { mockKPIs } from "@/lib/mock-data";
-import { RoleGuard } from "@/components/auth/RoleGuard";
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  BarChart,
-  Bar,
-} from "recharts";
-
-const defaultTraffic = [
-  { time: "00:00", download: 420, upload: 110 },
-  { time: "04:00", download: 280, upload: 75 },
-  { time: "08:00", download: 560, upload: 145 },
-  { time: "12:00", download: 840, upload: 260 },
-  { time: "16:00", download: 920, upload: 290 },
-  { time: "20:00", download: 1380, upload: 410 },
-  { time: "23:00", download: 890, upload: 270 },
-];
-
-const defaultRevenue = [
-  { month: "Apr", collection: 320, target: 300 },
-  { month: "May", collection: 345, target: 320 },
-  { month: "Jun", collection: 380, target: 350 },
-  { month: "Jul", collection: 410, target: 380 },
-  { month: "Aug", collection: 440, target: 400 },
-  { month: "Sep", collection: 485, target: 420 },
-];
+import { Router, PaymentTransaction, Package, DashboardKPIs } from "@/types";
 
 export default function DashboardPage() {
-  const [kpis, setKpis] = useState<any>(mockKPIs);
-  const [trafficData, setTrafficData] = useState<any[]>(defaultTraffic);
-  const [revenueTrend, setRevenueTrend] = useState<any[]>(defaultRevenue);
+  const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [routers, setRouters] = useState<Router[]>([]);
+  const [packages, setPackages] = useState<Package[]>([]);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
-  const [onus, setOnus] = useState<ONU[]>([]);
+  const [onlineSessionsCount, setOnlineSessionsCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [analytics, r, t, o] = await Promise.all([
-          ApiClient.getDashboardAnalytics("admin"),
-          ApiClient.getRouters(),
-          ApiClient.getTransactions(),
-          ApiClient.getONUs(),
-        ]);
+  const handleRefresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [analyticsRes, routersRes, packagesRes, txRes, sessionsRes] = await Promise.allSettled([
+        ApiClient.getDashboardAnalytics("admin"),
+        ApiClient.getRouters(),
+        ApiClient.getPackages(),
+        ApiClient.getTransactions(),
+        ApiClient.getUserSessions(),
+      ]);
 
-        if (analytics && analytics.kpis) {
-          setKpis(analytics.kpis);
-          if (analytics.traffic_distribution?.length > 0) setTrafficData(analytics.traffic_distribution);
-          if (analytics.monthly_trend?.length > 0) {
-            setRevenueTrend(analytics.monthly_trend.map((m: any) => ({
-              ...m,
-              collection: Math.round((Number(m.collection) || 0) / 1000),
-              target: Math.round((Number(m.target) || 0) / 1000),
-            })));
-          }
-        }
-        setRouters(r || []);
-        setTransactions(t || []);
-        setOnus(o || []);
-      } catch (err) {
-        console.error("Failed to load dashboard data from API:", err);
-      } finally {
-        setLoading(false);
+      if (analyticsRes.status === "fulfilled" && analyticsRes.value?.kpis) {
+        setKpis(analyticsRes.value.kpis);
+      } else if (analyticsRes.status === "rejected") {
+        console.error("Dashboard analytics error:", analyticsRes.reason);
+        const reasonObj = analyticsRes.reason as { message?: string } | undefined;
+        setError(reasonObj?.message || "Failed to load dashboard metrics");
       }
+
+      if (routersRes.status === "fulfilled") {
+        setRouters(routersRes.value || []);
+      }
+      if (packagesRes.status === "fulfilled") {
+        setPackages(packagesRes.value || []);
+      }
+      if (txRes.status === "fulfilled") {
+        setTransactions(txRes.value || []);
+      }
+      if (sessionsRes.status === "fulfilled") {
+        const sessList = sessionsRes.value || [];
+        setOnlineSessionsCount(sessList.length);
+      }
+    } catch (err: unknown) {
+      console.error("Dashboard error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "Failed to load dashboard data");
+    } finally {
+      setLoading(false);
     }
-    loadData();
   }, []);
 
-  const totalClients = Number(kpis?.total_customers ?? kpis?.total_subscribers ?? 13);
-  const activeClients = Number(kpis?.active_customers ?? kpis?.active_subscribers ?? 9);
-  const suspendedClients = Number(kpis?.suspended_customers ?? 1);
-  const expiredClients = Number(kpis?.expired_customers ?? 2);
-  const monthCollection = Number(kpis?.month_collection ?? kpis?.monthly_revenue ?? 6200);
-  const todayRevenue = Number(kpis?.today_collection ?? kpis?.today_collections ?? 0);
-  const totalDue = Number(kpis?.total_due ?? 4600);
-  const totalAdvance = Number(kpis?.total_advance ?? 4400);
-  const onlineRoutersCount = Number(kpis?.online_routers ?? (routers.length || 6));
-  const totalRoutersCount = Number(kpis?.total_routers ?? (routers.length || 6));
-  const registeredOnusCount = Number(kpis?.total_onus ?? (onus.length || 10));
-  const opticalWarningsCount = Number(kpis?.warning_onus ?? 2);
-  const openTicketsCount = Number(kpis?.open_tickets ?? 3);
+  useEffect(() => {
+    let ignore = false;
+    Promise.allSettled([
+      ApiClient.getDashboardAnalytics("admin"),
+      ApiClient.getRouters(),
+      ApiClient.getPackages(),
+      ApiClient.getTransactions(),
+      ApiClient.getUserSessions(),
+    ])
+      .then(([analyticsRes, routersRes, packagesRes, txRes, sessionsRes]) => {
+        if (ignore) return;
+        if (analyticsRes.status === "fulfilled" && analyticsRes.value?.kpis) {
+          setKpis(analyticsRes.value.kpis);
+        } else if (analyticsRes.status === "rejected") {
+          console.error("Dashboard analytics error:", analyticsRes.reason);
+          const reasonObj = analyticsRes.reason as { message?: string } | undefined;
+          setError(reasonObj?.message || "Failed to load dashboard metrics");
+        }
 
-  // 16 Custom Dashboard KPI Cards - Live bound matching commit a795af36d38ee7b6d7f2e9239fe34f25573d4496
-  const dashboardKpiCards = [
-    // ── Row 1 ──────────────────────────────────────────────────────────
-    {
-      title: "Total Clients",
-      value: totalClients.toLocaleString(),
-      icon: Users,
-      iconColor: "text-blue-500",
-      iconBg: "bg-blue-500/10",
-      accentBorder: "border-l-blue-500",
-      href: "/customers",
-    },
-    {
-      title: "New Clients (This Month)",
-      value: Math.max(1, Math.round(totalClients * 0.08)).toString(),
-      icon: UserPlus,
-      iconColor: "text-purple-500",
-      iconBg: "bg-purple-500/10",
-      accentBorder: "border-l-purple-500",
-      href: "/customers/new",
-    },
-    {
-      title: "Active Clients",
-      value: activeClients.toLocaleString(),
-      subtext: `Online Line: ${Math.round((activeClients / (totalClients || 1)) * 100)}%`,
-      icon: CheckCircle,
-      iconColor: "text-emerald-500",
-      iconBg: "bg-emerald-500/10",
-      accentBorder: "border-l-emerald-500",
-      href: "/customers?status=Active",
-    },
-    {
-      title: "Promise Active",
-      value: "8",
-      icon: Handshake,
-      iconColor: "text-amber-500",
-      iconBg: "bg-amber-500/10",
-      accentBorder: "border-l-amber-500",
-      href: "/customers?status=PromiseActive",
-    },
+        if (routersRes.status === "fulfilled") {
+          setRouters(routersRes.value || []);
+        }
+        if (packagesRes.status === "fulfilled") {
+          setPackages(packagesRes.value || []);
+        }
+        if (txRes.status === "fulfilled") {
+          setTransactions(txRes.value || []);
+        }
+        if (sessionsRes.status === "fulfilled") {
+          const sessList = sessionsRes.value || [];
+          setOnlineSessionsCount(sessList.length);
+        }
+      })
+      .catch((err: unknown) => {
+        if (ignore) return;
+        console.error("Dashboard error:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(msg || "Failed to load dashboard data");
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
 
-    // ── Row 2 ──────────────────────────────────────────────────────────
-    {
-      title: "Free Clients",
-      value: "3",
-      icon: UserCheck,
-      iconColor: "text-teal-500",
-      iconBg: "bg-teal-500/10",
-      accentBorder: "border-l-teal-500",
-      href: "/customers?status=Free",
-    },
-    {
-      title: "Total Billing Amount",
-      value: formatCurrency(totalClients * 800),
-      icon: FileText,
-      iconColor: "text-indigo-500",
-      iconBg: "bg-indigo-500/10",
-      accentBorder: "border-l-indigo-500",
-      href: "/billing",
-    },
-    {
-      title: "Total Due Amount",
-      value: formatCurrency(totalDue),
-      icon: AlertTriangle,
-      iconColor: "text-rose-500",
-      iconBg: "bg-rose-500/10",
-      accentBorder: "border-l-rose-500",
-      href: "/billing?tab=dues",
-    },
-    {
-      title: "Total Advance",
-      value: formatCurrency(totalAdvance),
-      icon: Clock,
-      iconColor: "text-emerald-500",
-      iconBg: "bg-emerald-500/10",
-      accentBorder: "border-l-emerald-500",
-      href: "/billing?tab=advance",
-    },
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
-    // ── Row 3 ──────────────────────────────────────────────────────────
-    {
-      title: "Suspended / Off Lines",
-      value: suspendedClients.toLocaleString(),
-      icon: WifiOff,
-      iconColor: "text-rose-500",
-      iconBg: "bg-rose-500/10",
-      accentBorder: "border-l-rose-500",
-      href: "/customers?status=Suspended",
-    },
-    {
-      title: "Expired Subscribers",
-      value: expiredClients.toLocaleString(),
-      icon: UserX,
-      iconColor: "text-amber-500",
-      iconBg: "bg-amber-500/10",
-      accentBorder: "border-l-amber-500",
-      href: "/customers?status=Expired",
-    },
-    {
-      title: "This Month Collection",
-      value: formatCurrency(monthCollection),
-      icon: CreditCard,
-      iconColor: "text-emerald-500",
-      iconBg: "bg-emerald-500/10",
-      accentBorder: "border-l-emerald-500",
-      href: "/payments",
-    },
-    {
-      title: "Open Tickets",
-      value: openTicketsCount.toString(),
-      icon: Ticket,
-      iconColor: "text-indigo-500",
-      iconBg: "bg-indigo-500/10",
-      accentBorder: "border-l-indigo-500",
-      href: "/support",
-    },
+  const totalCustomers = kpis?.total_customers ?? 0;
+  const activeCustomers = kpis?.active_customers ?? 0;
+  const expiredCustomers = kpis?.expired_customers ?? 0;
+  const suspendedCustomers = kpis?.suspended_customers ?? 0;
+  const inactiveCustomers = expiredCustomers + suspendedCustomers;
 
-    // ── Row 4 ──────────────────────────────────────────────────────────
-    {
-      title: "Online Routers",
-      value: `${onlineRoutersCount}/${totalRoutersCount}`,
-      icon: Activity,
-      iconColor: "text-emerald-500",
-      iconBg: "bg-emerald-500/10",
-      accentBorder: "border-l-emerald-500",
-      href: "/routers",
-    },
-    {
-      title: "Registered ONUs",
-      value: registeredOnusCount.toString(),
-      icon: Radio,
-      iconColor: "text-indigo-500",
-      iconBg: "bg-indigo-500/10",
-      accentBorder: "border-l-indigo-500",
-      href: "/olt",
-    },
-    {
-      title: "Optical Warnings",
-      value: opticalWarningsCount.toString(),
-      icon: AlertTriangle,
-      iconColor: "text-amber-500",
-      iconBg: "bg-amber-500/10",
-      accentBorder: "border-l-amber-500",
-      href: "/olt",
-    },
-    {
-      title: "Today's Revenue",
-      value: formatCurrency(todayRevenue),
-      icon: TrendingUp,
-      iconColor: "text-sky-500",
-      iconBg: "bg-sky-500/10",
-      accentBorder: "border-l-sky-500",
-      href: "/payments",
-    },
-  ];
+  const todayCollection = kpis?.today_collection ?? 0;
+  const monthCollection = kpis?.month_collection ?? 0;
+  const totalDue = kpis?.total_due ?? 0;
+  const totalAdvance = kpis?.total_advance ?? 0;
+
+  const totalRouters = kpis?.total_routers ?? routers.length;
+  const onlineRouters = kpis?.online_routers ?? routers.filter((r) => r.status === "Online").length;
+  const totalOnus = kpis?.total_onus ?? 0;
+  const onlineOnus = kpis?.online_onus ?? 0;
+  const openTickets = kpis?.open_tickets ?? 0;
 
   return (
-    <RoleGuard allowedRoles={["admin", "super_admin"]} roleTitle="Executive ISP Admin">
-      <div className="p-6 space-y-6 max-w-[1600px] mx-auto text-xs">
-        {/* ───────────────────────────────────────────────────────────── */}
-        {/* 16 KPI Metric Cards Grid */}
-        {/* ───────────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {dashboardKpiCards.map((card, idx) => {
-            const Icon = card.icon;
-            return (
-              <Link key={idx} href={card.href}>
-                <div
-                  className={`group relative rounded-xl p-4 border border-border border-l-4 ${card.accentBorder} bg-card hover:bg-accent/40 shadow-xs hover:shadow-md transition-all hover:-translate-y-0.5 min-h-[92px] flex flex-col justify-between cursor-pointer select-none`}
-                >
-                  {/* Header Title & Circular Icon */}
-                  <div className="flex items-start justify-between">
-                    <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
-                      {card.title}
-                    </span>
-                    <div
-                      className={`h-7 w-7 rounded-lg flex items-center justify-center ${card.iconBg} ${card.iconColor} transition-transform group-hover:scale-110`}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </div>
-                  </div>
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto text-xs">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl lg:text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
+            <Radio className="h-5 w-5 text-indigo-500" />
+            Active ISP Operations Dashboard
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Real-time subscriber status, billing collections, network routers, and support queues.
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={loading}
+            className="h-8 text-xs gap-1.5 border-border bg-card cursor-pointer"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+          <Link href="/customers/new">
+            <Button size="sm" className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold cursor-pointer">
+              <Users className="h-3.5 w-3.5" />
+              New Customer
+            </Button>
+          </Link>
+        </div>
+      </div>
 
-                  {/* Main Metric Value & Subtext */}
-                  <div className="mt-1">
-                    <div className="text-2xl font-bold tracking-tight text-foreground">
-                      {card.value}
-                    </div>
-                    {card.subtext ? (
-                      <div className="text-[10.5px] font-medium text-muted-foreground mt-0.5 truncate">
-                        {card.subtext}
-                      </div>
-                    ) : (
-                      <div className="text-[10.5px] font-medium text-emerald-500 mt-0.5 flex items-center gap-1">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        Live Database Sync
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+      {/* Global API Error Banner if analytics failed */}
+      {error && (
+        <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span className="font-semibold text-xs">{error}</span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleRefresh}
+            className="h-7 text-[11px] border-destructive/30 hover:bg-destructive/20"
+          >
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {/* Core KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Customers Card */}
+        <Card className="border-border bg-card shadow-xs">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Subscribers
+              </span>
+              <div className="h-8 w-8 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
+                <Users className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="text-2xl font-black text-foreground">
+                {loading && !kpis ? "..." : totalCustomers.toLocaleString()}
+              </div>
+              <div className="flex items-center gap-2 mt-1 text-[11px]">
+                <span className="text-emerald-500 font-bold flex items-center gap-0.5">
+                  <UserCheck className="h-3 w-3" />
+                  {activeCustomers} Active
+                </span>
+                <span className="text-muted-foreground">•</span>
+                <span className="text-rose-500 font-medium flex items-center gap-0.5">
+                  <UserX className="h-3 w-3" />
+                  {inactiveCustomers} Inactive
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Collections Card */}
+        <Card className="border-border bg-card shadow-xs">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Today&apos;s Collection
+              </span>
+              <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                <CreditCard className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="text-2xl font-black text-foreground">
+                {loading && !kpis ? "..." : formatCurrency(todayCollection)}
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
+                <TrendingUp className="h-3 w-3 text-emerald-500" />
+                <span>Month: <strong className="text-foreground">{formatCurrency(monthCollection)}</strong></span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Due Balance Card */}
+        <Card className="border-border bg-card shadow-xs">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Total Due
+              </span>
+              <div className="h-8 w-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                <DollarSign className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="text-2xl font-black text-amber-500">
+                {loading && !kpis ? "..." : formatCurrency(totalDue)}
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
+                <span>Advance Pool: <strong className="text-foreground">{formatCurrency(totalAdvance)}</strong></span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Network Devices Card */}
+        <Card className="border-border bg-card shadow-xs">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Network Routers
+              </span>
+              <div className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center">
+                <Server className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="text-2xl font-black text-foreground">
+                {loading && !kpis ? "..." : `${onlineRouters} / ${totalRouters}`}
+              </div>
+              <div className="flex items-center gap-2 mt-1 text-[11px]">
+                <span className="text-emerald-500 font-semibold flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  {onlineRouters} Online
+                </span>
+                {totalOnus > 0 && (
+                  <>
+                    <span className="text-muted-foreground">•</span>
+                    <span className="text-muted-foreground">{onlineOnus}/{totalOnus} ONUs</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Secondary Metrics Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* Active Packages */}
+        <div className="p-3 bg-card border border-border rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Layers className="h-4 w-4 text-indigo-500" />
+            <div>
+              <div className="text-muted-foreground text-[10px] uppercase font-bold">Active Packages</div>
+              <div className="text-base font-bold text-foreground">
+                {packages.filter((p) => p.is_active).length} Profiles
+              </div>
+            </div>
+          </div>
+          <Link href="/packages" className="text-indigo-500 hover:text-indigo-400">
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
         </div>
 
-        {/* ───────────────────────────────────────────────────────────── */}
-        {/* Bandwidth Traffic & Revenue Analytics Charts */}
-        {/* ───────────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Live Aggregated Bandwidth Area Chart */}
-          <Card className="lg:col-span-2 border-border bg-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle className="text-base font-semibold text-foreground">
-                  Live Aggregated Bandwidth Traffic
-                </CardTitle>
-                <CardDescription className="text-xs text-muted-foreground">
-                  Real-time MikroTik core egress & ingress load in Mbps
-                </CardDescription>
+        {/* Online Sessions */}
+        <div className="p-3 bg-card border border-border rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Activity className="h-4 w-4 text-emerald-500" />
+            <div>
+              <div className="text-muted-foreground text-[10px] uppercase font-bold">Live Sessions</div>
+              <div className="text-base font-bold text-foreground">
+                {onlineSessionsCount !== null ? `${onlineSessionsCount} Active` : `${activeCustomers} PPPoE`}
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5 text-xs text-indigo-500 font-medium">
-                  <span className="h-2 w-2 rounded-full bg-indigo-500"></span> Download
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-emerald-500 font-medium">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500"></span> Upload
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="h-[280px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trafficData}>
-                    <defs>
-                      <linearGradient id="downloadGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
-                      </linearGradient>
-                      <linearGradient id="uploadGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
-                    <XAxis dataKey="time" stroke="currentColor" opacity={0.4} fontSize={11} />
-                    <YAxis stroke="currentColor" opacity={0.4} fontSize={11} unit="M" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                        borderRadius: "8px",
-                        fontSize: "12px",
-                        color: "var(--foreground)",
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="download"
-                      stroke="#6366f1"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#downloadGrad)"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="upload"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#uploadGrad)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+          <Link href="/online-sessions" className="text-emerald-500 hover:text-emerald-400">
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        </div>
 
-          {/* 6-Month Revenue Trend Bar Chart */}
-          <Card className="border-border bg-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-foreground">
-                6-Month Collection Trend
+        {/* Open Tickets */}
+        <div className="p-3 bg-card border border-border rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <LifeBuoy className="h-4 w-4 text-amber-500" />
+            <div>
+              <div className="text-muted-foreground text-[10px] uppercase font-bold">Open Tickets</div>
+              <div className="text-base font-bold text-foreground">
+                {openTickets} Pending
+              </div>
+            </div>
+          </div>
+          <Link href="/support" className="text-amber-500 hover:text-amber-400">
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        {/* Optical Health Warnings */}
+        <div className="p-3 bg-card border border-border rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 text-rose-500" />
+            <div>
+              <div className="text-muted-foreground text-[10px] uppercase font-bold">Optical Warnings</div>
+              <div className="text-base font-bold text-foreground">
+                {kpis?.warning_onus ?? 0} Low Power
+              </div>
+            </div>
+          </div>
+          <Link href="/olt?tab=onus" className="text-rose-500 hover:text-rose-400">
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+
+      {/* Operational Tables: Routers & Recent Transactions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Routers Status Table */}
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3 border-b border-border/40 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Server className="h-4 w-4 text-indigo-500" />
+                Network Routers Status
               </CardTitle>
-              <CardDescription className="text-xs text-muted-foreground">
-                Target vs actual billing receipts in ৳k
+              <CardDescription className="text-[11px] text-muted-foreground">
+                Core and distribution MikroTik gateways
               </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="h-[280px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueTrend}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
-                    <XAxis dataKey="month" stroke="currentColor" opacity={0.4} fontSize={11} />
-                    <YAxis stroke="currentColor" opacity={0.4} fontSize={11} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                        borderRadius: "8px",
-                        fontSize: "12px",
-                        color: "var(--foreground)",
-                      }}
-                    />
-                    <Bar dataKey="target" name="Target (k)" fill="#94a3b8" radius={[4, 4, 0, 0]} opacity={0.4} />
-                    <Bar dataKey="collection" name="Collected (k)" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+            </div>
+            <Link href="/routers">
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-indigo-500">
+                View All ({routers.length})
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent className="p-0">
+            {routers.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground">
+                {loading ? "Loading routers..." : "No network routers registered yet."}
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* ───────────────────────────────────────────────────────────── */}
-        {/* Network Equipment & Live Operations */}
-        {/* ───────────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Core MikroTik Routers */}
-          <Card className="border-border bg-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle className="text-base font-semibold text-foreground">Core MikroTik Routers</CardTitle>
-                <CardDescription className="text-xs text-muted-foreground">
-                  Active NAS Gateway Engines ({routers.length})
-                </CardDescription>
-              </div>
-              <Link href="/routers">
-                <Button variant="ghost" size="sm" className="text-xs text-indigo-500 font-bold">
-                  View All
-                </Button>
-              </Link>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-2">
-              {routers.slice(0, 3).map((r) => (
-                <div key={r.id} className="p-3 rounded-xl bg-muted/40 border border-border/80 flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-xs text-foreground">{r.name}</p>
-                    <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{r.ip_address} · {r.model || "RouterOS"}</p>
-                  </div>
-                  <div className="text-right">
-                    <Badge variant={r.status === "Online" ? "default" : "destructive"} className="text-[10px]">
-                      {r.active_sessions || (r as any).active_pppoe_count || 120} Sessions
-                    </Badge>
-                    <p className="text-[10px] text-muted-foreground mt-1">CPU: {r.cpu_load || (r as any).cpu_usage || 22}%</p>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Recent Payment Transactions */}
-          <Card className="lg:col-span-2 border-border bg-card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle className="text-base font-semibold text-foreground">Real-Time Ingested Collections</CardTitle>
-                <CardDescription className="text-xs text-muted-foreground">
-                  bKash, Nagad, Rocket webhooks & cash collection receipts
-                </CardDescription>
-              </div>
-              <Link href="/payments">
-                <Button variant="ghost" size="sm" className="text-xs text-indigo-500 font-bold">
-                  View Ledger
-                </Button>
-              </Link>
-            </CardHeader>
-            <CardContent className="p-0">
+            ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
+                  <thead className="bg-muted/40 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
                     <tr>
-                      <th className="p-3">Subscriber</th>
-                      <th className="p-3">Method</th>
-                      <th className="p-3">Trx ID</th>
-                      <th className="p-3">Amount</th>
+                      <th className="p-3">Router Name</th>
+                      <th className="p-3">IP Address</th>
                       <th className="p-3">Status</th>
+                      <th className="p-3 text-right">Location</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {transactions.slice(0, 5).map((tx) => (
-                      <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="p-3">
-                          <p className="font-semibold text-foreground">{tx.customer_name || tx.customer_account}</p>
-                          <p className="text-[10px] text-muted-foreground font-mono">{tx.customer_account}</p>
+                    {routers.slice(0, 5).map((r) => (
+                      <tr key={r.id} className="hover:bg-muted/30">
+                        <td className="p-3 font-semibold text-foreground">
+                          {r.name}
                         </td>
-                        <td className="p-3 font-medium text-foreground">{tx.payment_method}</td>
-                        <td className="p-3 font-mono text-indigo-400 text-[11px]">{tx.trx_id}</td>
-                        <td className="p-3 font-bold text-foreground">{formatCurrency(tx.amount)}</td>
+                        <td className="p-3 font-mono text-muted-foreground">
+                          {r.ip_address}
+                        </td>
                         <td className="p-3">
-                          <Badge variant={tx.status === "Success" || tx.status === "Matched" ? "default" : "outline"} className="text-[10px]">
-                            {tx.status}
-                          </Badge>
+                          <StatusBadge status={r.status || (r.is_active ? "Online" : "Offline")} />
+                        </td>
+                        <td className="p-3 text-right text-muted-foreground">
+                          {r.location || "Core NOC"}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Payment Transactions */}
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3 border-b border-border/40 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-emerald-500" />
+                Recent Payment Collections
+              </CardTitle>
+              <CardDescription className="text-[11px] text-muted-foreground">
+                Automated webhook & cash ledger entries
+              </CardDescription>
+            </div>
+            <Link href="/payments">
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-emerald-500">
+                View Ledger
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent className="p-0">
+            {transactions.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground">
+                {loading ? "Loading transactions..." : "No recent transactions found."}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-muted/40 text-muted-foreground font-bold border-b border-border text-[10px] uppercase">
+                    <tr>
+                      <th className="p-3">Trx ID</th>
+                      <th className="p-3">Method</th>
+                      <th className="p-3">Amount</th>
+                      <th className="p-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {transactions.slice(0, 5).map((tx) => (
+                      <tr key={tx.id} className="hover:bg-muted/30">
+                        <td className="p-3 font-mono font-semibold text-indigo-400">
+                          {tx.trx_id || `TRX-${tx.id.slice(0, 8)}`}
+                        </td>
+                        <td className="p-3 text-muted-foreground font-medium">
+                          {tx.payment_method || "Direct Payment"}
+                        </td>
+                        <td className="p-3 font-bold text-foreground">
+                          {formatCurrency(tx.amount)}
+                        </td>
+                        <td className="p-3 text-right">
+                          <StatusBadge status={tx.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
-    </RoleGuard>
+    </div>
   );
 }
