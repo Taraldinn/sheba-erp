@@ -378,14 +378,37 @@ The following reproducible baseline commands were executed on the repository:
 
 ---
 
-### STAGE 11 — Corporate
+### STAGE 11 — Production Launch & Operational Reliability
+- **STATUS**: `READY_FOR_EXECUTION`
+- **DEPENDENCIES**: Stage 10
+- **OBJECTIVE**: Production deployment, monitoring/alerting, CI/CD, domain/DNS setup, TLS, scaling, disaster recovery, and controlled rollout of independent ISP frontends.
+- **TASKS**:
+  - [ ] S11.1 Production multi-stage `Dockerfile` and `docker-compose.prod.yml` (PostgreSQL, Redis, Django, Celery Worker, Celery Beat, Nginx).
+  - [ ] S11.2 CI/CD automation pipelines (GitHub Actions linting, test suite execution, Next.js build verification, automated staging deployment).
+  - [ ] S11.3 Multi-tenant domain & TLS automation (Let's Encrypt / Certbot automated SSL provisioning, DNS TXT verification for custom ISP domains).
+  - [ ] S11.4 Observability, monitoring & alerting (Prometheus metrics exporter, Grafana dashboards, health check `/healthz/` readiness/liveness, Sentry error tracking).
+  - [ ] S11.5 Scaling, Redis distributed queue tuning & connection pooling (PgBouncer, Gunicorn gevent/sync tuning, Celery prefetch configuration).
+  - [ ] S11.6 Automated backup lifecycle & disaster recovery (Scheduled cron backups to Cloudflare R2 / AWS S3, retention policy enforcement, automated restore rehearsal).
+  - [ ] S11.7 Controlled rollout & external ISP frontend distribution (BFF API integration guides, tenant onboarding runbooks, production zero-downtime migrations).
+- **ACCEPTANCE CRITERIA**:
+  - Single command or automated pipeline deploys the complete, isolated production stack.
+  - Zero-downtime database migrations with automated pre-flight checks.
+  - Health check endpoints (`/healthz/readiness/`, `/healthz/liveness/`) report live status with sub-50ms latency.
+  - SSL certificates provisioned automatically for wildcard and custom tenant domains.
+- **TEST REQUIREMENTS**:
+  - Production container build and container health probe tests.
+  - Zero-downtime migration rollback smoke tests.
+
+---
+
+### STAGE 12 — Corporate & Dedicated Bandwidth
 - **STATUS**: `NOT_STARTED`
-- **DEPENDENCIES**: Stage 8
+- **DEPENDENCIES**: Stage 11
 - **OBJECTIVE**: Implement committed CIR bandwidth corporate customer management, MRTG / 95th percentile billing, corporate VLANs, and BGP telemetry.
 - **TASKS**:
-  - [ ] S11.1 Corporate client profile extension (dedicated IP pools, VLANs, MRTG graphs).
-  - [ ] S11.2 95th percentile bandwidth utilization calculation engine.
-  - [ ] S11.3 Corporate multi-connection aggregation reporting.
+  - [ ] S12.1 Corporate client profile extension (dedicated IP pools, VLANs, MRTG graphs).
+  - [ ] S12.2 95th percentile bandwidth utilization calculation engine.
+  - [ ] S12.3 Corporate multi-connection aggregation reporting.
 - **ACCEPTANCE CRITERIA**:
   - Corporate invoices accurately calculate 95th percentile burst billing.
 - **TEST REQUIREMENTS**:
@@ -393,55 +416,18 @@ The following reproducible baseline commands were executed on the repository:
 
 ---
 
-### STAGE 12 — Reports + Analytics
+### STAGE 13 — Reports + Advanced Analytics
 - **STATUS**: `NOT_STARTED`
-- **DEPENDENCIES**: Stage 8
+- **DEPENDENCIES**: Stage 11
 - **OBJECTIVE**: Implement performant analytical aggregation layer with materialization for high-volume revenue, bandwidth, and subscriber churn reports.
 - **TASKS**:
-  - [ ] S12.1 Analytical service layer caching expensive monthly revenue aggregation in Redis.
-  - [ ] S12.2 Daily subscriber churn and cohort retention metrics.
-  - [ ] S12.3 Export service for CSV/Excel/PDF statements and financial audit reports.
+  - [ ] S13.1 Analytical service layer caching expensive monthly revenue aggregation in Redis.
+  - [ ] S13.2 Daily subscriber churn and cohort retention metrics.
+  - [ ] S13.3 Export service for CSV/Excel/PDF statements and financial audit reports.
 - **ACCEPTANCE CRITERIA**:
   - Analytical dashboard queries respond in < 150ms for tenants with > 25,000 subscribers.
 - **TEST REQUIREMENTS**:
   - Analytics performance benchmark tests under large synthetic datasets.
-
----
-
-### STAGE 13 — Control Plane
-- **STATUS**: `NOT_STARTED`
-- **DEPENDENCIES**: Stage 8
-- **OBJECTIVE**: Complete multi-tenant SaaS control plane (`apps/core/saas_views.py`), automated tenant database backups, license subscriptions, and domain verification.
-- **TASKS**:
-  - [ ] S13.1 Automate DNS TXT record verification for custom tenant domains.
-  - [ ] S13.2 Automated per-tenant data snapshot export (`pg_dump` filtered by `tenant_id`).
-  - [ ] S13.3 Tenant billing license lifecycle and automated suspension upon expiry.
-  - [ ] S13.4 Central audit stream indexing all tenant creation, suspension, and impersonation events.
-- **ACCEPTANCE CRITERIA**:
-  - Domain verification activates custom domain only upon verified DNS challenge.
-  - Tenant export generates a clean, isolated SQL/JSON dataset without cross-tenant records.
-- **TEST REQUIREMENTS**:
-  - Tenant export data isolation verification test.
-  - Control plane permission boundary tests.
-
----
-
-### STAGE 14 — Production Deployment + Observability
-- **STATUS**: `NOT_STARTED`
-- **DEPENDENCIES**: Stages 1–13
-- **OBJECTIVE**: Production deployment packaging with Docker, Gunicorn, Celery workers, Prometheus metrics, Sentry error tracking, and automated CI/CD pipelines.
-- **TASKS**:
-  - [ ] S14.1 Production multi-stage `Dockerfile` and `docker-compose.prod.yml` (PostgreSQL, Redis, Django, Celery, Celery Beat, Nginx).
-  - [ ] S14.2 Health check probes (`/healthz/` readiness and liveness with DB + Redis ping).
-  - [ ] S14.3 Structured JSON logging and Prometheus metric endpoints.
-  - [ ] S14.4 Sentry error tracking integration with automatic credential sanitization.
-  - [ ] S14.5 GitHub Actions CI pipeline executing tests and frontend build on every pull request.
-- **ACCEPTANCE CRITERIA**:
-  - Single command `docker compose up` brings up an operable, isolated production stack.
-  - Zero unhandled exceptions leak into client responses.
-- **TEST REQUIREMENTS**:
-  - Docker container build and startup integration tests.
-  - Health check readiness validation tests.
 
 ---
 
