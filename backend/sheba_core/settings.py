@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     'apps.callcenter',
     'apps.reports',
     'apps.finance',     # Financial ledger, billing accounts, idempotency (Phase E/F/34)
+    'apps.corporate',   # Corporate & Enterprise ISP Management (Stage 11)
 ]
 
 # Development-only SSL server (only if installed and DEBUG is enabled)
@@ -465,6 +466,18 @@ CELERY_BEAT_SCHEDULE = {
     'enforce_subscription_lifecycle_daily': {
         'task': 'apps.core.tasks.enforce_subscription_lifecycle',
         'schedule': crontab(hour=0, minute=30),
+        'args': (),
+    },
+    # Stage 11 — Corporate telemetry polling every 5 minutes
+    'collect_corporate_telemetry_every_5m': {
+        'task': 'apps.corporate.tasks.collect_corporate_telemetry',
+        'schedule': crontab(minute='*/5'),
+        'args': (),
+    },
+    # Stage 11 — Monthly corporate enterprise invoice generation (1st of month at 02:00)
+    'generate_monthly_corporate_invoices_monthly': {
+        'task': 'apps.corporate.tasks.generate_monthly_corporate_invoices',
+        'schedule': crontab(day_of_month=1, hour=2, minute=0),
         'args': (),
     },
 }

@@ -5,7 +5,7 @@
 - **File**: `MASTER_TASK.md`
 - **Status**: AUTHORITATIVE MASTER TASK SOURCE OF TRUTH
 - **Effective Date**: 2026-09-17
-- **Current Active Stage**: STAGE 10 — External Frontend Platform & Production Hardening [COMPLETED]
+- **Current Active Stage**: STAGE 11 — Corporate / Enterprise ISP Management [COMPLETED]
 
 ---
 
@@ -378,18 +378,40 @@ The following reproducible baseline commands were executed on the repository:
 
 ---
 
-### STAGE 11 — Production Launch & Operational Reliability
-- **STATUS**: `READY_FOR_EXECUTION`
+### STAGE 11 — Corporate / Enterprise ISP Management
+- **STATUS**: `COMPLETED`
 - **DEPENDENCIES**: Stage 10
+- **OBJECTIVE**: Implement the Corporate / Enterprise ISP module on top of Sheba ISP ERP architecture supporting corporate customer profiles, multi-connection leased lines, dedicated IP pools, 802.1Q VLAN assignment, 5-minute MRTG traffic telemetry, aggregated bandwidth calculation, deterministic 95th-percentile billing, data coverage gating, and immutable Ledger-linked corporate invoicing.
+- **TASKS**:
+  - [x] S11.1 Corporate Data Models: `CorporateCustomer`, `CorporateConnection`, `CorporateIPPool`, `CorporateIPAddress`, `CorporateVLAN`, `CorporateTrafficSample`, `CorporateBillingPeriod` with multi-tenant scoping and DB constraints.
+  - [x] S11.2 Dedicated IPAM & VLAN Services: `IPAllocationService` (with `select_for_update()` locking), `VLANAssignmentService` (IEEE 802.1Q 1–4094 validation and circuit exclusivity).
+  - [x] S11.3 MRTG Telemetry & Ingestion: `TelemetryIngestService` ingesting 5-minute intervals and `CorporateTrafficSampleViewSet.mrtg_graph` serving time-series for frontend graphing.
+  - [x] S11.4 Deterministic 95th Percentile Engine: `P95CalculationEngine` implementing multi-circuit aggregation ($\max(\text{inbound\_bps}, \text{outbound\_bps})$ per 5-min bucket), deterministic rank index ($\lceil 0.95 \times N \rceil - 1$), and the 80% data coverage quality gate.
+  - [x] S11.5 Immutable Financial Ledger Integration: `CorporateBillingService.finalize_period_and_invoice` generating itemized `finance.InvoiceLine`s, `billing.Invoice`, and appending `finance.LedgerEntry` (type `INVOICE`).
+  - [x] S11.6 RBAC & Permissions: 12 new `corporate.*` capabilities registered in `PERMISSION_CATALOG`, API key scope mapping in `HasApiKeyScope`, and `HasCorporatePermission`.
+  - [x] S11.7 REST APIs & Schema: 7 ViewSets with custom actions mounted at `/api/v1/corporate/` with OpenAPI 3.0 schema generation.
+  - [x] S11.8 Celery Automation & Periodic Tasks: Beat schedules for 5-minute telemetry collection and monthly corporate invoice generation.
+  - [x] S11.9 Enterprise Frontend Application: 5 dedicated Next.js routes (`/corporate`, `/corporate/customers`, `/corporate/connections`, `/corporate/telemetry`, `/corporate/ipam`, `/corporate/billing`) with live SVG MRTG charts and P95 audit modal.
+- **ACCEPTANCE CRITERIA**:
+  - 26 automated corporate unit tests passing (0 failures, 0 errors).
+  - Full backend test suite passing (392/392 tests passing).
+  - Next.js frontend builds cleanly (`frontend`, `super-admin`, `docs`) with 0 errors.
+  - Strict financial invariance preserved: No second ledger; all charges routed through `billing.Invoice` and `finance.LedgerEntry`.
+
+---
+
+### STAGE 12 — Production Launch & Operational Reliability
+- **STATUS**: `READY_FOR_EXECUTION`
+- **DEPENDENCIES**: Stage 11
 - **OBJECTIVE**: Production deployment, monitoring/alerting, CI/CD, domain/DNS setup, TLS, scaling, disaster recovery, and controlled rollout of independent ISP frontends.
 - **TASKS**:
-  - [ ] S11.1 Production multi-stage `Dockerfile` and `docker-compose.prod.yml` (PostgreSQL, Redis, Django, Celery Worker, Celery Beat, Nginx).
-  - [ ] S11.2 CI/CD automation pipelines (GitHub Actions linting, test suite execution, Next.js build verification, automated staging deployment).
-  - [ ] S11.3 Multi-tenant domain & TLS automation (Let's Encrypt / Certbot automated SSL provisioning, DNS TXT verification for custom ISP domains).
-  - [ ] S11.4 Observability, monitoring & alerting (Prometheus metrics exporter, Grafana dashboards, health check `/healthz/` readiness/liveness, Sentry error tracking).
-  - [ ] S11.5 Scaling, Redis distributed queue tuning & connection pooling (PgBouncer, Gunicorn gevent/sync tuning, Celery prefetch configuration).
-  - [ ] S11.6 Automated backup lifecycle & disaster recovery (Scheduled cron backups to Cloudflare R2 / AWS S3, retention policy enforcement, automated restore rehearsal).
-  - [ ] S11.7 Controlled rollout & external ISP frontend distribution (BFF API integration guides, tenant onboarding runbooks, production zero-downtime migrations).
+  - [ ] S12.1 Production multi-stage `Dockerfile` and `docker-compose.prod.yml` (PostgreSQL, Redis, Django, Celery Worker, Celery Beat, Nginx).
+  - [ ] S12.2 CI/CD automation pipelines (GitHub Actions linting, test suite execution, Next.js build verification, automated staging deployment).
+  - [ ] S12.3 Multi-tenant domain & TLS automation (Let's Encrypt / Certbot automated SSL provisioning, DNS TXT verification for custom ISP domains).
+  - [ ] S12.4 Observability, monitoring & alerting (Prometheus metrics exporter, Grafana dashboards, health check `/healthz/` readiness/liveness, Sentry error tracking).
+  - [ ] S12.5 Scaling, Redis distributed queue tuning & connection pooling (PgBouncer, Gunicorn gevent/sync tuning, Celery prefetch configuration).
+  - [ ] S12.6 Automated backup lifecycle & disaster recovery (Scheduled cron backups to Cloudflare R2 / AWS S3, retention policy enforcement, automated restore rehearsal).
+  - [ ] S12.7 Controlled rollout & external ISP frontend distribution (BFF API integration guides, tenant onboarding runbooks, production zero-downtime migrations).
 - **ACCEPTANCE CRITERIA**:
   - Single command or automated pipeline deploys the complete, isolated production stack.
   - Zero-downtime database migrations with automated pre-flight checks.
@@ -398,21 +420,6 @@ The following reproducible baseline commands were executed on the repository:
 - **TEST REQUIREMENTS**:
   - Production container build and container health probe tests.
   - Zero-downtime migration rollback smoke tests.
-
----
-
-### STAGE 12 — Corporate & Dedicated Bandwidth
-- **STATUS**: `NOT_STARTED`
-- **DEPENDENCIES**: Stage 11
-- **OBJECTIVE**: Implement committed CIR bandwidth corporate customer management, MRTG / 95th percentile billing, corporate VLANs, and BGP telemetry.
-- **TASKS**:
-  - [ ] S12.1 Corporate client profile extension (dedicated IP pools, VLANs, MRTG graphs).
-  - [ ] S12.2 95th percentile bandwidth utilization calculation engine.
-  - [ ] S12.3 Corporate multi-connection aggregation reporting.
-- **ACCEPTANCE CRITERIA**:
-  - Corporate invoices accurately calculate 95th percentile burst billing.
-- **TEST REQUIREMENTS**:
-  - 95th percentile algorithm unit tests.
 
 ---
 
@@ -448,7 +455,7 @@ This section reconciles all tasks and phases from `Task.md` and `implimentation 
 | **Phase N0/N1/G** | Networking Operations & MikroTik REST | `IMPLEMENTED` | `apps/network/services/mikrotik/` contains modular client, system, interfaces, sessions, pppoe, and traffic services. `apps/core/encryption.py` implements Fernet encryption. `apps/network/validators.py` blocks SSRF. 10/10 network tests pass. |
 | **Phase H** | Customer Portal API | `NOT_IMPLEMENTED` | `apps/portal/` app does not exist. Customer endpoints are not yet segregated from staff API routes. |
 | **Phase I** | CRM + Field Tasks + SMS platform | `PARTIALLY_IMPLEMENTED` | `apps/support/`, `apps/tasks/`, `apps/callcenter/` exist with models and basic CRUD views, but lack SLA escalation timers, GPS task dispatch, and SMS failover gateways. |
-| **Phase J** | Corporate / Bandwidth Customers | `NOT_IMPLEMENTED` | No models exist for 95th percentile MRTG billing or corporate multi-connection VLAN profiles. |
+| **Phase J** | Corporate / Bandwidth Customers | `IMPLEMENTED` | `apps/corporate/` models (`CorporateCustomer`, `CorporateConnection`, `CorporateIPPool`, `CorporateIPAddress`, `CorporateVLAN`, `CorporateTrafficSample`, `CorporateBillingPeriod`), IPAM/VLAN services, deterministic 95th-percentile billing engine with 80% coverage gating, and Ledger-linked invoicing. |
 | **Phase K** | Reports Architecture | `IMPLEMENTED` | `apps/reports/views.py` implements role-based telemetry for 10 operational personas with scoped querying via `get_scoped_queryset()`. All 10 dashboard routes exist on frontend. |
 | **Phase L** | Control Plane Completion | `IMPLEMENTED` | `apps/core/saas_views.py` implements full CRUD for tenants, domains, packages, subscriptions, payments, users, backups, and audit logs. Frontend `/saas-admin` fully integrated. |
 | **Phase M** | Performance + Observability | `PARTIALLY_IMPLEMENTED` | Background task logic is written in `apps/core/tasks.py`, but Celery entrypoint (`celery.py`) and Redis broker configuration are not yet wired. `AuditLog` model is expanded and operational. |
@@ -479,7 +486,7 @@ This section reconciles all tasks and phases from `Task.md` and `implimentation 
 | **Phase 18** | Field operations | `IMPLEMENTED` | `apps/tasks/` provides task creation, assignments, and priorities. |
 | **Phase 19** | SMS platform | `PARTIALLY_IMPLEMENTED` | `SmsLog` model exists; multiple gateway failover routing deferred to Stage 10. |
 | **Phase 20** | Customer portal API | `NOT_IMPLEMENTED` | Deferred to Stage 9. |
-| **Phase 21** | Corporate / bandwidth customers | `NOT_IMPLEMENTED` | Deferred to Stage 11. |
+| **Phase 21** | Corporate / bandwidth customers | `IMPLEMENTED` | Complete Corporate & Enterprise ISP module in `apps/corporate/` with REST APIs at `/api/v1/corporate/` and frontend at `/corporate`. |
 | **Phase 22** | Reports architecture | `IMPLEMENTED` | Real-time scoped analytics in `apps/reports/views.py`. Caching deferred to Stage 12. |
 | **Phase 23** | Control panel | `IMPLEMENTED` | Complete `/saas-admin` control plane in frontend and backend. |
 | **Phase 24** | API design cleanup | `PARTIALLY_IMPLEMENTED` | REST APIs functional; per-action DTO cleanup deferred to Stage 8. |

@@ -156,6 +156,9 @@ urlpatterns = [
     # Network Operations Cockpit (Phase 11)
     path('api/v1/network/', include('apps.network.urls')),
     
+    # Corporate & Enterprise Management (Stage 11)
+    path('api/v1/corporate/', include('apps.corporate.urls')),
+    
     # Master REST API
     path('api/v1/', include(router.urls)),
     

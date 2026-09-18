@@ -163,6 +163,28 @@ The following endpoints have duplicates registered in `sheba_core/urls.py`. The 
 |---|---|---|---|---|
 | GET | `/api/v1/reports/dashboard/` | Token | `IsTenantMember` | Dashboard analytics |
 
+#### Corporate & Enterprise ISP (Stage 11)
+
+| Method | Path | Auth | Permission | Notes |
+|---|---|---|---|---|
+| GET/POST | `/api/v1/corporate/customers/` | Token | `corporate.view` / `corporate.manage` | Corporate client profile CRUD |
+| GET | `/api/v1/corporate/customers/{id}/summary/` | Token | `corporate.view` | Aggregated bandwidth, active circuit, IP, and VLAN metrics |
+| GET/POST | `/api/v1/corporate/connections/` | Token | `corporate.connection.view` / `corporate.connection.manage` | Multi-circuit leased line / DIA connection management |
+| POST | `/api/v1/corporate/connections/{id}/allocate-ip/` | Token | `corporate.ip.manage` | Allocate dedicated static IP from IP pool |
+| POST | `/api/v1/corporate/connections/{id}/assign-vlan/` | Token | `corporate.vlan.manage` | Assign exclusive 802.1Q VLAN (1–4094) to circuit |
+| POST | `/api/v1/corporate/connections/{id}/release-vlan/` | Token | `corporate.vlan.manage` | Disassociate active VLAN from connection |
+| GET/POST | `/api/v1/corporate/ip-pools/` | Token | `corporate.ip.view` / `corporate.ip.manage` | Dedicated IP subnet pool CRUD |
+| POST | `/api/v1/corporate/ip-pools/{id}/populate-hosts/` | Token | `corporate.ip.manage` | Automatically populate host IPs from subnet CIDR |
+| GET | `/api/v1/corporate/ip-addresses/` | Token | `corporate.ip.view` | View allocated and reserved dedicated IP addresses |
+| POST | `/api/v1/corporate/ip-addresses/{id}/release/` | Token | `corporate.ip.manage` | Release dedicated IP back to pool |
+| GET/POST | `/api/v1/corporate/vlans/` | Token | `corporate.vlan.view` / `corporate.vlan.manage` | Router VLAN allocation directory |
+| POST | `/api/v1/corporate/vlans/{id}/release/` | Token | `corporate.vlan.manage` | Disassociate and release VLAN tag |
+| GET/POST | `/api/v1/corporate/telemetry/` | Token | `corporate.telemetry.view` / `corporate.telemetry.ingest` | 5-minute MRTG traffic samples ingest and queries |
+| GET | `/api/v1/corporate/telemetry/mrtg-graph/` | Token | `corporate.telemetry.view` | Real-time SVG time-series points for MRTG graphing |
+| GET/POST | `/api/v1/corporate/billing-periods/` | Token | `corporate.view` / `corporate.billing.manage` | Enterprise billing period cycle management |
+| POST | `/api/v1/corporate/billing-periods/{id}/calculate/` | Token | `corporate.billing.manage` | Trigger deterministic P95 calculation (80% coverage gate) |
+| POST | `/api/v1/corporate/billing-periods/{id}/finalize-invoice/` | Token | `corporate.billing.manage` | Post finalized period, generate `billing.Invoice` & `finance.LedgerEntry` |
+
 ---
 
 ### Customer Portal ({tenant}.shebafi.xyz/api/v1/portal/)

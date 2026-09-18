@@ -1041,3 +1041,5 @@ export interface TopologyDrilldownResponse {
   results: OnuDrilldownItem[];
 }
 
+export * from './corporate';
+

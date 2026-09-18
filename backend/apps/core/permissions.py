@@ -181,6 +181,22 @@ class HasApiKeyScope(permissions.BasePermission):
         'store-items': 'store',
         'stock-transaction': 'store',
         'stock-transactions': 'store',
+        'corporate': 'corporate',
+        'corporate-customer': 'corporate',
+        'corporate-customers': 'corporate',
+        'corporate-connection': 'corporate',
+        'corporate-connections': 'corporate',
+        'corporate-ip-pool': 'corporate',
+        'corporate-ip-pools': 'corporate',
+        'corporate-ip-address': 'corporate',
+        'corporate-ip-addresses': 'corporate',
+        'corporate-vlan': 'corporate',
+        'corporate-vlans': 'corporate',
+        'corporate-telemetry': 'corporate',
+        'corporate-traffic-sample': 'corporate',
+        'corporate-traffic-samples': 'corporate',
+        'corporate-billing-period': 'corporate',
+        'corporate-billing-periods': 'corporate',
     }
 
     def has_permission(self, request, view):

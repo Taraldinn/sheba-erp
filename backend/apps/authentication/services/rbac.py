@@ -73,6 +73,20 @@ PERMISSION_CATALOG = [
     ('setting.view', 'View Company Settings', 'settings'),
     ('setting.manage', 'Update Company Settings', 'settings'),
     ('audit.view', 'View Tenant Audit Logs', 'audit'),
+
+    # Corporate / Enterprise
+    ('corporate.view', 'View Corporate Customer Profiles', 'corporate'),
+    ('corporate.create', 'Create Corporate Customer Profiles', 'corporate'),
+    ('corporate.update', 'Update Corporate Customer Profiles', 'corporate'),
+    ('corporate.delete', 'Delete / Decommission Corporate Profiles', 'corporate'),
+    ('corporate.connection.view', 'View Corporate Connections and Circuits', 'corporate'),
+    ('corporate.connection.manage', 'Manage Corporate Connections and Circuits', 'corporate'),
+    ('corporate.ip.view', 'View Dedicated IP Pools and Addresses', 'corporate'),
+    ('corporate.ip.manage', 'Allocate and Release Dedicated IPs', 'corporate'),
+    ('corporate.vlan.view', 'View Corporate VLAN Assignments', 'corporate'),
+    ('corporate.vlan.manage', 'Assign and Release Corporate VLANs', 'corporate'),
+    ('corporate.telemetry.view', 'View Bandwidth Telemetry and MRTG Graphs', 'corporate'),
+    ('corporate.billing.manage', 'Manage 95th Percentile Corporate Invoicing', 'corporate'),
 ]
 
 

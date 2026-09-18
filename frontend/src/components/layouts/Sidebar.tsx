@@ -129,6 +129,22 @@ const navSections: Section[] = [
       {
         type: "group",
         data: {
+          id: "corporate",
+          label: "Corporate / Enterprise",
+          icon: Building2,
+          items: [
+            { href: "/corporate", label: "Enterprise Overview", icon: LayoutDashboard },
+            { href: "/corporate/customers", label: "Corporate Clients", icon: Building },
+            { href: "/corporate/connections", label: "Circuits & Links", icon: Network },
+            { href: "/corporate/telemetry", label: "MRTG & Bandwidth", icon: Activity },
+            { href: "/corporate/ipam", label: "IP & VLAN Pool", icon: Layers },
+            { href: "/corporate/billing", label: "95th Percentile Billing", icon: TrendingUp },
+          ],
+        },
+      },
+      {
+        type: "group",
+        data: {
           id: "bandwidth",
           label: "Bandwidth Usage",
           icon: Network,

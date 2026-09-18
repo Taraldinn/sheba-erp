@@ -7,7 +7,10 @@ import {
   LiveSession, SessionHistoryItem, CustomerSessionTelemetry,
   NetworkTopologyGraph, GeoFiberMap, PathImpactAnalysis,
   OLTReconciliationRun, ONUAutoMatchResult,
-  AuthoritativeHierarchyResponse, TopologyDrilldownResponse
+  AuthoritativeHierarchyResponse, TopologyDrilldownResponse,
+  CorporateCustomer, CorporateConnection, CorporateIPPool,
+  CorporateIPAddress, CorporateVLAN, MRTGGraphResponse,
+  CorporateBillingPeriod
 } from '@/types';
 
 import { TokenStorage } from './auth/token-storage';
@@ -2072,6 +2075,263 @@ export class ApiClient {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to unbind ONU');
+    }
+    return await res.json();
+  }
+
+  // ════════════════════════ CORPORATE / ENTERPRISE (STAGE 11) ════════════════════════
+  static async getCorporateCustomers(params?: { search?: string; status?: string }): Promise<CorporateCustomer[]> {
+    const url = new URL(`${API_BASE}/corporate/customers/`);
+    if (params?.search) url.searchParams.append('search', params.search);
+    if (params?.status) url.searchParams.append('status', params.status);
+    const res = await fetch(url.toString(), { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch corporate customers');
+    const data = await res.json();
+    return Array.isArray(data) ? data : data.results || [];
+  }
+
+  static async getCorporateCustomer(id: string): Promise<CorporateCustomer> {
+    const res = await fetch(`${API_BASE}/corporate/customers/${id}/`, { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch corporate customer');
+    return await res.json();
+  }
+
+  static async getCorporateCustomerSummary(id: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/corporate/customers/${id}/summary/`, { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch corporate customer summary');
+    return await res.json();
+  }
+
+  static async createCorporateCustomer(data: Partial<CorporateCustomer>): Promise<CorporateCustomer> {
+    const res = await fetch(`${API_BASE}/corporate/customers/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(JSON.stringify(err) || 'Failed to create corporate customer');
+    }
+    return await res.json();
+  }
+
+  static async updateCorporateCustomer(id: string, data: Partial<CorporateCustomer>): Promise<CorporateCustomer> {
+    const res = await fetch(`${API_BASE}/corporate/customers/${id}/`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(JSON.stringify(err) || 'Failed to update corporate customer');
+    }
+    return await res.json();
+  }
+
+  static async deleteCorporateCustomer(id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/corporate/customers/${id}/`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to delete corporate customer');
+  }
+
+  static async getCorporateConnections(params?: { corporate_customer?: string; status?: string }): Promise<CorporateConnection[]> {
+    const url = new URL(`${API_BASE}/corporate/connections/`);
+    if (params?.corporate_customer) url.searchParams.append('corporate_customer', params.corporate_customer);
+    if (params?.status) url.searchParams.append('status', params.status);
+    const res = await fetch(url.toString(), { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch corporate connections');
+    const data = await res.json();
+    return Array.isArray(data) ? data : data.results || [];
+  }
+
+  static async createCorporateConnection(data: Partial<CorporateConnection>): Promise<CorporateConnection> {
+    const res = await fetch(`${API_BASE}/corporate/connections/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(JSON.stringify(err) || 'Failed to create corporate connection');
+    }
+    return await res.json();
+  }
+
+  static async allocateCorporateIP(connectionId: string, payload: { pool_id?: string; ip_address?: string; notes?: string }): Promise<CorporateIPAddress> {
+    const res = await fetch(`${API_BASE}/corporate/connections/${connectionId}/allocate-ip/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || JSON.stringify(err) || 'Failed to allocate IP');
+    }
+    return await res.json();
+  }
+
+  static async assignCorporateVLAN(connectionId: string, payload: { router_id: string; vlan_id: number; name?: string; interface_name?: string; description?: string }): Promise<CorporateVLAN> {
+    const res = await fetch(`${API_BASE}/corporate/connections/${connectionId}/assign-vlan/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || JSON.stringify(err) || 'Failed to assign VLAN');
+    }
+    return await res.json();
+  }
+
+  static async releaseCorporateVLAN(connectionId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/corporate/connections/${connectionId}/release-vlan/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to release VLAN');
+  }
+
+  static async getCorporateIPPools(): Promise<CorporateIPPool[]> {
+    const res = await fetch(`${API_BASE}/corporate/ip-pools/`, { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch IP pools');
+    const data = await res.json();
+    return Array.isArray(data) ? data : data.results || [];
+  }
+
+  static async createCorporateIPPool(data: Partial<CorporateIPPool>): Promise<CorporateIPPool> {
+    const res = await fetch(`${API_BASE}/corporate/ip-pools/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('Failed to create IP pool');
+    return await res.json();
+  }
+
+  static async populateCorporateIPPoolHosts(poolId: string): Promise<{ created_count: number }> {
+    const res = await fetch(`${API_BASE}/corporate/ip-pools/${poolId}/populate-hosts/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to populate pool hosts');
+    return await res.json();
+  }
+
+  static async getCorporateIPAddresses(params?: { pool?: string; status?: string }): Promise<CorporateIPAddress[]> {
+    const url = new URL(`${API_BASE}/corporate/ip-addresses/`);
+    if (params?.pool) url.searchParams.append('pool', params.pool);
+    if (params?.status) url.searchParams.append('status', params.status);
+    const res = await fetch(url.toString(), { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch IP addresses');
+    const data = await res.json();
+    return Array.isArray(data) ? data : data.results || [];
+  }
+
+  static async releaseCorporateIP(ipId: string): Promise<CorporateIPAddress> {
+    const res = await fetch(`${API_BASE}/corporate/ip-addresses/${ipId}/release/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to release IP');
+    return await res.json();
+  }
+
+  static async getCorporateVLANs(params?: { router?: string }): Promise<CorporateVLAN[]> {
+    const url = new URL(`${API_BASE}/corporate/vlans/`);
+    if (params?.router) url.searchParams.append('router', params.router);
+    const res = await fetch(url.toString(), { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch VLANs');
+    const data = await res.json();
+    return Array.isArray(data) ? data : data.results || [];
+  }
+
+  static async createCorporateVLAN(payload: {
+    router: string;
+    vlan_id: number;
+    name?: string;
+    interface_name?: string;
+    description?: string;
+  }): Promise<CorporateVLAN> {
+    const res = await fetch(`${API_BASE}/corporate/vlans/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || JSON.stringify(err) || 'Failed to create VLAN');
+    }
+    return await res.json();
+  }
+
+  static async releaseCorporateVLANRecord(vlanId: string): Promise<CorporateVLAN> {
+    const res = await fetch(`${API_BASE}/corporate/vlans/${vlanId}/release/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to release VLAN record');
+    return await res.json();
+  }
+
+  static async getCorporateMRTGGraph(params: { connection_id?: string; customer_id?: string; hours?: number }): Promise<MRTGGraphResponse> {
+    const url = new URL(`${API_BASE}/corporate/telemetry/mrtg-graph/`);
+    if (params.connection_id) url.searchParams.append('connection_id', params.connection_id);
+    if (params.customer_id) url.searchParams.append('customer_id', params.customer_id);
+    if (params.hours) url.searchParams.append('hours', params.hours.toString());
+    const res = await fetch(url.toString(), { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch MRTG graph data');
+    return await res.json();
+  }
+
+  static async getCorporateBillingPeriods(params?: { corporate_customer?: string; status?: string }): Promise<CorporateBillingPeriod[]> {
+    const url = new URL(`${API_BASE}/corporate/billing-periods/`);
+    if (params?.corporate_customer) url.searchParams.append('corporate_customer', params.corporate_customer);
+    if (params?.status) url.searchParams.append('status', params.status);
+    const res = await fetch(url.toString(), { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch billing periods');
+    const data = await res.json();
+    return Array.isArray(data) ? data : data.results || [];
+  }
+
+  static async createCorporateBillingPeriod(payload: {
+    corporate_customer: string;
+    period_start: string;
+    period_end: string;
+  }): Promise<CorporateBillingPeriod> {
+    const res = await fetch(`${API_BASE}/corporate/billing-periods/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to create billing period');
+    }
+    return await res.json();
+  }
+
+  static async calculateCorporateBillingPeriod(periodId: string): Promise<CorporateBillingPeriod> {
+    const res = await fetch(`${API_BASE}/corporate/billing-periods/${periodId}/calculate/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to calculate billing period');
+    }
+    return await res.json();
+  }
+
+  static async finalizeCorporateInvoice(periodId: string): Promise<{ invoice_id: string; invoice_no: string; total_payable: string; status: string }> {
+    const res = await fetch(`${API_BASE}/corporate/billing-periods/${periodId}/finalize-invoice/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to finalize corporate invoice');
     }
     return await res.json();
   }

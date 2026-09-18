@@ -438,7 +438,36 @@ erDiagram
     PaymentTransaction ||--o| LedgerEntry : creates
 
     InboundPaymentEvent ||--o| PaymentTransaction : triggers
+
+    Customer ||--o| CorporateCustomer : anchors
+    CorporateCustomer ||--o{ CorporateConnection : operates
+    CorporateConnection ||--o{ CorporateTrafficSample : emits
+    CorporateCustomer ||--o{ CorporateBillingPeriod : evaluates
+    CorporateBillingPeriod ||--o| Invoice : generates
+
+    CorporateIPPool ||--o{ CorporateIPAddress : contains
+    CorporateConnection ||--o{ CorporateIPAddress : dedicated
+    CorporateConnection ||--o| CorporateVLAN : tags
 ```
+
+---
+
+## 11. Corporate & Enterprise ISP Management Architecture (Stage 11)
+
+### 11.1 Domain Boundaries & Principles
+- **Corporate Customer Profile**: Anchored 1:1 to the foundational `customers.Customer` identity via `OneToOneField`. Extends retail accounts with enterprise attributes: committed bandwidth CIR, burst rate per Mbps, base monthly fee, legal registration (BIN/TIN, Trade License), and aggregation policy (`AGGREGATE_SUM`).
+- **Multi-Circuit Leased Lines**: One corporate client can operate multiple circuits (`CorporateConnection`) across diverse POP branches, routers, and interface endpoints.
+- **Dedicated IPAM & 802.1Q VLAN Isolation**:
+  - `CorporateIPPool` and `CorporateIPAddress` handle static IP reservations with row-level locks (`select_for_update()`).
+  - `CorporateVLAN` validates IEEE 802.1Q tags (1–4094) and guarantees single-connection exclusivity per router.
+- **MRTG Telemetry & Aggregation**:
+  - Celery Beat collects 5-minute traffic telemetry samples (`inbound_bps`, `outbound_bps`, cumulative byte counters) across active circuits.
+  - Multi-circuit bandwidth aggregation sums concurrent circuit throughput per 5-minute bucket: $\text{Metric} = \max(\text{inbound\_bps}, \text{outbound\_bps})$.
+- **Deterministic 95th-Percentile Billing Engine**:
+  - Samples are sorted ascending. Rank index is deterministically calculated as $\lceil 0.95 \times N \rceil - 1$.
+  - **Data Coverage Quality Gate**: Telemetry coverage must meet or exceed **80%** of expected period samples. If coverage is below 80%, status transitions to `INSUFFICIENT_DATA` and burst overage charges are waived ($0.00) to prevent billing disputes.
+- **Immutable Financial Ledger Integration**:
+  - Finalizing a corporate period generates itemized `finance.InvoiceLine` records (Base Committed CIR fee + Burst Overage fee), an official `billing.Invoice`, and appends an immutable `finance.LedgerEntry` (type `INVOICE`). No secondary ledger is created.
 
 ---
 
