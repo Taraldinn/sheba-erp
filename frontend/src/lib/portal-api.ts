@@ -8,8 +8,10 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v
 
 export class PortalApiClient {
   private static tokenKey = 'sheba_portal_customer_jwt';
+  private static memoryToken: string | null = null;
 
   static setToken(token: string) {
+    this.memoryToken = token;
     if (typeof window !== 'undefined') {
       localStorage.setItem(this.tokenKey, token);
     }
@@ -19,10 +21,11 @@ export class PortalApiClient {
     if (typeof window !== 'undefined') {
       return localStorage.getItem(this.tokenKey);
     }
-    return null;
+    return this.memoryToken;
   }
 
   static clearToken() {
+    this.memoryToken = null;
     if (typeof window !== 'undefined') {
       localStorage.removeItem(this.tokenKey);
     }
@@ -73,6 +76,38 @@ export class PortalApiClient {
     return data;
   }
 
+  static async loginWithPassword(username: string, password: string) {
+    const res = await fetch(`${API_BASE}/portal/auth/login/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Invalid credentials');
+    }
+    if (data.token) {
+      this.setToken(data.token);
+    }
+    return data;
+  }
+
+  static async changePassword(currentPassword: string, newPassword: string) {
+    const res = await fetch(`${API_BASE}/portal/auth/change-password/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to update password');
+    }
+    return data;
+  }
+
   // ════════════════════════ SELF-CARE APIS ════════════════════════
   static async getProfile() {
     const res = await fetch(`${API_BASE}/portal/profile/`, {
@@ -111,6 +146,46 @@ export class PortalApiClient {
     return data.results || data;
   }
 
+  static async getSettings() {
+    const res = await fetch(`${API_BASE}/portal/settings/`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) return { company_name: 'ShebaFi Network' };
+    return await res.json();
+  }
+
+  static async getFunbox() {
+    const res = await fetch(`${API_BASE}/portal/funbox/`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  }
+
+  static async getLiveTraffic() {
+    const res = await fetch(`${API_BASE}/portal/traffic/`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) return { is_online: false, download_mbps: 0, upload_mbps: 0 };
+    return await res.json();
+  }
+
+  static async getSessions() {
+    const res = await fetch(`${API_BASE}/portal/sessions/`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  }
+
+  static async getInvoiceReceipt(invoiceId: string) {
+    const res = await fetch(`${API_BASE}/portal/invoices/${invoiceId}/receipt/`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to load invoice receipt');
+    return await res.json();
+  }
+
   static async getNotifications() {
     const res = await fetch(`${API_BASE}/portal/notifications/`, {
       headers: this.getHeaders(),
@@ -127,6 +202,14 @@ export class PortalApiClient {
     if (!res.ok) return [];
     const data = await res.json();
     return data.results || data;
+  }
+
+  static async getTicketThread(ticketId: string) {
+    const res = await fetch(`${API_BASE}/portal/tickets/${ticketId}/`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to load ticket conversation');
+    return await res.json();
   }
 
   static async createTicket(ticket: {
