@@ -545,6 +545,9 @@ class TJBox(models.Model):
             except Exception:
                 from django.core.exceptions import ValidationError
                 raise ValidationError("Invalid numeric coordinates in lat_long.")
+            if not (lat.is_finite() and lng.is_finite()):
+                from django.core.exceptions import ValidationError
+                raise ValidationError("Invalid numeric coordinates in lat_long.")
             if not (Decimal('-90.0') <= lat <= Decimal('90.0') and Decimal('-180.0') <= lng <= Decimal('180.0')):
                 from django.core.exceptions import ValidationError
                 raise ValidationError("Coordinates out of range: latitude must be between -90 and 90, longitude between -180 and 180.")
@@ -554,5 +557,59 @@ class TJBox(models.Model):
 
     def __str__(self):
         return f"{self.name} [{self.box_category}]"
+
+
+class WireGuardConfig(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='wireguard_configs')
+    router = models.ForeignKey(
+        'network.Router',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='wireguard_configs',
+        help_text="Optional link to a specific router. If null, acts as the tenant default hub."
+    )
+    wg_ip = models.CharField(max_length=64, help_text="WireGuard client tunnel IP CIDR, e.g. 10.255.0.2/30")
+    mik_public_key = models.CharField(max_length=128, help_text="MikroTik WireGuard public key")
+    mik_private_key_enc = models.TextField(blank=True, default='', help_text="AES-256 encrypted private key")
+    mik_private_key_set = models.BooleanField(default=False)
+    vps_public_key = models.CharField(max_length=128, help_text="Server WireGuard public key")
+    endpoint_ip = models.CharField(max_length=128, help_text="Server VPS host or IP")
+    endpoint_port = models.PositiveIntegerField(default=51820)
+    allowed_ips = models.CharField(max_length=255, default='0.0.0.0/0')
+    snmp_community = models.CharField(max_length=64, default='public')
+    router_name = models.CharField(max_length=128, default='MikroTik')
+    router_location = models.CharField(max_length=255, blank=True, default='')
+    last_tested_at = models.DateTimeField(null=True, blank=True)
+    is_reachable = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'router'], name='wg_tenant_router_idx'),
+        ]
+
+    def __str__(self):
+        return f"WireGuard [{self.router_name}] - {self.wg_ip}"
+
+
+class WireGuardSubnet(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='wireguard_subnets')
+    vpn_config = models.ForeignKey(WireGuardConfig, on_delete=models.CASCADE, related_name='subnets')
+    olt = models.ForeignKey('network.OLT', on_delete=models.SET_NULL, null=True, blank=True, related_name='vpn_subnets')
+    subnet = models.CharField(max_length=64, help_text="Subnet CIDR, e.g. 172.25.28.0/24")
+    label = models.CharField(max_length=128, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Subnet {self.subnet} ({self.label or 'Unlabeled'})"
+
 
 
