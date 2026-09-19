@@ -20,6 +20,7 @@ export function proxy(request: NextRequest) {
   const isPublicPath =
     pathname === "/login" ||
     pathname.startsWith("/login/") ||
+    pathname === "/portal" ||
     pathname.startsWith("/portal/");
 
   if (!isPublicPath && !authToken) {
