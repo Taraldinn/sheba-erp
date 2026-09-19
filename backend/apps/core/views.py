@@ -1,5 +1,6 @@
 import time
-from rest_framework import serializers, viewsets, permissions, views
+from rest_framework import serializers, viewsets, permissions, views, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import connection
 from django.conf import settings
@@ -118,10 +119,50 @@ class CompanySettingViewSet(viewsets.ModelViewSet):
     serializer_class = CompanySettingSerializer
 
     def get_queryset(self):
+        tenant = get_tenant_for_request(self.request)
+        if tenant:
+            CompanySetting.objects.get_or_create(
+                tenant=tenant,
+                defaults={'company_name': tenant.name or 'ISP Billing'}
+            )
         return get_scoped_queryset(self.request, CompanySetting)
 
     def perform_create(self, serializer):
         serializer.save(tenant=get_tenant_for_request(self.request))
+
+    @action(detail=False, methods=['get', 'patch', 'put'], url_path='current')
+    def current(self, request):
+        tenant = get_tenant_for_request(request)
+        if not tenant:
+            return Response({'error': 'No active tenant context'}, status=status.HTTP_400_BAD_REQUEST)
+        setting, _ = CompanySetting.objects.get_or_create(
+            tenant=tenant,
+            defaults={'company_name': tenant.name or 'ISP Billing'}
+        )
+        if request.method == 'GET':
+            serializer = self.get_serializer(setting)
+            return Response(serializer.data)
+
+        serializer = self.get_serializer(setting, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], url_path='test-sms')
+    def test_sms(self, request):
+        tenant = get_tenant_for_request(request)
+        if not tenant:
+            return Response({'error': 'No active tenant context'}, status=status.HTTP_400_BAD_REQUEST)
+        phone = request.data.get('phone') or request.data.get('to')
+        message = request.data.get('message') or request.data.get('msg', 'Sheba ISP ERP SMS Test Message.')
+        if not phone:
+            return Response({'error': 'Recipient phone number is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'status': 'success',
+            'message': f'Test SMS simulated successfully to {phone}.',
+            'phone': phone,
+            'delivered_via': request.data.get('sms_provider', 'Configured Gateway'),
+        }, status=status.HTTP_200_OK)
 
 
 @extend_schema_view(

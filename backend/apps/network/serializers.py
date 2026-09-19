@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
-from .models import Router, OLT, ONU, UserSession, POPBranch
+from .models import Router, OLT, ONU, UserSession, POPBranch, TJBox
 from .validators import validate_router_host, validate_port
 
 
@@ -147,4 +147,24 @@ class ONUActionSerializer(serializers.Serializer):
     action = serializers.ChoiceField(choices=['reboot', 'optical_power', 'assign_customer', 'unassign_customer'])
     customer_id = serializers.UUIDField(required=False, allow_null=True)
     pon_port = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class TJBoxSerializer(serializers.ModelSerializer):
+    zone_name = serializers.CharField(source='zone.name', read_only=True)
+
+    class Meta:
+        model = TJBox
+        fields = '__all__'
+        read_only_fields = ('tenant', 'created_at', 'updated_at')
+
+    def to_internal_value(self, data):
+        # Gracefully handle stringified JSON for fiber_code if submitted from legacy formats
+        if 'fiber_code' in data and isinstance(data['fiber_code'], str):
+            import json
+            try:
+                data = data.copy()
+                data['fiber_code'] = json.loads(data['fiber_code'])
+            except Exception:
+                pass
+        return super().to_internal_value(data)
 

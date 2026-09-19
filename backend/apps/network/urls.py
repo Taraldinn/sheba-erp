@@ -1,6 +1,6 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
-from .views import RouterViewSet, OLTViewSet, ONUViewSet, UserSessionViewSet, POPBranchViewSet
+from .views import RouterViewSet, OLTViewSet, ONUViewSet, UserSessionViewSet, POPBranchViewSet, TJBoxViewSet
 from .cockpit_views import (
     NetworkCockpitDashboardView,
     RouterCockpitDetailView,
@@ -42,6 +42,7 @@ router.register(r'routers', RouterViewSet, basename='router')
 router.register(r'olts', OLTViewSet, basename='olt')
 router.register(r'onus', ONUViewSet, basename='onu')
 router.register(r'branches', POPBranchViewSet, basename='branch')
+router.register(r'tj-boxes', TJBoxViewSet, basename='tj-box')
 router.register(r'user-sessions', UserSessionViewSet, basename='user-session')
 router.register(r'reconciliation/secrets', PPPoESecretInventoryViewSet, basename='pppoe-secret')
 router.register(r'actions', NetworkActionQueueViewSet, basename='network-action')

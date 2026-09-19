@@ -213,6 +213,71 @@ export class SettingsClient {
     return updated;
   }
 
+  /**
+   * PATCH /api/v1/settings/current/
+   * Direct tenant context settings update.
+   */
+  static async updateCurrentSettings(
+    patch: Partial<CompanySetting>
+  ): Promise<CompanySetting> {
+    const res = await fetch(`${API_BASE}/settings/current/`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(patch),
+    });
+
+    if (res.status === 401) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sheba:unauthorized'));
+      }
+      throw new Error('Your session has expired. Please log in again.');
+    }
+
+    if (!res.ok) {
+      if (this.cachedSettings?.id) {
+        return await this.updateSettings(this.cachedSettings.id, patch);
+      }
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(this.extractError(errData) || 'Failed to update settings');
+    }
+
+    const updated: CompanySetting = await res.json();
+    this.cachedSettings = updated;
+    this.cacheTimestamp = Date.now();
+    return updated;
+  }
+
+  /**
+   * POST /api/v1/settings/test-sms/
+   */
+  static async testSmsGateway(
+    config: {
+      sms_provider?: string;
+      sms_sender_id?: string;
+      sms_api_key?: string;
+      sms_gateway_url?: string;
+    },
+    phone: string,
+    message: string
+  ): Promise<{ status: string; message: string }> {
+    const res = await fetch(`${API_BASE}/settings/test-sms/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        ...config,
+        phone,
+        message,
+      }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(this.extractError(errData) || `SMS Dispatch Failed (HTTP ${res.status})`);
+    }
+
+    return await res.json();
+  }
+
   // ════════════════════════ VALIDATION ════════════════════════
   static validate(data: Partial<CompanySetting>): ValidationErrorMap {
     const errors: ValidationErrorMap = {};

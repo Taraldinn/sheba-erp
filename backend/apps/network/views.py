@@ -5,10 +5,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from .models import Router, OLT, ONU, UserSession, POPBranch
+from .models import Router, OLT, ONU, UserSession, POPBranch, TJBox
 from .serializers import (
     RouterSerializer, OLTSerializer, ONUSerializer, UserSessionSerializer,
-    POPBranchSerializer, RouterActionSerializer, ONUActionSerializer
+    POPBranchSerializer, TJBoxSerializer, RouterActionSerializer, ONUActionSerializer
 )
 from .services.mikrotik import MikroTikService
 from .services.olt import ONUService, OLTSystemService, OpticalPowerService
@@ -39,6 +39,35 @@ class POPBranchViewSet(viewsets.ModelViewSet):
         if status_param:
             qs = qs.filter(status=status_param)
         return qs
+
+    def perform_create(self, serializer):
+        serializer.save(tenant=get_tenant_for_request(self.request))
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['4. Network & Core Routers']),
+    retrieve=extend_schema(tags=['4. Network & Core Routers']),
+    create=extend_schema(tags=['4. Network & Core Routers']),
+    update=extend_schema(tags=['4. Network & Core Routers']),
+    partial_update=extend_schema(tags=['4. Network & Core Routers']),
+    destroy=extend_schema(tags=['4. Network & Core Routers']),
+)
+class TJBoxViewSet(viewsets.ModelViewSet):
+    """
+    Optical Terminal Joint Box (TJ Box) management for distribution fiber networks.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsAdminUserOrReadOnly]
+    serializer_class = TJBoxSerializer
+
+    def get_queryset(self):
+        qs = get_scoped_queryset(self.request, TJBox)
+        zone_id = self.request.query_params.get('zone') or self.request.query_params.get('zone_id')
+        if zone_id:
+            qs = qs.filter(zone_id=zone_id)
+        category = self.request.query_params.get('box_category') or self.request.query_params.get('category')
+        if category:
+            qs = qs.filter(box_category=category)
+        return qs.select_related('zone')
 
     def perform_create(self, serializer):
         serializer.save(tenant=get_tenant_for_request(self.request))

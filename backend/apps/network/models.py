@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from django.db import models
 from django.utils import timezone
 from apps.core.models import Tenant
@@ -484,5 +485,63 @@ class OLTReconciliationRun(models.Model):
 
     def __str__(self):
         return f"OLTReconciliationRun[{self.status}] on {self.olt.name} (Tenant: {self.tenant_id})"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Optical Distribution & Physical Layer: TJ Boxes & Fiber Lines
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TJBoxCategory(models.TextChoices):
+    MASTER_BOX = 'Master Box', 'Master Box'
+    SPLITTER_BOX = 'Splitter Box', 'Splitter Box'
+    ZONE_POINT_BOX = 'Zone/point Box', 'Zone/point Box'
+
+
+class TJBox(models.Model):
+    """
+    Optical Terminal Joint Box (TJ Box) / Distribution Point.
+    Persists physical fiber optic cable terminations, splitters, and port core allocations.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='tj_boxes')
+    name = models.CharField(max_length=150, help_text="Box identifier or code, e.g. BOX-A1")
+    zone = models.ForeignKey(
+        POPBranch, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='tj_boxes', help_text="Associated POP distribution zone"
+    )
+    box_category = models.CharField(
+        max_length=50, choices=TJBoxCategory.choices, default=TJBoxCategory.MASTER_BOX
+    )
+    fiber_code = models.JSONField(
+        default=list, blank=True,
+        help_text="Structured fiber lines array: category, in_out, brand, code, cores"
+    )
+    lat_long = models.CharField(max_length=100, blank=True, default='', help_text="e.g. 23.8103, 90.4125")
+    latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    notes = models.TextField(blank=True, default='', help_text="Notes, sub-zone identifiers, or comments")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'name'], name='tjbox_tenant_name_idx'),
+            models.Index(fields=['tenant', 'zone'], name='tjbox_tenant_zone_idx'),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.lat_long and ',' in self.lat_long:
+            try:
+                parts = self.lat_long.split(',')
+                if len(parts) == 2:
+                    self.latitude = Decimal(parts[0].strip())
+                    self.longitude = Decimal(parts[1].strip())
+            except Exception:
+                pass
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} [{self.box_category}]"
 
 

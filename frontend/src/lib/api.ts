@@ -516,6 +516,58 @@ export class ApiClient {
     return res.ok;
   }
 
+  // ════════════════════════ TJ BOXES & PORTS ════════════════════════
+  static async getTJBoxes(zoneId?: string, category?: string) {
+    try {
+      const url = new URL(`${API_BASE}/tj-boxes/`);
+      if (zoneId) url.searchParams.append('zone', zoneId);
+      if (category && category !== 'ALL') url.searchParams.append('box_category', category);
+      const res = await fetch(url.toString(), { headers: this.getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.results || []);
+      }
+    } catch { }
+    return [];
+  }
+
+  static async createTJBox(payload: any) {
+    const res = await fetch(`${API_BASE}/tj-boxes/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || err.name || 'Failed to create TJ Box');
+    }
+    return await res.json();
+  }
+
+  static async updateTJBox(id: string, payload: any) {
+    const res = await fetch(`${API_BASE}/tj-boxes/${id}/`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || err.name || 'Failed to update TJ Box');
+    }
+    return await res.json();
+  }
+
+  static async deleteTJBox(id: string) {
+    const res = await fetch(`${API_BASE}/tj-boxes/${id}/`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to delete TJ Box');
+    }
+    return true;
+  }
+
   // ════════════════════════ USER SESSIONS ════════════════════════
   static async getUserSessions(routerId?: string) {
     try {

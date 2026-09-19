@@ -32,7 +32,7 @@ from apps.payments.views import (
 from apps.payments.bkash_views import (
     BKashPayBillQueryView, BKashPayBillPayView, BKashPayBillSearchView, ManualSMSForwarderView
 )
-from apps.network.views import RouterViewSet, OLTViewSet, ONUViewSet, UserSessionViewSet, POPBranchViewSet
+from apps.network.views import RouterViewSet, OLTViewSet, ONUViewSet, UserSessionViewSet, POPBranchViewSet, TJBoxViewSet
 from apps.support.views import TicketViewSet
 from apps.hr.views import EmployeeViewSet, AttendanceViewSet, LeaveRequestViewSet, AdvanceSalaryViewSet, PayrollRecordViewSet
 from apps.store.views import StoreItemViewSet, StockTransactionViewSet
@@ -82,6 +82,7 @@ router.register(r'routers', RouterViewSet, basename='router')
 router.register(r'olts', OLTViewSet, basename='olt')
 router.register(r'onus', ONUViewSet, basename='onu')
 router.register(r'branches', POPBranchViewSet, basename='branch')
+router.register(r'tj-boxes', TJBoxViewSet, basename='tj-box')
 router.register(r'user-sessions', UserSessionViewSet, basename='user-session')
 router.register(r'tickets', TicketViewSet, basename='ticket')
 router.register(r'employees', EmployeeViewSet, basename='employee')

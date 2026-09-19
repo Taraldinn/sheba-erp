@@ -158,6 +158,8 @@ class HasApiKeyScope(permissions.BasePermission):
         'onus': 'network',
         'branch': 'network',
         'branches': 'network',
+        'tj-box': 'network',
+        'tj-boxes': 'network',
         'setting': 'settings',
         'settings': 'settings',
         'voice-setting': 'settings',
@@ -330,7 +332,8 @@ class IsAdminOrManager(permissions.BasePermission):
         if membership and membership.role:
             if membership.role.name in [
                 UserRole.SUPER_ADMIN, UserRole.ADMIN,
-                'Admin', 'Super Admin', 'Admin / Managing Director'
+                'Admin', 'Super Admin', 'Admin / Managing Director',
+                'ISP_ADMIN', 'ISP Admin'
             ]:
                 return True
 
@@ -441,7 +444,11 @@ class IsAdminUserOrReadOnly(permissions.BasePermission):
         # Fallback: role name check via StaffMembership only
         membership = getattr(request, 'membership', None)
         if membership and membership.role:
-            if membership.role.name in [UserRole.SUPER_ADMIN, UserRole.ADMIN, 'Admin', 'Super Admin']:
+            if membership.role.name in [
+                UserRole.SUPER_ADMIN, UserRole.ADMIN,
+                'Admin', 'Super Admin', 'Admin / Managing Director',
+                'ISP_ADMIN', 'ISP Admin'
+            ]:
                 return True
 
         return False  # Never fall through to StaffProfile
