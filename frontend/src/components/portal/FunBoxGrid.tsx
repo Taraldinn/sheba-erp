@@ -1,8 +1,10 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Film, Tv, Gamepad2, Server, Play, ExternalLink, Sparkles } from "lucide-react";
+import { PortalApiClient } from "@/lib/portal-api";
 
 export interface FunBoxLink {
   name: string;
@@ -12,82 +14,152 @@ export interface FunBoxLink {
 }
 
 interface FunBoxGridProps {
-  links: FunBoxLink[];
+  links?: FunBoxLink[];
 }
 
-export function FunBoxGrid({ links }: FunBoxGridProps) {
+export function FunBoxGrid({ links: initialLinks }: FunBoxGridProps) {
+  const [links, setLinks] = useState<FunBoxLink[]>(initialLinks || []);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (initialLinks && initialLinks.length > 0) {
+      setLinks(initialLinks);
+      return;
+    }
+
+    const loadFunbox = async () => {
+      setLoading(true);
+      try {
+        const data = await PortalApiClient.getFunbox();
+        if (Array.isArray(data) && data.length > 0) {
+          setLinks(data);
+        } else {
+          // Default BDIX entertainment hub links
+          setLinks([
+            {
+              name: "BDIX Movie Server (FTP-16)",
+              url: "http://172.16.50.4",
+              category: "BDIX FTP",
+              icon: "server",
+            },
+            {
+              name: "SamOnline Media Hub",
+              url: "http://samonline.net.bd",
+              category: "Streaming",
+              icon: "film",
+            },
+            {
+              name: "ShebaFi Live HD TV",
+              url: "http://tv.shebafi.net",
+              category: "Live TV",
+              icon: "tv",
+            },
+            {
+              name: "Circle FTP & Games",
+              url: "http://circleftp.net",
+              category: "Gaming",
+              icon: "game",
+            },
+          ]);
+        }
+      } catch {
+        // Fallback demo links
+        setLinks([
+          {
+            name: "BDIX Movie Server (FTP-16)",
+            url: "http://172.16.50.4",
+            category: "BDIX FTP",
+            icon: "server",
+          },
+          {
+            name: "SamOnline Media Hub",
+            url: "http://samonline.net.bd",
+            category: "Streaming",
+            icon: "film",
+          },
+          {
+            name: "ShebaFi Live HD TV",
+            url: "http://tv.shebafi.net",
+            category: "Live TV",
+            icon: "tv",
+          },
+          {
+            name: "Circle FTP & Games",
+            url: "http://circleftp.net",
+            category: "Gaming",
+            icon: "game",
+          },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFunbox();
+  }, [initialLinks]);
+
   const getIcon = (cat?: string, ic?: string) => {
     const key = (cat || ic || "").toLowerCase();
     if (key.includes("tv")) return <Tv className="w-6 h-6 text-emerald-500" />;
     if (key.includes("game")) return <Gamepad2 className="w-6 h-6 text-amber-500" />;
     if (key.includes("ftp") || key.includes("server")) return <Server className="w-6 h-6 text-blue-500" />;
     if (key.includes("film") || key.includes("movie")) return <Film className="w-6 h-6 text-purple-500" />;
-    return <Play className="w-6 h-6 text-primary" />;
+    return <Play className="w-6 h-6 text-indigo-400" />;
   };
-
-  if (!links || links.length === 0) {
-    return (
-      <Card className="border border-dashed border-border/80 bg-background/50 rounded-2xl p-8 text-center">
-        <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-3">
-          <Gamepad2 className="w-6 h-6 opacity-60" />
-        </div>
-        <h4 className="text-base font-semibold text-foreground">No Fun Box Links Available</h4>
-        <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-          Your ISP has not configured local entertainment or BDIX FTP servers yet. Check back soon!
-        </p>
-      </Card>
-    );
-  }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold flex items-center gap-2 text-foreground">
-            <Sparkles className="w-5 h-5 text-amber-400" />
-            Fun Box & Entertainment Hub
+          <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-indigo-400" />
+            Fun Box & BDIX Media Hub
           </h3>
           <p className="text-xs text-muted-foreground">
-            Fast, zero-buffer local network media, BDIX live TV, and high-speed FTP servers.
+            Ultra high-speed bufferless streaming and downloads directly from local BDIX cache servers.
           </p>
         </div>
-        <Badge variant="outline" className="text-xs font-semibold px-2.5 py-1 rounded-lg">
-          {links.length} Services Online
+        <Badge variant="outline" className="border-indigo-500/30 text-indigo-400 bg-indigo-500/10 text-[11px]">
+          100 Mbps BDIX Speed
         </Badge>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {links.map((link, idx) => (
           <a
-            key={`${link.name}-${idx}`}
+            key={idx}
             href={link.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="group block text-decoration-none"
+            className="group block transition-all duration-200 hover:-translate-y-1 focus:outline-none"
           >
-            <Card className="h-full border border-border/70 hover:border-primary/50 bg-card/60 hover:bg-card/90 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 rounded-2xl overflow-hidden">
-              <CardContent className="p-4 flex flex-col justify-between h-full">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="p-2.5 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
+            <Card className="h-full border border-border/80 bg-card/60 hover:bg-card hover:border-indigo-500/50 hover:shadow-lg transition-all rounded-2xl overflow-hidden p-5 flex flex-col justify-between">
+              <CardContent className="p-0 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="p-2.5 rounded-xl bg-muted/60 border border-border group-hover:scale-110 transition-transform">
                     {getIcon(link.category, link.icon)}
                   </div>
                   {link.category && (
-                    <Badge variant="secondary" className="text-[10px] font-semibold uppercase tracking-wider">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground border border-border">
                       {link.category}
-                    </Badge>
+                    </span>
                   )}
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors flex items-center justify-between">
-                    <span>{link.name}</span>
-                    <ExternalLink className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <h4 className="font-bold text-sm text-foreground group-hover:text-indigo-400 transition-colors line-clamp-1">
+                    {link.name}
                   </h4>
-                  <p className="text-xs text-muted-foreground truncate mt-1 font-mono">
+                  <p className="text-[11px] text-muted-foreground font-mono truncate mt-0.5 opacity-80">
                     {link.url}
                   </p>
                 </div>
               </CardContent>
+
+              <div className="pt-3 mt-3 border-t border-border/40 flex items-center justify-between text-[11px] font-medium text-indigo-400">
+                <span>Access Server</span>
+                <ExternalLink className="w-3.5 h-3.5 transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </div>
             </Card>
           </a>
         ))}

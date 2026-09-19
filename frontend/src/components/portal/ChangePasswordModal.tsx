@@ -8,11 +8,25 @@ import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react";
 import { PortalApiClient } from "@/lib/portal-api";
 
 interface ChangePasswordModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open?: boolean;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onClose?: () => void;
 }
 
-export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalProps) {
+export function ChangePasswordModal({
+  open,
+  isOpen,
+  onOpenChange,
+  onClose,
+}: ChangePasswordModalProps) {
+  const isModalOpen = open ?? isOpen ?? false;
+
+  const handleClose = () => {
+    onOpenChange?.(false);
+    onClose?.();
+  };
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -33,20 +47,14 @@ export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalP
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccessMsg(null);
 
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setError("All fields are required.");
-      return;
-    }
-
-    if (newPassword.length < 4) {
-      setError("New password must be at least 4 characters.");
+    if (newPassword.length < 6) {
+      setError("New password must be at least 6 characters long.");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError("New passwords do not match.");
+      setError("New password and confirmation do not match.");
       return;
     }
 
@@ -56,7 +64,7 @@ export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalP
       setSuccessMsg(res.message || "Password updated successfully!");
       setTimeout(() => {
         handleReset();
-        onOpenChange(false);
+        handleClose();
       }, 1500);
     } catch (err: any) {
       setError(err.message || "Failed to update password. Please check your current password.");
@@ -66,7 +74,14 @@ export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalP
   };
 
   return (
-    <Dialog open={open} onOpenChange={(val) => { handleReset(); onOpenChange(val); }}>
+    <Dialog
+      open={isModalOpen}
+      onOpenChange={(val) => {
+        handleReset();
+        onOpenChange?.(val);
+        if (!val) onClose?.();
+      }}
+    >
       <DialogContent className="sm:max-w-[425px] rounded-2xl p-6 bg-background/95 backdrop-blur-md border border-border/80 shadow-2xl">
         <DialogHeader>
           <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-2">
@@ -161,7 +176,7 @@ export function ChangePasswordModal({ open, onOpenChange }: ChangePasswordModalP
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={handleClose}
               className="rounded-xl"
             >
               Cancel

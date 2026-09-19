@@ -42,6 +42,9 @@ import {
   RefreshCw,
   Receipt,
   Search,
+  KeyRound,
+  ShieldCheck,
+  Video,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,18 +55,39 @@ import { formatCurrency } from "@/lib/utils";
 import { PortalHeader } from "@/components/layouts/PortalHeader";
 import { PortalApiClient } from "@/lib/portal-api";
 
+// Sub-components imported for client self-care portal
+import { ChangePasswordModal } from "@/components/portal/ChangePasswordModal";
+import { FunBoxGrid } from "@/components/portal/FunBoxGrid";
+import { LiveTrafficGraph } from "@/components/portal/LiveTrafficGraph";
+import { SessionHistoryTable } from "@/components/portal/SessionHistoryTable";
+import { PrintableInvoiceModal } from "@/components/portal/PrintableInvoiceModal";
+import { SmsPaymentVerificationModal } from "@/components/portal/SmsPaymentVerificationModal";
+import { PaymentTutorialVideo } from "@/components/portal/PaymentTutorialVideo";
+import { ThreadedTicketModal } from "@/components/portal/ThreadedTicketModal";
+
 type PortalTab = "overview" | "billing" | "speedtest" | "packages" | "support" | "wifi";
 
 export default function SubscriberPortalPage() {
   const [activeTab, setActiveTab] = useState<PortalTab>("overview");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"password" | "otp">("password");
   const [authStep, setAuthStep] = useState<"phone" | "otp">("phone");
   const [identifier, setIdentifier] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [debugOtp, setDebugOtp] = useState<string | null>(null);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // Extended self-care modals state
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [smsVerifyOpen, setSmsVerifyOpen] = useState(false);
+  const [printableInvoiceId, setPrintableInvoiceId] = useState<string | null>(null);
+  const [printableInvoiceData, setPrintableInvoiceData] = useState<any>(null);
+  const [selectedTicketThread, setSelectedTicketThread] = useState<any>(null);
 
   // Portal live data
   const [profile, setProfile] = useState<any>(null);
@@ -72,6 +96,7 @@ export default function SubscriberPortalPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(false);
 
   // Payment modal state
@@ -151,13 +176,14 @@ export default function SubscriberPortalPage() {
   const loadPortalData = async () => {
     setLoadingData(true);
     try {
-      const [profData, sessData, pkgData, invData, notifData, tckData] = await Promise.allSettled([
+      const [profData, sessData, pkgData, invData, notifData, tckData, settData] = await Promise.allSettled([
         PortalApiClient.getProfile(),
         PortalApiClient.getSession(),
         PortalApiClient.getPackages(),
         PortalApiClient.getInvoices(),
         PortalApiClient.getNotifications(),
         PortalApiClient.getTickets(),
+        PortalApiClient.getSettings(),
       ]);
 
       if (profData.status === "fulfilled") setProfile(profData.value);
@@ -166,6 +192,7 @@ export default function SubscriberPortalPage() {
       if (invData.status === "fulfilled") setInvoices(invData.value);
       if (notifData.status === "fulfilled") setNotifications(notifData.value.notifications || []);
       if (tckData.status === "fulfilled") setTickets(tckData.value);
+      if (settData.status === "fulfilled") setSettings(settData.value);
     } catch (err) {
       console.error("Error loading portal data:", err);
     } finally {
@@ -174,6 +201,23 @@ export default function SubscriberPortalPage() {
   };
 
   // ════════════════════════ AUTHENTICATION HANDLERS ════════════════════════
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthLoading(true);
+    try {
+      await PortalApiClient.loginWithPassword(loginUsername.trim(), loginPassword);
+      setIsLoggedIn(true);
+      setAuthModalOpen(false);
+      setLoginPassword("");
+      await loadPortalData();
+    } catch (err: any) {
+      setAuthError(err.message || "Invalid PPPoE username or password");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
@@ -405,6 +449,15 @@ export default function SubscriberPortalPage() {
                 <span className="text-xs text-muted-foreground hidden sm:inline">
                   Logged in as <strong className="text-foreground">{profile?.full_name || "Customer"}</strong>
                 </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setChangePasswordOpen(true)}
+                  className="text-xs h-8 gap-1.5 border-border hover:text-indigo-400"
+                >
+                  <KeyRound className="h-3.5 w-3.5 text-indigo-400" />
+                  <span className="hidden md:inline">Change Password</span>
+                </Button>
                 <Button variant="outline" size="sm" onClick={handleLogout} className="text-xs h-8 gap-1 border-border">
                   <LogOut className="h-3.5 w-3.5" /> Logout
                 </Button>
@@ -413,6 +466,7 @@ export default function SubscriberPortalPage() {
               <Button
                 size="sm"
                 onClick={() => {
+                  setAuthMode("password");
                   setAuthStep("phone");
                   setAuthModalOpen(true);
                 }}
@@ -556,7 +610,7 @@ export default function SubscriberPortalPage() {
           {[
             { id: "overview", label: "Overview & Status", icon: Radio },
             { id: "billing", label: "My Invoices & Payments", icon: CreditCard },
-            { id: "speedtest", label: "Speed & Bandwidth Test", icon: Gauge },
+            { id: "speedtest", label: "Speed & Network Usage", icon: Gauge },
             { id: "packages", label: "Package Upgrade", icon: TrendingUp },
             { id: "support", label: "Support & Complaints", icon: Headphones },
             { id: "wifi", label: "WiFi & Router Control", icon: Wifi },
@@ -706,6 +760,9 @@ export default function SubscriberPortalPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Fun Box Media & BDIX Entertainment Hub */}
+            <FunBoxGrid />
           </div>
         )}
 
@@ -727,14 +784,27 @@ export default function SubscriberPortalPage() {
               </Card>
               <Card className="border-border bg-card/60 p-4 flex flex-col justify-between">
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold">Supported Payment Gateways</p>
-                  <p className="text-sm font-bold text-foreground mt-1">bKash Checkout, PayBill & MFS</p>
+                  <p className="text-xs text-muted-foreground font-semibold">Recharge & Instant Verification</p>
+                  <p className="text-sm font-bold text-foreground mt-1">bKash, PayBill & SMS TrxID</p>
                 </div>
-                <Button size="sm" onClick={() => setPayModalOpen(true)} className="mt-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8">
-                  Pay Now / Recharge
-                </Button>
+                <div className="flex items-center gap-2 mt-2">
+                  <Button size="sm" onClick={() => setPayModalOpen(true)} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 font-bold">
+                    Pay Now
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSmsVerifyOpen(true)}
+                    className="flex-1 text-xs h-8 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 gap-1 font-bold"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" /> Verify SMS
+                  </Button>
+                </div>
               </Card>
             </div>
+
+            {/* How to Pay Bill: Video Tutorial & App Guides */}
+            <PaymentTutorialVideo videoUrl={settings?.payment_tutorial_video} />
 
             {/* Invoices List */}
             <Card className="border-border bg-card/60">
@@ -772,10 +842,13 @@ export default function SubscriberPortalPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => alert(`Downloading official PDF receipt for ${inv.invoice_no}...`)}
-                                className="h-7 text-xs text-indigo-400 hover:text-indigo-300 gap-1"
+                                onClick={() => {
+                                  setPrintableInvoiceId(String(inv.id));
+                                  setPrintableInvoiceData(inv);
+                                }}
+                                className="h-7 text-xs text-indigo-400 hover:text-indigo-300 gap-1.5"
                               >
-                                <Download className="h-3.5 w-3.5" /> PDF
+                                <Receipt className="h-3.5 w-3.5" /> View Receipt
                               </Button>
                             </td>
                           </tr>
@@ -795,9 +868,13 @@ export default function SubscriberPortalPage() {
           </div>
         )}
 
-        {/* ════════════════════════ TAB 3: SPEED TEST ════════════════════════ */}
+        {/* ════════════════════════ TAB 3: SPEED & NETWORK USAGE ════════════════════════ */}
         {activeTab === "speedtest" && (
           <div className="space-y-6">
+            {/* Live Bandwidth Rolling Canvas/SVG Chart */}
+            <LiveTrafficGraph isLoggedIn={isLoggedIn} />
+
+            {/* Speedometer Gauge Card */}
             <Card className="border-indigo-500/30 bg-gradient-to-br from-indigo-950/40 via-card to-card p-6 sm:p-8 text-center space-y-6">
               <div className="space-y-1">
                 <h2 className="text-xl font-bold text-foreground">Real-Time Optical Speedometer</h2>
@@ -847,6 +924,9 @@ export default function SubscriberPortalPage() {
                 </Button>
               </div>
             </Card>
+
+            {/* 50-Session Connection & Data Usage Logs */}
+            <SessionHistoryTable isLoggedIn={isLoggedIn} />
           </div>
         )}
 
@@ -927,9 +1007,20 @@ export default function SubscriberPortalPage() {
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5">Category: {t.category} • Priority: {t.priority}</p>
                       </div>
-                      <Badge variant={t.status === "Open" ? "default" : "success"} className="text-[10px] self-start sm:self-center">
-                        {t.status}
-                      </Badge>
+                      <div className="flex items-center gap-2 self-start sm:self-center">
+                        <Badge variant={t.status === "Open" ? "default" : "success"} className="text-[10px]">
+                          {t.status}
+                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedTicketThread(t)}
+                          className="h-7 text-xs gap-1 border-border hover:bg-indigo-500/10 hover:text-indigo-400"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5 text-indigo-400" />
+                          <span>View Thread</span>
+                        </Button>
+                      </div>
                     </div>
 
                     <p className="text-xs text-muted-foreground">{t.description}</p>
@@ -1035,7 +1126,7 @@ export default function SubscriberPortalPage() {
         )}
       </div>
 
-      {/* ════════════════════════ OTP LOGIN MODAL ════════════════════════ */}
+      {/* ════════════════════════ LOGIN MODAL (PASSWORD OR OTP) ════════════════════════ */}
       <Dialog open={authModalOpen} onOpenChange={setAuthModalOpen}>
         <DialogContent className="max-w-md bg-card border-border">
           <DialogHeader>
@@ -1044,9 +1135,41 @@ export default function SubscriberPortalPage() {
               Customer Self-Care Login
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Enter your registered mobile number or PPPoE username to receive an instant OTP.
+              Sign in with your PPPoE credentials or verify via mobile phone OTP.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Segmented Switch */}
+          <div className="grid grid-cols-2 gap-1 p-1 bg-muted/50 rounded-xl border border-border text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode("password");
+                setAuthError(null);
+              }}
+              className={`py-1.5 rounded-lg transition-all ${
+                authMode === "password"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              PPPoE Password
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode("otp");
+                setAuthError(null);
+              }}
+              className={`py-1.5 rounded-lg transition-all ${
+                authMode === "otp"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Mobile OTP
+            </button>
+          </div>
 
           {authError && (
             <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold">
@@ -1054,7 +1177,53 @@ export default function SubscriberPortalPage() {
             </div>
           )}
 
-          {authStep === "phone" ? (
+          {authMode === "password" ? (
+            <form onSubmit={handlePasswordLogin} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold mb-1 text-foreground">PPPoE Username / Login ID</label>
+                <Input
+                  required
+                  placeholder="e.g. tanvir_home"
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  className="bg-background h-9 text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1 text-foreground">Password</label>
+                <div className="relative">
+                  <Input
+                    required
+                    type={showLoginPassword ? "text" : "password"}
+                    placeholder="Enter subscriber password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="bg-background h-9 text-xs pr-10 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Default password is your PPPoE password or registered phone number.
+                </p>
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button type="button" variant="ghost" onClick={() => setAuthModalOpen(false)} className="text-xs">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={authLoading} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs">
+                  {authLoading ? "Authenticating..." : "Sign In to Portal"}
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : authStep === "phone" ? (
             <form onSubmit={handleRequestOtp} className="space-y-4 text-xs">
               <div>
                 <label className="block font-semibold mb-1 text-foreground">Mobile Number or PPPoE Username</label>
@@ -1313,6 +1482,47 @@ export default function SubscriberPortalPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* ════════════════════════ CHANGE PASSWORD MODAL ════════════════════════ */}
+      <ChangePasswordModal
+        isOpen={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+      />
+
+      {/* ════════════════════════ SMS / MFS PAYMENT VERIFICATION MODAL ════════════════════════ */}
+      <SmsPaymentVerificationModal
+        isOpen={smsVerifyOpen}
+        onClose={() => setSmsVerifyOpen(false)}
+        onSuccess={(msg) => {
+          setPaySuccessMsg(msg);
+          setPaySuccess(true);
+          setPayModalOpen(true);
+          loadPortalData();
+          setTimeout(() => setPaySuccess(false), 3500);
+        }}
+        customerCode={profile?.customer_code}
+        pppoeUsername={profile?.pppoe_username}
+      />
+
+      {/* ════════════════════════ PRINTABLE INVOICE RECEIPT MODAL ════════════════════════ */}
+      <PrintableInvoiceModal
+        isOpen={!!printableInvoiceId}
+        onClose={() => {
+          setPrintableInvoiceId(null);
+          setPrintableInvoiceData(null);
+        }}
+        invoiceId={printableInvoiceId}
+        fallbackInvoice={printableInvoiceData}
+        customerProfile={profile}
+      />
+
+      {/* ════════════════════════ THREADED TICKET CONVERSATION MODAL ════════════════════════ */}
+      <ThreadedTicketModal
+        isOpen={!!selectedTicketThread}
+        onClose={() => setSelectedTicketThread(null)}
+        ticket={selectedTicketThread}
+        onTicketUpdated={loadPortalData}
+      />
     </div>
   );
 }
