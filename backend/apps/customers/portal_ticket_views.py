@@ -46,6 +46,10 @@ class CustomerPortalTicketViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         customer = self.get_customer()
+        if not customer:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Customer context required.")
+
         # Generate random unique ticket number
         random_code = random.randint(100000, 999999)
         ticket_no = f"TCK-{random_code}"
@@ -73,6 +77,8 @@ class CustomerPortalTicketViewSet(viewsets.ModelViewSet):
         """Allows customer to add a reply to their open/in-progress ticket."""
         ticket = self.get_object()
         customer = self.get_customer()
+        if not customer:
+            return Response({"error": "Customer context required."}, status=status.HTTP_404_NOT_FOUND)
 
         message = request.data.get('message', '').strip()
         if not message:

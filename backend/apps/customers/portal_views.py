@@ -28,14 +28,18 @@ logger = logging.getLogger(__name__)
 
 
 class CustomerPortalBaseMixin:
+    def get_customer(self):
+        request = getattr(self, 'request', None)
+        if request and hasattr(request, 'user'):
+            principal = request.user
+            if hasattr(principal, 'customer'):
+                return principal.customer
+        return None
+
+
+class CustomerPortalBaseView(CustomerPortalBaseMixin, views.APIView):
     authentication_classes = [CustomerJWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
-
-    def get_customer(self):
-        principal = self.request.user
-        if hasattr(principal, 'customer'):
-            return principal.customer
-        return None
 
 
 @extend_schema(
@@ -43,7 +47,7 @@ class CustomerPortalBaseMixin:
     summary='Customer profile and account summary',
     responses={200: CustomerPortalProfileSerializer}
 )
-class CustomerPortalProfileView(CustomerPortalBaseMixin, views.APIView):
+class CustomerPortalProfileView(CustomerPortalBaseView):
     """
     Returns the authenticated customer's profile, connection info,
     current package, billing status, and due/advance balances.
@@ -62,7 +66,7 @@ class CustomerPortalProfileView(CustomerPortalBaseMixin, views.APIView):
     summary='Customer live PPPoE session diagnostics',
     responses={200: CustomerPortalSessionSerializer}
 )
-class CustomerPortalSessionView(CustomerPortalBaseMixin, views.APIView):
+class CustomerPortalSessionView(CustomerPortalBaseView):
     """
     Returns live PPPoE session diagnostics (IP, MAC, uptime, bytes in/out).
     Safely handles offline states without raising exceptions.
@@ -109,7 +113,7 @@ class CustomerPortalSessionView(CustomerPortalBaseMixin, views.APIView):
     summary='Available broadband packages for customer',
     responses={200: CustomerPortalPackageSerializer(many=True)}
 )
-class CustomerPortalPackagesView(CustomerPortalBaseMixin, views.APIView):
+class CustomerPortalPackagesView(CustomerPortalBaseView):
     """
     Lists active broadband packages available within the customer's tenant.
     """
@@ -132,6 +136,8 @@ class CustomerPortalInvoiceViewSet(CustomerPortalBaseMixin, viewsets.ReadOnlyMod
     Lists and retrieves invoices strictly belonging to the authenticated customer.
     Includes an action to generate or download an invoice breakdown.
     """
+    authentication_classes = [CustomerJWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = CustomerPortalInvoiceSerializer
 
     def get_queryset(self):
@@ -199,7 +205,7 @@ class CustomerPortalInvoiceViewSet(CustomerPortalBaseMixin, viewsets.ReadOnlyMod
         return Response(data, status=status.HTTP_200_OK)
 
 
-class CustomerPortalNotificationView(CustomerPortalBaseMixin, views.APIView):
+class CustomerPortalNotificationView(CustomerPortalBaseView):
     """
     Returns personalized notices, maintenance alerts, and renewal reminders.
     """
@@ -249,7 +255,7 @@ class CustomerPortalNotificationView(CustomerPortalBaseMixin, views.APIView):
     summary='Customer self-care subscription recharge',
     responses={200: dict, 400: dict, 402: dict, 404: dict}
 )
-class CustomerPortalRechargeView(CustomerPortalBaseMixin, views.APIView):
+class CustomerPortalRechargeView(CustomerPortalBaseView):
     """
     Self-care subscription recharge endpoint.
     If customer has sufficient advance balance, performs instant renewal.
@@ -342,7 +348,7 @@ class CustomerPortalRechargeView(CustomerPortalBaseMixin, views.APIView):
     summary='Customer subscription recharge history',
     responses={200: dict, 404: dict}
 )
-class CustomerPortalRechargeHistoryView(CustomerPortalBaseMixin, views.APIView):
+class CustomerPortalRechargeHistoryView(CustomerPortalBaseView):
     """
     Returns history of subscription recharges for the authenticated customer.
     """
@@ -377,7 +383,7 @@ class CustomerPortalRechargeHistoryView(CustomerPortalBaseMixin, views.APIView):
     summary='Customer confirmed payment ledger history',
     responses={200: dict, 404: dict}
 )
-class CustomerPortalPaymentHistoryView(CustomerPortalBaseMixin, views.APIView):
+class CustomerPortalPaymentHistoryView(CustomerPortalBaseView):
     """
     Returns ledger of confirmed payments for the authenticated customer.
     """
@@ -404,7 +410,7 @@ class CustomerPortalPaymentHistoryView(CustomerPortalBaseMixin, views.APIView):
         return Response({"payments": data}, status=status.HTTP_200_OK)
 
 
-class CustomerPortalSettingsView(CustomerPortalBaseMixin, views.APIView):
+class CustomerPortalSettingsView(CustomerPortalBaseView):
     """
     Returns public tenant branding and support info for the customer portal.
     """
@@ -432,7 +438,7 @@ class CustomerPortalSettingsView(CustomerPortalBaseMixin, views.APIView):
         }, status=status.HTTP_200_OK)
 
 
-class CustomerPortalFunboxView(CustomerPortalBaseMixin, views.APIView):
+class CustomerPortalFunboxView(CustomerPortalBaseView):
     """
     Returns entertainment, BDIX, and FTP media server links configured by the ISP.
     """
@@ -455,7 +461,7 @@ class CustomerPortalFunboxView(CustomerPortalBaseMixin, views.APIView):
         return Response(links, status=status.HTTP_200_OK)
 
 
-class CustomerPortalTrafficView(CustomerPortalBaseMixin, views.APIView):
+class CustomerPortalTrafficView(CustomerPortalBaseView):
     """
     Returns real-time download and upload rate (Mbps) for subscriber's active session.
     """
@@ -491,7 +497,7 @@ class CustomerPortalTrafficView(CustomerPortalBaseMixin, views.APIView):
         }, status=status.HTTP_200_OK)
 
 
-class CustomerPortalSessionsView(CustomerPortalBaseMixin, views.APIView):
+class CustomerPortalSessionsView(CustomerPortalBaseView):
     """
     Returns last 50 PPPoE session records (active session + historical records).
     """
