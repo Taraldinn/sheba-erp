@@ -44,6 +44,7 @@ class Customer(models.Model):
     router = models.ForeignKey(Router, on_delete=models.SET_NULL, null=True, blank=True, related_name='customers')
     pppoe_username = models.CharField(max_length=100, db_index=True)
     pppoe_password = models.CharField(max_length=100)
+    portal_password = models.CharField(max_length=128, blank=True, default='', help_text="Hashed password for self-care portal login")
     static_ip = models.GenericIPAddressField(null=True, blank=True)
     mac_address = models.CharField(max_length=50, blank=True)
     onu_mac_or_sn = models.CharField(max_length=100, blank=True)
