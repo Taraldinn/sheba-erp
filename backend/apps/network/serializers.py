@@ -157,6 +157,18 @@ class TJBoxSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('tenant', 'created_at', 'updated_at')
 
+    def validate_zone(self, zone):
+        if zone is None:
+            return zone
+        tenant = _tenant_from_context(self.context)
+        if not tenant and self.instance:
+            tenant = getattr(self.instance, 'tenant', None)
+        if tenant and zone.tenant_id != getattr(tenant, 'id', tenant):
+            raise serializers.ValidationError(
+                "Selected zone does not belong to your ISP. Cross-tenant assignment is not allowed."
+            )
+        return zone
+
     def to_internal_value(self, data):
         # Gracefully handle stringified JSON for fiber_code if submitted from legacy formats
         if 'fiber_code' in data and isinstance(data['fiber_code'], str):

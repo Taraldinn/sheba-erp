@@ -14,13 +14,14 @@ export interface ValidationErrorMap {
 
 export class SettingsClient {
   private static cachedSettings: CompanySetting | null = null;
+  private static cachedTenantId: string | null = null;
   private static cacheTimestamp: number = 0;
   private static CACHE_TTL_MS = 60 * 1000; // 1 minute local TTL
 
   private static getHeaders(): Record<string, string> {
     const token = TokenStorage.getStoredToken();
     const activeTenant = TokenStorage.getStoredTenantId();
-    const apiKey = typeof window !== 'undefined'
+    const apiKey = typeof window !== 'undefined' && typeof localStorage !== 'undefined'
       ? localStorage.getItem('sheba_api_key')
       : process.env.NEXT_PUBLIC_SHEBA_API_KEY;
 
@@ -46,6 +47,7 @@ export class SettingsClient {
    */
   static invalidateSettingsCache(): void {
     this.cachedSettings = null;
+    this.cachedTenantId = null;
     this.cacheTimestamp = 0;
   }
 
@@ -54,10 +56,12 @@ export class SettingsClient {
    * Scoped to the current tenant domain context.
    */
   static async getSettings(forceRefresh = false): Promise<CompanySetting | null> {
+    const activeTenant = TokenStorage.getStoredTenantId();
     const now = Date.now();
     if (
       !forceRefresh &&
       this.cachedSettings &&
+      this.cachedTenantId === activeTenant &&
       now - this.cacheTimestamp < this.CACHE_TTL_MS
     ) {
       return this.cachedSettings;
@@ -85,6 +89,7 @@ export class SettingsClient {
 
     if (list.length > 0) {
       this.cachedSettings = list[0];
+      this.cachedTenantId = activeTenant;
       this.cacheTimestamp = now;
       return list[0];
     }
@@ -159,6 +164,7 @@ export class SettingsClient {
 
     const created: CompanySetting = await res.json();
     this.cachedSettings = created;
+    this.cachedTenantId = TokenStorage.getStoredTenantId();
     this.cacheTimestamp = Date.now();
     return created;
   }
@@ -186,7 +192,8 @@ export class SettingsClient {
 
     if (!res.ok) {
       // If PATCH is not allowed (HTTP 405), fallback to PUT with current cache merged
-      if (res.status === 405 && this.cachedSettings) {
+      const activeTenant = TokenStorage.getStoredTenantId();
+      if (res.status === 405 && this.cachedSettings && this.cachedTenantId === activeTenant) {
         const fullPayload = { ...this.cachedSettings, ...patch };
         const putRes = await fetch(`${API_BASE}/settings/${id}/`, {
           method: 'PUT',
@@ -199,6 +206,7 @@ export class SettingsClient {
         }
         const updatedPut: CompanySetting = await putRes.json();
         this.cachedSettings = updatedPut;
+        this.cachedTenantId = activeTenant;
         this.cacheTimestamp = Date.now();
         return updatedPut;
       }
@@ -209,6 +217,7 @@ export class SettingsClient {
 
     const updated: CompanySetting = await res.json();
     this.cachedSettings = updated;
+    this.cachedTenantId = TokenStorage.getStoredTenantId();
     this.cacheTimestamp = Date.now();
     return updated;
   }
@@ -234,7 +243,8 @@ export class SettingsClient {
     }
 
     if (!res.ok) {
-      if (this.cachedSettings?.id) {
+      const activeTenant = TokenStorage.getStoredTenantId();
+      if (this.cachedSettings?.id && this.cachedTenantId === activeTenant) {
         return await this.updateSettings(this.cachedSettings.id, patch);
       }
       const errData = await res.json().catch(() => ({}));
@@ -243,6 +253,7 @@ export class SettingsClient {
 
     const updated: CompanySetting = await res.json();
     this.cachedSettings = updated;
+    this.cachedTenantId = TokenStorage.getStoredTenantId();
     this.cacheTimestamp = Date.now();
     return updated;
   }
@@ -269,6 +280,13 @@ export class SettingsClient {
         message,
       }),
     });
+
+    if (res.status === 401) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('sheba:unauthorized'));
+      }
+      throw new Error('Your session has expired. Please log in again.');
+    }
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));

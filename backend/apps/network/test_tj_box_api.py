@@ -6,6 +6,7 @@ Tests for TJBox (Optical Terminal Joint Box) API:
 - DELETE /api/v1/tj-boxes/{id}/
 - Multi-Tenant Isolation
 """
+from decimal import Decimal
 from django.test import TestCase
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
@@ -232,3 +233,98 @@ class TJBoxAPITests(TestCase):
             HTTP_HOST='beacon.shebafi.xyz'
         )
         self.assertEqual(get_res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_05_lat_long_sync_and_validation(self):
+        """Verify lat_long synchronization, clearing on empty, and rejecting malformed/out-of-range."""
+        from django.core.exceptions import ValidationError
+
+        # Valid coordinates
+        box = TJBox.objects.create(
+            tenant=self.tenant1,
+            name='BOX-COORDS-1',
+            lat_long='23.8103, 90.4125'
+        )
+        self.assertIsNotNone(box.latitude)
+        self.assertIsNotNone(box.longitude)
+        self.assertEqual(box.latitude, Decimal('23.8103'))
+        self.assertEqual(box.longitude, Decimal('90.4125'))
+
+        # Empty lat_long clears latitude and longitude
+        box.lat_long = ''
+        box.save()
+        self.assertIsNone(box.latitude)
+        self.assertIsNone(box.longitude)
+
+        # Malformed format (only 1 coordinate)
+        box.lat_long = '23.8103'
+        with self.assertRaises(ValidationError):
+            box.save()
+
+        # Malformed format (non-numeric)
+        box.lat_long = 'abc, def'
+        with self.assertRaises(ValidationError):
+            box.save()
+
+        # Out-of-range latitude (> 90)
+        box.lat_long = '95.0, 90.0'
+        with self.assertRaises(ValidationError):
+            box.save()
+
+        # Out-of-range longitude (> 180)
+        box.lat_long = '23.0, 185.0'
+        with self.assertRaises(ValidationError):
+            box.save()
+
+    def test_06_zone_cross_tenant_validation(self):
+        """TJBox serializer rejects zones belonging to another tenant on create and update."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token1.key}')
+
+        # Try to create box in Tenant 1 with Tenant 2's zone
+        res = self.client.post(
+            '/api/v1/tj-boxes/',
+            {
+                'name': 'BOX-CROSS-TENANT',
+                'zone': str(self.zone2.id),
+                'box_category': 'Master Box'
+            },
+            format='json',
+            HTTP_HOST='apexfiber.shebafi.xyz'
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('zone', res.data)
+
+        # Create valid box in Tenant 1
+        box = TJBox.objects.create(
+            tenant=self.tenant1,
+            name='BOX-VALID-ZONE',
+            zone=self.zone1
+        )
+
+        # Try to patch with Tenant 2's zone
+        patch_res = self.client.patch(
+            f'/api/v1/tj-boxes/{box.id}/',
+            {'zone': str(self.zone2.id)},
+            format='json',
+            HTTP_HOST='apexfiber.shebafi.xyz'
+        )
+        self.assertEqual(patch_res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('zone', patch_res.data)
+
+    def test_07_zone_uuid_query_filter_validation(self):
+        """Invalid zone_id filter raises 400 ValidationError, valid UUID filters correctly."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token1.key}')
+
+        # Invalid UUID
+        res_invalid = self.client.get(
+            '/api/v1/tj-boxes/?zone=not-a-valid-uuid',
+            HTTP_HOST='apexfiber.shebafi.xyz'
+        )
+        self.assertEqual(res_invalid.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('zone', res_invalid.data)
+
+        # Valid UUID
+        res_valid = self.client.get(
+            f'/api/v1/tj-boxes/?zone={self.zone1.id}',
+            HTTP_HOST='apexfiber.shebafi.xyz'
+        )
+        self.assertEqual(res_valid.status_code, status.HTTP_200_OK)

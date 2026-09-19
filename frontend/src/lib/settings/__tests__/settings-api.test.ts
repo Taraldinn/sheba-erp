@@ -269,4 +269,59 @@ describe('SHEBAFI TENANT SETTINGS API SUITE — PHASE 3', () => {
       assert.equal(updated.is_active, true);
     });
   });
+
+  describe('5. SMS Gateway & Multi-Tenant Cache Scoping', () => {
+    test('testSmsGateway handles HTTP 401 by dispatching sheba:unauthorized', async () => {
+      let dispatched = false;
+      const originalWindow = global.window;
+      global.window = {
+        dispatchEvent: (evt: any) => {
+          if (evt?.type === 'sheba:unauthorized') dispatched = true;
+          return true;
+        },
+      } as any;
+
+      global.fetch = async () => ({
+        ok: false,
+        status: 401,
+        json: async () => ({ detail: 'Invalid token' }),
+      } as Response);
+
+      await assert.rejects(
+        async () => {
+          await SettingsClient.testSmsGateway({}, '+8801700112233', 'Test');
+        },
+        /Your session has expired/
+      );
+
+      assert.equal(dispatched, true);
+      global.window = originalWindow;
+    });
+
+    test('cachedSettings is not reused after a tenant switch', async () => {
+      let fetchCount = 0;
+      global.fetch = async () => {
+        fetchCount++;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [sampleSettings],
+        } as Response;
+      };
+
+      TokenStorage.setStoredToken(mockToken, 'tenant', 'tenant-1');
+      SettingsClient.invalidateSettingsCache();
+      await SettingsClient.getSettings();
+      assert.equal(fetchCount, 1);
+
+      // Repeat call for same tenant uses cache
+      await SettingsClient.getSettings();
+      assert.equal(fetchCount, 1);
+
+      // Switch tenant
+      TokenStorage.setStoredToken(mockToken, 'tenant', 'tenant-2');
+      await SettingsClient.getSettings();
+      assert.equal(fetchCount, 2);
+    });
+  });
 });

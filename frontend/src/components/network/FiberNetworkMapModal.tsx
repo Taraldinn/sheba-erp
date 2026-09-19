@@ -141,6 +141,7 @@ export default function FiberNetworkMapModal({
   useEffect(() => {
     if (!isOpen || !mapContainerRef.current) return;
 
+    const abortController = new AbortController();
     let isMounted = true;
 
     async function initLeafletMap() {
@@ -333,7 +334,7 @@ export default function FiberNetworkMapModal({
 
         popupHtml += `
           <div style="margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 4px; display: flex; justify-content: space-between; font-size: 10px;">
-            <span style="color: #64748b; font-family: monospace;">${box.location}</span>
+            <span style="color: #64748b; font-family: monospace;">${escapeHtml(box.location)}</span>
             <a href="https://www.google.com/maps?q=${encodeURIComponent(
               box.location
             )}" target="_blank" rel="noopener noreferrer" style="color: #4f46e5; text-decoration: underline; font-weight: 600;">
@@ -430,14 +431,16 @@ export default function FiberNetworkMapModal({
 
             // Attempt OSRM driving route enhancement asynchronously
             fetch(
-              `https://router.project-osrm.org/route/v1/driving/${p1[1]},${p1[0]};${p2[1]},${p2[0]}?overview=full&geometries=geojson`
+              `https://router.project-osrm.org/route/v1/driving/${p1[1]},${p1[0]};${p2[1]},${p2[0]}?overview=full&geometries=geojson`,
+              { signal: abortController.signal }
             )
               .then((r) => r.json())
               .then((data) => {
                 if (
+                  isMounted &&
+                  mapInstanceRef.current === map &&
                   data.routes &&
-                  data.routes.length > 0 &&
-                  mapInstanceRef.current
+                  data.routes.length > 0
                 ) {
                   const route = data.routes[0];
                   const coords = route.geometry.coordinates.map(
@@ -464,7 +467,7 @@ export default function FiberNetworkMapModal({
                 }
               })
               .catch(() => {
-                // Keep the dashed straight line fallback
+                // Keep the dashed straight line fallback and ignore abort errors
               });
           }
         }
@@ -486,10 +489,12 @@ export default function FiberNetworkMapModal({
 
     return () => {
       isMounted = false;
+      abortController.abort();
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
+      markersRef.current.clear();
     };
   }, [isOpen, mapType, boxes]);
 

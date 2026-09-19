@@ -308,65 +308,21 @@ export default function ConfigurationPage() {
       const tjBoxesData = await ApiClient.getTJBoxes();
       const rawBoxes = Array.isArray(tjBoxesData) ? tjBoxesData : [];
 
-      if (rawBoxes.length > 0) {
-        const parsedBoxes: TJBox[] = rawBoxes.map((b: any) => ({
-          id: b.id,
-          name: b.name,
-          zone_id: b.zone,
-          zone: b.zone_name || (mappedZones.find((z) => z.id === b.zone)?.name ?? "Unassigned Zone"),
-          category: (b.box_category as any) || "Master Box",
-          lines: parseFiberLines(b.fiber_code),
-          notes: b.notes || "",
-          location: b.lat_long || (b.latitude && b.longitude ? `${b.latitude}, ${b.longitude}` : ""),
-          created_at: b.created_at ? new Date(b.created_at).toLocaleDateString() : "Just now",
-        }));
-        setBoxes(parsedBoxes);
-      } else {
-        // Clean default demonstration boxes if database is completely fresh
-        const initialSample: TJBox[] = [
-          {
-            id: "sample_box_1",
-            name: "BOX-A1 (Main Splitter)",
-            zone: mappedZones[0]?.name || "Zone 1 - Central Hub",
-            zone_id: mappedZones[0]?.id || null,
-            category: "Master Box",
-            location: "23.8103, 90.4125",
-            notes: "SubZone-1, SubZone-2, Road 11 Junction",
-            created_at: "Initial",
-            lines: [
-              {
-                id: "sample_l1",
-                category: "4core",
-                in_out: "In",
-                brand: "FiberHome",
-                code: "F-MAIN-01",
-                cores: [
-                  { number: 1, status: "used", colorName: "blue", note: "OLT Port 1/1 Feed" },
-                  { number: 2, status: "used", colorName: "orange", note: "OLT Port 1/2 Feed" },
-                  { number: 3, status: "free", colorName: "green", note: "Standby Core" },
-                  { number: 4, status: "free", colorName: "brown", note: "Standby Core" },
-                ],
-                isExpanded: true,
-              },
-              {
-                id: "sample_l2",
-                category: "2core",
-                in_out: "Out",
-                brand: "Corning",
-                code: "F-SEC-02",
-                cores: [
-                  { number: 1, status: "used", colorName: "blue", note: "Splitter 1:8 to Road 12" },
-                  { number: 2, status: "free", colorName: "orange", note: "Spare link" },
-                ],
-                isExpanded: true,
-              },
-            ],
-          },
-        ];
-        setBoxes(initialSample);
-      }
-    } catch {
-      // Fail silently to sample boxes if offline
+      const parsedBoxes: TJBox[] = rawBoxes.map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        zone_id: b.zone,
+        zone: b.zone_name || (mappedZones.find((z) => z.id === b.zone)?.name ?? "Unassigned Zone"),
+        category: (b.box_category as any) || "Master Box",
+        lines: parseFiberLines(b.fiber_code),
+        notes: b.notes || "",
+        location: b.lat_long || (b.latitude && b.longitude ? `${b.latitude}, ${b.longitude}` : ""),
+        created_at: b.created_at ? new Date(b.created_at).toLocaleDateString() : "Just now",
+      }));
+      setBoxes(parsedBoxes);
+    } catch (err: unknown) {
+      setBoxes([]);
+      setErrorMessage(err instanceof Error ? err.message : "Failed to load optical zones and TJ boxes.");
     } finally {
       setIsLoadingBoxes(false);
     }

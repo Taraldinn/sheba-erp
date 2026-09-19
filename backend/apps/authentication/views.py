@@ -34,7 +34,7 @@ class LoginView(views.APIView):
         password = serializer.validated_data['password']
 
         user = authenticate(username=username, password=password)
-        if not user:
+        if not user or not isinstance(user, User):
             return Response({'error': 'Invalid username or password', 'code': 'INVALID_CREDENTIALS'}, status=status.HTTP_401_UNAUTHORIZED)
 
         # 1. Control Plane Domain Check
@@ -112,7 +112,7 @@ class LoginView(views.APIView):
             details={'user_id': user.id, 'role': profile.role}
         )
 
-        ROLE_DASHBOARDS = {
+        ROLE_DASHBOARDS: dict[str, str] = {
             UserRole.SUPER_ADMIN: '/',
             UserRole.ADMIN: '/',
             UserRole.BILLING: '/dashboards/billing',

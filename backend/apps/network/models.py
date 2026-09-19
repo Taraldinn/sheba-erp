@@ -531,14 +531,25 @@ class TJBox(models.Model):
         ]
 
     def save(self, *args, **kwargs):
-        if self.lat_long and ',' in self.lat_long:
+        if not self.lat_long or not self.lat_long.strip():
+            self.latitude = None
+            self.longitude = None
+        else:
+            parts = [p.strip() for p in self.lat_long.split(',') if p.strip()]
+            if len(parts) != 2:
+                from django.core.exceptions import ValidationError
+                raise ValidationError("lat_long must be in 'latitude, longitude' format with exactly two numeric coordinates.")
             try:
-                parts = self.lat_long.split(',')
-                if len(parts) == 2:
-                    self.latitude = Decimal(parts[0].strip())
-                    self.longitude = Decimal(parts[1].strip())
+                lat = Decimal(parts[0])
+                lng = Decimal(parts[1])
             except Exception:
-                pass
+                from django.core.exceptions import ValidationError
+                raise ValidationError("Invalid numeric coordinates in lat_long.")
+            if not (Decimal('-90.0') <= lat <= Decimal('90.0') and Decimal('-180.0') <= lng <= Decimal('180.0')):
+                from django.core.exceptions import ValidationError
+                raise ValidationError("Coordinates out of range: latitude must be between -90 and 90, longitude between -180 and 180.")
+            self.latitude = lat
+            self.longitude = lng
         super().save(*args, **kwargs)
 
     def __str__(self):

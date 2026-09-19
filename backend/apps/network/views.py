@@ -1,7 +1,9 @@
 import random
 import logging
+import uuid
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -63,7 +65,11 @@ class TJBoxViewSet(viewsets.ModelViewSet):
         qs = get_scoped_queryset(self.request, TJBox)
         zone_id = self.request.query_params.get('zone') or self.request.query_params.get('zone_id')
         if zone_id:
-            qs = qs.filter(zone_id=zone_id)
+            try:
+                zone_uuid = uuid.UUID(str(zone_id).strip())
+            except (ValueError, AttributeError):
+                raise ValidationError({'zone': 'Invalid UUID format for zone filter.'})
+            qs = qs.filter(zone_id=zone_uuid)
         category = self.request.query_params.get('box_category') or self.request.query_params.get('category')
         if category:
             qs = qs.filter(box_category=category)
