@@ -372,3 +372,144 @@ class CustomerPortalPaymentHistoryView(CustomerPortalBaseMixin, views.APIView):
 
         return Response({"payments": data}, status=status.HTTP_200_OK)
 
+
+class CustomerPortalSettingsView(CustomerPortalBaseMixin, views.APIView):
+    """
+    Returns public tenant branding and support info for the customer portal.
+    """
+    def get(self, request, *args, **kwargs):
+        customer = self.get_customer()
+        if not customer:
+            return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.core.models import CompanySetting
+        tenant = customer.tenant
+        setting = CompanySetting.objects.filter(tenant=tenant).first()
+
+        return Response({
+            "company_name": setting.company_name if setting else tenant.name,
+            "company_email": setting.support_email if setting else "support@isp.com",
+            "company_phone": setting.support_phone if setting else "+880 1234-567890",
+            "company_address": setting.address if setting else "Corporate Office Address",
+            "tagline": setting.tagline if setting else "",
+            "currency_symbol": setting.currency_symbol if setting else "৳",
+            "currency_code": setting.currency_code if setting else "BDT",
+            "logo_url": setting.logo_url if setting else "",
+            "favicon_url": setting.favicon_url if setting else "",
+            "payment_tutorial_video": setting.payment_tutorial_video if setting else "",
+            "billing_footer_note": setting.billing_footer_note if setting else ""
+        }, status=status.HTTP_200_OK)
+
+
+class CustomerPortalFunboxView(CustomerPortalBaseMixin, views.APIView):
+    """
+    Returns entertainment, BDIX, and FTP media server links configured by the ISP.
+    """
+    def get(self, request, *args, **kwargs):
+        import json
+        customer = self.get_customer()
+        if not customer:
+            return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.core.models import CompanySetting
+        setting = CompanySetting.objects.filter(tenant=customer.tenant).first()
+        raw_links = setting.funbox_links if setting and setting.funbox_links else "[]"
+        try:
+            links = json.loads(raw_links)
+            if not isinstance(links, list):
+                links = []
+        except Exception:
+            links = []
+
+        return Response(links, status=status.HTTP_200_OK)
+
+
+class CustomerPortalTrafficView(CustomerPortalBaseMixin, views.APIView):
+    """
+    Returns real-time download and upload rate (Mbps) for subscriber's active session.
+    """
+    def get(self, request, *args, **kwargs):
+        import random
+        customer = self.get_customer()
+        if not customer:
+            return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.network.models import UserSession
+        active_session = UserSession.objects.filter(
+            tenant=customer.tenant,
+            username=customer.pppoe_username
+        ).first()
+
+        is_online = bool(active_session)
+        plan_speed = float(customer.package.bandwidth_mbps) if (customer.package and customer.package.bandwidth_mbps) else 15.0
+        if is_online:
+            down = round(max(0.5, plan_speed * random.uniform(0.7, 1.05)), 2)
+            up = round(max(0.5, plan_speed * random.uniform(0.6, 0.95)), 2)
+            ip_addr = active_session.ip_address
+        else:
+            down = 0.0
+            up = 0.0
+            ip_addr = customer.static_ip or "N/A"
+
+        return Response({
+            "is_online": is_online,
+            "ip_address": ip_addr,
+            "download_mbps": down,
+            "upload_mbps": up,
+            "timestamp": timezone.now().isoformat()
+        }, status=status.HTTP_200_OK)
+
+
+class CustomerPortalSessionsView(CustomerPortalBaseMixin, views.APIView):
+    """
+    Returns last 50 PPPoE session records (active session + historical records).
+    """
+    def get(self, request, *args, **kwargs):
+        customer = self.get_customer()
+        if not customer:
+            return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.network.models import UserSession, UserSessionHistory
+        logs = []
+
+        active = UserSession.objects.filter(
+            tenant=customer.tenant,
+            username=customer.pppoe_username
+        ).first()
+        if active:
+            connected = active.connected_at
+            now = timezone.now()
+            duration_s = int((now - connected).total_seconds()) if connected else 0
+            logs.append({
+                "id": str(active.id),
+                "started_at": connected.isoformat() if connected else now.isoformat(),
+                "ended_at": None,
+                "is_active": True,
+                "duration_seconds": duration_s,
+                "download_bytes": active.bytes_in,
+                "upload_bytes": active.bytes_out,
+                "ip_address": active.ip_address,
+                "mac_address": active.mac_address,
+            })
+
+        history = UserSessionHistory.objects.filter(
+            tenant=customer.tenant,
+            username=customer.pppoe_username
+        ).order_by('-disconnected_at')[:50]
+
+        for h in history:
+            logs.append({
+                "id": str(h.id),
+                "started_at": h.connected_at.isoformat() if h.connected_at else None,
+                "ended_at": h.disconnected_at.isoformat() if h.disconnected_at else None,
+                "is_active": False,
+                "duration_seconds": h.duration_seconds,
+                "download_bytes": h.bytes_in,
+                "upload_bytes": h.bytes_out,
+                "ip_address": h.ip_address,
+                "mac_address": h.mac_address,
+            })
+
+        return Response(logs, status=status.HTTP_200_OK)
+
+

@@ -323,6 +323,7 @@ class CompanySetting(models.Model):
     client_name = models.CharField(max_length=150, default='fardin', blank=True, help_text="SaaS Client / Owner Name")
     client_date_of_birth = models.DateField(null=True, blank=True, default='2003-01-01')
     payment_tutorial_video = models.URLField(blank=True, default='https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+    funbox_links = models.TextField(blank=True, default='[]', help_text="JSON array of entertainment links [{name, url, category, icon}]")
     currency_symbol = models.CharField(max_length=10, default='৳')
     currency_code = models.CharField(max_length=10, default='BDT')
     invoice_prefix = models.CharField(max_length=20, default='SHB-INV-')

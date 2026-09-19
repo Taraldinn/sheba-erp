@@ -19,6 +19,10 @@ from apps.customers.portal_views import (
     CustomerPortalRechargeView,
     CustomerPortalRechargeHistoryView,
     CustomerPortalPaymentHistoryView,
+    CustomerPortalSettingsView,
+    CustomerPortalFunboxView,
+    CustomerPortalTrafficView,
+    CustomerPortalSessionsView,
 )
 from apps.customers.portal_ticket_views import CustomerPortalTicketViewSet
 from apps.payments.bkash_views import (
@@ -40,6 +44,10 @@ urlpatterns = [
 
     # Self-Care Endpoints
     path('profile/', CustomerPortalProfileView.as_view(), name='portal-profile'),
+    path('settings/', CustomerPortalSettingsView.as_view(), name='portal-settings'),
+    path('funbox/', CustomerPortalFunboxView.as_view(), name='portal-funbox'),
+    path('traffic/', CustomerPortalTrafficView.as_view(), name='portal-traffic'),
+    path('sessions/', CustomerPortalSessionsView.as_view(), name='portal-sessions'),
     path('session/', CustomerPortalSessionView.as_view(), name='portal-session'),
     path('packages/', CustomerPortalPackagesView.as_view(), name='portal-packages'),
     path('notifications/', CustomerPortalNotificationView.as_view(), name='portal-notifications'),
