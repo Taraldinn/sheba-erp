@@ -147,12 +147,16 @@ class CustomerPortalInvoiceViewSet(CustomerPortalBaseMixin, viewsets.ReadOnlyMod
     def receipt(self, request, pk=None):
         """Returns printable receipt payload for the invoice."""
         invoice = self.get_object()
+        from apps.core.models import CompanySetting
+        setting = CompanySetting.objects.filter(tenant=invoice.tenant).first()
         data = {
             "invoice_no": invoice.invoice_no,
             "billing_month": invoice.billing_month,
             "customer_name": invoice.customer.full_name,
             "customer_code": invoice.customer.customer_code,
             "pppoe_username": invoice.customer.pppoe_username,
+            "customer_mobile": invoice.customer.mobile,
+            "customer_address": invoice.customer.address,
             "package_name": invoice.package_name,
             "package_amount": str(invoice.package_amount),
             "previous_due": str(invoice.previous_due),
@@ -161,9 +165,36 @@ class CustomerPortalInvoiceViewSet(CustomerPortalBaseMixin, viewsets.ReadOnlyMod
             "paid_amount": str(invoice.paid_amount),
             "due_amount": str(invoice.due_amount),
             "status": invoice.status,
-            "due_date": invoice.due_date,
-            "issued_at": invoice.created_at,
-            "tenant_name": invoice.tenant.name
+            "due_date": str(invoice.due_date),
+            "issued_at": invoice.created_at.isoformat(),
+            "tenant_name": invoice.tenant.name,
+            "company": {
+                "name": setting.company_name if setting else invoice.tenant.name,
+                "email": setting.support_email if setting else "support@isp.com",
+                "phone": setting.support_phone if setting else "+880 1234-567890",
+                "address": setting.address if setting else "Corporate Office Address",
+                "logo_url": setting.logo_url if setting else "",
+                "currency_symbol": setting.currency_symbol if setting else "৳",
+            },
+            "customer": {
+                "name": invoice.customer.full_name,
+                "username": invoice.customer.pppoe_username,
+                "customer_code": invoice.customer.customer_code,
+                "mobile": invoice.customer.mobile,
+                "address": invoice.customer.address,
+            },
+            "invoice": {
+                "id": str(invoice.id),
+                "invoice_number": invoice.invoice_no,
+                "amount": str(invoice.total_payable),
+                "package_name": invoice.package_name,
+                "status": invoice.status,
+                "created_at": invoice.created_at.isoformat(),
+                "due_date": str(invoice.due_date),
+                "discount": str(invoice.discount),
+                "paid_amount": str(invoice.paid_amount),
+                "due_amount": str(invoice.due_amount),
+            }
         }
         return Response(data, status=status.HTTP_200_OK)
 
