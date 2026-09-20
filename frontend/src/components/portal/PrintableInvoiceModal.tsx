@@ -132,7 +132,7 @@ export function PrintableInvoiceModal({
         {/* Modal Controls (Hidden in Print) */}
         <div className="flex items-center justify-between p-4 border-b border-border/60 bg-muted/30 print:hidden">
           <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-indigo-400" />
+            <FileText className="h-4 w-4 text-primary" />
             <DialogTitle className="text-sm font-bold text-foreground">
               Official Billing Invoice Receipt
             </DialogTitle>
@@ -189,7 +189,7 @@ export function PrintableInvoiceModal({
                     {company.name}
                   </h2>
                 </div>
-                <div className="text-xs text-muted-foreground print:text-gray-600 space-y-0.5 pt-1">
+                <div className="text-xs text-muted-foreground print:text-muted-foreground space-y-0.5 pt-1">
                   <p className="flex items-center gap-1.5">
                     <MapPin className="h-3 w-3 shrink-0" /> {company.address}
                   </p>
@@ -214,38 +214,38 @@ export function PrintableInvoiceModal({
                 <p className="text-sm font-black font-mono text-foreground print:text-black mt-1">
                   {invoice?.invoice_no}
                 </p>
-                <p className="text-[11px] text-muted-foreground print:text-gray-600">
+                <p className="text-[11px] text-muted-foreground print:text-muted-foreground">
                   Billing Month: <strong className="text-foreground print:text-black">{invoice?.billing_month}</strong>
                 </p>
-                <p className="text-[11px] text-muted-foreground print:text-gray-600">
+                <p className="text-[11px] text-muted-foreground print:text-muted-foreground">
                   Date: {formatDate(invoice?.created_at)}
                 </p>
               </div>
             </div>
 
             {/* Customer Details Block */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-muted/20 border border-border/60 print:bg-gray-50 print:border-gray-200 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-muted/20 border border-border/60 print:bg-muted print:border-border text-xs">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground print:text-gray-500">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground print:text-muted-foreground">
                   Billed To (Subscriber)
                 </span>
                 <p className="font-bold text-sm text-foreground print:text-black">{customer.name}</p>
-                <p className="text-muted-foreground print:text-gray-600">
+                <p className="text-muted-foreground print:text-muted-foreground">
                   Customer ID: <strong className="font-mono text-foreground print:text-black">{customer.code}</strong>
                 </p>
-                <p className="text-muted-foreground print:text-gray-600">
+                <p className="text-muted-foreground print:text-muted-foreground">
                   PPPoE Login ID: <strong className="font-mono text-foreground print:text-black">{customer.pppoe_username}</strong>
                 </p>
               </div>
 
               <div className="space-y-1 sm:text-right">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground print:text-gray-500">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground print:text-muted-foreground">
                   Connection & Contact
                 </span>
-                <p className="text-muted-foreground print:text-gray-600">Phone: {customer.mobile}</p>
-                <p className="text-muted-foreground print:text-gray-600">Address: {customer.address}</p>
+                <p className="text-muted-foreground print:text-muted-foreground">Phone: {customer.mobile}</p>
+                <p className="text-muted-foreground print:text-muted-foreground">Address: {customer.address}</p>
                 {invoice?.trx_id && (
-                  <p className="text-[11px] text-indigo-400 print:text-indigo-700 font-mono font-bold">
+                  <p className="text-[11px] text-primary print:text-indigo-700 font-mono font-bold">
                     TrxID: {invoice.trx_id}
                   </p>
                 )}
@@ -268,10 +268,10 @@ export function PrintableInvoiceModal({
                     <td className="py-3 px-2 font-semibold text-foreground print:text-black">
                       Broadband Monthly Internet Subscription - {invoice?.package_name || "Fiber Standard"}
                     </td>
-                    <td className="py-3 px-2 font-mono text-indigo-400 print:text-gray-700">
+                    <td className="py-3 px-2 font-mono text-primary print:text-muted-foreground">
                       {invoice?.package_speed || 30} Mbps
                     </td>
-                    <td className="py-3 px-2 text-muted-foreground print:text-gray-600">
+                    <td className="py-3 px-2 text-muted-foreground print:text-muted-foreground">
                       {invoice?.billing_month}
                     </td>
                     <td className="py-3 px-2 text-right font-mono font-bold text-foreground print:text-black">
@@ -285,21 +285,21 @@ export function PrintableInvoiceModal({
             {/* Summary Totals */}
             <div className="flex justify-end pt-2 border-t border-border/60 print:border-black/20">
               <div className="w-64 space-y-1.5 text-xs">
-                <div className="flex justify-between text-muted-foreground print:text-gray-600">
+                <div className="flex justify-between text-muted-foreground print:text-muted-foreground">
                   <span>Subtotal:</span>
                   <span className="font-mono">{formatCurrency(invoice?.total_payable)}</span>
                 </div>
-                <div className="flex justify-between text-muted-foreground print:text-gray-600">
+                <div className="flex justify-between text-muted-foreground print:text-muted-foreground">
                   <span>Discount / Rebate:</span>
                   <span className="font-mono">৳0.00</span>
                 </div>
-                <div className="flex justify-between text-muted-foreground print:text-gray-600">
+                <div className="flex justify-between text-muted-foreground print:text-muted-foreground">
                   <span>VAT / AIT (Included):</span>
                   <span className="font-mono">৳0.00</span>
                 </div>
                 <div className="flex justify-between font-bold text-sm text-foreground print:text-black border-t border-border/60 pt-1.5 print:border-black/20">
                   <span>Total Payable:</span>
-                  <span className="font-mono text-indigo-400 print:text-black">
+                  <span className="font-mono text-primary print:text-black">
                     {formatCurrency(invoice?.total_payable)}
                   </span>
                 </div>
@@ -311,7 +311,7 @@ export function PrintableInvoiceModal({
             </div>
 
             {/* Footer Notice */}
-            <div className="pt-6 border-t border-border/40 text-[11px] text-muted-foreground print:text-gray-500 text-center space-y-1">
+            <div className="pt-6 border-t border-border/40 text-[11px] text-muted-foreground print:text-muted-foreground text-center space-y-1">
               <p>This is a computer-generated official billing receipt issued by {company.name}.</p>
               <p>For billing queries, call our 24/7 hotline at {company.phone} or email {company.email}.</p>
             </div>

@@ -204,7 +204,7 @@ export function SaaSApiCredentialsManagement({
       case 'EXPIRED':
         return <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20">Expired</Badge>;
       case 'SUSPENDED':
-        return <Badge className="bg-zinc-500/10 text-zinc-400 border-zinc-500/20">Suspended</Badge>;
+        return <Badge className="bg-muted text-muted-foreground border-border">Suspended</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -406,7 +406,7 @@ export function SaaSApiCredentialsManagement({
                                     setConfirmTarget({ credential: cred, action: 'suspend' })
                                   }
                                   title="Suspend Key"
-                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-zinc-400"
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                                 >
                                   <PauseCircle className="w-3.5 h-3.5" />
                                 </Button>
@@ -598,7 +598,7 @@ export function SaaSApiCredentialsManagement({
       {/* ────────────────────────────────────────────────────────── */}
       {revealedSecret && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="max-w-lg w-full bg-card border-2 border-emerald-500/30 rounded-2xl shadow-2xl p-6 relative">
+          <div className="max-w-lg w-full bg-card border border-border/40 rounded-2xl shadow-2xl p-6 relative">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-3">
               <Key className="w-5 h-5" />
             </div>
