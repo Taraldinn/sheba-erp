@@ -323,5 +323,57 @@ describe('SHEBAFI TENANT SETTINGS API SUITE — PHASE 3', () => {
       await SettingsClient.getSettings();
       assert.equal(fetchCount, 2);
     });
+
+    test('localStorage.getItem exception gracefully falls back to process.env.NEXT_PUBLIC_SHEBA_API_KEY', async () => {
+      const originalLocalStorage = global.localStorage;
+      global.localStorage = {
+        getItem: () => {
+          throw new Error('Access denied (SecurityError)');
+        },
+        setItem: () => {},
+        removeItem: () => {},
+        clear: () => {},
+        key: () => null,
+        length: 0,
+      } as any;
+
+      let capturedHeaders: any = null;
+      global.fetch = async (_url, init) => {
+        capturedHeaders = init?.headers;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [sampleSettings],
+        } as Response;
+      };
+
+      TokenStorage.setStoredToken(mockToken, 'tenant', 'tenant-safe');
+      SettingsClient.invalidateSettingsCache();
+      const res = await SettingsClient.getSettings();
+      assert.ok(res);
+      assert.ok(capturedHeaders);
+      global.localStorage = originalLocalStorage;
+    });
+
+    test('updateSettings captures requestTenantId before fetch and caches it', async () => {
+      TokenStorage.setStoredToken(mockToken, 'tenant', 'tenant-alpha');
+      SettingsClient.invalidateSettingsCache();
+
+      let headerTenantId = '';
+      global.fetch = async (_url, init) => {
+        headerTenantId = (init?.headers as any)['X-Tenant-ID'];
+        // Simulate tenant change while request is in flight
+        TokenStorage.setStoredToken(mockToken, 'tenant', 'tenant-beta');
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ...sampleSettings, id: 99, company_name: 'Alpha ISP' }),
+        } as Response;
+      };
+
+      const updated = await SettingsClient.updateSettings(99, { company_name: 'Alpha ISP' });
+      assert.equal(updated.company_name, 'Alpha ISP');
+      assert.equal(headerTenantId, 'tenant-alpha');
+    });
   });
 });

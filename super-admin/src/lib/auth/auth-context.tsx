@@ -92,13 +92,12 @@ export function AuthProvider({ children, initialContext }: AuthProviderProps) {
     const storedTenantId = TokenStorage.getStoredTenantId();
 
     if (storedToken) {
-      setToken(storedToken);
-      setContextState(storedContext);
-      setTenantIdState(storedTenantId);
-
       AuthService.getCurrentUser(storedToken, storedContext, storedTenantId || undefined)
         .then((activeUser) => {
           if (isMounted) {
+            setToken(storedToken);
+            setContextState(storedContext);
+            setTenantIdState(storedTenantId);
             setUser(activeUser);
             setError(null);
             setIsLoading(false);
@@ -110,6 +109,9 @@ export function AuthProvider({ children, initialContext }: AuthProviderProps) {
             if (authErr?.status === 401 || authErr?.code === 'SESSION_EXPIRED') {
               handleUnauthorized();
             } else {
+              setToken(storedToken);
+              setContextState(storedContext);
+              setTenantIdState(storedTenantId);
               setError(authErr);
               setIsLoading(false);
             }

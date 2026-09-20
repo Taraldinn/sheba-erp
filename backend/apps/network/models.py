@@ -13,6 +13,7 @@ class OLTBrand(models.TextChoices):
     VSOL = 'VSOL', 'V-SOL'
     BDCOM = 'BDCOM', 'BDCOM'
     CDATA = 'CDATA', 'C-Data'
+    HSGQ = 'HSGQ', 'HSGQ'
     OTHER = 'OTHER', 'Generic/Other'
 
 
@@ -125,6 +126,7 @@ class OLT(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='olts')
     name = models.CharField(max_length=150)
     brand = models.CharField(max_length=50, choices=OLTBrand.choices, default=OLTBrand.VSOL)
+    access_mode = models.CharField(max_length=10, choices=[('EPON', 'EPON'), ('GPON', 'GPON')], default='EPON')
     ip_address = models.GenericIPAddressField()
     pop_branch = models.ForeignKey(POPBranch, on_delete=models.SET_NULL, null=True, blank=True, related_name='olts')
     upstream_router = models.ForeignKey(Router, on_delete=models.SET_NULL, null=True, blank=True, related_name='downstream_olts')
@@ -578,7 +580,7 @@ class WireGuardConfig(models.Model):
     endpoint_ip = models.CharField(max_length=128, help_text="Server VPS host or IP")
     endpoint_port = models.PositiveIntegerField(default=51820)
     allowed_ips = models.CharField(max_length=255, default='0.0.0.0/0')
-    snmp_community = models.CharField(max_length=64, default='public')
+    snmp_community = EncryptedCharField(max_length=500, default='public')
     router_name = models.CharField(max_length=128, default='MikroTik')
     router_location = models.CharField(max_length=255, blank=True, default='')
     last_tested_at = models.DateTimeField(null=True, blank=True)
@@ -591,6 +593,26 @@ class WireGuardConfig(models.Model):
         indexes = [
             models.Index(fields=['tenant', 'router'], name='wg_tenant_router_idx'),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant'], condition=models.Q(router__isnull=True),
+                name='unique_tenant_default_wg_hub',
+            ),
+            models.UniqueConstraint(
+                fields=['tenant', 'router'], condition=models.Q(router__isnull=False),
+                name='unique_tenant_router_wg_hub',
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.router_id and self.tenant_id and self.router.tenant_id != self.tenant_id:
+            raise ValidationError({'router': 'Router must belong to the same tenant as this WireGuard configuration.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return f"WireGuard [{self.router_name}] - {self.wg_ip}"
@@ -608,8 +630,22 @@ class WireGuardSubnet(models.Model):
     class Meta:
         ordering = ['created_at']
 
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.vpn_config_id and self.tenant_id and self.vpn_config.tenant_id != self.tenant_id:
+            raise ValidationError({'vpn_config': 'VPN configuration must belong to the same tenant.'})
+        if self.olt_id and self.tenant_id and self.olt.tenant_id != self.tenant_id:
+            raise ValidationError({'olt': 'OLT must belong to the same tenant.'})
+        if self.vpn_config_id and self.olt_id and self.vpn_config.tenant_id != self.olt.tenant_id:
+            raise ValidationError({'olt': 'OLT and VPN configuration must belong to the same tenant.'})
+
+    def save(self, *args, **kwargs):
+        if self.vpn_config_id and not self.tenant_id:
+            self.tenant_id = self.vpn_config.tenant_id
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
     def __str__(self):
         return f"Subnet {self.subnet} ({self.label or 'Unlabeled'})"
-
-
 

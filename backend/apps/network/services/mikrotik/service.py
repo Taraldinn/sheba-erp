@@ -7,6 +7,8 @@ Frontend never connects to MikroTik directly.
 All methods are tenant-scoped through router.tenant.
 """
 import logging
+import uuid
+from datetime import timedelta
 from typing import Any, Optional
 from django.utils import timezone
 from .client import (
@@ -220,6 +222,115 @@ class MikroTikService:
         with RouterClient.from_router(self.router) as client:
             profiles = client.run_command('/ppp/profile/print')
         return [p.get('name', '') for p in profiles if p.get('name')]
+
+    def get_unregistered_secrets(self) -> list[dict[str, Any]]:
+        """Return RouterOS PPPoE secrets which do not belong to this tenant yet."""
+        from apps.customers.models import Customer
+
+        if self.is_rest:
+            secrets = self.pppoe.list_secrets()
+        else:
+            with RouterClient.from_router(self.router) as client:
+                secrets = client.run_command('/ppp/secret/print')
+        known = set(Customer.objects.filter(tenant=self.router.tenant).values_list('pppoe_username', flat=True))
+        return [
+            {
+                'username': secret.get('name', ''), 'password': secret.get('password', ''),
+                'profile': secret.get('profile', 'default'),
+                'disabled': str(secret.get('disabled', '')).lower() in ('yes', 'true'),
+                'comment': secret.get('comment', ''),
+            }
+            for secret in secrets
+            if secret.get('name') and secret.get('name') not in known
+        ]
+
+    def quick_import_secret(self, username: str, password: str = '', profile: str = ''):
+        """Create a one-day active ERP subscriber from a discovered RouterOS secret."""
+        from apps.billing.models import Package
+        from apps.customers.models import Customer, CustomerStatus
+        from apps.network.models import PPPoESecretItem, ReconciliationStatus
+
+        if Customer.objects.filter(tenant=self.router.tenant, pppoe_username=username).exists():
+            raise ValueError('A customer with this PPPoE username already exists.')
+        package = (Package.objects.filter(tenant=self.router.tenant, is_active=True, mikrotik_profile__iexact=profile).first()
+                   or Package.objects.filter(tenant=self.router.tenant, is_active=True, name__iexact=profile).first()
+                   or Package.objects.filter(tenant=self.router.tenant, is_active=True).first())
+        if not package:
+            raise ValueError('No active package is available for this tenant; create one before importing subscribers.')
+        today = timezone.localdate()
+        customer = Customer.objects.create(
+            tenant=self.router.tenant, customer_code=f'CUST-{uuid.uuid4().hex[:12].upper()}', full_name=username, mobile='', pppoe_username=username,
+            pppoe_password=password, router=self.router, package=package,
+            status=CustomerStatus.ACTIVE, bill_date=today, expiry_date=today + timedelta(days=1),
+            monthly_bill=package.regular_price,
+        )
+        PPPoESecretItem.objects.filter(tenant=self.router.tenant, router=self.router, username=username).update(
+            customer=customer, package=package, reconciliation_status=ReconciliationStatus.MATCHED,
+            last_synced_at=timezone.now(),
+        )
+        return customer
+
+    def sync_all_clients_to_router(self) -> dict[str, int]:
+        """Upsert every assigned subscriber and drop sessions that must be disabled."""
+        from apps.customers.models import Customer
+
+        result = {'created': 0, 'updated': 0, 'disabled': 0, 'disconnected': 0, 'failed': 0}
+        if self.is_rest:
+            secrets = self.pppoe.list_secrets()
+        else:
+            with RouterClient.from_router(self.router) as client:
+                secrets = client.run_command('/ppp/secret/print')
+        existing = {s.get('name'): s for s in secrets}
+        today = timezone.localdate()
+        customers = Customer.objects.filter(tenant=self.router.tenant, router=self.router).select_related('package')
+        for customer in customers:
+            enabled = customer.status == 'Active' and (not customer.expiry_date or customer.expiry_date >= today)
+            profile = customer.package.mikrotik_profile if customer.package else 'default'
+            try:
+                if customer.pppoe_username in existing:
+                    previous_profile = existing[customer.pppoe_username].get('profile', '')
+                    self.update_pppoe_user(customer.pppoe_username, password=customer.pppoe_password, profile=profile, disabled=not enabled)
+                    result['updated'] += 1
+                    if enabled and previous_profile and previous_profile != profile:
+                        if self.disconnect_session(customer.pppoe_username):
+                            result['disconnected'] += 1
+                else:
+                    self.create_pppoe_user(customer.pppoe_username, customer.pppoe_password, profile)
+                    if not enabled:
+                        self.disable_user(customer.pppoe_username)
+                    result['created'] += 1
+                if not enabled:
+                    result['disabled'] += 1
+                    if self.disconnect_session(customer.pppoe_username):
+                        result['disconnected'] += 1
+            except Exception:
+                logger.exception('Failed syncing PPPoE user %s', customer.pppoe_username)
+                result['failed'] += 1
+        return result
+
+    def ping(self, target: str, count: int = 4) -> dict[str, Any]:
+        """Run a bounded RouterOS ping and normalize the result for the cockpit."""
+        count = min(max(int(count), 1), 20)
+        if self.is_rest:
+            with MikroTikRESTClient.from_router(self.router) as client:
+                raw = client.post('/ping', json_data={'address': target, 'count': str(count)})
+        else:
+            with RouterClient.from_router(self.router) as client:
+                raw = client.run_command('/ping', address=target, count=str(count))
+        rows = raw if isinstance(raw, list) else [raw]
+        times = [float(r.get('time', r.get('avg-rtt', 0)).replace('ms', '')) for r in rows if str(r.get('time', r.get('avg-rtt', ''))).replace('ms', '').replace('.', '', 1).isdigit()]
+        received = len(times)
+        return {'target': target, 'sent': count, 'received': received, 'packet_loss_percent': round((count - received) * 100 / count, 2), 'min_ms': min(times) if times else None, 'avg_ms': round(sum(times) / received, 2) if received else None, 'max_ms': max(times) if times else None, 'raw': rows}
+
+    def traceroute(self, target: str) -> dict[str, Any]:
+        if self.is_rest:
+            with MikroTikRESTClient.from_router(self.router) as client:
+                raw = client.post('/tool/traceroute', json_data={'address': target, 'count': '1'})
+        else:
+            with RouterClient.from_router(self.router) as client:
+                raw = client.run_command('/tool/traceroute', address=target, count='1')
+        rows = raw if isinstance(raw, list) else [raw]
+        return {'target': target, 'hops': [{'hop': i + 1, 'address': r.get('address', r.get('host', '*')), 'rtt': r.get('avg-rtt', r.get('time', '')), 'loss': r.get('loss', '0%')} for i, r in enumerate(rows)], 'raw': rows}
 
     def get_traffic_stats(self, interface_name: Optional[str] = None) -> dict[str, Any]:
         """Retrieves live traffic metrics for an interface or router aggregate."""

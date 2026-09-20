@@ -25,7 +25,7 @@ This specification formalizes the porting, modernization, and completion of the 
    - Live socket reachability and latency probe.
 3. **Multi-Vendor Hardware OLT Engine**:
    - Native Python driver implementations for `BDCOM` (EPON/GPON), `VSOL` (EPON/GPON via Telnet CLI and Web HTTP session), and `HSGQ` (EPON).
-   - Optical power diagnostics with standard telecom color thresholds (Healthy Green: `> -24 dBm`, Warning Amber: `-24 to -27 dBm`, Critical Red: `< -27 dBm`).
+   - Optical power diagnostics with standard telecom color thresholds (Healthy Green: `>= -24 dBm`, Warning Amber: `-24 to -27 dBm`, Critical Red: `< -27 dBm`).
    - Remote ONU reboot action.
    - Live OLT Command Terminal for executing diagnostic CLI commands (`show version`, `show mac address-table`, etc.) from the web browser.
    - Automatic ONU-to-Customer matching via ONU MAC and live PPPoE session `caller_id`.
@@ -126,22 +126,22 @@ class WireGuardSubnet(models.Model):
 ## 4. WireGuard Site-to-Site VPN Subsystem
 
 ### 4.1 Encryption & Key Management
-- Private keys (`mik_private_key`) are encrypted using standard AES-256-CBC with an initialization vector (IV) derived from SHA-256 of `tenant.id` + salt.
+- Private keys (`mik_private_key`) are encrypted with AES-256-GCM using a fresh cryptographically random nonce for every encryption and tenant ID as authenticated associated data.
 - Plaintext keys are never serialized in API responses or persisted to logs.
 
 ### 4.2 RouterOS Configuration Script Generation
 - Script template produces:
   ```rsc
-  /interface wireguard remove [find name="wg-hub"]
-  /interface wireguard add name=wg-hub private-key="<decrypted_key>" listen-port=51820
-  /ip address add address=<wg_ip> interface=wg-hub
-  /interface wireguard peers add interface=wg-hub public-key="<vps_public_key>" endpoint-address=<endpoint_ip> endpoint-port=<endpoint_port> allowed-address=<allowed_ips> persistent-keepalive=25s
+  # uses a stable per-router interface name and find/add-or-set operations
+  /interface wireguard set [find name=<interface_name>] private-key="<decrypted_key>" listen-port=51820
+  /ip address add address=<wg_ip> interface=<interface_name>
+  /interface wireguard peers add interface=<interface_name> public-key="<vps_public_key>" endpoint-address=<endpoint_ip> endpoint-port=<endpoint_port> allowed-address=<allowed_ips> persistent-keepalive=25s
   /ip firewall nat add chain=srcnat src-address=10.255.0.0/16 dst-address=<subnet> action=masquerade
   ```
 - Downloadable as `wireguard_<router_name>.rsc` or copyable to clipboard.
 
 ### 4.3 Reachability Verification
-- Socket connection test to `endpoint_ip` on `endpoint_port` (or TCP management port across tunnel).
+- TCP management probe (or a protocol-level WireGuard handshake) with a confirmed response and measured round-trip latency.
 - Updates `is_reachable` flag and `last_tested_at`.
 
 ---

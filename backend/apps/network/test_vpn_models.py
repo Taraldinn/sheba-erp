@@ -1,6 +1,7 @@
 from django.test import TestCase
+from django.core.exceptions import ValidationError
 from apps.core.models import Tenant
-from apps.network.models import Router, WireGuardConfig, WireGuardSubnet
+from apps.network.models import OLT, Router, WireGuardConfig, WireGuardSubnet
 
 class WireGuardModelTestCase(TestCase):
     def setUp(self):
@@ -56,3 +57,19 @@ class WireGuardModelTestCase(TestCase):
         )
         self.assertEqual(subnet.subnet, "172.25.28.0/24")
         self.assertEqual(subnet.vpn_config, cfg)
+
+    def test_cross_tenant_related_devices_are_rejected(self):
+        other = Tenant.objects.create(name="Other ISP", slug="other-isp")
+        other_router = Router.objects.create(tenant=other, name="Other router", ip_address="192.168.2.1")
+        with self.assertRaises(ValidationError):
+            WireGuardConfig.objects.create(
+                tenant=self.tenant, router=other_router, wg_ip="10.255.0.2/30",
+                mik_public_key="pub=", vps_public_key="vps=", endpoint_ip="192.0.2.1",
+            )
+
+    def test_cross_tenant_subnet_relationships_are_rejected(self):
+        other = Tenant.objects.create(name="Other ISP", slug="other-isp")
+        cfg = WireGuardConfig.objects.create(tenant=self.tenant, wg_ip="10.255.0.2/30", mik_public_key="pub=", vps_public_key="vps=", endpoint_ip="192.0.2.1")
+        other_olt = OLT.objects.create(tenant=other, name="Other OLT", ip_address="192.168.2.2")
+        with self.assertRaises(ValidationError):
+            WireGuardSubnet.objects.create(tenant=self.tenant, vpn_config=cfg, olt=other_olt, subnet="172.25.28.0/24")

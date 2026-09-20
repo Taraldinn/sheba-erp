@@ -18,7 +18,7 @@ export function ProtectedRoute({
   requiredRoles,
   fallback,
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, user, contextType } = useAuth();
+  const { isAuthenticated, isLoading, user, contextType, logout, setContextType } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -28,6 +28,15 @@ export function ProtectedRoute({
       router.replace(`/login?returnTo=${returnUrl}`);
     }
   }, [isLoading, isAuthenticated, router, pathname]);
+
+  const handleSwitchAccount = async () => {
+    try {
+      await logout();
+    } catch {
+      // ignore
+    }
+    router.replace('/login');
+  };
 
   // Loading state
   if (isLoading) {
@@ -52,6 +61,8 @@ export function ProtectedRoute({
 
   // Forbidden: Context mismatch (e.g. Tenant user trying to access Central SaaS control plane)
   if (requiredContext && contextType !== requiredContext) {
+    const isSuperuser = !!user.is_superuser;
+
     return (
       <div data-testid="auth-forbidden-context" className="min-h-[60vh] flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-slate-900/80 border border-amber-500/30 rounded-2xl p-8 text-center backdrop-blur-xl shadow-2xl">
@@ -65,20 +76,42 @@ export function ProtectedRoute({
             This section requires <span className="font-semibold text-amber-400 uppercase">{requiredContext}</span> authorization.
             Your current active session is scoped to <span className="font-semibold text-slate-200 uppercase">{contextType}</span>.
           </p>
-          <div className="flex gap-3 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            {isSuperuser && (
+              <button
+                type="button"
+                onClick={() => setContextType(requiredContext)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg transition-colors shadow-md cursor-pointer"
+              >
+                Continue as Super Admin
+              </button>
+            )}
             <button
-              onClick={() => router.replace('/login')}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg transition-colors border border-slate-700"
+              type="button"
+              onClick={handleSwitchAccount}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg transition-colors border border-slate-700 cursor-pointer"
             >
               Switch Account
             </button>
             <button
+              type="button"
               onClick={() => router.back()}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-sm font-semibold rounded-lg transition-colors"
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-sm font-semibold rounded-lg transition-colors cursor-pointer"
             >
               Go Back
             </button>
           </div>
+          {contextType === 'central_admin' && (
+            <div className="mt-5 pt-4 border-t border-slate-800 text-xs text-slate-400">
+              Looking for SaaS Central Control Plane?{' '}
+              <a
+                href="http://localhost:3001"
+                className="text-indigo-400 hover:underline font-medium inline-flex items-center gap-1"
+              >
+                Open Central Admin (Port 3001) &rarr;
+              </a>
+            </div>
+          )}
         </div>
       </div>
     );

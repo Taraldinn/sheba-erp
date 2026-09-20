@@ -326,7 +326,7 @@ export default function ConfigurationPage() {
     } finally {
       setIsLoadingBoxes(false);
     }
-  }, [newBoxZone]);
+  }, []);
 
   useEffect(() => {
     fetchSettings();

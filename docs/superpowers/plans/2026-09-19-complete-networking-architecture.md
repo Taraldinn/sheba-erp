@@ -8,7 +8,7 @@
 
 **Tech Stack:** Django 6.1, DRF, PostgreSQL, Next.js 16 (App Router), TypeScript, Tailwind CSS v4, Lucide icons, Recharts.
 
-**Spec:** [docs/superpowers/specs/2026-09-19-complete-networking-architecture-design.md](file:///home/taraldinn/Documents/Sheba%20codebase/docs/superpowers/specs/2026-09-19-complete-networking-architecture-design.md)
+**Spec:** [docs/superpowers/specs/2026-09-19-complete-networking-architecture-design.md](../specs/2026-09-19-complete-networking-architecture-design.md)
 
 ## Global Constraints
 - All backend models and operations MUST enforce tenant scoping via `tenant=request.tenant`.
@@ -23,7 +23,7 @@
 
 **Files:**
 - Modify: `backend/apps/network/models.py`
-- Test: `backend/apps/network/tests/test_vpn_models.py`
+- Test: `backend/apps/network/test_vpn_models.py`
 
 **Interfaces:**
 - Produces: `WireGuardConfig`, `WireGuardSubnet` models in `apps.network.models`.
@@ -31,7 +31,7 @@
 - [ ] **Step 1: Write the failing test for WireGuard models**
 
 ```python
-# backend/apps/network/tests/test_vpn_models.py
+# backend/apps/network/test_vpn_models.py
 from django.test import TestCase
 from apps.core.models import Tenant
 from apps.network.models import Router, WireGuardConfig, WireGuardSubnet
@@ -164,7 +164,7 @@ Expected: PASS (3 tests passed)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/apps/network/models.py backend/apps/network/migrations/ backend/apps/network/tests/test_vpn_models.py
+git add backend/apps/network/models.py backend/apps/network/migrations/ backend/apps/network/test_vpn_models.py
 git commit -m "feat(network): add WireGuardConfig and WireGuardSubnet models with migrations"
 ```
 
@@ -174,7 +174,7 @@ git commit -m "feat(network): add WireGuardConfig and WireGuardSubnet models wit
 
 **Files:**
 - Create: `backend/apps/network/services/vpn.py`
-- Test: `backend/apps/network/tests/test_vpn_service.py`
+- Test: `backend/apps/network/test_vpn_service.py`
 
 **Interfaces:**
 - Consumes: `WireGuardConfig`, `WireGuardSubnet`.
@@ -183,7 +183,7 @@ git commit -m "feat(network): add WireGuardConfig and WireGuardSubnet models wit
 - [ ] **Step 1: Write the failing test for WireGuardService**
 
 ```python
-# backend/apps/network/tests/test_vpn_service.py
+# backend/apps/network/test_vpn_service.py
 from django.test import TestCase
 from apps.core.models import Tenant
 from apps.network.models import WireGuardConfig, WireGuardSubnet
@@ -366,7 +366,7 @@ Expected: PASS (2 tests passed)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/apps/network/services/vpn.py backend/apps/network/tests/test_vpn_service.py
+git add backend/apps/network/services/vpn.py backend/apps/network/test_vpn_service.py
 git commit -m "feat(network): implement WireGuardService for key encryption and RouterOS script generation"
 ```
 
@@ -378,7 +378,7 @@ git commit -m "feat(network): implement WireGuardService for key encryption and 
 - Create: `backend/apps/network/vpn_serializers.py`
 - Create: `backend/apps/network/vpn_views.py`
 - Modify: `backend/apps/network/urls.py`
-- Test: `backend/apps/network/tests/test_vpn_api.py`
+- Test: `backend/apps/network/test_vpn_api.py`
 
 **Interfaces:**
 - Produces: `WireGuardViewSet` (`/api/v1/network/vpn/`, `/api/v1/network/vpn/generate-script/`, `/api/v1/network/vpn/test-connection/`, `/api/v1/network/vpn/subnets/`).
@@ -386,7 +386,7 @@ git commit -m "feat(network): implement WireGuardService for key encryption and 
 - [ ] **Step 1: Write the failing test for WireGuard API**
 
 ```python
-# backend/apps/network/tests/test_vpn_api.py
+# backend/apps/network/test_vpn_api.py
 from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework import status
@@ -576,7 +576,7 @@ Expected: PASS (2 tests passed)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/apps/network/vpn_serializers.py backend/apps/network/vpn_views.py backend/apps/network/urls.py backend/apps/network/tests/test_vpn_api.py
+git add backend/apps/network/vpn_serializers.py backend/apps/network/vpn_views.py backend/apps/network/urls.py backend/apps/network/test_vpn_api.py
 git commit -m "feat(network): add WireGuard ViewSet endpoints and tests"
 ```
 

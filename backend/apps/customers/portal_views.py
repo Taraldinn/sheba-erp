@@ -450,13 +450,17 @@ class CustomerPortalFunboxView(CustomerPortalBaseView):
 
         from apps.core.models import CompanySetting
         setting = CompanySetting.objects.filter(tenant=customer.tenant).first()
-        raw_links = setting.funbox_links if setting and setting.funbox_links else "[]"
-        try:
-            links = json.loads(raw_links)
-            if not isinstance(links, list):
-                links = []
-        except Exception:
-            links = []
+        links = []
+        if setting and setting.funbox_links:
+            if isinstance(setting.funbox_links, list):
+                links = setting.funbox_links
+            elif isinstance(setting.funbox_links, str):
+                try:
+                    parsed = json.loads(setting.funbox_links)
+                    if isinstance(parsed, list):
+                        links = parsed
+                except Exception:
+                    links = []
 
         return Response(links, status=status.HTTP_200_OK)
 
@@ -466,7 +470,6 @@ class CustomerPortalTrafficView(CustomerPortalBaseView):
     Returns real-time download and upload rate (Mbps) for subscriber's active session.
     """
     def get(self, request, *args, **kwargs):
-        import random
         customer = self.get_customer()
         if not customer:
             return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -475,14 +478,55 @@ class CustomerPortalTrafficView(CustomerPortalBaseView):
         active_session = UserSession.objects.filter(
             tenant=customer.tenant,
             username=customer.pppoe_username
-        ).first()
+        ).order_by('-last_seen').first()
 
         is_online = bool(active_session)
-        plan_speed = float(customer.package.bandwidth_mbps) if (customer.package and customer.package.bandwidth_mbps) else 15.0
+        down = None
+        up = None
+
         if is_online:
-            down = round(max(0.5, plan_speed * random.uniform(0.7, 1.05)), 2)
-            up = round(max(0.5, plan_speed * random.uniform(0.6, 0.95)), 2)
             ip_addr = active_session.ip_address
+            raw_rx = getattr(active_session, 'rx_rate_bps', None)
+            raw_tx = getattr(active_session, 'tx_rate_bps', None)
+
+            # Check cached session telemetry if not directly attached
+            if raw_rx is None or raw_tx is None:
+                from django.core.cache import cache
+                from apps.network.services.live_sessions import LiveSessionService
+                cache_key = LiveSessionService.get_cache_key(
+                    str(customer.tenant_id),
+                    str(active_session.router_id) if active_session.router_id else None
+                )
+                cached = cache.get(cache_key)
+                if isinstance(cached, list):
+                    for item in cached:
+                        if item.get('username') == customer.pppoe_username:
+                            raw_rx = item.get('rx_rate_bps')
+                            raw_tx = item.get('tx_rate_bps')
+                            break
+
+            # If telemetry is still unavailable, query online router hardware
+            if (raw_rx is None or raw_tx is None) and active_session.router and active_session.router.status == 'Online':
+                try:
+                    from apps.network.services.mikrotik import MikroTikService
+                    svc = MikroTikService(active_session.router)
+                    iface = f"<pppoe-{customer.pppoe_username}>"
+                    stats = svc.get_traffic_stats(interface_name=iface)
+                    if not stats:
+                        stats = svc.get_traffic_stats(interface_name=customer.pppoe_username)
+                    if stats and ('rx-bits-per-second' in stats or 'tx-bits-per-second' in stats):
+                        raw_rx = stats.get('rx-bits-per-second')
+                        raw_tx = stats.get('tx-bits-per-second')
+                except Exception as exc:
+                    logger.debug("Router telemetry query failed for customer %s: %s", customer.id, exc)
+
+            if raw_rx is not None and raw_tx is not None:
+                try:
+                    down = round(float(raw_rx) / 1_000_000.0, 2)
+                    up = round(float(raw_tx) / 1_000_000.0, 2)
+                except (ValueError, TypeError):
+                    down = None
+                    up = None
         else:
             down = 0.0
             up = 0.0
@@ -512,7 +556,7 @@ class CustomerPortalSessionsView(CustomerPortalBaseView):
         active = UserSession.objects.filter(
             tenant=customer.tenant,
             username=customer.pppoe_username
-        ).first()
+        ).order_by('-last_seen').first()
         if active:
             connected = active.connected_at
             now = timezone.now()

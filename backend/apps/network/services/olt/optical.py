@@ -33,9 +33,11 @@ class OpticalPowerService:
             logger.warning("Could not query live optical power for ONU %s: %s", self.onu.id, exc)
 
         rx = float(self.onu.rx_power)
-        if rx > -25.0 and rx < -10.0:
+        if self.onu.status == 'Offline':
+            signal_status = 'critical'
+        elif rx >= -24.0:
             signal_status = 'good'
-        elif rx >= -27.0 and rx <= -25.0:
+        elif rx >= -27.0:
             signal_status = 'warning'
         else:
             signal_status = 'critical'

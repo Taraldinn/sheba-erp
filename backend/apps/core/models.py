@@ -1,4 +1,5 @@
 import uuid
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
@@ -224,7 +225,7 @@ class TenantApiToken(models.Model):
         return 'shb_' + raw_secret[:6]
 
     @classmethod
-    def generate(cls, tenant, name: str, permissions: list = None,
+    def generate(cls, tenant, name: str, permissions: list | None = None,
                  expires_at=None, created_by=None, rate_limit: int = 1000) -> tuple:
         """
         Create a new API token and return (instance, raw_secret).
@@ -314,6 +315,11 @@ class TenantApiToken(models.Model):
         self.save(update_fields=['is_active', 'status', 'updated_at'])
 
 
+def validate_funbox_links(value):
+    if not isinstance(value, list):
+        raise ValidationError("funbox_links must be a list of link objects.")
+
+
 class CompanySetting(models.Model):
     tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='settings')
     
@@ -323,7 +329,12 @@ class CompanySetting(models.Model):
     client_name = models.CharField(max_length=150, default='fardin', blank=True, help_text="SaaS Client / Owner Name")
     client_date_of_birth = models.DateField(null=True, blank=True, default='2003-01-01')
     payment_tutorial_video = models.URLField(blank=True, default='https://www.youtube.com/watch?v=dQw4w9WgXcQ')
-    funbox_links = models.TextField(blank=True, default='[]', help_text="JSON array of entertainment links [{name, url, category, icon}]")
+    funbox_links = models.JSONField(
+        default=list,
+        blank=True,
+        validators=[validate_funbox_links],
+        help_text="JSON array of entertainment links [{name, url, category, icon}]"
+    )
     currency_symbol = models.CharField(max_length=10, default='৳')
     currency_code = models.CharField(max_length=10, default='BDT')
     invoice_prefix = models.CharField(max_length=20, default='SHB-INV-')

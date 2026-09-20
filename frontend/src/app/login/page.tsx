@@ -28,8 +28,10 @@ function LoginForm() {
 
   const {
     login,
+    logout,
     isAuthenticated,
     user,
+    contextType,
     error,
     clearError,
   } = useAuth();
@@ -40,10 +42,10 @@ function LoginForm() {
 
   // If already authenticated as tenant user, redirect to destination
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (isAuthenticated && user && contextType === 'tenant') {
       router.replace(returnTo || '/');
     }
-  }, [isAuthenticated, user, returnTo, router]);
+  }, [isAuthenticated, user, contextType, returnTo, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,6 +99,27 @@ function LoginForm() {
             </div>
           </CardHeader>
           <CardContent>
+            {isAuthenticated && user && contextType !== 'tenant' && (
+              <div
+                data-testid="mismatched-session-banner"
+                className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>
+                    Currently signed in as <strong>{user.username}</strong> ({contextType}).
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => logout()}
+                  className="text-amber-400 hover:text-amber-200 underline font-medium cursor-pointer shrink-0"
+                >
+                  Sign Out
+                </button>
+              </div>
+            )}
+
             {error && (
               <div
                 data-testid="auth-error-banner"

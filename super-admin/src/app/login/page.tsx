@@ -24,16 +24,16 @@ function SuperAdminLoginForm() {
       ? rawReturnTo
       : '/';
 
-  const { login, isAuthenticated, user, isLoading, error, clearError } = useAuth();
+  const { login, logout, isAuthenticated, user, contextType, isLoading, error, clearError } = useAuth();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
   useEffect(() => {
-    if (isAuthenticated && user?.is_superuser) {
+    if (isAuthenticated && user?.is_superuser && contextType === 'central_admin') {
       router.replace(returnTo);
     }
-  }, [isAuthenticated, user, returnTo, router]);
+  }, [isAuthenticated, user, contextType, returnTo, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

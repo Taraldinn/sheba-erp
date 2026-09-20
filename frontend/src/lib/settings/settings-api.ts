@@ -18,12 +18,20 @@ export class SettingsClient {
   private static cacheTimestamp: number = 0;
   private static CACHE_TTL_MS = 60 * 1000; // 1 minute local TTL
 
-  private static getHeaders(): Record<string, string> {
+  private static getHeaders(overrideTenantId?: string | null): Record<string, string> {
     const token = TokenStorage.getStoredToken();
-    const activeTenant = TokenStorage.getStoredTenantId();
-    const apiKey = typeof window !== 'undefined' && typeof localStorage !== 'undefined'
-      ? localStorage.getItem('sheba_api_key')
-      : process.env.NEXT_PUBLIC_SHEBA_API_KEY;
+    const activeTenant = overrideTenantId !== undefined ? overrideTenantId : TokenStorage.getStoredTenantId();
+    let apiKey = process.env.NEXT_PUBLIC_SHEBA_API_KEY;
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      try {
+        const storedKey = localStorage.getItem('sheba_api_key');
+        if (storedKey) {
+          apiKey = storedKey;
+        }
+      } catch {
+        apiKey = process.env.NEXT_PUBLIC_SHEBA_API_KEY;
+      }
+    }
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -56,12 +64,12 @@ export class SettingsClient {
    * Scoped to the current tenant domain context.
    */
   static async getSettings(forceRefresh = false): Promise<CompanySetting | null> {
-    const activeTenant = TokenStorage.getStoredTenantId();
+    const requestTenantId = TokenStorage.getStoredTenantId();
     const now = Date.now();
     if (
       !forceRefresh &&
       this.cachedSettings &&
-      this.cachedTenantId === activeTenant &&
+      this.cachedTenantId === requestTenantId &&
       now - this.cacheTimestamp < this.CACHE_TTL_MS
     ) {
       return this.cachedSettings;
@@ -69,7 +77,7 @@ export class SettingsClient {
 
     const res = await fetch(`${API_BASE}/settings/`, {
       method: 'GET',
-      headers: this.getHeaders(),
+      headers: this.getHeaders(requestTenantId),
     });
 
     if (res.status === 401) {
@@ -89,7 +97,7 @@ export class SettingsClient {
 
     if (list.length > 0) {
       this.cachedSettings = list[0];
-      this.cachedTenantId = activeTenant;
+      this.cachedTenantId = requestTenantId;
       this.cacheTimestamp = now;
       return list[0];
     }
@@ -151,9 +159,10 @@ export class SettingsClient {
       ...initial,
     };
 
+    const requestTenantId = TokenStorage.getStoredTenantId();
     const res = await fetch(`${API_BASE}/settings/`, {
       method: 'POST',
-      headers: this.getHeaders(),
+      headers: this.getHeaders(requestTenantId),
       body: JSON.stringify(defaultPayload),
     });
 
@@ -164,7 +173,7 @@ export class SettingsClient {
 
     const created: CompanySetting = await res.json();
     this.cachedSettings = created;
-    this.cachedTenantId = TokenStorage.getStoredTenantId();
+    this.cachedTenantId = requestTenantId;
     this.cacheTimestamp = Date.now();
     return created;
   }
@@ -177,9 +186,10 @@ export class SettingsClient {
     id: number | string,
     patch: PatchedCompanySetting
   ): Promise<CompanySetting> {
+    const requestTenantId = TokenStorage.getStoredTenantId();
     const res = await fetch(`${API_BASE}/settings/${id}/`, {
       method: 'PATCH',
-      headers: this.getHeaders(),
+      headers: this.getHeaders(requestTenantId),
       body: JSON.stringify(patch),
     });
 
@@ -192,12 +202,11 @@ export class SettingsClient {
 
     if (!res.ok) {
       // If PATCH is not allowed (HTTP 405), fallback to PUT with current cache merged
-      const activeTenant = TokenStorage.getStoredTenantId();
-      if (res.status === 405 && this.cachedSettings && this.cachedTenantId === activeTenant) {
+      if (res.status === 405 && this.cachedSettings && this.cachedTenantId === requestTenantId) {
         const fullPayload = { ...this.cachedSettings, ...patch };
         const putRes = await fetch(`${API_BASE}/settings/${id}/`, {
           method: 'PUT',
-          headers: this.getHeaders(),
+          headers: this.getHeaders(requestTenantId),
           body: JSON.stringify(fullPayload),
         });
         if (!putRes.ok) {
@@ -206,7 +215,7 @@ export class SettingsClient {
         }
         const updatedPut: CompanySetting = await putRes.json();
         this.cachedSettings = updatedPut;
-        this.cachedTenantId = activeTenant;
+        this.cachedTenantId = requestTenantId;
         this.cacheTimestamp = Date.now();
         return updatedPut;
       }
@@ -217,7 +226,7 @@ export class SettingsClient {
 
     const updated: CompanySetting = await res.json();
     this.cachedSettings = updated;
-    this.cachedTenantId = TokenStorage.getStoredTenantId();
+    this.cachedTenantId = requestTenantId;
     this.cacheTimestamp = Date.now();
     return updated;
   }
@@ -229,9 +238,10 @@ export class SettingsClient {
   static async updateCurrentSettings(
     patch: Partial<CompanySetting>
   ): Promise<CompanySetting> {
+    const requestTenantId = TokenStorage.getStoredTenantId();
     const res = await fetch(`${API_BASE}/settings/current/`, {
       method: 'PATCH',
-      headers: this.getHeaders(),
+      headers: this.getHeaders(requestTenantId),
       body: JSON.stringify(patch),
     });
 
@@ -243,8 +253,7 @@ export class SettingsClient {
     }
 
     if (!res.ok) {
-      const activeTenant = TokenStorage.getStoredTenantId();
-      if (this.cachedSettings?.id && this.cachedTenantId === activeTenant) {
+      if (this.cachedSettings?.id && this.cachedTenantId === requestTenantId) {
         return await this.updateSettings(this.cachedSettings.id, patch);
       }
       const errData = await res.json().catch(() => ({}));
@@ -253,7 +262,7 @@ export class SettingsClient {
 
     const updated: CompanySetting = await res.json();
     this.cachedSettings = updated;
-    this.cachedTenantId = TokenStorage.getStoredTenantId();
+    this.cachedTenantId = requestTenantId;
     this.cacheTimestamp = Date.now();
     return updated;
   }

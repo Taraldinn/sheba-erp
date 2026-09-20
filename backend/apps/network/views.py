@@ -245,6 +245,71 @@ class RouterViewSet(viewsets.ModelViewSet):
             'router': RouterSerializer(router).data
         })
 
+    @action(detail=True, methods=['get'], url_path='unregistered-secrets', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def unregistered_secrets(self, request, pk=None):
+        router = self.get_object()
+        if not can(request.user, request.tenant, 'router.view', router):
+            return Response({'error': 'Permission denied: router.view capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            secrets = MikroTikService(router).get_unregistered_secrets()
+            # Passwords are intentionally not returned by discovery; import can re-fetch on demand.
+            return Response({'router_id': str(router.id), 'count': len(secrets), 'secrets': [{k: v for k, v in item.items() if k != 'password'} for item in secrets]})
+        except Exception as exc:
+            return Response({'error': f'Unable to query RouterOS secrets: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=True, methods=['post'], url_path='quick-import-secret', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def quick_import_secret(self, request, pk=None):
+        router = self.get_object()
+        if not can(request.user, request.tenant, 'router.manage', router):
+            return Response({'error': 'Permission denied: router.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        username = str(request.data.get('username', '')).strip()
+        if not username:
+            return Response({'error': 'username is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            secret = next((s for s in MikroTikService(router).get_unregistered_secrets() if s['username'] == username), None)
+            if not secret:
+                return Response({'error': 'Secret was not found or is already registered.'}, status=status.HTTP_404_NOT_FOUND)
+            customer = MikroTikService(router).quick_import_secret(username, secret['password'], secret['profile'])
+            return Response({'customer_id': str(customer.id), 'username': customer.pppoe_username, 'expiry_date': customer.expiry_date, 'message': 'Imported with one day of active credit.'}, status=status.HTTP_201_CREATED)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_409_CONFLICT)
+        except Exception as exc:
+            logger.exception('Quick import failed for router %s', router.id)
+            return Response({'error': f'Quick import failed: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=True, methods=['post'], url_path='sync-all-clients', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def sync_all_clients(self, request, pk=None):
+        router = self.get_object()
+        if not can(request.user, request.tenant, 'router.manage', router):
+            return Response({'error': 'Permission denied: router.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            return Response(MikroTikService(router).sync_all_clients_to_router())
+        except Exception as exc:
+            logger.exception('Bulk client sync failed for %s', router.id)
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=True, methods=['post'], url_path='ping', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def ping(self, request, pk=None):
+        router = self.get_object()
+        target = str(request.data.get('target', '')).strip()
+        if not target:
+            return Response({'error': 'target is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response(MikroTikService(router).ping(target, request.data.get('count', 4)))
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=True, methods=['post'], url_path='traceroute', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def traceroute(self, request, pk=None):
+        router = self.get_object()
+        target = str(request.data.get('target', '')).strip()
+        if not target:
+            return Response({'error': 'target is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            return Response(MikroTikService(router).traceroute(target))
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
     @action(detail=True, methods=['post'], url_path='disconnect-session', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
     def disconnect_session(self, request, pk=None):
         """
@@ -553,6 +618,25 @@ class OLTViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
         except Exception as exc:
             logger.warning("discover_onus error on OLT %s: %s", olt.id, exc)
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=True, methods=['post'], url_path='run-command', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def run_command(self, request, pk=None):
+        """Run a bounded, read-only diagnostic command through the vendor driver."""
+        olt = self.get_object()
+        if not can(request.user, request.tenant, 'olt.manage', olt):
+            return Response({'error': 'Permission denied: olt.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        command = str(request.data.get('command', '')).strip()
+        if not command or len(command) > 200:
+            return Response({'error': 'A diagnostic command of at most 200 characters is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            from .services.olt.drivers import get_olt_driver
+            output = get_olt_driver(olt).run_command(command)
+            return Response({'olt_id': str(olt.id), 'command': command, 'output': output})
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            logger.warning('OLT terminal command failed for %s: %s', olt.id, exc)
             return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
 

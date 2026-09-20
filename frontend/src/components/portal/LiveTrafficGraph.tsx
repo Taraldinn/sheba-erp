@@ -12,11 +12,13 @@ interface TrafficPoint {
 
 interface LiveTrafficGraphProps {
   isLoggedIn?: boolean;
+  isDemoMode?: boolean;
 }
 
-export function LiveTrafficGraph({ isLoggedIn = false }: LiveTrafficGraphProps) {
+export function LiveTrafficGraph({ isLoggedIn = false, isDemoMode = false }: LiveTrafficGraphProps) {
   const [history, setHistory] = useState<TrafficPoint[]>(() => {
-    // Initialize 15 dummy points
+    if (!isDemoMode) return [];
+    // Initialize 15 dummy points only when demo mode is active
     const now = Date.now();
     return Array.from({ length: 15 }).map((_, i) => {
       const t = new Date(now - (15 - i) * 2500);
@@ -28,23 +30,41 @@ export function LiveTrafficGraph({ isLoggedIn = false }: LiveTrafficGraphProps) 
     });
   });
 
-  const [currentDown, setCurrentDown] = useState<number>(24.5);
-  const [currentUp, setCurrentUp] = useState<number>(14.2);
-  const [isOnline, setIsOnline] = useState<boolean>(true);
-  const [ipAddress, setIpAddress] = useState<string>("103.145.120.45");
+  const [currentDown, setCurrentDown] = useState<number | null>(() => (isDemoMode ? 24.5 : null));
+  const [currentUp, setCurrentUp] = useState<number | null>(() => (isDemoMode ? 14.2 : null));
+  const [isOnline, setIsOnline] = useState<boolean | null>(() => (isDemoMode ? true : null));
+  const [ipAddress, setIpAddress] = useState<string>(() => (isDemoMode ? "103.145.120.45" : "—"));
   const [isPolling, setIsPolling] = useState<boolean>(true);
-  const [peakDown, setPeakDown] = useState<number>(28.4);
-  const [peakUp, setPeakUp] = useState<number>(18.6);
+  const [peakDown, setPeakDown] = useState<number>(() => (isDemoMode ? 28.4 : 0));
+  const [peakUp, setPeakUp] = useState<number>(() => (isDemoMode ? 18.6 : 0));
+  const [sessionExpired, setSessionExpired] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!isPolling) return;
+    let isActive = true;
+    let reqGen = 0;
+
+    if (!isPolling) {
+      return () => {
+        isActive = false;
+      };
+    }
 
     const fetchTraffic = async () => {
+      const currentReq = ++reqGen;
       try {
-        if (isLoggedIn && PortalApiClient.isAuthenticated()) {
+        if (isLoggedIn) {
+          if (!PortalApiClient.isAuthenticated()) {
+            if (!isActive) return;
+            setSessionExpired(true);
+            setIsOnline(false);
+            return;
+          }
+          setSessionExpired(false);
           const data = await PortalApiClient.getLiveTraffic();
-          const down = Number(data.download_mbps || 0);
-          const up = Number(data.upload_mbps || 0);
+          if (!isActive || currentReq !== reqGen) return;
+
+          const down = data.download_mbps != null ? Number(data.download_mbps) : null;
+          const up = data.upload_mbps != null ? Number(data.upload_mbps) : null;
           const nowStr = new Date().toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -56,15 +76,17 @@ export function LiveTrafficGraph({ isLoggedIn = false }: LiveTrafficGraphProps) 
           setIsOnline(data.is_online !== false);
           if (data.ip_address) setIpAddress(data.ip_address);
 
-          setPeakDown((prev) => Math.max(prev, down));
-          setPeakUp((prev) => Math.max(prev, up));
+          if (down != null) setPeakDown((prev) => Math.max(prev, down));
+          if (up != null) setPeakUp((prev) => Math.max(prev, up));
 
-          setHistory((prev) => {
-            const next = [...prev.slice(-24), { time: nowStr, download: down, upload: up }];
-            return next;
-          });
-        } else {
-          // Simulated fluctuation for demo
+          if (down != null && up != null) {
+            setHistory((prev) => {
+              const next = [...prev.slice(-24), { time: nowStr, download: down, upload: up }];
+              return next;
+            });
+          }
+        } else if (isDemoMode) {
+          // Simulated fluctuation for explicit demo mode only
           const down = parseFloat((20 + Math.random() * 10 - 2).toFixed(2));
           const up = parseFloat((12 + Math.random() * 6 - 1).toFixed(2));
           const nowStr = new Date().toLocaleTimeString([], {
@@ -72,6 +94,8 @@ export function LiveTrafficGraph({ isLoggedIn = false }: LiveTrafficGraphProps) 
             minute: "2-digit",
             second: "2-digit",
           });
+
+          if (!isActive || currentReq !== reqGen) return;
 
           setCurrentDown(down);
           setCurrentUp(up);
@@ -82,18 +106,28 @@ export function LiveTrafficGraph({ isLoggedIn = false }: LiveTrafficGraphProps) 
             const next = [...prev.slice(-24), { time: nowStr, download: down, upload: up }];
             return next;
           });
+        } else {
+          // Unauthenticated and not in demo mode
+          if (!isActive || currentReq !== reqGen) return;
+          setIsOnline(false);
         }
       } catch (err) {
+        if (!isActive || currentReq !== reqGen) return;
         console.error("Failed to poll live traffic:", err);
       }
     };
 
+    fetchTraffic();
     const interval = setInterval(fetchTraffic, 2500);
-    return () => clearInterval(interval);
-  }, [isPolling, isLoggedIn]);
+    return () => {
+      isActive = false;
+      clearInterval(interval);
+    };
+  }, [isPolling, isLoggedIn, isDemoMode]);
 
   // Compute SVG graph coordinates
-  const maxRate = Math.max(40, peakDown * 1.25, peakUp * 1.25);
+  const effectivePeak = Math.max(peakDown, peakUp, currentDown || 0, currentUp || 0);
+  const maxRate = Math.max(40, effectivePeak * 1.25);
   const svgWidth = 600;
   const svgHeight = 180;
   const paddingBottom = 20;
@@ -114,8 +148,8 @@ export function LiveTrafficGraph({ isLoggedIn = false }: LiveTrafficGraphProps) 
   const polylineDown = pointsDown.join(" ");
   const polylineUp = pointsUp.join(" ");
 
-  const areaDown = `0,${effectiveHeight} ${polylineDown} ${svgWidth},${effectiveHeight}`;
-  const areaUp = `0,${effectiveHeight} ${polylineUp} ${svgWidth},${effectiveHeight}`;
+  const areaDown = pointsDown.length > 0 ? `0,${effectiveHeight} ${polylineDown} ${svgWidth},${effectiveHeight}` : "";
+  const areaUp = pointsUp.length > 0 ? `0,${effectiveHeight} ${polylineUp} ${svgWidth},${effectiveHeight}` : "";
 
   return (
     <div className="rounded-2xl border border-indigo-500/30 bg-card/80 p-5 shadow-lg space-y-4">
@@ -124,10 +158,17 @@ export function LiveTrafficGraph({ isLoggedIn = false }: LiveTrafficGraphProps) 
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-indigo-400 animate-pulse" />
             <h3 className="text-sm font-bold text-foreground">Live Optical Traffic & Bandwidth</h3>
-            <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <span className={`h-1.5 w-1.5 rounded-full ${isPolling ? "bg-emerald-400 animate-ping" : "bg-muted-foreground"}`} />
-              {isPolling ? "Live Feed (2.5s)" : "Paused"}
-            </span>
+            {sessionExpired ? (
+              <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                Session Expired
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className={`h-1.5 w-1.5 rounded-full ${isPolling ? "bg-emerald-400 animate-ping" : "bg-muted-foreground"}`} />
+                {isPolling ? "Live Feed (2.5s)" : "Paused"}
+              </span>
+            )}
           </div>
           <p className="text-[11px] text-muted-foreground">
             Subscribed Interface WAN IP: <span className="font-mono text-indigo-400 font-semibold">{ipAddress}</span> • Interface: <span className="font-mono text-foreground font-semibold">pppoe-wan</span>
@@ -160,10 +201,10 @@ export function LiveTrafficGraph({ isLoggedIn = false }: LiveTrafficGraphProps) 
             <ArrowDown className="h-3.5 w-3.5" /> Download Rate
           </div>
           <p className="text-2xl font-black font-mono text-foreground mt-1">
-            {currentDown.toFixed(1)} <span className="text-xs font-bold text-blue-400">Mbps</span>
+            {currentDown != null ? currentDown.toFixed(1) : "—"} <span className="text-xs font-bold text-blue-400">Mbps</span>
           </p>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            Peak: <span className="font-mono text-blue-300 font-semibold">{peakDown.toFixed(1)} Mbps</span>
+            Peak: <span className="font-mono text-blue-300 font-semibold">{peakDown > 0 ? `${peakDown.toFixed(1)} Mbps` : "—"}</span>
           </p>
         </div>
 
@@ -172,18 +213,18 @@ export function LiveTrafficGraph({ isLoggedIn = false }: LiveTrafficGraphProps) 
             <ArrowUp className="h-3.5 w-3.5" /> Upload Rate
           </div>
           <p className="text-2xl font-black font-mono text-foreground mt-1">
-            {currentUp.toFixed(1)} <span className="text-xs font-bold text-purple-400">Mbps</span>
+            {currentUp != null ? currentUp.toFixed(1) : "—"} <span className="text-xs font-bold text-purple-400">Mbps</span>
           </p>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            Peak: <span className="font-mono text-purple-300 font-semibold">{peakUp.toFixed(1)} Mbps</span>
+            Peak: <span className="font-mono text-purple-300 font-semibold">{peakUp > 0 ? `${peakUp.toFixed(1)} Mbps` : "—"}</span>
           </p>
         </div>
 
         <div className="p-3 rounded-xl bg-card border border-border">
           <p className="text-[11px] font-semibold text-muted-foreground">Gateway Status</p>
           <p className="text-sm font-bold text-foreground mt-1 flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${isOnline ? "bg-emerald-400" : "bg-rose-500"}`} />
-            {isOnline ? "BDIX Connected" : "Link Down"}
+            <span className={`h-2 w-2 rounded-full ${sessionExpired ? "bg-rose-500" : isOnline === true ? "bg-emerald-400" : isOnline === false ? "bg-rose-500" : "bg-amber-400"}`} />
+            {sessionExpired ? "Session Expired" : isOnline === true ? "BDIX Connected" : isOnline === false ? "Link Down" : "Connecting..."}
           </p>
           <p className="text-[10px] text-muted-foreground mt-0.5">Sampling: MikroTik Core</p>
         </div>
@@ -211,7 +252,12 @@ export function LiveTrafficGraph({ isLoggedIn = false }: LiveTrafficGraphProps) 
           <span className="font-mono">Max: {maxRate.toFixed(0)} Mbps</span>
         </div>
 
-        <div className="w-full h-44">
+        <div className="w-full h-44 relative">
+          {history.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground z-10 pointer-events-none">
+              {sessionExpired ? "Session expired — please log in again" : "Awaiting live telemetry..."}
+            </div>
+          )}
           <svg
             viewBox={`0 0 ${svgWidth} ${svgHeight}`}
             className="w-full h-full overflow-visible"

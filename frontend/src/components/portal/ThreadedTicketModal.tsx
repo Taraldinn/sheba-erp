@@ -48,6 +48,7 @@ export function ThreadedTicketModal({
   const threadEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setReplyText("");
     if (!isOpen || !ticket?.id) {
       setTicketData(null);
       setError(null);

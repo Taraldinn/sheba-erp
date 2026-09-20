@@ -395,6 +395,41 @@ export class ApiClient {
     return { download_mbps: 0, upload_mbps: 0, cpu_percent: 0, active_sessions: 0 };
   }
 
+  static async getUnregisteredSecrets(routerId: string) {
+    const res = await fetch(`${API_BASE}/routers/${routerId}/unregistered-secrets/`, { headers: this.getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to retrieve unregistered secrets');
+    return data;
+  }
+
+  static async quickImportSecret(routerId: string, username: string) {
+    const res = await fetch(`${API_BASE}/routers/${routerId}/quick-import-secret/`, { method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ username }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to import secret');
+    return data;
+  }
+
+  static async syncAllRouterClients(routerId: string) {
+    const res = await fetch(`${API_BASE}/routers/${routerId}/sync-all-clients/`, { method: 'POST', headers: this.getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to sync clients');
+    return data;
+  }
+
+  static async routerPing(routerId: string, target: string, count = 4) {
+    const res = await fetch(`${API_BASE}/routers/${routerId}/ping/`, { method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ target, count }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Ping failed');
+    return data;
+  }
+
+  static async routerTraceroute(routerId: string, target: string) {
+    const res = await fetch(`${API_BASE}/routers/${routerId}/traceroute/`, { method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ target }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Traceroute failed');
+    return data;
+  }
+
   // ════════════════════════ OLTS & ONUS (FULL CRUD) ════════════════════════
   static async getOLTs(): Promise<OLT[]> {
     const res = await fetch(`${API_BASE}/olts/`, { headers: this.getHeaders() });
@@ -429,6 +464,34 @@ export class ApiClient {
   static async deleteOLT(id: string) {
     const res = await fetch(`${API_BASE}/olts/${id}/`, { method: 'DELETE', headers: this.getHeaders() });
     return res.ok;
+  }
+
+  static async runOLTCommand(oltId: string, command: string) {
+    const res = await fetch(`${API_BASE}/olts/${oltId}/run-command/`, { method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ command }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'OLT command failed');
+    return data;
+  }
+
+  static async getWireGuardConfigs() {
+    const res = await fetch(`${API_BASE}/wireguard/configs/`, { headers: this.getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load WireGuard configurations');
+    return data.results || data;
+  }
+
+  static async getWireGuardScript(configId: string) {
+    const res = await fetch(`${API_BASE}/wireguard/configs/${configId}/script/`, { headers: this.getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to generate WireGuard script');
+    return data;
+  }
+
+  static async testWireGuard(configId: string) {
+    const res = await fetch(`${API_BASE}/wireguard/configs/${configId}/test-connection/`, { method: 'POST', headers: this.getHeaders() });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'WireGuard probe failed');
+    return data;
   }
 
   static async getONUs(params?: { olt?: string; search?: string }): Promise<ONU[]> {
@@ -2461,7 +2524,6 @@ export class ApiClient {
     return await res.json();
   }
 }
-
 
 
 

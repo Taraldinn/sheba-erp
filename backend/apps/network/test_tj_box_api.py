@@ -7,9 +7,8 @@ Tests for TJBox (Optical Terminal Joint Box) API:
 - Multi-Tenant Isolation
 """
 from decimal import Decimal
-from django.test import TestCase
 from django.contrib.auth.models import User
-from rest_framework.test import APIClient
+from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 
@@ -18,7 +17,7 @@ from apps.authentication.models import StaffProfile, StaffMembership, Role, User
 from apps.network.models import POPBranch, TJBox, TJBoxCategory
 
 
-class TJBoxAPITests(TestCase):
+class TJBoxAPITests(APITestCase):
     def setUp(self):
         # Tenant 1: Apex Fiber
         self.tenant1 = Tenant.objects.create(
@@ -328,3 +327,58 @@ class TJBoxAPITests(TestCase):
             HTTP_HOST='apexfiber.shebafi.xyz'
         )
         self.assertEqual(res_valid.status_code, status.HTTP_200_OK)
+
+    def test_08_lat_long_validation_api_and_model(self):
+        """Validates lat_long parsing, non-finite Decimal rejection, and 400 API response."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token1.key}')
+        from django.core.exceptions import ValidationError
+
+        # 1. Model save() rejects non-finite NaN coordinates with ValidationError
+        box_nan = TJBox(
+            tenant=self.tenant1,
+            name='BOX-NAN',
+            lat_long='NaN, 90.0'
+        )
+        with self.assertRaises(ValidationError):
+            box_nan.save()
+
+        # 2. API rejects malformed coordinates with HTTP 400
+        res_malformed = self.client.post(
+            '/api/v1/tj-boxes/',
+            {'name': 'BOX-MALFORMED', 'lat_long': 'not-a-coord'},
+            format='json',
+            HTTP_HOST='apexfiber.shebafi.xyz'
+        )
+        self.assertEqual(res_malformed.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('lat_long', res_malformed.data)
+
+        # 3. API rejects NaN coordinates with HTTP 400
+        res_nan = self.client.post(
+            '/api/v1/tj-boxes/',
+            {'name': 'BOX-NAN-API', 'lat_long': 'NaN, 90.0'},
+            format='json',
+            HTTP_HOST='apexfiber.shebafi.xyz'
+        )
+        self.assertEqual(res_nan.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('lat_long', res_nan.data)
+
+        # 4. API rejects out-of-range coordinates with HTTP 400
+        res_range = self.client.post(
+            '/api/v1/tj-boxes/',
+            {'name': 'BOX-RANGE', 'lat_long': '95.0, 50.0'},
+            format='json',
+            HTTP_HOST='apexfiber.shebafi.xyz'
+        )
+        self.assertEqual(res_range.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('lat_long', res_range.data)
+
+        # 5. API accepts valid coordinates and synchronizes latitude/longitude
+        res_ok = self.client.post(
+            '/api/v1/tj-boxes/',
+            {'name': 'BOX-COORDS-OK', 'lat_long': '23.8103, 90.4125'},
+            format='json',
+            HTTP_HOST='apexfiber.shebafi.xyz'
+        )
+        self.assertEqual(res_ok.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res_ok.data['latitude'], '23.8103000')
+        self.assertEqual(res_ok.data['longitude'], '90.4125000')

@@ -140,11 +140,11 @@ export function ChangePasswordModal({
             <div className="relative">
               <Input
                 type={showNew ? "text" : "password"}
-                placeholder="Minimum 4 characters"
+                placeholder="Minimum 6 characters"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
-                minLength={4}
+                minLength={6}
                 className="pr-10 rounded-xl"
               />
               <button
@@ -167,7 +167,7 @@ export function ChangePasswordModal({
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              minLength={4}
+              minLength={6}
               className="rounded-xl"
             />
           </div>

@@ -14,6 +14,7 @@ interface PrintableInvoiceModalProps {
   invoiceId: string | null;
   fallbackInvoice?: any;
   customerProfile?: any;
+  isDemoMode?: boolean;
 }
 
 export function PrintableInvoiceModal({
@@ -22,16 +23,22 @@ export function PrintableInvoiceModal({
   invoiceId,
   fallbackInvoice,
   customerProfile,
+  isDemoMode = false,
 }: PrintableInvoiceModalProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isActive = true;
+
     if (!isOpen || !invoiceId) {
       setData(null);
       setError(null);
-      return;
+      setLoading(false);
+      return () => {
+        isActive = false;
+      };
     }
 
     const loadReceipt = async () => {
@@ -40,49 +47,63 @@ export function PrintableInvoiceModal({
       try {
         if (PortalApiClient.isAuthenticated()) {
           const res = await PortalApiClient.getInvoiceReceipt(invoiceId);
+          if (!isActive) return;
           setData(res);
-        } else {
-          // Demo fallback
+        } else if (isDemoMode) {
+          if (!isActive) return;
+          // Demo fallback: strictly gated behind isDemoMode and marked non-official
           setData({
+            isDemo: true,
             invoice: {
               id: invoiceId,
-              invoice_no: fallbackInvoice?.invoice_no || `INV-${invoiceId.slice(0, 8).toUpperCase()}`,
+              invoice_no: fallbackInvoice?.invoice_no || `DEMO-INV-${invoiceId.slice(0, 8).toUpperCase()}`,
               billing_month: fallbackInvoice?.billing_month || "September 2026",
               total_payable: fallbackInvoice?.total_payable || 800,
-              paid_amount: fallbackInvoice?.paid_amount || 800,
-              status: fallbackInvoice?.status || "PAID",
+              paid_amount: 0,
+              status: "NON_OFFICIAL_DEMO",
               created_at: fallbackInvoice?.created_at || new Date().toISOString(),
-              paid_at: fallbackInvoice?.paid_at || new Date().toISOString(),
-              package_name: fallbackInvoice?.package_name || "Turbo Stream 30M",
+              paid_at: null,
+              package_name: fallbackInvoice?.package_name || "Demo Stream 30M",
               package_speed: fallbackInvoice?.package_speed || 30,
-              payment_method: "bKash Online",
-              trx_id: "BKSH91827419A",
+              payment_method: "Demo Preview",
+              trx_id: "DEMO-UNVERIFIED",
             },
             company: {
-              name: "ShebaFi Broadband Network Ltd.",
+              name: "ShebaFi Broadband Network (Demo)",
               phone: "+880 1800-000000",
-              email: "support@shebafi.net",
-              address: "House 12, Road 4, Sector 7, Uttara, Dhaka-1230",
+              email: "demo@shebafi.net",
+              address: "Demo Headquarters, Dhaka",
               logo: null,
             },
             customer: {
-              code: customerProfile?.customer_code || "SB-1001",
-              name: customerProfile?.full_name || "Tanvir Ahmed",
-              pppoe_username: customerProfile?.pppoe_username || "tanvir_home",
+              code: customerProfile?.customer_code || "DEMO-001",
+              name: customerProfile?.full_name || "Demo Subscriber",
+              pppoe_username: customerProfile?.pppoe_username || "demo_user",
               mobile: customerProfile?.mobile || "01700000000",
-              address: customerProfile?.address || "Uttara, Sector 7, Dhaka",
+              address: customerProfile?.address || "Demo Address, Dhaka",
             },
           });
+        } else {
+          if (!isActive) return;
+          setData(null);
+          setError("Authentication required to view official receipt.");
         }
       } catch (err: any) {
+        if (!isActive) return;
         setError(err.message || "Failed to load receipt details");
       } finally {
-        setLoading(false);
+        if (isActive) {
+          setLoading(false);
+        }
       }
     };
 
     loadReceipt();
-  }, [isOpen, invoiceId, fallbackInvoice, customerProfile]);
+
+    return () => {
+      isActive = false;
+    };
+  }, [isOpen, invoiceId, fallbackInvoice, customerProfile, isDemoMode]);
 
   const handlePrint = () => {
     window.print();
@@ -152,6 +173,11 @@ export function PrintableInvoiceModal({
             id="printable-receipt-area"
             className="p-6 sm:p-8 space-y-6 text-foreground bg-background print:bg-white print:text-black print:p-6"
           >
+            {data?.isDemo && (
+              <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-2.5 text-center text-xs font-semibold text-amber-400 print:text-amber-800 print:border-amber-600">
+                NON-OFFICIAL DEMO PREVIEW — NOT A VALID PAYMENT OR TAX RECEIPT
+              </div>
+            )}
             {/* Header: Company and Invoice Info */}
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-border/80 pb-6 print:border-black/20">
               <div className="space-y-1">
@@ -176,12 +202,14 @@ export function PrintableInvoiceModal({
               <div className="text-left sm:text-right space-y-1">
                 <Badge
                   className={`text-xs px-2.5 py-0.5 font-bold ${
-                    isPaid
+                    data?.isDemo
+                      ? "bg-amber-500/20 text-amber-400 border-amber-500/30 print:border print:text-amber-700"
+                      : isPaid
                       ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 print:border print:text-emerald-700"
                       : "bg-rose-500/20 text-rose-400 border-rose-500/30 print:border print:text-rose-700"
                   }`}
                 >
-                  {isPaid ? "PAID & VERIFIED" : "UNPAID / DUE"}
+                  {data?.isDemo ? "NON-OFFICIAL DEMO PREVIEW" : isPaid ? "PAID & VERIFIED" : "UNPAID / DUE"}
                 </Badge>
                 <p className="text-sm font-black font-mono text-foreground print:text-black mt-1">
                   {invoice?.invoice_no}

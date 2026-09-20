@@ -167,7 +167,11 @@ class StaffMembership(models.Model):
     @classmethod
     def get_active_membership(cls, user, tenant):
         """Retrieve active membership for a user in a tenant."""
-        if not user or not user.is_authenticated or not tenant:
+        if not user or not getattr(user, 'is_authenticated', False) or not tenant:
+            return None
+        from django.contrib.auth import get_user_model
+        UserModel = get_user_model()
+        if not isinstance(user, UserModel):
             return None
         return cls.objects.filter(user=user, tenant=tenant, is_active=True).select_related('role', 'tenant').first()
 

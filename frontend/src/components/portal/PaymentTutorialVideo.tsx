@@ -16,14 +16,17 @@ export function PaymentTutorialVideo({ videoUrl }: PaymentTutorialVideoProps) {
   // Parse embed URL from YouTube or generic video
   const getEmbedUrl = (url?: string | null): string => {
     if (!url) {
-      // Default placeholder educational video on bill payment
-      return "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=0";
+      return "";
     }
 
     try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return "";
+      }
+
       if (url.includes("youtube.com/watch")) {
-        const urlObj = new URL(url);
-        const v = urlObj.searchParams.get("v");
+        const v = parsed.searchParams.get("v");
         return v ? `https://www.youtube-nocookie.com/embed/${v}` : url;
       }
       if (url.includes("youtu.be/")) {
@@ -36,7 +39,7 @@ export function PaymentTutorialVideo({ videoUrl }: PaymentTutorialVideoProps) {
       }
       return url;
     } catch {
-      return url;
+      return "";
     }
   };
 
@@ -79,7 +82,7 @@ export function PaymentTutorialVideo({ videoUrl }: PaymentTutorialVideoProps) {
             {/* Video Player */}
             <div className="lg:col-span-7">
               <div className="relative w-full rounded-2xl overflow-hidden bg-black/80 aspect-video shadow-md border border-border">
-                {videoUrl ? (
+                {embedUrl ? (
                   <iframe
                     src={embedUrl}
                     title="Bill Payment Tutorial"

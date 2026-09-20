@@ -23,6 +23,7 @@ export interface SessionRecord {
 
 interface SessionHistoryTableProps {
   isLoggedIn?: boolean;
+  isDemoMode?: boolean;
 }
 
 export function formatBytes(bytes: number | null | undefined): string {
@@ -48,23 +49,40 @@ export function formatDuration(seconds: number | null | undefined): string {
   return parts.slice(0, 3).join(" ");
 }
 
-export function SessionHistoryTable({ isLoggedIn = false }: SessionHistoryTableProps) {
+export function SessionHistoryTable({ isLoggedIn = false, isDemoMode = false }: SessionHistoryTableProps) {
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ONLINE" | "HISTORY">("ALL");
+  const requestGenRef = React.useRef(0);
 
   const loadSessions = async () => {
+    const currentReq = ++requestGenRef.current;
     setLoading(true);
+    setAuthError(null);
     try {
-      if (isLoggedIn && PortalApiClient.isAuthenticated()) {
+      if (isLoggedIn) {
+        if (!PortalApiClient.isAuthenticated()) {
+          if (currentReq !== requestGenRef.current) return;
+          setAuthError("Session expired or authentication unavailable. Please log in again.");
+          setSessions([]);
+          return;
+        }
         const data = await PortalApiClient.getSessions();
+        if (currentReq !== requestGenRef.current) return;
+        if (!PortalApiClient.isAuthenticated()) {
+          setAuthError("Session expired or authentication unavailable.");
+          setSessions([]);
+          return;
+        }
         if (Array.isArray(data)) {
           setSessions(data);
         }
-      } else {
-        // Fallback demo session data
+      } else if (isDemoMode) {
+        // Fallback demo session data strictly gated behind isDemoMode
         const now = Date.now();
+        if (currentReq !== requestGenRef.current) return;
         setSessions([
           {
             id: "curr-1",
@@ -119,17 +137,27 @@ export function SessionHistoryTable({ isLoggedIn = false }: SessionHistoryTableP
             terminate_cause: "Lost-Carrier",
           },
         ]);
+      } else {
+        if (currentReq !== requestGenRef.current) return;
+        setSessions([]);
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (currentReq !== requestGenRef.current) return;
       console.error("Failed to load sessions:", err);
+      setAuthError(err?.message || "Failed to load session history.");
     } finally {
-      setLoading(false);
+      if (currentReq === requestGenRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     loadSessions();
-  }, [isLoggedIn]);
+    return () => {
+      requestGenRef.current++;
+    };
+  }, [isLoggedIn, isDemoMode]);
 
   const filteredSessions = sessions.filter((s) => {
     if (statusFilter === "ONLINE" && !s.is_online) return false;
@@ -170,6 +198,18 @@ export function SessionHistoryTable({ isLoggedIn = false }: SessionHistoryTableP
           </Button>
         </div>
       </div>
+
+      {authError && (
+        <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 shrink-0 text-rose-400" />
+            <span>{authError}</span>
+          </div>
+          <Button size="sm" variant="outline" onClick={loadSessions} className="text-xs h-7 border-rose-500/30 hover:bg-rose-500/20">
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">

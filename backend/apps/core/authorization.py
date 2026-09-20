@@ -20,7 +20,7 @@ def can(user, tenant, permission_codename: str, resource=None) -> bool:
     optionally checking scope on the specific resource.
 
     Args:
-        user: Django User instance
+        user: Django User instance or ApiKeyPrincipal
         tenant: Tenant instance
         permission_codename: Capability string (e.g. 'customer.recharge')
         resource: Optional model instance for object-level / scope verification
@@ -28,14 +28,33 @@ def can(user, tenant, permission_codename: str, resource=None) -> bool:
     Returns:
         bool: True if authorized, False otherwise.
     """
-    if not user or not user.is_authenticated:
+    if not user or not getattr(user, 'is_authenticated', False):
         return False
 
     # Superusers bypass checks
-    if user.is_superuser:
+    if getattr(user, 'is_superuser', False):
         return True
 
     if not tenant or not tenant.is_active:
+        return False
+
+    # API Key Principal evaluation
+    if hasattr(user, 'api_token'):
+        api_token = getattr(user, 'api_token', None)
+        if not api_token or api_token.tenant_id != tenant.id:
+            return False
+        if api_token.effective_status != 'ACTIVE':
+            return False
+        perms = getattr(user, 'permissions', [])
+        if not perms or '*' in perms or '__all__' in perms or 'all' in perms:
+            return True
+        if permission_codename in perms:
+            return True
+        module = permission_codename.split('.')[0] if '.' in permission_codename else permission_codename
+        if f"{module}:*" in perms or f"{module}s:*" in perms or f"{module}:read" in perms or f"{module}:write" in perms:
+            return True
+        if hasattr(user, 'has_perm') and user.has_perm(permission_codename):
+            return True
         return False
 
     # Retrieve authoritative active membership

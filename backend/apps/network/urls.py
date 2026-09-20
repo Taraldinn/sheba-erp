@@ -19,6 +19,7 @@ from .action_views import (
     NetworkActionQueueViewSet,
     BulkOperationsViewSet,
 )
+from .vpn_views import WireGuardConfigViewSet, WireGuardSubnetViewSet
 from .phase14_15_views import (
     LiveSessionsView,
     TerminateSessionView,
@@ -47,6 +48,8 @@ router.register(r'user-sessions', UserSessionViewSet, basename='user-session')
 router.register(r'reconciliation/secrets', PPPoESecretInventoryViewSet, basename='pppoe-secret')
 router.register(r'actions', NetworkActionQueueViewSet, basename='network-action')
 router.register(r'bulk', BulkOperationsViewSet, basename='network-bulk')
+router.register(r'wireguard/configs', WireGuardConfigViewSet, basename='wireguard-config')
+router.register(r'wireguard/subnets', WireGuardSubnetViewSet, basename='wireguard-subnet')
 
 urlpatterns = [
     # Phase 11: Network Operations Cockpit

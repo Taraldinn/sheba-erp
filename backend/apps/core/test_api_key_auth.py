@@ -325,3 +325,22 @@ class ApiKeyAuthenticationAndScopeTests(TestCase):
         )
         self.assertEqual(revoke_resp.status_code, status.HTTP_200_OK)
         self.assertEqual(revoke_resp.json()['status'], 'REVOKED')
+
+    def test_14_api_key_can_access_settings_without_type_error(self):
+        """Verify API key authentication to /api/v1/settings/ does not crash with TypeError."""
+        settings_token, raw_secret = TenantApiToken.generate(
+            tenant=self.tenant_a,
+            name="Settings Access Key",
+            permissions=["settings:read"],
+            created_by=self.super_admin,
+        )
+        response = self.client.get(
+            '/api/v1/settings/',
+            HTTP_X_API_KEY=raw_secret,
+            HTTP_HOST='api.shebafi.test',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        results = data if isinstance(data, list) else data.get('results', [])
+        self.assertGreaterEqual(len(results), 1)
+

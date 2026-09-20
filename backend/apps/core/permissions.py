@@ -33,10 +33,19 @@ class IsTenantMember(permissions.BasePermission):
         if request.user.is_superuser:
             return True
 
+        # API Key machine caller verification (check before any User ORM lookups)
+        if getattr(request, 'auth_type', None) == 'api_key' or hasattr(request.user, 'api_token'):
+            token = getattr(request, 'api_token', None) or getattr(request.user, 'api_token', None)
+            tenant = getattr(request, 'tenant', None)
+            if token and tenant and token.tenant_id == tenant.id and token.effective_status == 'ACTIVE' and tenant.is_active:
+                return True
+            return False
+
         # Central control plane: ordinary ISP users are denied access
         if getattr(request, 'is_control_plane', False):
             # Only superusers may reach the control plane; all StaffMembership holders are denied.
-            if StaffMembership.objects.filter(user=request.user, is_active=True).exists():
+            from django.contrib.auth import get_user_model
+            if isinstance(request.user, get_user_model()) and StaffMembership.objects.filter(user=request.user, is_active=True).exists():
                 return False
             return False  # non-superuser, non-staff: also deny (require explicit superuser)
 
@@ -47,19 +56,8 @@ class IsTenantMember(permissions.BasePermission):
         if not tenant.is_active:
             return False
 
-        # API Key machine caller verification
-        if getattr(request, 'auth_type', None) == 'api_key':
-            token = getattr(request, 'api_token', None)
-            tenant = getattr(request, 'tenant', None)
-            if token and tenant and token.tenant_id == tenant.id and token.effective_status == 'ACTIVE' and tenant.is_active:
-                return True
-            return False
-
         # Authoritative identity check: StaffMembership only.
-        membership = StaffMembership.objects.filter(
-            user=request.user,
-            tenant=tenant
-        ).select_related('role', 'tenant').first()
+        membership = StaffMembership.get_active_membership(request.user, tenant)
 
         if membership is not None:
             if not membership.is_active:
@@ -96,12 +94,15 @@ class IsCentralAdmin(permissions.BasePermission):
     """
     def has_permission(self, request, view):
         # API Keys are strictly forbidden from accessing SaaS Control Plane endpoints
-        if getattr(request, 'auth_type', None) == 'api_key':
+        if getattr(request, 'auth_type', None) == 'api_key' or hasattr(request.user, 'api_token'):
             return False
         if not request.user or not request.user.is_authenticated:
             return False
         if request.user.is_superuser:
             return True
+        from django.contrib.auth import get_user_model
+        if not isinstance(request.user, get_user_model()):
+            return False
         # Any tenant-scoped membership holder is denied control-plane access.
         if StaffMembership.objects.filter(user=request.user, is_active=True).exists():
             return False
@@ -322,6 +323,10 @@ class IsAdminOrManager(permissions.BasePermission):
         if not IsTenantMember().has_permission(request, view):
             return False
 
+        # If authenticated via API Key, evaluate API scopes
+        if getattr(request, 'auth_type', None) == 'api_key' or hasattr(request.user, 'api_token'):
+            return HasApiKeyScope().has_permission(request, view)
+
         tenant = getattr(request, 'tenant', None)
         # Preferred path: capability check via RBAC
         if can(request.user, tenant, 'staff.manage') or can(request.user, tenant, 'setting.manage'):
@@ -354,6 +359,10 @@ class IsBillingStaff(permissions.BasePermission):
             return True
         if not IsTenantMember().has_permission(request, view):
             return False
+
+        # If authenticated via API Key, evaluate API scopes
+        if getattr(request, 'auth_type', None) == 'api_key' or hasattr(request.user, 'api_token'):
+            return HasApiKeyScope().has_permission(request, view)
 
         tenant = getattr(request, 'tenant', None)
         # Preferred path: capability check via RBAC
@@ -393,6 +402,10 @@ class IsTechnicalStaff(permissions.BasePermission):
             return True
         if not IsTenantMember().has_permission(request, view):
             return False
+
+        # If authenticated via API Key, evaluate API scopes
+        if getattr(request, 'auth_type', None) == 'api_key' or hasattr(request.user, 'api_token'):
+            return HasApiKeyScope().has_permission(request, view)
 
         tenant = getattr(request, 'tenant', None)
         # Preferred path: capability check via RBAC
@@ -435,6 +448,10 @@ class IsAdminUserOrReadOnly(permissions.BasePermission):
             return True
         if request.user.is_superuser:
             return True
+
+        # If authenticated via API Key, evaluate API scopes
+        if getattr(request, 'auth_type', None) == 'api_key' or hasattr(request.user, 'api_token'):
+            return HasApiKeyScope().has_permission(request, view)
 
         tenant = getattr(request, 'tenant', None)
         # Preferred path: capability check via RBAC
