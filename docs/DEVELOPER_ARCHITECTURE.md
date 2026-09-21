@@ -1,647 +1,1119 @@
-# Sheba ISP ERP — Developer Architecture & Engineering Guide
+# Sheba ISP ERP — Backend Developer Architecture & Engineering Guide
 
 **Repository:** `Taraldinn/sheba-erp`  
-**Branch reviewed:** `main`  
-**Reviewed:** 2026-09-09  
-**Purpose:** Canonical developer reference for continuing implementation safely.
+**Branch:** `main`  
+**Reviewed:** 2026-09-21  
+**Canonical scope:** Django backend under `/backend`
 
-> This document is repository-grounded. It describes what is present in the `main` branch at the review point, plus explicit implementation guidance for future work. Where the repository's older planning documents disagree with the current code, the discrepancy is called out rather than silently resolved.
+> This document is grounded in the current repository structure and backend code. When older planning/status documents conflict with executable code, the executable code wins. Update this document whenever a backend architectural contract changes.
 
 ---
 
-## 1. Executive Technical Summary
+## 1. Backend at a glance
 
-Sheba ISP ERP is a Django REST backend with a Next.js frontend for ISP operations. The repository contains tenant management, customer/subscriber management, billing, payments, finance, networking, support, HR, store/inventory, field tasks, call-center features, reporting, and a SaaS control-plane layer.
+Sheba ISP ERP is currently a **modular Django 6.1 + Django REST Framework** backend.
 
-The intended architecture is:
+Primary responsibilities:
+
+- multi-tenant ISP operations;
+- tenant/control-plane management;
+- authentication, staff, roles and permissions;
+- customer/subscriber lifecycle;
+- packages, billing, invoices and recharges;
+- financial accounts, ledger entries and allocations;
+- payment gateways, payment events and SMS ingestion;
+- MikroTik/router operations;
+- OLT/ONU/optical operations;
+- support tickets and field tasks;
+- HR/payroll;
+- inventory/store;
+- call-center and voice configuration;
+- reporting/analytics;
+- corporate/enterprise ISP operations;
+- customer self-care portal;
+- background jobs through Celery + Redis;
+- OpenAPI/Swagger documentation;
+- health/readiness/production-readiness endpoints.
+
+High-level runtime:
 
 ```text
-Browser / Mobile / Integrations
-            |
-            v
-      Reverse Proxy / HTTPS
-            |
-            v
-      Django REST API
-            |
-     +------+------+
-     |             |
- Tenant/Auth    Domain Services
-     |             |
-     +------+------+
-            |
-   +--------+---------+
-   |                  |
-PostgreSQL         Redis/Celery
-   |                  |
-   |             background work
-   |
-   +----------+-----------+
-              |
-       Network Services
-        /            \
- MikroTik RouterOS   EPON/GPON OLT
-```
-
-The architecture contract in `ARCHITECTURE.md` establishes five invariants: shared-database multi-tenancy, server-derived tenant identity, ledger-as-financial-source-of-truth, service-mediated hardware access, and asynchronous execution for long-running work.
-
----
-
-## 2. Source-of-Truth Hierarchy
-
-Use the following priority when deciding how to continue development:
-
-1. Current executable code on `main`.
-2. `ARCHITECTURE.md` for architectural invariants.
-3. `MASTER_TASK.md` for stage sequencing and acceptance criteria.
-4. Existing tests and migrations as behavioral evidence.
-5. `Task.md` / older implementation plans only as historical context.
-
-Do not treat an older status table as proof that a feature is implemented. Verify the code path and tests.
-
----
-
-## 3. Important Current-State Reconciliation
-
-There is a material discrepancy between the supplied September architecture/progress draft and the repository's current `main` branch.
-
-The current repository `MASTER_TASK.md` records **Stage 3 RBAC as NOT_STARTED**, with Stage 4–8 also listed as not started. It also explicitly notes that Celery/Redis are not yet declared in `backend/requirements.txt` and that current tasks are callable synchronously.
-
-The current repository `backend/requirements.txt` contains Django, DRF, PostgreSQL driver, CORS, drf-spectacular, requests, dotenv, and cryptography, but no Celery or Redis packages.
-
-Therefore this guide treats the current `main` code as authoritative for development status. The earlier progress draft should be treated as a target/progress narrative unless independently verified against the current branch.
-
-**Development rule:** before marking a stage DONE, update code, tests, `MASTER_TASK.md`, and this document consistently.
-
----
-
-## 4. Repository Structure
-
-### Root
-
-```text
-ARCHITECTURE.md          Architectural invariants and contracts
-MASTER_TASK.md           Master implementation tracker
-Task.md                  Historical/working task list
-Dockerfile               Root container definition
-LOGS.TXT                 Development/log history
-docs/                    Long-lived developer documentation
-backend/                 Django backend
-frontend/                Next.js frontend
-```
-
-### Backend applications currently present
-
-```text
-backend/apps/
-├── authentication/      User identity, StaffProfile, StaffMembership, RBAC models
-├── billing/             Packages, reseller pricing, invoices, recharges, offers
-├── callcenter/          Call logs, voice settings/templates
-├── core/                Tenant, domains, settings, audit, middleware, tasks
-├── customers/           Subscriber/customer lifecycle
-├── finance/             BillingAccount, ledger, allocations, adjustments, idempotency
-├── hr/                  Employees, attendance, leave, salary advance, payroll
-├── network/             POPs, routers, OLTs, ONUs, sessions, network services
-├── payments/            Gateways, transactions, SMS, payment attempts/events
-├── reports/             Dashboard analytics
-├── store/               Inventory and stock transactions
-├── support/             Tickets
-└── tasks/               Operational task management
+                    Internet / Integrations
+                            |
+                      HTTPS / Proxy
+                            |
+                    Django / Gunicorn
+                            |
+              +-------------+-------------+
+              |             |             |
+          Auth/Tenant    REST API     Webhooks
+              |             |             |
+              +-------------+-------------+
+                            |
+          +-----------------+------------------+
+          |                 |                  |
+      PostgreSQL          Redis             Storage
+          |                 |              Local / R2/S3
+          |             Celery workers
+          |                 |
+          +-----------------+
+                            |
+                  Network service layer
+                    /             \
+               MikroTik        OLT / ONU
 ```
 
 ---
 
-## 5. Backend Technology Contract
+## 2. Repository structure
 
-The current backend pins Django 6.1, Django REST Framework 3.18, drf-spectacular 0.30, psycopg2-binary 2.9.12, Gunicorn 26.2, WhiteNoise 6.12, django-environ 0.14, requests 2.34.2, and cryptography >=42.
+Current backend layout:
 
-The API is organized around DRF ViewSets plus explicit non-ViewSet endpoints. The master URL configuration exposes `/api/v1/` as the primary API prefix and also provides Swagger/OpenAPI endpoints at `/api/schema/`, `/api/docs/`, and `/api/redoc/`.
+```text
+backend/
+├── apps/
+│   ├── authentication/
+│   ├── billing/
+│   ├── callcenter/
+│   ├── core/
+│   ├── corporate/
+│   ├── customers/
+│   ├── finance/
+│   ├── hr/
+│   ├── network/
+│   ├── payments/
+│   ├── reports/
+│   ├── store/
+│   ├── support/
+│   └── tasks/
+├── backups/
+├── sheba_core/
+│   ├── settings.py
+│   ├── urls.py
+│   ├── asgi.py
+│   ├── wsgi.py
+│   └── celery.py
+├── templates/
+├── staticfiles/
+├── manage.py
+├── requirements.txt
+├── docker-compose.yml
+├── Dockerfile
+├── entrypoint.sh
+├── .env.example
+├── schema.yml
+└── seed_data.py
+```
 
-Frontend dependencies include Next.js 16.3.4, React 19.2.8, TypeScript 5, Tailwind CSS 4, Radix UI components, Recharts, and related UI utilities.
+### App ownership
+
+| App | Responsibility |
+|---|---|
+| `core` | Tenant, domains, settings, audit, middleware, encryption/storage, throttling, readiness, shared tasks |
+| `authentication` | User identity, staff profile/membership, roles, permissions, login/session-facing APIs |
+| `customers` | Subscriber/customer lifecycle and customer portal |
+| `billing` | Packages, offers, invoices, recharges, reseller pricing |
+| `finance` | Billing accounts, ledger, allocations, adjustments, invoice lines, idempotency |
+| `payments` | Gateways, transactions, inbound payment events, SMS/payment webhooks |
+| `network` | POPs, routers, OLTs, ONUs, sessions, network operations and reconciliation |
+| `support` | Support tickets |
+| `tasks` | Operational/field tasks |
+| `hr` | Employees, attendance, leave, advances, payroll |
+| `store` | Inventory and stock transactions |
+| `callcenter` | Call logs, voice settings/templates |
+| `reports` | Dashboard analytics |
+| `corporate` | Corporate/enterprise customers, telemetry and enterprise billing |
+
+Do not create another generic app when the feature clearly belongs to an existing bounded domain.
 
 ---
 
-## 6. Tenant Isolation Contract
+## 3. Technology contract
 
-Tenant resolution is based on the request host:
+Current backend dependencies are defined in `backend/requirements.txt`.
+
+Core stack:
+
+- Django 6.1
+- Django REST Framework 3.18
+- drf-spectacular 0.30
+- PostgreSQL via psycopg2-binary
+- Gunicorn 26.2
+- WhiteNoise
+- django-environ
+- django-cors-headers
+- cryptography
+- Celery
+- Redis
+- boto3 + django-storages for S3-compatible storage
+- requests for external/network integrations
+
+The repository currently contains **real Celery/Redis configuration**. Do not describe Celery as merely planned.
+
+Production database is configured through `DATABASE_URL`. SQLite is available as the local fallback and is also used for the test database.
+
+---
+
+## 4. Django runtime and configuration
+
+Main settings module:
+
+```text
+backend/sheba_core/settings.py
+```
+
+Important runtime configuration:
+
+- `ENVIRONMENT=local|production`
+- `DEBUG`
+- `SECRET_KEY`
+- `FIELD_ENCRYPTION_KEY`
+- `DATABASE_URL`
+- `REDIS_URL` or `REDIS_HOST/PORT/PASSWORD/DB`
+- CORS/CSRF settings
+- S3/R2 settings
+- email settings
+- throttle rates
+- Celery broker/result configuration
+
+Timezone is `Asia/Dhaka` and `USE_TZ=True`.
+
+### Middleware order matters
+
+The current middleware includes:
+
+1. CORS
+2. Django security
+3. WhiteNoise
+4. sessions
+5. common middleware
+6. CSRF
+7. authentication
+8. messages
+9. clickjacking protection
+10. `CorrelationIdMiddleware`
+11. `TenantResolutionMiddleware`
+
+Changes to tenant or request-context middleware must be treated as architecture-level changes.
+
+---
+
+## 5. Multi-tenancy contract
+
+Tenant resolution is server-side.
+
+Current conceptual flow:
 
 ```text
 HTTP Host
-  -> TenantDomain
-  -> Tenant
-  -> request.tenant
+   |
+TenantResolutionMiddleware
+   |
+TenantDomain
+   |
+Tenant
+   |
+request.tenant
 ```
 
-`Tenant` is a UUID-backed model. `TenantDomain` provides multi-domain management with primary, alias, API, portal, and control-plane domain types.
+### Rules
 
-Tenant-owned business records must never accept tenant identity from request payloads, query parameters, or custom headers.
+Tenant-owned endpoints must derive tenant identity from the authenticated/request context.
 
-### Required pattern
+Preferred pattern:
 
 ```python
 tenant = request.tenant
 queryset = Model.objects.filter(tenant=tenant)
 ```
 
-Prefer the project's tenant-scoped managers/mixins where available.
+Never trust a client-provided tenant ID, tenant header, query parameter, or request-body tenant field as the authority for tenant selection.
 
-### Cross-tenant foreign keys
+### Cross-tenant relations
 
-When creating or updating a customer, invoice, ONU, router relationship, etc., validate that the referenced object belongs to the same tenant. The current `Customer.clean()` explicitly validates package, router, and reseller tenant ownership. Similar validation must be preserved for all future relations.
+Every tenant-owned foreign-key relationship must be validated.
 
-### Never do this on tenant endpoints
+Examples already enforced in domain models include:
 
-```python
-Model.objects.all()
+- Customer → Package
+- Customer → Router
+- Customer → Reseller
+- ONU → OLT
+- ONU → Customer
+
+When adding a new relation, add the same-tenant invariant in model/service validation and preferably reinforce it at the database level where practical.
+
+### Control plane vs tenant plane
+
+The backend has two logical planes:
+
+```text
+Control Plane
+  SaaS tenants/domains/packages/subscriptions/payments/users/audit
+          |
+          v
+Tenant Plane
+  Customers / Billing / Finance / Network / Support / HR / Store ...
 ```
 
-unless the endpoint is explicitly a control-plane/global operation and its authorization contract allows it.
+Do not expose global/control-plane operations through ordinary tenant endpoints.
 
 ---
 
-## 7. Identity, Authentication & Authorization
+## 6. Authentication and authorization
 
-The authentication app currently contains both a legacy `StaffProfile` and the newer `StaffMembership` model.
-
-`StaffMembership` links:
+DRF authentication classes currently include:
 
 ```text
-User -> StaffMembership -> Tenant
-                    |
-                    v
-                   Role -> Permission[]
-                    |
-                   Scope
+TenantApiKeyAuthentication
+TokenAuthentication
+SessionAuthentication
 ```
 
-Supported membership scopes include `GLOBAL`, `TENANT`, `POP`, `AREA`, `SELF`, and `ASSIGNED`.
+The repository contains:
 
-`StaffProfile` remains in the codebase for compatibility. A post-save signal synchronizes profile information into `StaffMembership` where possible.
+- Django User;
+- StaffProfile;
+- StaffMembership;
+- Role;
+- Permission;
+- tenant-scoped membership concepts;
+- SaaS/control-plane authentication endpoints.
 
-### Future authorization contract
+### Authorization rule
 
-New privileged endpoints should use membership/capability checks rather than introducing additional hardcoded role checks. Capability names should remain stable and dot-notated, for example:
+Authentication answers **who** the caller is.
 
-```text
-customer.view
-customer.recharge
-router.manage
-finance.adjust
-```
+Authorization answers **what that identity can do in this tenant and scope**.
 
-Before changing authorization behavior, add tests for:
+New privileged endpoints should use the project's capability/permission model instead of adding scattered hard-coded role checks.
+
+When changing authorization, test:
 
 - allowed capability;
 - denied capability;
 - inactive membership;
 - wrong tenant;
 - scope boundary;
-- control-plane vs tenant-plane separation.
+- control-plane vs tenant-plane access.
+
+UI visibility is never a security boundary. The API must enforce authorization.
 
 ---
 
-## 8. Core Domain Model
+## 7. API architecture
 
-### Tenant / SaaS
-
-`Tenant` owns the ISP configuration and subscription limits. `TenantDomain` maps hostnames to tenants. Core also contains `TenantApiToken`, `CompanySetting`, `AuditLog`, `TenantOnboardingRequest`, `SaaSPackage`, `TenantSubscription`, and `SaaSPayment`.
-
-### Customer
-
-`Customer` represents the subscriber. Key domains include:
-
-- identity: customer code, name, mobile, email, national ID;
-- service: connection type, router, PPPoE username/password, static IP, MAC, ONU reference;
-- package/billing: package, prepaid/postpaid, monthly bill, due/advance, discount;
-- lifecycle: bill date, expiry date, promise date, status, auto-lock;
-- location/notes: area, coordinates, remarks.
-
-A composite uniqueness rule protects PPPoE usernames per tenant.
-
-### Billing
-
-`Package` defines speed, MikroTik profile, validity, prices, and activation state. `Invoice` represents a billing obligation. `Recharge` represents a service recharge. `Offer` models promotional days/discounts. `ResellerPricing` provides tenant-specific reseller package pricing.
-
-### Finance
-
-`BillingAccount` is the customer financial summary. `LedgerEntry` is intended to be the authoritative financial journal. `InvoiceLine` itemizes invoices. `PaymentAllocation` maps payments to invoices. `Adjustment` records manual corrections. `IdempotencyKey` prevents duplicate financial mutations.
-
-### Payments
-
-`PaymentGateway` stores provider configuration. Supported provider enum values include bKash, Nagad, Rocket, Upay, SSLCommerz, PipraPay, SMS webhook, and manual payment. `PaymentTransaction`, `PaymentAttempt`, `InboundPaymentEvent`, and `SmsLog` support both direct and event-driven payment flows.
-
-### Network
-
-`POPBranch`, `Router`, `OLT`, `ONU`, and `UserSession` represent network infrastructure and subscriber sessions. Router credentials and OLT credentials use the project's encrypted field abstraction where configured.
-
----
-
-## 9. Financial Safety Contract
-
-All future monetary mutation code must preserve these rules:
-
-1. Never directly change a financial balance without creating the corresponding financial record.
-2. Prefer `transaction.atomic()` around a complete financial mutation.
-3. Lock the affected account/customer rows when concurrent mutation is possible.
-4. Use an idempotency key for client-retryable financial operations.
-5. Do not delete ledger history to correct an error.
-6. Correct errors through explicit reversal/adjustment records with an audit reason.
-7. Keep invoice/payment allocation mathematics deterministic and testable.
-
-The current `BillingAccount` documentation explicitly describes its balance as a denormalized summary and `LedgerEntry` as the source of truth.
-
-A future implementation should also enforce database-level uniqueness and referential integrity wherever a business invariant depends on it, not only serializer validation.
-
----
-
-## 10. Payment Architecture
-
-The repository already models an asynchronous event pipeline using `InboundPaymentEvent`:
+The main API is registered in:
 
 ```text
-Incoming SMS/Webhook
-       |
-       v
-InboundPaymentEvent(RECEIVED)
-       |
-       v
-Process / Match
-   |       |       |
-MATCHED UNMATCHED DUPLICATE
-   |       |
-Payment   Manual resolution
-Transaction
+backend/sheba_core/urls.py
 ```
 
-`PaymentAttempt` separately models payment initiation and provider confirmation states.
+The primary API prefix is:
 
-### Matching contract
+```text
+/api/v1/
+```
 
-A payment event may be matched using tenant-scoped subscriber identifiers such as mobile number or PPPoE username. Never perform a global customer search for payment matching.
+The backend uses DRF `DefaultRouter` for most CRUD resources and explicit URL patterns for auth, webhooks, reports, SaaS auth, portal and specialized network/corporate APIs.
+
+### Current router groups
+
+The main router currently exposes resources including:
+
+```text
+tenants
+tenant-domains
+
+saas/tenants
+saas/domains
+saas/requests
+saas/packages
+saas/subscriptions
+saas/payments
+saas/backups
+saas/users
+saas/audit-logs
+saas/api-credentials
+
+settings
+audit-logs
+staff
+roles
+permissions
+
+customers
+packages
+offers
+reseller-rates
+invoices
+invoice-lines
+recharges
+
+billing-accounts
+ledger-entries
+payment-allocations
+adjustments
+
+payment-gateways
+gateways
+transactions
+payments/transactions
+sms-logs
+payments/events
+payment-events
+
+routers
+olts
+onus
+branches
+tj-boxes
+user-sessions
+
+tickets
+employees
+attendance
+leaves
+advance-salaries
+payrolls
+store-items
+stock-transactions
+tasks
+call-logs
+voice-settings
+voice-templates
+```
+
+There are also explicit APIs for:
+
+- authentication/password reset;
+- health and readiness;
+- production readiness;
+- customer lookup;
+- SMS payment webhooks;
+- bKash PayBill integration;
+- dashboard analytics;
+- SaaS authentication;
+- customer portal;
+- network operations;
+- corporate/enterprise operations.
+
+### API documentation endpoints
+
+Current OpenAPI/Swagger routes include:
+
+```text
+/api/schema/
+/api/docs/
+/api/swagger/
+/swagger/
+/docs/
+/api/redoc/
+/redoc/
+```
+
+The generated schema should be treated as an implementation artifact; endpoint behavior and authorization still come from the actual code/tests.
+
+---
+
+## 8. API design rules
+
+### List/detail endpoints
+
+Use DRF ViewSets for standard CRUD behavior.
+
+### State-changing actions
+
+For non-trivial actions, use a dedicated action serializer/service instead of accepting a broad model serializer payload.
+
+Examples:
+
+```text
+recharge
+suspend
+activate
+reset-password
+sync-router
+reconcile
+allocate-payment
+reverse-adjustment
+bulk-network-action
+```
+
+Each action should explicitly define:
+
+- authorization;
+- validation;
+- transaction boundary;
+- idempotency behavior;
+- audit behavior;
+- external side effects;
+- error mapping.
+
+### Error behavior
+
+Use stable machine-readable error codes where the project already defines them.
+
+Important categories:
+
+- `400` invalid input;
+- `401` authentication failure;
+- `403` authorization/tenant/scope denial;
+- `404` resource not found;
+- `409` conflict/idempotency/concurrency;
+- `429` throttling;
+- `502/504` upstream device/provider failure.
+
+Do not leak another tenant's resource existence.
+
+---
+
+## 9. Financial architecture
+
+Financial domains are separated into billing, payments and finance.
+
+Conceptually:
+
+```text
+Customer
+   |
+BillingAccount
+   |
+Invoice / Recharge
+   |
+Payment / PaymentAllocation
+   |
+LedgerEntry
+   |
+Financial history
+```
+
+### Source of truth
+
+`LedgerEntry` is the financial journal/source of truth.
+
+`BillingAccount` contains a denormalized financial summary for fast reads.
+
+### Financial mutation rules
+
+Every financial mutation must:
+
+1. run inside an appropriate transaction;
+2. create the corresponding financial record;
+3. be deterministic;
+4. protect against duplicate requests;
+5. preserve history;
+6. use reversal/adjustment records instead of deleting history;
+7. enforce tenant ownership;
+8. create an audit event for privileged/manual corrections.
+
+Use row locking when concurrent balance-affecting operations can race.
+
+Do not implement a direct:
+
+```python
+account.balance += amount
+```
+
+without the associated journal/business record.
+
+---
+
+## 10. Payment and webhook architecture
+
+The payment domain includes:
+
+- PaymentGateway;
+- PaymentTransaction;
+- PaymentAttempt;
+- InboundPaymentEvent;
+- SmsLog;
+- gateway-specific integration views.
+
+Conceptual inbound flow:
+
+```text
+Provider / SMS / Webhook
+        |
+        v
+InboundPaymentEvent
+        |
+     validate
+        |
+   deduplicate
+        |
+      match
+     /     \
+matched   unmatched
+   |          |
+Payment     manual resolution
+Transaction
+   |
+Allocation / Ledger
+```
 
 ### Idempotency
 
-Use provider transaction IDs and explicit idempotency keys. If a retry is identical to a completed operation, return the previously recorded outcome instead of creating another transaction.
+Provider transaction IDs and project idempotency mechanisms must be used to prevent duplicate financial effects.
+
+A retry of an already-completed operation should return/use the existing outcome rather than create a second payment.
+
+Payment matching must remain tenant-scoped.
 
 ---
 
-## 11. Network Automation Contract
+## 11. Network architecture
 
-The browser must never communicate directly with a MikroTik router or OLT.
+Network resources live under `apps.network`.
+
+Current core resources include:
+
+- POPBranch;
+- Router;
+- OLT;
+- ONU;
+- UserSession;
+- TJBox;
+- bulk network operation models/services.
+
+### Router
+
+Router supports:
+
+- RouterOS REST;
+- RouterOS binary API;
+- HTTPS/API ports;
+- connection timeout;
+- retry count;
+- encrypted password;
+- telemetry/status fields;
+- host/port validation.
+
+### OLT / ONU
+
+OLT supports:
+
+- Huawei, ZTE, V-SOL, BDCOM, C-Data, HSGQ and generic brands;
+- EPON/GPON access mode;
+- SNMP/Telnet settings;
+- encrypted credentials;
+- PON capacity;
+- ONU counters;
+- sync/status information.
+
+ONU tracks:
+
+- PON location/index;
+- MAC/serial;
+- customer binding;
+- RX/TX optical power;
+- online/LOS/dying-gasp state;
+- optical status;
+- reconciliation status;
+- distance and synchronization data.
+
+### Critical boundary
+
+The browser must **never** connect directly to a MikroTik or OLT.
 
 Required flow:
 
 ```text
 Frontend
    -> Django API
-   -> Network Service
-   -> validation / credential decryption
-   -> RouterOS / SNMP / Telnet client
-   -> hardware
+   -> domain/service layer
+   -> credential/validation layer
+   -> network client
+   -> device
 ```
 
-`Router` supports RouterOS REST and binary API protocol choices, HTTPS/API ports, retry/timeout policy, encrypted credentials, telemetry, and status.
+Device credentials must never be returned to the frontend or written to logs.
 
-`OLT` supports vendor metadata, SNMP/Telnet configuration, encrypted credentials, PON capacity, ONU counts, status, and synchronization timestamps.
+All external device calls require:
 
-### Network security requirements
+- timeout;
+- safe destination validation;
+- structured failure handling;
+- retry policy where appropriate.
 
-- Validate destination hosts before making server-side connections.
-- Never log decrypted credentials.
-- Keep network calls behind timeouts.
-- Return structured device-unavailable errors rather than crashing request workers.
-- Move repeated/slow polling to background workers once Celery is operational.
-- Keep device-specific protocol code out of DRF ViewSets.
+Slow/repeated device work belongs in Celery workers, not normal HTTP workers.
 
 ---
 
-## 12. Background Processing: Current Reality and Target
+## 12. Network reconciliation and bulk operations
 
-`backend/apps/core/tasks.py` already defines tenant-explicit task functions such as:
-
-- `process_customer_expiry`
-- `generate_monthly_invoices_for_tenant`
-- `send_payment_sms`
-- `sync_router_task`
-- `expire_customers_for_tenant`
-- `process_payment_event`
-- `retry_sms`
-- `reconcile_payments_for_tenant`
-
-However, the current `requirements.txt` does not include Celery or Redis, and the current task module is written so functions can execute synchronously.
-
-### Target architecture
+The current ONU model includes reconciliation states:
 
 ```text
-HTTP -> persist event -> enqueue -> Redis -> Celery worker -> DB/network
+MATCHED
+MISSING_IN_OLT
+UNKNOWN_IN_ERP
+BINDING_MISMATCH
+OPTICAL_ALARM
 ```
 
-When Celery is introduced:
-
-- every task must receive `tenant_id` explicitly;
-- tasks must re-query the database inside the worker;
-- task execution must be idempotent;
-- retries must distinguish transient from permanent failures;
-- long network calls must not execute inside normal HTTP request workers;
-- scheduled jobs must have one authoritative scheduler.
-
-Do not claim Celery is production-active until dependencies, worker startup, broker connectivity, task registration, and integration tests are verified.
-
----
-
-## 13. API Surface
-
-The current `backend/sheba_core/urls.py` registers API groups including:
+Bulk network work is modeled through a batch lifecycle such as:
 
 ```text
-/auth/login/                 authentication
-/auth/me/                    current user
-/customers/                  subscribers
-/packages/                   service packages
-/offers/                     offers
-/invoices/                   billing invoices
-/recharges/                  recharge records
-/payment-gateways/          payment configuration
-/transactions/               payment transactions
-/sms-logs/                   SMS records
-/routers/                    MikroTik routers
-/olts/                       OLT chassis
-/onus/                       subscriber ONUs
-/branches/                   POP branches
-/user-sessions/              active sessions
-/tickets/                    support tickets
-/employees/                  HR employees
-/attendance/                 attendance
-/leaves/                     leave requests
-/advance-salaries/           salary advances
-/payrolls/                   payroll records
-/store-items/                inventory
-/stock-transactions/         stock movement
-/tasks/                      field/operational tasks
-/call-logs/                  call-center records
-/voice-settings/             voice configuration
-/voice-templates/            voice templates
+PENDING
+  -> VALIDATING
+  -> PREVIEWED
+  -> QUEUED
+  -> EXECUTING
+  -> COMPLETED
+
+                 -> CANCELLED
 ```
 
-Additional control-plane endpoints live under `/api/v1/saas/` for SaaS tenants, domains, onboarding requests, packages, subscriptions, payments, backups, users, and audit logs.
+Bulk operations must be auditable, tenant-scoped and safe to retry.
 
-Public/system endpoints include health checks, customer query, SMS payment webhook, dashboard analytics, and API documentation.
-
-### Action endpoint rule
-
-State-changing actions should use dedicated serializers instead of reusing a broad model/detail serializer. This makes validation, authorization, idempotency, and audit requirements explicit.
+Do not make large device mutations as one unbounded HTTP request.
 
 ---
 
-## 14. Frontend Development Contract
+## 13. Celery and Redis
 
-The frontend is a Next.js application using the App Router, React, TypeScript, Tailwind, Radix-based UI components, and Recharts.
-
-Keep these boundaries:
-
-- API communication stays in shared client utilities rather than scattered raw fetch logic.
-- Authentication/session state is centralized.
-- Permission-aware UI must never be considered a security boundary; the backend must enforce the same rule.
-- Network dashboards may visualize telemetry but must call backend APIs rather than devices directly.
-- Tenant context should follow the server-resolved tenant contract.
-
-When adding a feature, document its route, API dependency, permissions, loading state, error state, and empty state.
-
----
-
-## 15. Audit Logging
-
-`AuditLog` supports tenant association, actor, action/module, resource type/id, request ID, user agent, before/after JSON state, IP address, details, and timestamp.
-
-Every sensitive mutation should create an audit event containing enough information to answer:
+Celery is configured in:
 
 ```text
-Who did it?
+backend/sheba_core/celery.py
+backend/sheba_core/settings.py
+backend/apps/*/tasks.py
+```
+
+Redis is used as the broker/result backend when `REDIS_URL` is configured.
+
+The repository also configures:
+
+- JSON task serialization;
+- Dhaka timezone;
+- task time limit;
+- scheduled Celery Beat jobs;
+- eager/in-memory behavior during tests.
+
+### Current scheduled jobs
+
+The settings currently define scheduled jobs for:
+
+- daily customer expiry;
+- monthly invoice generation;
+- hourly payment reconciliation;
+- daily subscription lifecycle enforcement;
+- corporate telemetry collection every 5 minutes;
+- monthly corporate invoice generation.
+
+### Task rules
+
+A task should:
+
+- receive explicit IDs/tenant IDs rather than relying on request state;
+- re-query current database state;
+- be idempotent;
+- distinguish transient vs permanent errors;
+- avoid holding database transactions across slow network calls;
+- avoid secrets in task arguments/logs;
+- use retry/backoff deliberately.
+
+Never assume an HTTP request's `request.tenant` object exists inside a Celery worker.
+
+---
+
+## 14. Redis and caching
+
+Redis configuration supports either:
+
+```text
+REDIS_URL
+```
+
+or:
+
+```text
+REDIS_HOST
+REDIS_PORT
+REDIS_PASSWORD
+REDIS_DB
+```
+
+The settings auto-assemble the URL when necessary.
+
+When Redis is available, Django uses Redis cache and cached DB sessions. Without Redis, local-memory cache/database sessions are used.
+
+Configured cache TTL categories include:
+
+- super-admin overview;
+- tenant lists;
+- dashboard analytics.
+
+### Cache rules
+
+Cache is an optimization, never the source of truth.
+
+When mutating data that affects cached views:
+
+- invalidate/update the relevant key;
+- keep TTL bounded;
+- never use cache as the only authorization check;
+- never cache secrets.
+
+---
+
+## 15. Storage
+
+The backend supports local filesystem storage and S3-compatible storage.
+
+The current configuration explicitly supports:
+
+- Cloudflare R2;
+- AWS S3;
+- MinIO-compatible endpoints.
+
+Storage is selected through:
+
+```text
+USE_S3_STORAGE
+USE_S3_STATIC
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+AWS_STORAGE_BUCKET_NAME
+AWS_S3_ENDPOINT_URL
+AWS_S3_REGION_NAME
+AWS_S3_CUSTOM_DOMAIN
+```
+
+Do not put storage credentials in source control.
+
+---
+
+## 16. Audit and request tracing
+
+Core audit infrastructure records tenant, actor, action/module, resource information, request context and before/after details where applicable.
+
+`CorrelationIdMiddleware` provides request correlation.
+
+For privileged or security-sensitive mutations, the audit trail should answer:
+
+```text
+Who?
 Which tenant?
 What resource?
 What action?
 When?
-From which request?
+Which request/correlation ID?
 What changed?
-Why, if the action is a manual financial correction?
+Why, when applicable?
 ```
 
-Never place passwords, API secrets, private keys, or decrypted hardware credentials into audit payloads.
+Never write:
+
+- passwords;
+- API keys;
+- encryption keys;
+- private credentials;
+- decrypted MikroTik/OLT secrets
+
+into audit payloads or logs.
 
 ---
 
-## 16. Error & HTTP Behavior
+## 17. Throttling and security
 
-Use stable machine-readable error codes for security and tenant-boundary failures. Existing architecture terminology includes examples such as:
+DRF currently configures:
+
+- tenant API-key throttling;
+- anonymous throttling;
+- user throttling;
+- scoped throttling.
+
+Important headers supported by the current CORS configuration include:
 
 ```text
-TENANT_NOT_FOUND
-TENANT_INACTIVE
-CROSS_TENANT_LOGIN
-CONTROL_PLANE_ACCESS_DENIED
+Authorization
+X-API-Key
+X-Request-ID
+X-Tenant-ID
+X-Tenant-Key
+X-Signature
+X-Timestamp
+Idempotency-Key
 ```
 
-Use appropriate status codes:
+Do not automatically interpret every tenant-related header as authoritative tenant selection. The server-side tenant resolution/authentication contract remains authoritative.
 
-- `400` malformed/invalid request;
-- `401` missing/invalid authentication;
-- `403` authenticated but not permitted / wrong tenant / inactive membership;
-- `404` resource or tenant not found;
-- `409` idempotency/concurrency/conflict condition;
-- `429` throttling;
-- `502/504` upstream device/gateway failure when applicable.
-
-Do not leak whether a record exists in another tenant.
+Production security settings include proxy-awareness and optional HTTPS redirect/HSTS controls.
 
 ---
 
-## 17. Testing Strategy
+## 18. Testing contract
 
-Every new module should have four layers of tests where applicable:
-
-### Unit tests
-Business functions, serializers, state transitions, parsers, calculations.
-
-### API tests
-Authentication, permissions, validation, response contracts, status codes.
-
-### Isolation tests
-Wrong tenant, forged tenant fields, cross-tenant foreign keys, IDOR reads/updates/deletes.
-
-### Integration tests
-Database transaction behavior, payment provider mocks, Redis/Celery behavior, router/OLT client mocks.
-
-For financial changes add concurrency tests. For network changes add timeout/failure-path tests. For permissions add positive and negative matrix tests.
-
-### Baseline commands
+Run backend checks from `backend/`:
 
 ```bash
-cd backend
 python manage.py check
 python manage.py test
-
-cd ../frontend
-npm run build
 ```
 
-Do not record a successful verification without the actual command output.
+Tests use an in-memory SQLite database and eager Celery configuration.
+
+### Every new backend feature should test, where applicable
+
+**Unit**
+
+- calculations;
+- serializers;
+- business rules;
+- state transitions;
+- parsers.
+
+**API**
+
+- authentication;
+- authorization;
+- validation;
+- status codes;
+- response contract.
+
+**Isolation**
+
+- wrong tenant;
+- forged tenant fields;
+- cross-tenant foreign keys;
+- IDOR reads/updates/deletes.
+
+**Financial**
+
+- transaction atomicity;
+- idempotency;
+- concurrent mutations;
+- reversal behavior.
+
+**Network**
+
+- timeout;
+- invalid destination;
+- device unavailable;
+- retry behavior;
+- credential redaction.
+
+**Async**
+
+- task registration;
+- retry behavior;
+- duplicate execution;
+- tenant context;
+- Celery/Redis integration.
+
+Never claim a test/check passed without actually running it.
 
 ---
 
-## 18. Deployment Contract
+## 19. Deployment model
 
-The repository contains root and backend Dockerfiles. Production deployment should separate at least:
+The intended production topology is:
 
 ```text
-Reverse Proxy
-Django/Gunicorn API
-Background Worker(s)
-Scheduler
-PostgreSQL
-Redis
+                  Reverse Proxy / TLS
+                         |
+                  Django / Gunicorn
+                         |
+          +--------------+--------------+
+          |              |              |
+      PostgreSQL       Redis        Object Storage
+          |              |
+          |         Celery Worker
+          |         Celery Beat
+          |
+       backups
 ```
 
-PostgreSQL is the intended production database through `DATABASE_URL`; the project also supports a local SQLite fallback when that variable is absent.
+A single VPS can run these services for early deployment, but the application should preserve clear service boundaries so the API, workers, database, Redis and proxy can later be separated.
 
-Production secrets must be injected through the environment or a secret manager. Do not commit credentials into source, fixtures, or documentation.
+### Health endpoints
 
-Required operational probes include application readiness and database/broker dependency checks appropriate to the deployment model.
+The current URL configuration provides:
+
+```text
+/health/
+/healthz/
+/api/v1/health-check/
+/api/v1/system/readiness/
+/healthz/production-readiness/
+```
+
+Use lightweight readiness probes for load balancers/container orchestration and the production-readiness endpoint for deeper diagnostics.
 
 ---
 
-## 19. Security Checklist for Every Feature
+## 20. Backend development workflow
 
-Before merging a feature, verify:
+For a new backend feature:
 
-- [ ] Tenant is derived server-side.
-- [ ] Querysets are tenant-scoped.
-- [ ] Cross-tenant foreign keys are rejected.
+### Step 1 — identify the domain
+
+Put the feature in the existing bounded app whenever possible.
+
+### Step 2 — define invariants
+
+Write down:
+
+- tenant ownership;
+- authorization;
+- state transitions;
+- uniqueness;
+- financial/network side effects;
+- idempotency.
+
+### Step 3 — implement the domain model/service
+
+Keep business rules out of giant ViewSets.
+
+### Step 4 — expose the API
+
+Use a dedicated serializer/action for non-trivial mutations.
+
+### Step 5 — add audit and observability
+
+Include correlation IDs, structured errors and audit events for privileged operations.
+
+### Step 6 — test isolation
+
+Always test another tenant attempting to access the resource.
+
+### Step 7 — test failure paths
+
+Especially for payments and network operations.
+
+### Step 8 — run verification
+
+```bash
+python manage.py check
+python manage.py test
+```
+
+### Step 9 — update documentation
+
+Update:
+
+- this developer guide;
+- API documentation when contracts change;
+- project status/stage tracking when implementation milestones change.
+
+---
+
+## 21. Anti-patterns
+
+Do not introduce:
+
+### Client-controlled tenant selection
+
+```python
+tenant = Tenant.objects.get(id=request.data["tenant_id"])
+```
+
+### Global queries on tenant endpoints
+
+```python
+Customer.objects.all()
+```
+
+### Direct hardware calls from serializers/views without a service boundary
+
+```python
+router_api.login(...)
+```
+
+### Direct balance mutation without a journal
+
+```python
+account.balance = account.balance + amount
+```
+
+### Secrets in logs
+
+```python
+logger.info("Router password=%s", password)
+```
+
+### Long device polling inside HTTP request workers
+
+Move it to Celery.
+
+### UI-only authorization
+
+Hiding a button does not secure an endpoint.
+
+### Deleting financial history to correct mistakes
+
+Use reversal/adjustment records.
+
+---
+
+## 22. Current backend architecture summary
+
+The repository currently represents a **Django modular monolith**, not a collection of microservices.
+
+That is intentional and should remain the default while the product is being completed.
+
+The important boundaries are logical:
+
+```text
+                 Django Backend
+                      |
+      +---------------+----------------+
+      |               |                |
+ Control Plane    Tenant Plane    Integration Layer
+      |               |                |
+ SaaS/Auth       ISP domains      MikroTik/OLT
+      |               |            Payments/SMS
+      +---------------+----------------+
+                      |
+                 Shared DB
+                      |
+              Redis / Celery
+```
+
+The next architectural changes should strengthen these boundaries rather than prematurely splitting the backend into independent services.
+
+---
+
+## 23. Source-of-truth hierarchy
+
+When deciding whether something is implemented:
+
+1. Current executable backend code.
+2. Current migrations/models/tests.
+3. `backend/sheba_core/urls.py` and `settings.py`.
+4. `ARCHITECTURE.md`.
+5. `MASTER_TASK.md`.
+6. Other planning/status documents.
+
+If documentation says a feature exists but the code does not implement it, the code wins and the documentation must be corrected.
+
+If code has changed but documentation has not, update this guide as part of the same development milestone.
+
+---
+
+## 24. Definition of done for backend work
+
+A backend feature is not complete until:
+
+- [ ] Domain ownership is correct.
+- [ ] Tenant isolation is enforced.
 - [ ] Authorization is enforced server-side.
-- [ ] Sensitive fields are write-only/redacted where necessary.
-- [ ] Audit logging is added for privileged mutations.
-- [ ] Financial mutations are atomic and idempotent.
-- [ ] Network calls have timeout and host validation.
-- [ ] No secrets appear in logs/tests/fixtures.
-- [ ] Error responses do not leak cross-tenant existence.
-- [ ] API schema remains valid.
-- [ ] Tests cover both success and denial paths.
+- [ ] Cross-tenant relationships are rejected.
+- [ ] Validation is explicit.
+- [ ] Financial mutations are atomic/idempotent when applicable.
+- [ ] Network calls are isolated, timed and failure-safe when applicable.
+- [ ] Async work uses Celery when appropriate.
+- [ ] Audit logging exists for sensitive mutations.
+- [ ] Secrets are not exposed.
+- [ ] API documentation/schema is updated where the public contract changed.
+- [ ] Tests cover success and failure paths.
+- [ ] `python manage.py check` passes.
+- [ ] `python manage.py test` passes.
+- [ ] This document and project status are consistent with the code.
 
 ---
 
-## 20. Development Workflow
-
-### Before coding
-
-1. Read the relevant section of `ARCHITECTURE.md`.
-2. Read the relevant stage in `MASTER_TASK.md`.
-3. Inspect the existing model, serializer, view, service, and tests.
-4. Identify tenant, authorization, financial, async, and network boundaries.
-5. Write acceptance criteria before implementation.
-
-### During coding
-
-1. Keep business logic in services/domain functions rather than views.
-2. Preserve tenant scoping.
-3. Prefer explicit transactions for multi-record mutations.
-4. Add tests before marking the task complete.
-5. Update OpenAPI-facing serializers when request/response contracts change.
-
-### Before merge
-
-1. Run backend system checks.
-2. Run backend tests.
-3. Run frontend production build.
-4. Run schema validation.
-5. Review migration safety.
-6. Review secrets and audit logging.
-7. Update task status and developer docs.
-
----
-
-## 21. Recommended Next Implementation Sequence
-
-Based on the current repository state, the safest sequence is:
-
-### Stage 3 — RBAC
-Complete database-driven permissions, capability checks, scope filtering, custom tenant roles, and replacement of legacy hardcoded permission checks.
-
-### Stage 4 — Celery + Redis
-Declare dependencies, create Celery application/bootstrap, configure Redis, convert task functions to shared tasks, add retries and distributed locks, and test asynchronous execution.
-
-### Stage 5 — Payments
-Make webhook ingestion persistence-first and asynchronous; formalize provider verification, deduplication, and resolution workflows.
-
-### Stage 6 — Finance
-Integrate the finance ledger with recharge, invoice, payment, allocation, adjustment, and reconciliation paths. Add strong concurrency and immutability tests.
-
-### Stage 7 — Networking
-Complete router/OLT service resilience, session provisioning/termination, optical telemetry, backups, and background polling.
-
-### Stage 8 — API Security
-Complete action serializers, secret sanitization audit, throttling, security headers, OpenAPI verification, and tenant-boundary regression tests.
-
-### Stage 9+
-Proceed to customer self-care, CRM/field operations, corporate bandwidth billing, analytics, central control plane automation, and production observability only after the upstream contracts are verified.
-
----
-
-## 22. Definition of Done for a Stage
-
-A stage is DONE only when all are true:
-
-1. Implementation exists in the repository.
-2. Acceptance criteria are explicitly satisfied.
-3. Automated tests cover critical behavior and failure paths.
-4. Tenant/security boundaries are tested.
-5. API schema is updated and validated if API behavior changed.
-6. Documentation describes the final behavior.
-7. Deployment/runtime dependencies are declared.
-8. The stage status in `MASTER_TASK.md` is updated.
-9. No contradictory status remains in architecture documentation.
-10. A reproducible verification command and result are recorded.
-
----
-
-## 23. Key Files for Developers
-
-```text
-ARCHITECTURE.md
-MASTER_TASK.md
-backend/sheba_core/urls.py
-backend/sheba_core/settings.py
-backend/apps/core/models.py
-backend/apps/core/middleware.py
-backend/apps/core/tasks.py
-backend/apps/authentication/models.py
-backend/apps/authentication/views.py
-backend/apps/customers/models.py
-backend/apps/customers/views.py
-backend/apps/billing/models.py
-backend/apps/billing/views.py
-backend/apps/payments/models.py
-backend/apps/payments/views.py
-backend/apps/finance/models.py
-backend/apps/finance/services.py
-backend/apps/network/models.py
-backend/apps/network/views.py
-backend/apps/network/services/
-frontend/package.json
-```
-
----
-
-## 24. Final Engineering Principle
-
-The project should be extended as a controlled system, not as a collection of isolated CRUD screens.
-
-Every new feature must answer five questions before implementation:
-
-```text
-1. Which tenant owns the data?
-2. Which capability authorizes the action?
-3. Is the mutation financial, asynchronous, or hardware-facing?
-4. What must be audited and what must never be exposed?
-5. How will the behavior be proven by automated tests?
-```
-
-If a feature cannot answer these questions cleanly, its architecture is not ready for implementation.
+**Document status:** Canonical backend developer guide for the reviewed `main` branch.  
+**Last reviewed:** 2026-09-21
