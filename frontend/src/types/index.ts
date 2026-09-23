@@ -1041,5 +1041,82 @@ export interface TopologyDrilldownResponse {
   results: OnuDrilldownItem[];
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Complete Networking: WireGuard VPN, Router Diagnostics, OLT Terminal
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface WireGuardSubnet {
+  id: string;
+  vpn_config: string;
+  olt?: string;
+  olt_name?: string;
+  subnet: string;
+  label: string;
+  created_at?: string;
+}
+
+export interface WireGuardConfig {
+  id: string;
+  router?: string;
+  router_display?: string;
+  wg_ip: string;
+  mik_public_key: string;
+  mik_private_key?: string;
+  mik_private_key_set: boolean;
+  vps_public_key: string;
+  endpoint_ip: string;
+  endpoint_port: number;
+  allowed_ips: string;
+  snmp_community: string;
+  router_name: string;
+  router_location: string;
+  last_tested_at?: string | null;
+  is_reachable: boolean;
+  subnets?: WireGuardSubnet[];
+}
+
+export interface RouterPingResult {
+  success?: boolean;
+  target: string;
+  sent?: number;
+  packets_sent?: number;
+  received?: number;
+  packets_received?: number;
+  packet_loss_percent?: number;
+  packet_loss_pct?: number;
+  avg_ms?: number | null;
+  avg_rtt_ms?: number;
+  min_ms?: number | null;
+  min_rtt_ms?: number;
+  max_ms?: number | null;
+  max_rtt_ms?: number;
+  results?: any[];
+  raw?: any[];
+  error?: string;
+}
+
+export interface RouterTracerouteResult {
+  success?: boolean;
+  target: string;
+  hops: Array<{
+    hop: number;
+    address: string;
+    loss?: string;
+    rtt?: string;
+  }>;
+  raw?: any[];
+  error?: string;
+}
+
+export interface UnregisteredSecret {
+  username?: string;
+  name?: string;
+  password?: string;
+  profile: string;
+  disabled: boolean;
+  comment?: string;
+}
+
 export * from './corporate';
+
 

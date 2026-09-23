@@ -300,8 +300,8 @@ export default function ConfigurationPage() {
         boxes_count: 0,
       }));
       setZones(mappedZones);
-      if (mappedZones.length > 0 && !newBoxZone) {
-        setNewBoxZone(mappedZones[0].name);
+      if (mappedZones.length > 0) {
+        setNewBoxZone((prev) => prev || mappedZones[0].name);
       }
 
       // 2. Fetch TJ Boxes from backend

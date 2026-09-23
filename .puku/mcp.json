@@ -1,4 +1,11 @@
 {
-  "servers": {},
-  "inputs": []
+  "servers": {
+    "shadcn": {
+      "command": "npx",
+      "args": [
+        "shadcn@latest",
+        "mcp"
+      ]
+    }
+  }
 }

@@ -35,6 +35,11 @@ import {
   ListOrdered,
   ArrowRight,
   ArrowLeft,
+  Shield,
+  Terminal,
+  GitFork,
+  Globe,
+  Compass,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,11 +60,44 @@ import {
   BulkPreviewResult,
   BulkNetworkBatch,
   Package,
+  RouterPingResult,
+  RouterTracerouteResult,
 } from "@/types";
+import { WireGuardPanel } from "@/components/network/WireGuardPanel";
+import { RouterDiagnosticsModal } from "@/components/network/RouterDiagnosticsModal";
+import { UnregisteredSecretsModal } from "@/components/network/UnregisteredSecretsModal";
+import { OLTTerminalModal } from "@/components/network/OLTTerminalModal";
+import FiberNetworkMapModal, { MapTJBox } from "@/components/network/FiberNetworkMapModal";
 
 export default function NetworkCockpitPage() {
-  // Navigation tabs
-  const [activeTab, setActiveTab] = useState<"overview" | "routers" | "olts" | "customer" | "reconciliation" | "actions">("overview");
+  // Navigation tabs (Unified 6-Tab NOC Core + Specialized Workflows)
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "routers" | "diagnostics" | "olts" | "vpn" | "topology" | "customer" | "reconciliation" | "actions"
+  >("overview");
+
+  // Operational Modals State
+  const [diagnosticsModalOpen, setDiagnosticsModalOpen] = useState(false);
+  const [diagnosticsRouter, setDiagnosticsRouter] = useState<Router | null>(null);
+
+  const [unregisteredModalOpen, setUnregisteredModalOpen] = useState(false);
+  const [unregisteredRouter, setUnregisteredRouter] = useState<Router | null>(null);
+
+  const [terminalModalOpen, setTerminalModalOpen] = useState(false);
+  const [terminalOlt, setTerminalOlt] = useState<OLT | null>(null);
+
+  const [mapModalOpen, setMapModalOpen] = useState(false);
+  const [mapBoxes, setMapBoxes] = useState<MapTJBox[]>([]);
+  const [loadingMapBoxes, setLoadingMapBoxes] = useState(false);
+
+  // Dedicated Diagnostics Tab State
+  const [diagSelectedRouterId, setDiagSelectedRouterId] = useState<string>("");
+  const [diagTarget, setDiagTarget] = useState<string>("8.8.8.8");
+  const [diagCount, setDiagCount] = useState<number>(4);
+  const [diagTool, setDiagTool] = useState<"ping" | "traceroute">("ping");
+  const [diagRunning, setDiagRunning] = useState<boolean>(false);
+  const [diagPingResult, setDiagPingResult] = useState<RouterPingResult | null>(null);
+  const [diagTraceResult, setDiagTraceResult] = useState<RouterTracerouteResult | null>(null);
+  const [diagError, setDiagError] = useState<string | null>(null);
 
 
   // Dashboard Overview state
@@ -371,9 +409,14 @@ export default function NetworkCockpitPage() {
     try {
       const [r, o] = await Promise.all([ApiClient.getRouters(), ApiClient.getOLTs()]);
       setRoutersList(r);
-      if (r.length > 0 && !selectedRouterId) {
-        setSelectedRouterId(r[0].id);
-        loadRouterDetail(r[0].id);
+      if (r.length > 0) {
+        if (!selectedRouterId) {
+          setSelectedRouterId(r[0].id);
+          loadRouterDetail(r[0].id);
+        }
+        if (!diagSelectedRouterId) {
+          setDiagSelectedRouterId(r[0].id);
+        }
       }
       setOltsList(o);
       if (o.length > 0 && !selectedOltId) {
@@ -382,6 +425,51 @@ export default function NetworkCockpitPage() {
       }
     } catch (err) {
       console.error("Failed to load device list:", err);
+    }
+  }
+
+  async function loadMapBoxes() {
+    setLoadingMapBoxes(true);
+    try {
+      const data = await ApiClient.getTJBoxes();
+      const list = Array.isArray(data) ? data : [];
+      const mapped: MapTJBox[] = list.map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        zone: b.zone_name || b.zone || "Default Zone",
+        category: (b.box_category as any) || "Master Box",
+        location: b.lat_long || (b.latitude && b.longitude ? `${b.latitude}, ${b.longitude}` : ""),
+        notes: b.notes || "",
+        lines: [],
+      }));
+      setMapBoxes(mapped);
+      setMapModalOpen(true);
+    } catch (e) {
+      console.error("Failed to load TJ boxes for GIS map:", e);
+    } finally {
+      setLoadingMapBoxes(false);
+    }
+  }
+
+  async function handleRunTabDiagnostic() {
+    if (!diagSelectedRouterId || !diagTarget.trim()) return;
+    setDiagRunning(true);
+    setDiagError(null);
+    setDiagPingResult(null);
+    setDiagTraceResult(null);
+
+    try {
+      if (diagTool === "ping") {
+        const res = await ApiClient.routerPing(diagSelectedRouterId, diagTarget.trim(), diagCount);
+        setDiagPingResult(res);
+      } else {
+        const res = await ApiClient.routerTraceroute(diagSelectedRouterId, diagTarget.trim());
+        setDiagTraceResult(res);
+      }
+    } catch (err: any) {
+      setDiagError(err?.message || "Diagnostic probe failed.");
+    } finally {
+      setDiagRunning(false);
     }
   }
 
@@ -713,6 +801,18 @@ export default function NetworkCockpitPage() {
         </button>
 
         <button
+          onClick={() => setActiveTab("diagnostics")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+            activeTab === "diagnostics"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+          }`}
+        >
+          <Activity className="w-4 h-4" />
+          Diagnostic Tools
+        </button>
+
+        <button
           onClick={() => setActiveTab("olts")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
             activeTab === "olts"
@@ -728,6 +828,30 @@ export default function NetworkCockpitPage() {
         </button>
 
         <button
+          onClick={() => setActiveTab("vpn")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+            activeTab === "vpn"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          WireGuard VPN
+        </button>
+
+        <button
+          onClick={() => setActiveTab("topology")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+            activeTab === "topology"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+          }`}
+        >
+          <GitFork className="w-4 h-4" />
+          Fiber Topology & GIS
+        </button>
+
+        <button
           onClick={() => setActiveTab("customer")}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
             activeTab === "customer"
@@ -736,7 +860,7 @@ export default function NetworkCockpitPage() {
           }`}
         >
           <Zap className="w-4 h-4" />
-          Customer → Service Diagnostics
+          Customer Status
         </button>
 
         <button
@@ -1051,8 +1175,37 @@ export default function NetworkCockpitPage() {
                     onClick={() => loadRouterDetail(selectedRouterId)}
                     disabled={loadingRouterDetail}
                     className="h-8 text-xs"
+                    title="Refresh Router Telemetry"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${loadingRouterDetail ? "animate-spin" : ""}`} />
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const r = routersList.find((x) => x.id === selectedRouterId) || null;
+                      setDiagnosticsRouter(r);
+                      setDiagnosticsModalOpen(true);
+                    }}
+                    className="h-8 text-xs gap-1.5 font-semibold text-primary hover:bg-primary/10 border-primary/30"
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    Diagnostics
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const r = routersList.find((x) => x.id === selectedRouterId) || null;
+                      setUnregisteredRouter(r);
+                      setUnregisteredModalOpen(true);
+                    }}
+                    className="h-8 text-xs gap-1.5 font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 border-amber-500/30"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    Unregistered Secrets
                   </Button>
                 </div>
               </div>
@@ -1196,6 +1349,286 @@ export default function NetworkCockpitPage() {
         </div>
       )}
 
+      {/* ════════════════════════ TAB: DIAGNOSTIC TOOLS ════════════════════════ */}
+      {activeTab === "diagnostics" && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border/60 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+                <Activity className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-foreground">Interactive Router Diagnostics</h2>
+                <p className="text-xs text-muted-foreground">
+                  Dispatch live ICMP Ping and Layer-3 Traceroute probes through any core router in your fleet
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const r = routersList.find((x) => x.id === diagSelectedRouterId) || null;
+                  setDiagnosticsRouter(r);
+                  setDiagnosticsModalOpen(true);
+                }}
+                disabled={!diagSelectedRouterId}
+                className="text-xs gap-1.5 h-9 font-semibold text-primary hover:bg-primary/10 border-primary/30"
+              >
+                <Terminal className="w-3.5 h-3.5" />
+                Launch Full Modal
+              </Button>
+            </div>
+          </div>
+
+          {/* Diagnostic Probe Config Card */}
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                <span>Probe Configuration</span>
+                <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border border-border/50 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setDiagTool("ping")}
+                    className={`px-3 py-1 rounded font-medium transition-all ${
+                      diagTool === "ping" ? "bg-background text-foreground shadow-sm font-bold" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    ICMP Ping
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiagTool("traceroute")}
+                    className={`px-3 py-1 rounded font-medium transition-all ${
+                      diagTool === "traceroute" ? "bg-background text-foreground shadow-sm font-bold" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Traceroute
+                  </button>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">Executing Router</label>
+                  <select
+                    value={diagSelectedRouterId}
+                    onChange={(e) => setDiagSelectedRouterId(e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs text-foreground font-semibold focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  >
+                    {routersList.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name} ({r.ip_address}) - {r.status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-semibold text-foreground">Target Host or IP</label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="e.g. 8.8.8.8, 1.1.1.1, or customer IP"
+                      value={diagTarget}
+                      onChange={(e) => setDiagTarget(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleRunTabDiagnostic()}
+                      className="font-mono text-xs h-9 flex-1"
+                    />
+
+                    {diagTool === "ping" && (
+                      <select
+                        value={diagCount}
+                        onChange={(e) => setDiagCount(Number(e.target.value))}
+                        className="w-28 h-9 rounded-md border border-input bg-background px-2.5 py-1 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer shrink-0"
+                      >
+                        <option value={4}>4 packets</option>
+                        <option value={10}>10 packets</option>
+                        <option value={20}>20 packets</option>
+                      </select>
+                    )}
+
+                    <Button
+                      onClick={handleRunTabDiagnostic}
+                      disabled={diagRunning || !diagSelectedRouterId || !diagTarget.trim()}
+                      className="h-9 text-xs font-semibold gap-1.5 px-4 shrink-0 bg-primary text-primary-foreground"
+                    >
+                      {diagRunning ? (
+                        <>
+                          <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                          Running...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5" />
+                          {diagTool === "ping" ? "Execute Ping" : "Run Traceroute"}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+                <span className="text-muted-foreground font-medium">Quick Presets:</span>
+                {["8.8.8.8", "1.1.1.1", routersList.find((r) => r.id === diagSelectedRouterId)?.ip_address || "192.168.1.1"].map(
+                  (preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setDiagTarget(preset)}
+                      className={`px-2.5 py-1 rounded font-mono text-[11px] border transition-colors ${
+                        diagTarget === preset
+                          ? "bg-primary/10 border-primary/30 text-primary font-bold"
+                          : "bg-muted/40 border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  )
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Error Banner */}
+          {diagError && (
+            <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{diagError}</span>
+            </div>
+          )}
+
+          {/* Ping Results Panel */}
+          {diagTool === "ping" && diagPingResult && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Card className="p-4 shadow-sm text-center">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Loss Rate</span>
+                  <span
+                    className={`text-2xl font-mono font-bold ${
+                      (diagPingResult.packet_loss_pct ?? diagPingResult.packet_loss_percent ?? 0) === 0
+                        ? "text-emerald-500"
+                        : (diagPingResult.packet_loss_pct ?? diagPingResult.packet_loss_percent ?? 0) < 30
+                        ? "text-amber-500"
+                        : "text-rose-500"
+                    }`}
+                  >
+                    {diagPingResult.packet_loss_pct ?? diagPingResult.packet_loss_percent ?? 0}%
+                  </span>
+                  <span className="text-[10px] text-muted-foreground block mt-0.5">
+                    {diagPingResult.packets_received ?? diagPingResult.received ?? 0}/
+                    {diagPingResult.packets_sent ?? diagPingResult.sent ?? diagCount} packets
+                  </span>
+                </Card>
+
+                <Card className="p-4 shadow-sm text-center">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Average Latency</span>
+                  <span className="text-2xl font-mono font-bold text-foreground">
+                    {diagPingResult.avg_rtt_ms ?? diagPingResult.avg_ms ?? "—"}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground block mt-0.5">milliseconds RTT</span>
+                </Card>
+
+                <Card className="p-4 shadow-sm text-center">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Min Latency</span>
+                  <span className="text-2xl font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                    {diagPingResult.min_rtt_ms ?? diagPingResult.min_ms ?? "—"}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground block mt-0.5">best reply</span>
+                </Card>
+
+                <Card className="p-4 shadow-sm text-center">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Max Latency</span>
+                  <span className="text-2xl font-mono font-bold text-amber-600 dark:text-amber-400">
+                    {diagPingResult.max_rtt_ms ?? diagPingResult.max_ms ?? "—"}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground block mt-0.5">jitter peak</span>
+                </Card>
+              </div>
+
+              {Array.isArray(diagPingResult.results || diagPingResult.raw) && (
+                <div className="bg-zinc-950 text-emerald-400 rounded-xl p-4 font-mono text-xs border border-zinc-800 space-y-1.5 shadow-sm">
+                  <div className="text-zinc-400 text-[11px] pb-1 border-b border-zinc-900">
+                    ICMP Echo Reply Timeline for {diagPingResult.target}
+                  </div>
+                  {(diagPingResult.results || diagPingResult.raw)?.map((row: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between text-zinc-300 py-0.5">
+                      <span>seq={idx + 1} from {row.host || row.address || diagPingResult.target}</span>
+                      <span className="font-bold text-emerald-400">
+                        {row.time || (row["avg-rtt"] ? `${row["avg-rtt"]}ms` : "reply ok")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Traceroute Results Panel */}
+          {diagTool === "traceroute" && diagTraceResult && (
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-semibold">Traceroute Sequence to {diagTraceResult.target}</CardTitle>
+                  <CardDescription className="text-xs">Hop-by-hop layer-3 routing path and link latency</CardDescription>
+                </div>
+                <Badge variant="outline" className="font-mono text-xs">
+                  {diagTraceResult.hops?.length || 0} Hops
+                </Badge>
+              </CardHeader>
+              <CardContent>
+                <div className="border border-border/70 rounded-lg overflow-hidden">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-muted/60 text-muted-foreground border-b border-border/70 font-semibold font-sans">
+                      <tr>
+                        <th className="py-2.5 px-3 text-center w-16">Hop #</th>
+                        <th className="py-2.5 px-3">Gateway Node Address</th>
+                        <th className="py-2.5 px-3 text-center w-24">Loss</th>
+                        <th className="py-2.5 px-3 text-right w-28">Latency</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {diagTraceResult.hops && diagTraceResult.hops.length > 0 ? (
+                        diagTraceResult.hops.map((h, i) => (
+                          <tr key={i} className="hover:bg-muted/30 transition-colors">
+                            <td className="py-2 px-3 text-center text-muted-foreground font-bold">{h.hop || i + 1}</td>
+                            <td className="py-2 px-3 text-foreground font-semibold flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                              {h.address || "*"}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <Badge
+                                variant={!h.loss || h.loss === "0%" || h.loss === "0" ? "outline" : "destructive"}
+                                className="text-[10px] px-1.5 py-0"
+                              >
+                                {h.loss || "0%"}
+                              </Badge>
+                            </td>
+                            <td className="py-2 px-3 text-right text-emerald-600 dark:text-emerald-400 font-bold">
+                              {h.rtt ? (h.rtt.toString().endsWith("ms") ? h.rtt : `${h.rtt}ms`) : "—"}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} className="py-6 text-center text-muted-foreground font-sans">
+                            No hops returned by router.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
       {/* ════════════════════════ TAB 3: OLT → ONUS ════════════════════════ */}
       {activeTab === "olts" && (
         <div className="space-y-6">
@@ -1226,8 +1659,23 @@ export default function NetworkCockpitPage() {
                     onClick={() => loadOltDetail(selectedOltId)}
                     disabled={loadingOltDetail}
                     className="h-8 text-xs"
+                    title="Refresh OLT Telemetry"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${loadingOltDetail ? "animate-spin" : ""}`} />
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const o = oltsList.find((x) => x.id === selectedOltId) || null;
+                      setTerminalOlt(o);
+                      setTerminalModalOpen(true);
+                    }}
+                    className="h-8 text-xs gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 border-emerald-500/30"
+                  >
+                    <Terminal className="w-3.5 h-3.5" />
+                    CLI Terminal
                   </Button>
                 </div>
               </div>
@@ -1363,6 +1811,139 @@ export default function NetworkCockpitPage() {
                     )}
                   </tbody>
                 </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ════════════════════════ TAB: WIREGUARD VPN ════════════════════════ */}
+      {activeTab === "vpn" && (
+        <div className="space-y-6">
+          <WireGuardPanel routers={routersList} olts={oltsList} />
+        </div>
+      )}
+
+      {/* ════════════════════════ TAB: FIBER TOPOLOGY & GIS ════════════════════════ */}
+      {activeTab === "topology" && (
+        <div className="space-y-6">
+          {/* Executive Topology Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border/60 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+                <GitFork className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-foreground">Fiber Network Topology & GIS Infrastructure</h2>
+                <p className="text-xs text-muted-foreground">
+                  Authoritative 4-tier network path hierarchy from Core BNG routers to subscriber ONUs
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadMapBoxes}
+                disabled={loadingMapBoxes}
+                className="text-xs gap-1.5 h-9 font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 border-emerald-500/30"
+              >
+                <Compass className={`w-3.5 h-3.5 ${loadingMapBoxes ? "animate-spin" : ""}`} />
+                {loadingMapBoxes ? "Loading Map..." : "Open Fiber GIS Map"}
+              </Button>
+
+              <Link href="/topology">
+                <Button size="sm" className="text-xs gap-1.5 h-9 font-semibold bg-primary text-primary-foreground">
+                  <Layers className="w-3.5 h-3.5" />
+                  Full Hierarchy Drilldown
+                  <ExternalLink className="w-3 h-3" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          {/* Topology Tier Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+            <Card className="p-4 shadow-sm bg-card hover:border-primary/40 transition-all">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-xs uppercase font-mono font-semibold">Tier 1: BNG Routers</span>
+                <Server className="w-4 h-4 text-primary" />
+              </div>
+              <div className="text-2xl font-bold font-mono text-foreground mt-2">{routersList.length}</div>
+              <div className="text-[11px] text-muted-foreground mt-1">Core routing & PPPoE NAS</div>
+            </Card>
+
+            <Card className="p-4 shadow-sm bg-card hover:border-primary/40 transition-all">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-xs uppercase font-mono font-semibold">Tier 2: OLT Frames</span>
+                <Radio className="w-4 h-4 text-indigo-500" />
+              </div>
+              <div className="text-2xl font-bold font-mono text-foreground mt-2">{oltsList.length}</div>
+              <div className="text-[11px] text-muted-foreground mt-1">EPON / GPON Optical Line Terminals</div>
+            </Card>
+
+            <Card className="p-4 shadow-sm bg-card hover:border-primary/40 transition-all">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-xs uppercase font-mono font-semibold">Tier 3: Distribution</span>
+                <Layers className="w-4 h-4 text-blue-500" />
+              </div>
+              <div className="text-2xl font-bold font-mono text-foreground mt-2">
+                {cockpitData?.area_breakdown.length ?? 0} Zones
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1">Master & Splitter TJ Boxes</div>
+            </Card>
+
+            <Card className="p-4 shadow-sm bg-card hover:border-primary/40 transition-all">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span className="text-xs uppercase font-mono font-semibold">Tier 4: Access ONUs</span>
+                <Users className="w-4 h-4 text-emerald-500" />
+              </div>
+              <div className="text-2xl font-bold font-mono text-foreground mt-2">
+                {cockpitData?.customers.online ?? 0}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1">Active subscriber terminals</div>
+            </Card>
+          </div>
+
+          {/* Visual Architecture Flow Diagram */}
+          <Card className="p-6 shadow-sm border border-border/70">
+            <CardHeader className="p-0 pb-4">
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <Globe className="w-4 h-4 text-primary" />
+                End-to-End Carrier Delivery Pipeline
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Physical optical fiber and layer-3 forwarding architecture
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 pt-2 text-center text-xs">
+                <div className="p-4 rounded-xl bg-muted/40 border border-border/70 space-y-2">
+                  <Globe className="w-6 h-6 text-primary mx-auto" />
+                  <div className="font-bold text-foreground">Upstream Transit</div>
+                  <div className="text-[11px] text-muted-foreground font-mono">BGP / IXP Feeds</div>
+                </div>
+                <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
+                  <Server className="w-6 h-6 text-primary mx-auto" />
+                  <div className="font-bold text-foreground">BNG MikroTik</div>
+                  <div className="text-[11px] text-muted-foreground font-mono">PPPoE & Rate Shaping</div>
+                </div>
+                <div className="p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/20 space-y-2">
+                  <Radio className="w-6 h-6 text-indigo-500 mx-auto" />
+                  <div className="font-bold text-foreground">EPON / GPON OLT</div>
+                  <div className="text-[11px] text-muted-foreground font-mono">PON Line Cards</div>
+                </div>
+                <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2">
+                  <Layers className="w-6 h-6 text-amber-500 mx-auto" />
+                  <div className="font-bold text-foreground">TJ Enclosures</div>
+                  <div className="text-[11px] text-muted-foreground font-mono">Splitters 1:8 / 1:16</div>
+                </div>
+                <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-2">
+                  <Users className="w-6 h-6 text-emerald-500 mx-auto" />
+                  <div className="font-bold text-foreground">Subscriber ONUs</div>
+                  <div className="text-[11px] text-muted-foreground font-mono">Optical Rx Power</div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -2830,6 +3411,40 @@ export default function NetworkCockpitPage() {
           </div>
         </div>
       )}
+
+      {/* ════════════════════════ OPERATIONAL MODALS ════════════════════════ */}
+      <RouterDiagnosticsModal
+        isOpen={diagnosticsModalOpen}
+        onClose={() => setDiagnosticsModalOpen(false)}
+        router={diagnosticsRouter}
+        allRouters={routersList}
+        onSelectRouter={(id) => {
+          const r = routersList.find((x) => x.id === id) || null;
+          setDiagnosticsRouter(r);
+        }}
+      />
+
+      <UnregisteredSecretsModal
+        isOpen={unregisteredModalOpen}
+        onClose={() => setUnregisteredModalOpen(false)}
+        router={unregisteredRouter}
+        onSecretImported={() => {
+          if (selectedRouterId) loadRouterDetail(selectedRouterId);
+          loadDashboard(true);
+        }}
+      />
+
+      <OLTTerminalModal
+        isOpen={terminalModalOpen}
+        onClose={() => setTerminalModalOpen(false)}
+        olt={terminalOlt}
+      />
+
+      <FiberNetworkMapModal
+        isOpen={mapModalOpen}
+        onClose={() => setMapModalOpen(false)}
+        boxes={mapBoxes}
+      />
     </div>
   );
 }

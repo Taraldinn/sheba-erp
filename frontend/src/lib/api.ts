@@ -494,6 +494,48 @@ export class ApiClient {
     return data;
   }
 
+  static async createWireGuardConfig(payload: any) {
+    const res = await fetch(`${API_BASE}/wireguard/configs/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save WireGuard configuration');
+    return data;
+  }
+
+  static async updateWireGuardConfig(configId: string, payload: any) {
+    const res = await fetch(`${API_BASE}/wireguard/configs/${configId}/`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update WireGuard configuration');
+    return data;
+  }
+
+  static async addWireGuardSubnet(payload: any) {
+    const res = await fetch(`${API_BASE}/wireguard/subnets/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add OLT subnet');
+    return data;
+  }
+
+  static async deleteWireGuardSubnet(subnetId: string) {
+    const res = await fetch(`${API_BASE}/wireguard/subnets/${subnetId}/`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to delete OLT subnet');
+    return true;
+  }
+
   static async getONUs(params?: { olt?: string; search?: string }): Promise<ONU[]> {
     const url = new URL(`${API_BASE}/onus/`);
     if (params?.olt && params.olt !== 'ALL') url.searchParams.append('olt', params.olt);
