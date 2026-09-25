@@ -9,7 +9,7 @@ import {
   AuthoritativeHierarchyResponse, TopologyDrilldownResponse,
   CorporateCustomer, CorporateConnection, CorporateIPPool,
   CorporateIPAddress, CorporateVLAN, MRTGGraphResponse,
-  CorporateBillingPeriod
+  CorporateBillingPeriod, OLTMonitorSummary, MACSearchResult
 } from '@/types';
 
 import { TokenStorage } from './auth/token-storage';
@@ -470,6 +470,58 @@ export class ApiClient {
     const res = await fetch(`${API_BASE}/olts/${oltId}/run-command/`, { method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ command }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'OLT command failed');
+    return data;
+  }
+
+  static async syncOLTMonitor(oltId: string) {
+    const res = await fetch(`${API_BASE}/olts/${oltId}/sync-monitor/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'OLT sync failed');
+    return data;
+  }
+
+  static async syncAllOLTsMonitor() {
+    const res = await fetch(`${API_BASE}/olts/sync-all-monitor/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Sync all OLTs failed');
+    return data.results || data;
+  }
+
+  static async getOLTMonitorSummary(): Promise<OLTMonitorSummary> {
+    const res = await fetch(`${API_BASE}/olts/monitor-summary/`, {
+      headers: this.getHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch OLT monitor summary');
+    return data;
+  }
+
+  static async searchOLTMAC(mac: string, live?: boolean): Promise<{ query: string; count: number; results: MACSearchResult[] }> {
+    const url = new URL(`${API_BASE}/olts/mac-search/`);
+    url.searchParams.append('mac', mac);
+    if (live) url.searchParams.append('live', 'true');
+    const res = await fetch(url.toString(), {
+      headers: this.getHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to search MAC');
+    return data;
+  }
+
+  static async getOLTRawMacTable(oltId: string, port?: string): Promise<{ olt_id: string; port?: string; output: string }> {
+    const res = await fetch(`${API_BASE}/olts/${oltId}/raw-mac-table/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(port ? { port } : {}),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch raw MAC table');
     return data;
   }
 

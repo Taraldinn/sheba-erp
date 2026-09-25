@@ -544,3 +544,10 @@ PASSWORD_RESET_TIMEOUT = env.int('PASSWORD_RESET_TIMEOUT', default=900)  # 15 mi
 
 if 'test' in sys.argv:
     EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+
+
+# ─── Network feature flags (Networking migration delta 2) ────────────────────
+# Default OFF to keep the existing single-method (PPPoE only) detection
+# untouched; deployments serving DHCP-only or static-IP subscribers can opt
+# in via the env variable without redeploying.
+NETWORK_ENABLE_MULTIMETHOD_ONLINE = env.bool('NETWORK_ENABLE_MULTIMETHOD_ONLINE', default=False)

@@ -110,6 +110,7 @@ export interface OLT {
   id: string;
   name: string;
   brand: string;
+  access_mode?: string;
   ip_address: string;
   pon_ports_count?: number;
   total_onus?: number;
@@ -130,14 +131,67 @@ export interface ONU {
   onu_index: number;
   mac_address: string;
   serial_number: string;
+  customer?: string | null;
   customer_name: string;
   customer_phone: string;
+  customer_username?: string;
+  customer_full_name?: string;
   rx_power: number;
   tx_power: number;
+  temperature?: number | string | null;
+  uptime?: string;
   status: 'Online' | 'Offline' | 'DyingGasp' | 'Los';
   signal_status?: 'good' | 'warning' | 'critical';
+  signal_quality?: 'Good' | 'Fair' | 'Poor' | 'Offline' | 'Unknown';
+  mactable?: Array<{ mac: string; vlan: string | number }>;
   distance_meters?: number;
   last_sync?: string;
+}
+
+export interface OLTMonitorPortStats {
+  total: number;
+  online: number;
+  offline: number;
+  poor?: number;
+}
+
+export interface OLTMonitorOLTSummary {
+  id: string;
+  name: string;
+  brand: string;
+  ip_address: string;
+  access_mode: string;
+  status: 'Online' | 'Offline';
+  total: number;
+  online: number;
+  offline: number;
+  poor: number;
+  ports: Record<string, OLTMonitorPortStats>;
+  last_sync?: string | null;
+}
+
+export interface OLTMonitorSummary {
+  total_onus: number;
+  active_onus: number;
+  offline_onus: number;
+  poor_signal: number;
+  olt_summary: Record<string, OLTMonitorOLTSummary>;
+}
+
+export interface MACSearchResult {
+  olt_id?: string;
+  olt_name: string;
+  olt_ip: string;
+  mac: string;
+  vlan: string | number;
+  port: string;
+  onu_id: string;
+  onu_db_id?: string | null;
+  customer_name?: string;
+  customer_username?: string;
+  rx_power?: number | null;
+  status?: string;
+  source?: string;
 }
 
 export interface PaymentTransaction {

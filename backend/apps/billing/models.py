@@ -137,3 +137,59 @@ class Offer(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.buy_days}+{self.free_days} Days)"
+
+
+class BandwidthDailyUsage(models.Model):
+    """
+    Per-customer daily bandwidth roll-up (legacy parity with `daily_traffic`).
+
+    A subscriber's cumulative `UserSession` counters can reset across reconnects,
+    so this table stores the NET daily delta after each sync tick. It is the
+    authoritative source for billing-period bandwidth aggregation and traffic
+    reports. Mutated exclusively by the network session sync path.
+
+    `last_rx_snapshot` / `last_tx_snapshot` carry the router-counter value we
+    observed at the *previous* aggregation tick. They are the baseline used
+    to compute the delta on the next tick (so reconnects/counter resets are
+    safely absorbed — a smaller snapshot than before is treated as 0 delta).
+    """
+    id = models.BigAutoField(primary_key=True)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='bandwidth_daily_usage'
+    )
+    customer = models.ForeignKey(
+        'customers.Customer', on_delete=models.CASCADE, related_name='bandwidth_daily_usage'
+    )
+    router = models.ForeignKey(
+        'network.Router', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='bandwidth_daily_usage'
+    )
+    usage_date = models.DateField(help_text='Local date the bytes were consumed on')
+    rx_bytes = models.BigIntegerField(default=0, help_text='Client upload (router RX) in bytes')
+    tx_bytes = models.BigIntegerField(default=0, help_text='Client download (router TX) in bytes')
+    last_rx_snapshot = models.BigIntegerField(
+        default=0,
+        help_text='Router cumulative RX counter observed at the previous aggregation tick.',
+    )
+    last_tx_snapshot = models.BigIntegerField(
+        default=0,
+        help_text='Router cumulative TX counter observed at the previous aggregation tick.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['customer', 'usage_date'],
+                name='unique_customer_daily_bandwidth',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['tenant', 'usage_date'], name='bdu_tenant_date_idx'),
+            models.Index(fields=['customer', 'usage_date'], name='bdu_customer_date_idx'),
+        ]
+        ordering = ['-usage_date']
+
+    def __str__(self) -> str:
+        return f"Bandwidth[{self.customer_id} {self.usage_date}] rx={self.rx_bytes} tx={self.tx_bytes}"

@@ -13,7 +13,7 @@ from .serializers import (
     POPBranchSerializer, TJBoxSerializer, RouterActionSerializer, ONUActionSerializer
 )
 from .services.mikrotik import MikroTikService
-from .services.olt import ONUService, OLTSystemService, OpticalPowerService
+from .services.olt import ONUService, OLTSystemService, OpticalPowerService, OLTMonitorService
 from .services.audit import log_network_action
 from apps.core.permissions import IsTenantMember, IsAdminOrManager, IsTechnicalStaff, IsAdminUserOrReadOnly
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
@@ -637,6 +637,84 @@ class OLTViewSet(viewsets.ModelViewSet):
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as exc:
             logger.warning('OLT terminal command failed for %s: %s', olt.id, exc)
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=True, methods=['post'], url_path='sync-monitor', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def sync_monitor(self, request, pk=None):
+        """
+        Executes live OLT monitor synchronization.
+        Discovers all ONUs, queries optical telemetry, uptimes, and learned CPE MAC tables.
+        """
+        olt = self.get_object()
+        if not can(request.user, request.tenant, 'olt.manage', olt):
+            return Response({'error': 'Permission denied: olt.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        svc = OLTMonitorService(tenant=request.tenant)
+        try:
+            res = svc.sync_olt(olt)
+            log_network_action(
+                tenant=olt.tenant,
+                actor_username=request.user.username,
+                action='sync_olt_monitor',
+                resource_type='OLT',
+                resource_id=str(olt.id),
+                details=res,
+                request=request,
+            )
+            return Response(res, status=status.HTTP_200_OK)
+        except Exception as exc:
+            logger.warning("sync_monitor failed for OLT %s: %s", olt.id, exc)
+            return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=False, methods=['post'], url_path='sync-all-monitor', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def sync_all_monitor(self, request):
+        """
+        Synchronizes all tenant OLTs and compiles results.
+        """
+        if not can(request.user, request.tenant, 'olt.manage'):
+            return Response({'error': 'Permission denied: olt.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        svc = OLTMonitorService(tenant=request.tenant)
+        results = svc.sync_all_olts(request.tenant)
+        return Response({'results': results}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='monitor-summary', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def monitor_summary(self, request):
+        """
+        Returns global KPIs (total, active, offline, poor signal) and per-OLT/per-PON port distribution.
+        """
+        svc = OLTMonitorService(tenant=request.tenant)
+        summary = svc.get_monitor_summary(request.tenant)
+        return Response(summary, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='mac-search', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def mac_search(self, request):
+        """
+        Fast cross-OLT MAC address explorer. Matches against learned MAC tables and live OLT CLI.
+        """
+        mac = request.query_params.get('mac', '').strip()
+        if not mac:
+            return Response({'error': 'Query parameter "mac" is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        live_probe = request.query_params.get('live', 'false').lower() in ('true', '1')
+
+        svc = OLTMonitorService(tenant=request.tenant)
+        results = svc.search_mac(request.tenant, mac, live_probe=live_probe)
+        return Response({'query': mac, 'count': len(results), 'results': results}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post', 'get'], url_path='raw-mac-table', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def raw_mac_table(self, request, pk=None):
+        """
+        Executes show mac address-table on OLT for raw CLI diagnostics.
+        """
+        olt = self.get_object()
+        port = request.data.get('port') or request.query_params.get('port')
+        try:
+            from .services.olt.drivers import get_olt_driver
+            driver = get_olt_driver(olt)
+            raw_out = driver.get_raw_mac_table(port=port)
+            return Response({'olt_id': str(olt.id), 'port': port, 'output': raw_out}, status=status.HTTP_200_OK)
+        except Exception as exc:
+            logger.warning("raw_mac_table failed for OLT %s: %s", olt.id, exc)
             return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
 

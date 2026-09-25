@@ -16,6 +16,7 @@ from apps.customers.models import Customer
 from apps.network.models import Router, UserSession, UserSessionHistory
 from apps.network.services.mikrotik import MikroTikService
 from apps.network.services.audit import log_network_action
+from apps.network.services.bandwidth_rollup import aggregate_router_bandwidth
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +190,8 @@ class LiveSessionService:
                     raw_bout = raw.get('limit-bytes-out')
                 bytes_out = _safe_int(raw_bout, 0)
 
+                uptime = raw.get('uptime', '') or ''
+
                 UserSession.objects.update_or_create(
                     tenant=tenant,
                     router=router,
@@ -249,6 +252,15 @@ class LiveSessionService:
         # Invalidate Redis cache
         cache.delete(cls.get_cache_key(str(tenant.id), str(router.id)))
         cache.delete(cls.get_cache_key(str(tenant.id), None))
+
+        # Roll up the byte deltas into the daily-aggregation table so that
+        # monthly bandwidth reports have an authoritative source instead of
+        # having to scan raw session history.
+        try:
+            aggregate_router_bandwidth(router)
+        except Exception as exc:
+            # Never let aggregation failures break live session sync.
+            logger.warning("Daily bandwidth rollup failed for router %s: %s", router.id, exc)
 
         return len(current_usernames)
 

@@ -1677,6 +1677,17 @@ export default function NetworkCockpitPage() {
                     <Terminal className="w-3.5 h-3.5" />
                     CLI Terminal
                   </Button>
+
+                  <Link href="/olt">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs gap-1.5 font-semibold text-indigo-400 hover:bg-indigo-500/10 border-indigo-500/30"
+                    >
+                      <Activity className="w-3.5 h-3.5" />
+                      Live Fleet Cockpit
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </div>

@@ -199,8 +199,27 @@ class ONU(models.Model):
     ])
     auto_matched = models.BooleanField(default=False)
     distance_meters = models.PositiveIntegerField(default=0)
+    uptime = models.CharField(max_length=50, blank=True, default='', help_text="ONU alive time / uptime from OLT")
+    temperature = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Optical module temperature in °C")
+    mactable = models.JSONField(default=list, blank=True, help_text="Learned customer CPE MAC addresses and VLANs from OLT")
     last_offline_reason = models.CharField(max_length=255, blank=True)
     last_sync = models.DateTimeField(auto_now=True)
+
+    @property
+    def signal_quality(self) -> str:
+        if self.status != 'Online':
+            return 'Offline'
+        try:
+            rx = float(self.rx_power)
+            if rx > -25.0:
+                return 'Good'
+            elif -30.0 < rx <= -25.0:
+                return 'Fair'
+            elif rx <= -30.0:
+                return 'Poor'
+            return 'Unknown'
+        except (ValueError, TypeError):
+            return 'Unknown'
 
     def clean(self):
         super().clean()

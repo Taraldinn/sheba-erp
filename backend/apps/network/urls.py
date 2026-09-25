@@ -37,6 +37,7 @@ from .phase14_15_views import (
     ONUBindActionView,
     ONUUnbindActionView,
 )
+from .views_bandwidth import CustomerBandwidthSummaryView
 
 router = DefaultRouter()
 router.register(r'routers', RouterViewSet, basename='router')
@@ -52,6 +53,9 @@ router.register(r'wireguard/configs', WireGuardConfigViewSet, basename='wireguar
 router.register(r'wireguard/subnets', WireGuardSubnetViewSet, basename='wireguard-subnet')
 
 urlpatterns = [
+    # Networking migration delta 1: daily bandwidth roll-up endpoint
+    path('customers/<str:customer_id>/bandwidth/', CustomerBandwidthSummaryView.as_view(), name='customer-bandwidth-summary'),
+
     # Phase 11: Network Operations Cockpit
     path('cockpit/dashboard/', NetworkCockpitDashboardView.as_view(), name='network-cockpit-dashboard'),
     path('cockpit/routers/<str:pk>/', RouterCockpitDetailView.as_view(), name='router-cockpit-detail'),

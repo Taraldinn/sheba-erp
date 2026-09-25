@@ -3,6 +3,7 @@ from .system import OLTSystemService
 from .onu import ONUService
 from .optical import OpticalPowerService
 from .drivers import BaseOLTDriver, get_olt_driver
+from .monitor import OLTMonitorService
 
 __all__ = [
     'BaseOLTClient',
@@ -12,4 +13,5 @@ __all__ = [
     'OpticalPowerService',
     'BaseOLTDriver',
     'get_olt_driver',
+    'OLTMonitorService',
 ]

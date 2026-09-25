@@ -30,9 +30,10 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ApiClient } from "@/lib/api";
 import { OLT, ONU, OLTReconciliationRun, ONUAutoMatchCandidate } from "@/types";
+import OLTMonitorPanel from "@/components/network/OLTMonitorPanel";
 
 export default function OLTPage() {
-  const [activeTab, setActiveTab] = useState<"olts" | "onus" | "reconciliation">("olts");
+  const [activeTab, setActiveTab] = useState<"monitor" | "olts" | "onus" | "reconciliation">("monitor");
   const [olts, setOlts] = useState<OLT[]>([]);
   const [onus, setOnus] = useState<ONU[]>([]);
   const [selectedOltId, setSelectedOltId] = useState<string>("");
@@ -310,6 +311,17 @@ export default function OLTPage() {
       {/* Main Tabs */}
       <div className="flex border-b border-border text-xs gap-2">
         <button
+          onClick={() => setActiveTab("monitor")}
+          className={`pb-3 px-3 font-semibold transition-all border-b-2 flex items-center gap-1.5 ${
+            activeTab === "monitor"
+              ? "border-indigo-500 text-indigo-400"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Activity className="h-4 w-4" />
+          Live Monitor & Fleet
+        </button>
+        <button
           onClick={() => setActiveTab("olts")}
           className={`pb-3 px-3 font-semibold transition-all border-b-2 flex items-center gap-1.5 ${
             activeTab === "olts"
@@ -343,6 +355,16 @@ export default function OLTPage() {
           Hardware Reconciliation Audit
         </button>
       </div>
+
+      {/* ════════════════════════ TAB 0: LIVE MONITOR ════════════════════════ */}
+      {activeTab === "monitor" && (
+        <OLTMonitorPanel
+          olts={olts}
+          onus={onus}
+          onReload={loadData}
+          showToast={showToast}
+        />
+      )}
 
       {/* ════════════════════════ TAB 1: OLTS ════════════════════════ */}
       {activeTab === "olts" && (

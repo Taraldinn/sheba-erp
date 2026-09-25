@@ -56,6 +56,7 @@ class ONUSerializer(serializers.ModelSerializer):
     customer_username = serializers.CharField(source='customer.pppoe_username', read_only=True)
     customer_full_name = serializers.CharField(source='customer.full_name', read_only=True)
     signal_status = serializers.SerializerMethodField()
+    signal_quality = serializers.CharField(read_only=True)
 
     class Meta:
         model = ONU
