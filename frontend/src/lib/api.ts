@@ -9,7 +9,14 @@ import {
   AuthoritativeHierarchyResponse, TopologyDrilldownResponse,
   CorporateCustomer, CorporateConnection, CorporateIPPool,
   CorporateIPAddress, CorporateVLAN, MRTGGraphResponse,
-  CorporateBillingPeriod, OLTMonitorSummary, MACSearchResult
+  CorporateBillingPeriod, OLTMonitorSummary, MACSearchResult,
+  RouterExpirePoolConfig,
+  RouterAdvancedHealth,
+  AdvancedHealthPingRequest,
+  AdvancedHealthPingResult,
+  ArchiveQueryParams,
+  ArchiveQueryResponse,
+  ArchiveExportParams,
 } from '@/types';
 
 import { TokenStorage } from './auth/token-storage';
@@ -18,31 +25,58 @@ import { AuthService } from './auth/auth-service';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 // Global client-side 401 interceptor for automatic session expiration handling
-if (typeof window !== 'undefined') {
-  const _originalFetch = window.fetch;
-  window.fetch = async (...args) => {
-    const response = await _originalFetch(...args);
-    if (response.status === 401) {
-      const url = typeof args[0] === 'string' ? args[0] : args[0] instanceof URL ? args[0].href : args[0]?.url || '';
-      let isShebaApi = false;
-      try {
-        const reqUrl = new URL(url, window.location.origin);
-        const configuredUrl = new URL(API_BASE, window.location.origin);
-        if (reqUrl.origin === configuredUrl.origin) {
-          const confPath = configuredUrl.pathname.replace(/\/+$/, '');
-          isShebaApi = reqUrl.pathname === confPath || reqUrl.pathname.startsWith(`${confPath}/`);
+export function setupFetchInterceptor() {
+  if (typeof window !== 'undefined') {
+    const _originalFetch = window.fetch;
+    const interceptedFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await _originalFetch(input, init);
+      if (response && response.status === 401) {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request)?.url || '';
+        let isShebaApi = false;
+        try {
+          const reqUrl = new URL(url, window.location.origin);
+          const configuredUrl = new URL(API_BASE, window.location.origin);
+          if (reqUrl.origin === configuredUrl.origin) {
+            const confPath = configuredUrl.pathname.replace(/\/+$/, '');
+            isShebaApi = reqUrl.pathname === confPath || reqUrl.pathname.startsWith(`${confPath}/`);
+          }
+        } catch {
+          isShebaApi = false;
         }
-      } catch {
-        isShebaApi = false;
+        if (isShebaApi && !url.includes('/auth/login/')) {
+          // Differentiate API key rejection from user session expiration
+          try {
+            const cloned = response.clone();
+            const data = await cloned.json().catch(() => null);
+            const apiKeyCodes = ['INVALID_API_KEY', 'CREDENTIAL_REVOKED', 'CREDENTIAL_EXPIRED', 'CREDENTIAL_SUSPENDED', 'TENANT_MISMATCH'];
+            if (data && (apiKeyCodes.includes(data.code) || (typeof data.detail === 'string' && data.detail.toLowerCase().includes('api key')))) {
+              console.warn(`[Sheba ERP] API Key error encountered: ${data.detail || data.code}. Clearing stored API key override.`);
+              if (typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.removeItem('sheba_api_key');
+              }
+              if (typeof localStorage !== 'undefined') {
+                localStorage.removeItem('sheba_api_key');
+              }
+              return response;
+            }
+          } catch {
+            // If parsing response clone fails, proceed to default session expiration
+          }
+
+          TokenStorage.clearStoredAuth();
+          window.dispatchEvent(new CustomEvent('sheba:unauthorized', { detail: { url } }));
+        }
       }
-      if (isShebaApi && !url.includes('/auth/login/')) {
-        TokenStorage.clearStoredAuth();
-        window.dispatchEvent(new CustomEvent('sheba:unauthorized', { detail: { url } }));
-      }
+      return response;
+    };
+    window.fetch = interceptedFetch;
+    if (typeof globalThis !== 'undefined') {
+      (globalThis as any).fetch = interceptedFetch;
     }
-    return response;
-  };
+    return interceptedFetch;
+  }
 }
+setupFetchInterceptor();
 
 export class ApiClient {
   private static token: string | null = null;
@@ -64,9 +98,11 @@ export class ApiClient {
     if (this.apiKey) return this.apiKey;
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('sheba_api_key');
-      if (stored) return stored;
+      if (stored && stored !== 'undefined' && stored !== 'null' && stored.trim() !== '') return stored;
     }
-    return process.env.NEXT_PUBLIC_SHEBA_API_KEY || null;
+    const envKey = process.env.NEXT_PUBLIC_SHEBA_API_KEY;
+    if (envKey && envKey !== 'undefined' && envKey !== 'null' && envKey.trim() !== '') return envKey;
+    return null;
   }
 
   static setToken(token: string) {
@@ -231,6 +267,38 @@ export class ApiClient {
     return await res.json();
   }
 
+  static async syncCustomerToRouter(customerId: string) {
+    const res = await fetch(`${API_BASE}/customers/${customerId}/sync-router/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to sync customer to router');
+    }
+    return await res.json();
+  }
+
+  static async disconnectCustomerSession(customerId: string) {
+    const res = await fetch(`${API_BASE}/customers/${customerId}/disconnect-session/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to disconnect session');
+    }
+    return await res.json();
+  }
+
+  static async getCustomerLiveSession(customerId: string) {
+    const res = await fetch(`${API_BASE}/customers/${customerId}/live-session/`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch live session');
+    return await res.json();
+  }
+
   static async rechargeCustomer(customerId: string, payload: { amount: number; validity_days?: number; payment_method?: string; discount?: number; notes?: string; package_id?: string; trx_id?: string }) {
     const res = await fetch(`${API_BASE}/customers/${customerId}/recharge/`, {
       method: 'POST',
@@ -288,6 +356,30 @@ export class ApiClient {
       headers: this.getHeaders(),
     });
     return res.ok;
+  }
+
+  static async syncPackageToRouters(packageId: string): Promise<{ success: boolean; routers_synced: number; message: string }> {
+    const res = await fetch(`${API_BASE}/packages/${packageId}/sync-to-routers/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to sync package to routers');
+    }
+    return await res.json();
+  }
+
+  static async syncAllPackagesToRouters(): Promise<{ success: boolean; total_synced: number; packages_count: number; message: string }> {
+    const res = await fetch(`${API_BASE}/packages/sync-all-to-routers/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to sync all packages to routers');
+    }
+    return await res.json();
   }
 
   static async getOffers() {
@@ -387,6 +479,20 @@ export class ApiClient {
     return data;
   }
 
+  static async getRouterRadiusScript(routerId: string, serverHost?: string) {
+    const url = serverHost
+      ? `${API_BASE}/routers/${routerId}/radius-script/?server_host=${encodeURIComponent(serverHost)}`
+      : `${API_BASE}/routers/${routerId}/radius-script/`;
+    const res = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || data.error || 'Failed to fetch RADIUS script');
+    }
+    return data;
+  }
+
   static async getRouterLiveTraffic(routerId: string) {
     try {
       const res = await fetch(`${API_BASE}/routers/${routerId}/live_traffic/`, { headers: this.getHeaders() });
@@ -428,6 +534,118 @@ export class ApiClient {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Traceroute failed');
     return data;
+  }
+
+  static async getRouterExpirePool(routerId: string): Promise<RouterExpirePoolConfig> {
+    const res = await fetch(`${API_BASE}/routers/${routerId}/expire-pool/`, {
+      headers: this.getHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || data.detail || 'Failed to fetch Expire Pool configuration');
+    }
+    return data;
+  }
+
+  static async updateRouterExpirePool(
+    routerId: string,
+    payload: Partial<RouterExpirePoolConfig> & { provision_to_router?: boolean }
+  ): Promise<RouterExpirePoolConfig & { message: string }> {
+    const res = await fetch(`${API_BASE}/routers/${routerId}/expire-pool/`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || data.detail || 'Failed to update Expire Pool configuration');
+    }
+    return data;
+  }
+
+  // ════════════════════════ PHASE 21: ADVANCED HEALTH ════════════════════════
+  static async getRouterAdvancedHealth(routerId: string): Promise<RouterAdvancedHealth> {
+    const res = await fetch(
+      `${API_BASE}/network/diagnostics/routers/${routerId}/`,
+      { headers: this.getHeaders() }
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || data.error || 'Failed to fetch advanced health');
+    }
+    return data;
+  }
+
+  static async pingRouter(
+    routerId: string,
+    payload: AdvancedHealthPingRequest
+  ): Promise<AdvancedHealthPingResult> {
+    const res = await fetch(
+      `${API_BASE}/network/diagnostics/routers/${routerId}/ping/`,
+      {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || data.error || 'Ping failed');
+    }
+    return data;
+  }
+
+  // ════════════════════════ PHASE 21: DATEWISE ARCHIVE ════════════════════════
+  static async queryArchive(params: ArchiveQueryParams = {}): Promise<ArchiveQueryResponse> {
+    const url = new URL(`${API_BASE}/network/archive/`);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        url.searchParams.set(key, String(value));
+      }
+    });
+    const res = await fetch(url.toString(), { headers: this.getHeaders() });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || data.error || 'Archive query failed');
+    }
+    return data;
+  }
+
+  /**
+   * Downloads a datewise archive export (csv or json). Returns a
+   * `{ blob, filename }` pair so the caller can trigger a browser
+   * download. The server sets Content-Disposition with a date-stamped
+   * filename; we mirror it here so the user's "Save As" is clean.
+   */
+  static async exportArchive(params: ArchiveExportParams = {}): Promise<{ blob: Blob; filename: string }> {
+    const url = new URL(`${API_BASE}/network/archive/export/`);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        url.searchParams.set(key, String(value));
+      }
+    });
+    const res = await fetch(url.toString(), { headers: this.getHeaders() });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || data.error || `Archive export failed (${res.status})`);
+    }
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = /filename="?([^";]+)"?/i.exec(disposition);
+    const filename = match ? match[1] : `network-archive-${params.type || 'sessions'}.${params.export_format || 'csv'}`;
+    const blob = await res.blob();
+    return { blob, filename };
+  }
+
+  static triggerBlobDownload(blob: Blob, filename: string) {
+    if (typeof window === 'undefined') return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   // ════════════════════════ OLTS & ONUS (FULL CRUD) ════════════════════════

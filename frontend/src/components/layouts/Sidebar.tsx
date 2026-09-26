@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -56,6 +56,7 @@ import {
   Bell,
   Volume2,
   SlidersHorizontal,
+  Archive,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -65,6 +66,7 @@ interface SubMenuItem {
   icon: React.ComponentType<{ className?: string }>;
   statusParam?: string;
   tabParam?: string;
+  adminOnly?: boolean;
 }
 
 interface NavGroup {
@@ -79,6 +81,7 @@ interface SingleNavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   badge?: string;
+  adminOnly?: boolean;
 }
 
 type NavEntry =
@@ -189,6 +192,24 @@ const navSections: Section[] = [
       {
         type: "single",
         data: { href: "/routers", label: "Routers", icon: Server },
+      },
+      {
+        type: "single",
+        data: {
+          href: "/network/advanced-health",
+          label: "Advanced Health",
+          icon: Activity,
+          adminOnly: true,
+        },
+      },
+      {
+        type: "single",
+        data: {
+          href: "/network/archive",
+          label: "Archive & Export",
+          icon: Archive,
+          adminOnly: true,
+        },
       },
       {
         type: "single",
@@ -309,8 +330,35 @@ export function Sidebar({ isMobileOpen = false, onCloseMobile }: SidebarProps = 
       localStorage.getItem("sheba_user_role") ||
       "admin"
     ).toLowerCase();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUserRole(rawRole);
   }, [user]);
+
+  const isAdminUser = useMemo(() => {
+    return ["admin", "super_admin", "tenant_owner"].includes(userRole);
+  }, [userRole]);
+
+  const visibleSections = useMemo(() => {
+    if (isAdminUser) return navSections;
+    return navSections
+      .map((section) => ({
+        ...section,
+        entries: section.entries.filter((entry) => {
+          if (entry.type === "single") return !entry.data.adminOnly;
+          if (entry.type === "group") {
+            return {
+              ...entry,
+              data: {
+                ...entry.data,
+                items: entry.data.items.filter((item) => !item.adminOnly),
+              },
+            };
+          }
+          return entry;
+        }),
+      }))
+      .filter((section) => section.entries.length > 0);
+  }, [isAdminUser]);
 
   const handleLogout = async () => {
     await logout("/login");
@@ -404,7 +452,7 @@ export function Sidebar({ isMobileOpen = false, onCloseMobile }: SidebarProps = 
 
       {/* Navigation list */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-4 text-xs">
-        {navSections.map((section, sIdx) => (
+        {visibleSections.map((section, sIdx) => (
           <div key={sIdx} className="space-y-1">
             {section.title && !collapsed && (
               <div className="px-3 py-1 font-bold text-[10px] tracking-wider uppercase text-muted-foreground/80">

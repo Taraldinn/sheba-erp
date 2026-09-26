@@ -1,6 +1,7 @@
 import uuid
 from decimal import Decimal
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from apps.core.models import Tenant
 from apps.core.fields import EncryptedCharField
@@ -50,6 +51,7 @@ class Router(models.Model):
     class ProtocolChoices(models.TextChoices):
         REST = 'REST', 'RouterOS REST API (HTTPS)'
         API = 'API', 'RouterOS Binary API (Port 8728)'
+        RADIUS = 'RADIUS', 'RADIUS AAA (Authentication & Accounting)'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='routers')
@@ -72,9 +74,45 @@ class Router(models.Model):
     connection_timeout = models.PositiveIntegerField(default=10, help_text="Connection timeout in seconds")
     retry_count = models.PositiveIntegerField(default=2, help_text="Number of retry attempts on network error")
 
-    # Authentication (Encrypted at rest)
+    # REST / API Authentication (Encrypted at rest)
     username = models.CharField(max_length=100, default='admin')
     password = EncryptedCharField(max_length=500, blank=True, default='')
+
+    # RADIUS AAA Configuration
+    radius_secret = EncryptedCharField(max_length=255, blank=True, default='', help_text="RADIUS Shared Secret")
+    radius_auth_port = models.PositiveIntegerField(default=1812, help_text="RADIUS Authentication UDP Port")
+    radius_acct_port = models.PositiveIntegerField(default=1813, help_text="RADIUS Accounting UDP Port")
+    radius_coa_port = models.PositiveIntegerField(default=3799, help_text="RADIUS CoA / Disconnect-Request (PoD) UDP Port")
+    nas_identifier = models.CharField(max_length=100, blank=True, default='', help_text="NAS-Identifier")
+
+    # Expire Pool & Captive Payment Configuration
+    expire_pool_enabled = models.BooleanField(
+        default=True,
+        help_text="Route expired prepaid users to low-speed captive pool instead of hard disconnect"
+    )
+    expire_pool_name = models.CharField(max_length=64, default='expired_pool')
+    expire_profile_name = models.CharField(max_length=64, default='sheba_expired_profile')
+    expire_rate_limit = models.CharField(
+        max_length=30, default='32k/32k',
+        help_text="Throttled bandwidth rate limit for expired users (10k-50k allowed, e.g. 10k/50k)"
+    )
+    expire_pool_network = models.CharField(
+        max_length=100, default='172.31.250.10-172.31.250.250',
+        help_text="IP range leased to expired subscribers"
+    )
+    expire_local_address = models.GenericIPAddressField(
+        default='172.31.250.1',
+        help_text="Default gateway IP for expired pool"
+    )
+    expire_redirect_url = models.CharField(
+        max_length=255, blank=True, default='',
+        help_text="Payment portal URL for captive popup redirection"
+    )
+    expire_walled_garden = models.TextField(
+        blank=True,
+        default='bkash.com,nagad.com.bd,sslcommerz.com,shurjopay.com.bd,rocket.dutchbanglabank.com',
+        help_text="Comma-separated payment domains allowed in captive mode"
+    )
 
     # Device Metadata & Telemetry
     location = models.CharField(max_length=255, blank=True)
@@ -111,11 +149,89 @@ class Router(models.Model):
             validate_port(self.https_port)
         if self.api_port:
             validate_port(self.api_port)
+        if self.api_protocol == self.ProtocolChoices.RADIUS and not (self.radius_secret and self.radius_secret.strip()):
+            raise ValidationError({'radius_secret': 'RADIUS shared secret is required when protocol is set to RADIUS.'})
 
     @property
     def effective_host(self) -> str:
-        """Returns the hostname if present, otherwise the IP address."""
-        return self.hostname.strip() if self.hostname else self.ip_address
+        """
+        Returns the hostname if present and contains a domain dot/colon (FQDN),
+        otherwise falls back to the IP address.
+        Prevents system identity names like 'SHEBAFI' from causing DNS resolution failures.
+        """
+        h = (self.hostname or '').strip()
+        if h and ('.' in h or ':' in h):
+            return h
+        return self.ip_address
+
+    def generate_mikrotik_radius_script(self, server_host: str = "") -> str:
+        """
+        Generates RouterOS CLI commands to configure RADIUS AAA on this router.
+        Can be copied directly into MikroTik Winbox terminal.
+        """
+        if not (self.radius_secret and self.radius_secret.strip()):
+            raise ValueError("Router RADIUS secret is missing. Please configure a RADIUS secret before generating the script.")
+
+        host = server_host.strip() if server_host else "103.145.120.1"
+        secret = self.radius_secret.strip()
+        # Escape backslashes, double quotes, and dollar signs for RouterOS CLI
+        escaped_secret = secret.replace('\\', '\\\\').replace('"', '\\"').replace('$', '\\$')
+        nas_id = self.nas_identifier or self.name
+        return (
+            f"# ─── Sheba ISP ERP — MikroTik RADIUS AAA Setup Script ─────────\n"
+            f"# Router: {self.name} | NAS IP: {self.ip_address} | Identifier: {nas_id}\n\n"
+            f"# 1. Clean up old Sheba RADIUS configuration entries\n"
+            f'/radius remove [find comment="SHEBA-ERP-RADIUS"]\n\n'
+            f"# 2. Add Sheba Centralized RADIUS Server for PPPoE AAA\n"
+            f'/radius add service=ppp address={host} secret="{escaped_secret}" '
+            f'authentication-port={self.radius_auth_port} accounting-port={self.radius_acct_port} '
+            f'timeout=3000ms comment="SHEBA-ERP-RADIUS"\n\n'
+            f"# 3. Enable RADIUS for PPP (PPPoE / Hotspot) with 5-minute interim accounting\n"
+            f"/ppp aaa set use-radius=yes accounting=yes interim-update=5m\n\n"
+            f"# 4. Enable Incoming RADIUS Disconnect (CoA / PoD) for Real-time Expiry & Speed Changes\n"
+            f"/radius incoming set accept=yes port={self.radius_coa_port}\n"
+        )
+
+    def generate_mikrotik_expire_pool_script(self, redirect_url: str = "") -> str:
+        """
+        Generates RouterOS CLI commands to configure the Expire Pool,
+        throttled profile (10k-50k), walled garden, and captive portal redirect.
+        """
+        pool_name = self.expire_pool_name or 'expired_pool'
+        profile_name = self.expire_profile_name or 'sheba_expired_profile'
+        rate_limit = self.expire_rate_limit or '32k/32k'
+        pool_range = self.expire_pool_network or '172.31.250.10-172.31.250.250'
+        local_ip = self.expire_local_address or '172.31.250.1'
+        url = redirect_url.strip() or self.expire_redirect_url.strip() or f"http://{self.ip_address}/customer/portal/pay"
+
+        domains = [d.strip() for d in (self.expire_walled_garden or '').split(',') if d.strip()]
+        domain_cmds = [f'/ip firewall address-list add list="allowed_payment_gateways" address="{d}" comment="Sheba: Payment Gateway Walled Garden"' for d in domains]
+        domain_script = "\n".join(domain_cmds) if domain_cmds else '# No custom payment domains specified'
+
+        return (
+            f"# ─── Sheba ISP ERP — MikroTik Expire Pool & Captive Payment Setup ─────────\n"
+            f"# Router: {self.name} | Rate Limit: {rate_limit} | Subnet: {pool_range}\n\n"
+            f"# 1. Create Expire IP Pool\n"
+            f'/ip pool remove [find name="{pool_name}"]\n'
+            f'/ip pool add name="{pool_name}" ranges="{pool_range}"\n\n'
+            f"# 2. Create Expired Subscriber PPP Profile with Throttled Speed (10k-50k)\n"
+            f'/ppp profile remove [find name="{profile_name}"]\n'
+            f'/ppp profile add name="{profile_name}" local-address="{local_ip}" remote-address="{pool_name}" '
+            f'rate-limit="{rate_limit}" address-list="expired_users" dns-server="8.8.8.8,1.1.1.1" '
+            f'comment="Sheba: Expired Prepaid Pool (Captive Throttled)"\n\n'
+            f"# 3. Configure Walled Garden: Allow DNS & Mobile Payment Gateways (bKash, Nagad, etc.)\n"
+            f'/ip firewall address-list remove [find list="allowed_payment_gateways"]\n'
+            f'{domain_script}\n\n'
+            f"# 4. Captive Payment Pop-up Redirection\n"
+            f"# Redirect HTTP port 80 traffic for expired users to proxy port 8080\n"
+            f'/ip firewall nat remove [find comment="Sheba: Expired Captive Redirect"]\n'
+            f'/ip firewall nat add chain=dstnat src-address-list=expired_users dst-address-list=!allowed_payment_gateways '
+            f'protocol=tcp dst-port=80 action=redirect to-ports=8080 comment="Sheba: Expired Captive Redirect"\n\n'
+            f"# 5. Configure Web-Proxy to send HTTP 302 Redirect to ISP Payment Portal\n"
+            f'/ip proxy set enabled=yes port=8080 max-cache-size=none\n'
+            f'/ip proxy access remove [find comment="Sheba: Expired Payment Portal Pop-up"]\n'
+            f'/ip proxy access add action=deny redirect-to="{url}" comment="Sheba: Expired Payment Portal Pop-up"\n'
+        )
 
     def __str__(self):
         return f"{self.name} ({self.effective_host})"
@@ -134,9 +250,16 @@ class OLT(models.Model):
     longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     snmp_community = EncryptedCharField(max_length=500, default='public')
     snmp_port = models.PositiveIntegerField(default=161)
+    snmp_retries = models.PositiveIntegerField(default=1)
+    poll_interval = models.PositiveIntegerField(default=600, help_text="Poll interval in seconds")
+    
+    cli_enabled = models.BooleanField(default=False, help_text="Enable CLI/Telnet fallback")
     telnet_port = models.PositiveIntegerField(default=23)
     telnet_user = models.CharField(max_length=100, blank=True)
     telnet_password = EncryptedCharField(max_length=500, blank=True, default='')
+    cli_enable_password = EncryptedCharField(max_length=500, blank=True, default='')
+    cli_timeout = models.PositiveIntegerField(default=10)
+    
     pon_ports_count = models.PositiveIntegerField(default=8)
     total_onus = models.PositiveIntegerField(default=0)
     online_onus = models.PositiveIntegerField(default=0)
@@ -709,3 +832,127 @@ class WireGuardSubnet(models.Model):
     def __str__(self):
         return f"Subnet {self.subnet} ({self.label or 'Unlabeled'})"
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 21: Advanced Health & Datewise Archive
+# ─────────────────────────────────────────────────────────────────────────────
+
+class InterfaceSnapshot(models.Model):
+    """
+    Daily rollup of interface counters for a router. Captured by the
+    ``archive_interface_snapshot`` task and used by the Archive & Export
+    page so admins can review interface health date-by-date even when
+    the router is offline later.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='interface_snapshots'
+    )
+    router = models.ForeignKey(
+        Router, on_delete=models.CASCADE, related_name='interface_snapshots'
+    )
+    snapshot_date = models.DateField(db_index=True)
+    interfaces = models.JSONField(default=list, blank=True)
+    captured_at = models.DateTimeField(default=timezone.now)
+    error_message = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-snapshot_date', '-captured_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['router', 'snapshot_date'],
+                name='unique_router_snapshot_date',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['tenant', 'snapshot_date'],
+                name='ifsnap_tenant_date_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f"InterfaceSnapshot[{self.router.name}] {self.snapshot_date}"
+
+
+class RouterPingResult(models.Model):
+    """
+    Admin-triggered ping log row. Persists results from
+    ``MikroTikDiagnosticsService.ping`` so they appear in the
+    datewise archive and can be exported as CSV/JSON.
+    """
+    class Status(models.TextChoices):
+        SUCCESS = 'SUCCESS', 'Success'
+        TIMEOUT = 'TIMEOUT', 'Timeout'
+        UNREACHABLE = 'UNREACHABLE', 'Unreachable'
+        ERROR = 'ERROR', 'Error'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='router_ping_results'
+    )
+    router = models.ForeignKey(
+        Router, on_delete=models.CASCADE, related_name='ping_results'
+    )
+    target = models.CharField(max_length=255, db_index=True)
+    packet_count = models.PositiveSmallIntegerField(default=4)
+    received = models.PositiveSmallIntegerField(default=0)
+    min_latency_ms = models.FloatField(null=True, blank=True)
+    avg_latency_ms = models.FloatField(null=True, blank=True)
+    max_latency_ms = models.FloatField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.SUCCESS, db_index=True
+    )
+    raw_output = models.JSONField(default=list, blank=True)
+    ran_by = models.CharField(max_length=150, blank=True, default='')
+    ran_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ['-ran_at']
+        indexes = [
+            models.Index(
+                fields=['tenant', 'ran_at'], name='ping_tenant_ranat_idx'
+            ),
+        ]
+
+    def __str__(self):
+        return f"Ping[{self.router.name}→{self.target}] {self.status}"
+
+
+class NetworkArchiveDay(models.Model):
+    """
+    Locking record that marks a (tenant, router, date) tuple as archived.
+    Lets the Archive & Export page quickly report which days have data
+    without scanning raw telemetry tables.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='archive_days'
+    )
+    router = models.ForeignKey(
+        Router, on_delete=models.CASCADE, related_name='archive_days'
+    )
+    archive_date = models.DateField(db_index=True)
+    session_count = models.PositiveIntegerField(default=0)
+    action_count = models.PositiveIntegerField(default=0)
+    ping_count = models.PositiveIntegerField(default=0)
+    finalized_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-archive_date']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['router', 'archive_date'],
+                name='unique_router_archive_date',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['tenant', 'archive_date'],
+                name='archiveday_tenant_date_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f"ArchiveDay[{self.router.name}] {self.archive_date}"

@@ -433,3 +433,55 @@ def reap_stale_network_actions_task(tenant_id: str = None, threshold_seconds: in
     reaped = ActionQueueService.reap_stale_actions(tenant_id=tenant_id, stale_threshold_seconds=threshold_seconds)
     return {'reaped_count': reaped}
 
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=60, time_limit=300, soft_time_limit=240)
+def archive_interface_snapshot(self=None, tenant_id=None, router_id=None):
+    """
+    Captures a daily InterfaceSnapshot for one router (or every router in
+    a tenant) and refreshes the matching NetworkArchiveDay counter.
+
+    Called by Celery beat / cron / an admin button. If both ``tenant_id``
+    and ``router_id`` are None we capture every active router across
+    every tenant.
+    """
+    from apps.network.models import InterfaceSnapshot, NetworkArchiveDay
+    from apps.network.services.mikrotik import MikroTikInterfaceService
+
+    today = timezone.localdate()
+
+    qs = Router.objects.all()
+    if router_id:
+        qs = qs.filter(id=router_id)
+    if tenant_id:
+        qs = qs.filter(tenant_id=tenant_id)
+    qs = qs.filter(status__in=['Online', 'Offline', 'Active'])
+
+    results = []
+    for router in qs:
+        try:
+            counters = MikroTikInterfaceService(router).get_interface_counters_extended()
+            snapshot, _ = InterfaceSnapshot.objects.update_or_create(
+                router=router,
+                snapshot_date=today,
+                defaults={
+                    'tenant': router.tenant,
+                    'interfaces': counters,
+                    'captured_at': timezone.now(),
+                    'error_message': '' if counters else 'router_unreachable',
+                },
+            )
+            NetworkArchiveDay.objects.update_or_create(
+                router=router,
+                archive_date=today,
+                defaults={
+                    'tenant': router.tenant,
+                    'finalized_at': timezone.now(),
+                },
+            )
+            results.append({'router_id': str(router.id), 'success': True, 'interfaces': len(counters)})
+        except Exception as exc:
+            logger.warning('archive_interface_snapshot failed for %s: %s', router.id, exc)
+            results.append({'router_id': str(router.id), 'success': False, 'error': str(exc)})
+
+    return {'success': True, 'snapshots': results}

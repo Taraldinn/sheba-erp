@@ -66,3 +66,14 @@ class SafeSyncActionSerializer(serializers.Serializer):
 class TriggerReconciliationSerializer(serializers.Serializer):
     router_id = serializers.UUIDField(required=True)
     run_async = serializers.BooleanField(default=False)
+
+
+class PPPoERescueActionSerializer(serializers.Serializer):
+    ACTION_CHOICES = [
+        ('USE_CPE', 'Use CPE Password'),
+        ('USE_DB', 'Use DB Password'),
+        ('MANUAL', 'Manual Password Override'),
+    ]
+    action = serializers.ChoiceField(choices=ACTION_CHOICES)
+    manual_password = serializers.CharField(required=False, allow_blank=True, max_length=100, trim_whitespace=False)
+    save_to_cpe = serializers.BooleanField(default=False)

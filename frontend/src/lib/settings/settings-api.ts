@@ -25,12 +25,15 @@ export class SettingsClient {
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
       try {
         const storedKey = localStorage.getItem('sheba_api_key');
-        if (storedKey) {
+        if (storedKey && storedKey !== 'undefined' && storedKey !== 'null' && storedKey.trim() !== '') {
           apiKey = storedKey;
         }
       } catch {
         apiKey = process.env.NEXT_PUBLIC_SHEBA_API_KEY;
       }
+    }
+    if (apiKey === 'undefined' || apiKey === 'null' || !apiKey?.trim()) {
+      apiKey = undefined;
     }
 
     const headers: Record<string, string> = {

@@ -14,12 +14,21 @@ from .reconciliation_views import (
     TriggerRouterReconciliationView,
     SafeSyncSecretItemView,
     CustomerNetworkIdentityView,
+    PPPoECredentialRescueView,
 )
 from .action_views import (
     NetworkActionQueueViewSet,
     BulkOperationsViewSet,
 )
 from .vpn_views import WireGuardConfigViewSet, WireGuardSubnetViewSet
+from .diagnostics_views import (
+    RouterAdvancedHealthView,
+    RouterPingView,
+)
+from .archive_views import (
+    ArchiveQueryView,
+    ArchiveExportView,
+)
 from .phase14_15_views import (
     LiveSessionsView,
     TerminateSessionView,
@@ -68,6 +77,7 @@ urlpatterns = [
     path('reconciliation/trigger/', TriggerRouterReconciliationView.as_view(), name='reconciliation-trigger'),
     path('reconciliation/items/<str:pk>/sync/', SafeSyncSecretItemView.as_view(), name='reconciliation-safe-sync'),
     path('reconciliation/customers/<str:customer_id>/identity/', CustomerNetworkIdentityView.as_view(), name='customer-network-identity'),
+    path('reconciliation/customers/<str:customer_id>/rescue/', PPPoECredentialRescueView.as_view(), name='customer-network-rescue'),
 
     # Phase 14: Live Sessions, Traffic, Geographical Fiber Map, Topology & Impact
     path('live-sessions/', LiveSessionsView.as_view(), name='live-sessions-list'),
@@ -89,4 +99,20 @@ urlpatterns = [
     path('onus/<str:pk>/reboot/', ONURebootActionView.as_view(), name='onu-reboot-action'),
     path('onus/<str:pk>/bind/', ONUBindActionView.as_view(), name='onu-bind-action'),
     path('onus/<str:pk>/unbind/', ONUUnbindActionView.as_view(), name='onu-unbind-action'),
+    # Phase 21: Advanced Health (interfaces + ARP + neighbors + routes + log) and
+    # on-demand ping.
+    path(
+        'diagnostics/routers/<str:router_id>/',
+        RouterAdvancedHealthView.as_view(),
+        name='network-advanced-health',
+    ),
+    path(
+        'diagnostics/routers/<str:router_id>/ping/',
+        RouterPingView.as_view(),
+        name='network-ping',
+    ),
+    # Phase 21: Datewise Archive (sessions / actions / interface snapshots / pings)
+    # with CSV + JSON export.
+    path('archive/', ArchiveQueryView.as_view(), name='network-archive-query'),
+    path('archive/export/', ArchiveExportView.as_view(), name='network-archive-export'),
 ] + router.urls

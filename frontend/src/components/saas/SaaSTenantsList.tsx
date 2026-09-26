@@ -82,10 +82,16 @@ export function SaaSTenantsList({
 
   const handleDeleteConfirm = async () => {
     if (!tenantToDelete) return;
+    const targetId = tenantToDelete.id || (tenantToDelete as any)?.tenant?.id;
+    if (!targetId) {
+      setActionError('Cannot delete tenant: missing tenant ID.');
+      setTenantToDelete(null);
+      return;
+    }
     setIsDeleting(true);
     setActionError(null);
     try {
-      await onDeleteTenant(tenantToDelete.id);
+      await onDeleteTenant(targetId);
       setTenantToDelete(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to delete tenant.';
@@ -98,10 +104,16 @@ export function SaaSTenantsList({
 
   const handleToggleConfirm = async () => {
     if (!tenantToToggle) return;
+    const targetId = tenantToToggle.id || (tenantToToggle as any)?.tenant?.id;
+    if (!targetId) {
+      setActionError('Cannot update tenant status: missing tenant ID.');
+      setTenantToToggle(null);
+      return;
+    }
     setIsToggling(true);
     setActionError(null);
     try {
-      await onToggleStatus(tenantToToggle.id);
+      await onToggleStatus(targetId);
       setTenantToToggle(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to update tenant status.';
@@ -214,14 +226,18 @@ export function SaaSTenantsList({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredTenants.map((tenant) => {
-                  const tenantName = typeof tenant.name === 'string' && tenant.name.trim()
+                {filteredTenants.map((rawTenant, index) => {
+                  const tenant: SaaSTenant = (rawTenant as any)?.tenant && (rawTenant as any)?.tenant?.id
+                    ? (rawTenant as any).tenant
+                    : rawTenant;
+                  const tenantId = tenant?.id || `tenant-${tenant?.slug || index}`;
+                  const tenantName = typeof tenant?.name === 'string' && tenant.name.trim()
                     ? tenant.name
                     : 'Unnamed tenant';
-                  const tenantSlug = typeof tenant.slug === 'string' ? tenant.slug : '';
+                  const tenantSlug = typeof tenant?.slug === 'string' ? tenant.slug : '';
 
                   return <tr
-                    key={tenant.id}
+                    key={tenantId}
                     className="hover:bg-muted/30 transition-colors group"
                   >
                     <td className="p-3.5">
@@ -379,8 +395,8 @@ export function SaaSTenantsList({
         onConfirm={handleDeleteConfirm}
         isLoading={isDeleting}
         isDestructive={true}
-        title={`Delete Tenant: ${tenantToDelete?.name}?`}
-        description={`This action is IRREVERSIBLE. It will completely drop the tenant partition, all customer records, billing ledger, and router credentials for ${tenantToDelete?.name} (${tenantToDelete?.slug}).`}
+        title={`Delete Tenant: ${tenantToDelete?.name || 'Tenant'}?`}
+        description={`This action is IRREVERSIBLE. It will completely drop the tenant partition, all customer records, billing ledger, and router credentials for ${tenantToDelete?.name || 'this tenant'} (${tenantToDelete?.slug || 'unknown'}).`}
         confirmText="Confirm Permanent Deletion"
       />
 
@@ -394,8 +410,8 @@ export function SaaSTenantsList({
         title={tenantToToggle?.is_active ? 'Suspend ISP Tenant?' : 'Activate ISP Tenant?'}
         description={
           tenantToToggle?.is_active
-            ? `Suspending ${tenantToToggle?.name} will prevent all staff from logging into their ERP portal and block radius/network provisioning.`
-            : `Re-activating ${tenantToToggle?.name} will immediately restore full portal access and network synchronization.`
+            ? `Suspending ${tenantToToggle?.name || 'this tenant'} will prevent all staff from logging into their ERP portal and block radius/network provisioning.`
+            : `Re-activating ${tenantToToggle?.name || 'this tenant'} will immediately restore full portal access and network synchronization.`
         }
         confirmText={tenantToToggle?.is_active ? 'Suspend Tenant' : 'Activate Tenant'}
       />

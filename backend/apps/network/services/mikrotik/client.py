@@ -302,11 +302,46 @@ class RouterClient:
     def run_command(self, command: str, **kwargs) -> list:
         if not self._connected or not self._api:
             raise RouterConnectionError("Not connected. Call connect() first.")
+        cmd = command.strip()
+        action = "get"
+        if cmd.endswith("/print"):
+            cmd = cmd[:-6]
+        elif cmd.endswith("/add"):
+            cmd = cmd[:-4]
+            action = "add"
+        elif cmd.endswith("/set"):
+            cmd = cmd[:-4]
+            action = "set"
+        elif cmd.endswith("/remove"):
+            cmd = cmd[:-7]
+            action = "remove"
+        elif cmd.endswith("print"):
+            cmd = cmd[:-5]
+        elif cmd.endswith("add"):
+            cmd = cmd[:-3]
+            action = "add"
+        elif cmd.endswith("set"):
+            cmd = cmd[:-3]
+            action = "set"
+        elif cmd.endswith("remove"):
+            cmd = cmd[:-6]
+            action = "remove"
+        cmd = cmd.rstrip("/")
         try:
-            resource = self._api.get_resource(command)
-            if kwargs:
-                return resource.get(**kwargs)
-            return resource.get()
+            resource = self._api.get_resource(cmd)
+            if action == "add":
+                res = resource.add(**kwargs)
+                return res if res is not None else []
+            elif action == "set":
+                res = resource.set(**kwargs)
+                return res if res is not None else []
+            elif action == "remove":
+                res = resource.remove(**kwargs)
+                return res if res is not None else []
+            else:
+                if kwargs:
+                    return resource.get(**kwargs)
+                return resource.get()
         except Exception as exc:
             raise RouterCommandError(str(exc)) from exc
 

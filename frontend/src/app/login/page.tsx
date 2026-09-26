@@ -24,6 +24,25 @@ function LoginForm() {
     if (!path) return false;
     return path.startsWith('/') && !path.startsWith('//') && !path.includes('\\');
   };
+
+  const getSafeDestination = (destination: string | null): string => {
+    if (!destination || !isValidRelativePath(destination)) {
+      return '/';
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const resolved = new URL(destination, window.location.origin);
+        if (resolved.origin !== window.location.origin) {
+          return '/';
+        }
+        return resolved.pathname + resolved.search + resolved.hash;
+      } catch {
+        return '/';
+      }
+    }
+    return destination;
+  };
+
   const returnTo = isValidRelativePath(rawReturnTo) ? rawReturnTo : null;
 
   const {
@@ -43,7 +62,12 @@ function LoginForm() {
   // If already authenticated as tenant user, redirect to destination
   useEffect(() => {
     if (isAuthenticated && user && contextType === 'tenant') {
-      router.replace(returnTo || '/');
+      const dest = getSafeDestination(returnTo || '/');
+      if (typeof window !== 'undefined') {
+        window.location.href = dest;
+      } else {
+        router.replace(dest);
+      }
     }
   }, [isAuthenticated, user, contextType, returnTo, router]);
 
@@ -57,7 +81,12 @@ function LoginForm() {
         { username, password },
         'tenant'
       );
-      router.replace(returnTo || '/');
+      const dest = getSafeDestination(returnTo || '/');
+      if (typeof window !== 'undefined') {
+        window.location.href = dest;
+      } else {
+        router.replace(dest);
+      }
     } catch {
       // Error is caught and surfaced by AuthContext state
     } finally {

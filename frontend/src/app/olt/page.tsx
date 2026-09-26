@@ -22,6 +22,7 @@ import {
   Check,
   X,
   Play,
+  Server,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,13 +30,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ApiClient } from "@/lib/api";
-import { OLT, ONU, OLTReconciliationRun, ONUAutoMatchCandidate } from "@/types";
+import { OLT, ONU, OLTReconciliationRun, ONUAutoMatchCandidate, Router } from "@/types";
 import OLTMonitorPanel from "@/components/network/OLTMonitorPanel";
 
 export default function OLTPage() {
   const [activeTab, setActiveTab] = useState<"monitor" | "olts" | "onus" | "reconciliation">("monitor");
   const [olts, setOlts] = useState<OLT[]>([]);
   const [onus, setOnus] = useState<ONU[]>([]);
+  const [routers, setRouters] = useState<Router[]>([]);
   const [selectedOltId, setSelectedOltId] = useState<string>("");
   const [search, setSearch] = useState("");
   const [notification, setNotification] = useState<{ type: "success" | "error"; msg: string } | null>(null);
@@ -61,6 +63,7 @@ export default function OLTPage() {
     pon_ports_count: number;
     snmp_community: string;
     status: "Online" | "Offline";
+    upstream_router: string;
   }>({
     name: "",
     brand: "VSOL",
@@ -68,6 +71,7 @@ export default function OLTPage() {
     pon_ports_count: 8,
     snmp_community: "public",
     status: "Online",
+    upstream_router: "",
   });
 
   // ONU Register Modal
@@ -103,12 +107,14 @@ export default function OLTPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [oltData, onuData] = await Promise.all([
+      const [oltData, onuData, routerData] = await Promise.all([
         ApiClient.getOLTs(),
         ApiClient.getONUs(),
+        ApiClient.getRouters().catch(() => []),
       ]);
       setOlts(oltData);
       setOnus(onuData);
+      setRouters(routerData);
       if (oltData.length > 0 && !selectedOltId) {
         setSelectedOltId(oltData[0].id);
       }
@@ -298,6 +304,7 @@ export default function OLTPage() {
                 pon_ports_count: 8,
                 snmp_community: "public",
                 status: "Online",
+                upstream_router: "",
               });
               setOltModalOpen(true);
             }}
@@ -405,6 +412,23 @@ export default function OLTPage() {
                     <span className="text-muted-foreground block text-[10px]">Total Configured</span>
                     <span className="font-semibold text-foreground">{olt.total_onus || 0} Registered</span>
                   </div>
+                  <div className="col-span-2 pt-1 border-t border-border/50 flex items-center justify-between">
+                    <span className="text-muted-foreground text-[10px] flex items-center gap-1">
+                      <Server className="h-3 w-3 text-muted-foreground shrink-0" />
+                      Upstream MikroTik:
+                    </span>
+                    <span className="font-semibold text-foreground text-[10px] flex items-center gap-1">
+                      {olt.upstream_router_name ? (
+                        <>
+                          <span className={`h-1.5 w-1.5 rounded-full ${olt.upstream_router_status === "Online" ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"}`} />
+                          <span className="truncate max-w-[120px]">{olt.upstream_router_name}</span>
+                          {olt.upstream_router_ip && <span className="font-mono text-[9px] text-muted-foreground">({olt.upstream_router_ip})</span>}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground font-normal italic">Default BNG Gateway</span>
+                      )}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="pt-2 border-t border-border flex justify-between items-center">
@@ -436,6 +460,7 @@ export default function OLTPage() {
                           pon_ports_count: olt.pon_ports_count || 8,
                           snmp_community: "public",
                           status: olt.status,
+                          upstream_router: olt.upstream_router || "",
                         });
                         setOltModalOpen(true);
                       }}
@@ -949,6 +974,24 @@ export default function OLTPage() {
                 onChange={(e) => setOltForm({ ...oltForm, pon_ports_count: parseInt(e.target.value) || 8 })}
                 className="h-9 text-xs"
               />
+            </div>
+            <div>
+              <label className="block font-semibold mb-1">Upstream MikroTik Router</label>
+              <select
+                value={oltForm.upstream_router}
+                onChange={(e) => setOltForm({ ...oltForm, upstream_router: e.target.value })}
+                className="w-full h-9 rounded-md border border-input bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">None (Standalone Gateway)</option>
+                {routers.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name} — {r.ip_address} ({r.status})
+                  </option>
+                ))}
+              </select>
+              <span className="text-[10px] text-muted-foreground block mt-1">
+                Associates this OLT optical frame with the core MikroTik BNG for dynamic topology aggregation.
+              </span>
             </div>
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setOltModalOpen(false)}>

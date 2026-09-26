@@ -929,9 +929,11 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
         except Exception as mail_exc:
             logger.warning(f"Failed to dispatch onboarding email for tenant {slug}: {mail_exc}")
 
+        self.precompute_tenant_stats([tenant])
         serializer = self.get_serializer(tenant)
         invalidate_saas_tenant_cache(tenant_id=str(tenant.id), slug=tenant.slug)
-        return Response({
+        resp_data = dict(serializer.data)
+        resp_data.update({
             'message': f'Tenant "{name}" successfully provisioned and onboarded.',
             'tenant': serializer.data,
             'admin_credentials': {
@@ -940,7 +942,8 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
                 'token': token.key,
                 'dashboard_url': f"http://{domain}:3000/" if 'localhost' not in domain else f"http://{local_host}:3000/",
             }
-        }, status=status.HTTP_201_CREATED)
+        })
+        return Response(resp_data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='toggle-status')
     def toggle_status(self, request, pk=None):
@@ -1323,9 +1326,11 @@ class SaaSTenantRequestViewSet(viewsets.ModelViewSet):
         req_obj.admin_notes = f"Approved & provisioned tenant ID {tenant.id} by {request.user.username}"
         req_obj.save()
 
+        tenant_serializer = SaaSTenantSerializer(tenant)
         return Response({
             'message': f'Request approved! Tenant "{tenant.name}" provisioned.',
             'tenant_id': str(tenant.id),
+            'tenant': tenant_serializer.data,
             'admin_username': admin_username,
             'admin_password': admin_pass,
             'token': token.key,

@@ -11,6 +11,8 @@ import {
   RefreshCw,
   AlertTriangle,
   Loader2,
+  Zap,
+  Server,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +33,8 @@ export default function PackagesPage() {
   const [notification, setNotification] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Package | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [syncingPkgIds, setSyncingPkgIds] = useState<Record<string, boolean>>({});
 
   // Form State
   const [formData, setFormData] = useState({
@@ -156,6 +160,32 @@ export default function PackagesPage() {
     }
   };
 
+  const handleSyncAllToRouters = async () => {
+    setSyncingAll(true);
+    try {
+      const res = await ApiClient.syncAllPackagesToRouters();
+      showToast(res.message || "Synchronized all packages to active MikroTik routers.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(msg || "Failed to synchronize packages to routers.");
+    } finally {
+      setSyncingAll(false);
+    }
+  };
+
+  const handleSyncPackageToRouters = async (pkg: Package) => {
+    setSyncingPkgIds((prev) => ({ ...prev, [pkg.id]: true }));
+    try {
+      const res = await ApiClient.syncPackageToRouters(pkg.id);
+      showToast(res.message || `Provisioned ${pkg.name} profile on MikroTik routers.`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(msg || "Failed to provision profile on routers.");
+    } finally {
+      setSyncingPkgIds((prev) => ({ ...prev, [pkg.id]: false }));
+    }
+  };
+
   return (
     <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto text-xs">
       {/* Header */}
@@ -170,6 +200,17 @@ export default function PackagesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSyncAllToRouters}
+            disabled={syncingAll}
+            className="h-8 text-xs gap-1.5 border-border bg-card cursor-pointer"
+            title="Provision all packages as PPP profiles on active MikroTik routers"
+          >
+            <Zap className={`h-3.5 w-3.5 text-amber-500 ${syncingAll ? "animate-spin" : ""}`} />
+            Sync All to MikroTik
+          </Button>
           <Button
             size="sm"
             variant="outline"
@@ -279,6 +320,16 @@ export default function PackagesPage() {
                   <Button
                     size="sm"
                     variant="ghost"
+                    onClick={() => handleSyncPackageToRouters(pkg)}
+                    disabled={syncingPkgIds[pkg.id]}
+                    className="h-7 w-7 p-0 text-amber-500 hover:bg-amber-500/10 cursor-pointer"
+                    title="Push package profile & rate-limit to MikroTik routers"
+                  >
+                    <Zap className={`h-3.5 w-3.5 ${syncingPkgIds[pkg.id] ? "animate-spin text-indigo-500" : ""}`} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     onClick={() => handleOpenEdit(pkg)}
                     className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
                     title="Edit package"
@@ -350,6 +401,17 @@ export default function PackagesPage() {
               </div>
             </div>
 
+            {/* Dynamic MikroTik Rate-Limit Preview */}
+            <div className="p-2.5 rounded-lg bg-muted/40 border border-border flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+                <Server className="h-3.5 w-3.5 text-indigo-500" />
+                MikroTik Rate-Limit String:
+              </span>
+              <span className="font-mono font-bold text-foreground bg-background px-2 py-0.5 rounded border border-border">
+                {formData.upload_speed_mbps}M/{formData.speed_mbps}M
+              </span>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block font-semibold mb-1">Retail Price (Tk)</label>
@@ -389,7 +451,7 @@ export default function PackagesPage() {
                 />
               </div>
               <div>
-                <label className="block font-semibold mb-1">MikroTik Profile</label>
+                <label className="block font-semibold mb-1">MikroTik Profile Name</label>
                 <Input
                   placeholder="e.g. 50M_Unlimited"
                   value={formData.mikrotik_profile}

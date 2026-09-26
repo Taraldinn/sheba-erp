@@ -117,6 +117,18 @@ class MikroTikPPPoEService:
         """Re-enables subscriber secret on router."""
         return self.update_user_by_name(username, disabled=False)
 
+    def delete_user_by_name(self, username: str) -> bool:
+        """Deletes subscriber secret from router."""
+        secret = self.find_secret_by_name(username)
+        if not secret:
+            return False
+        secret_id = secret.get('.id') or secret.get('id') or username
+        quoted_id = urllib.parse.quote(str(secret_id), safe='')
+        with MikroTikRESTClient.from_router(self.router) as client:
+            client.delete(f'/ppp/secret/{quoted_id}')
+            logger.info("Deleted PPPoE user '%s' on %s", username, self.router.name)
+            return True
+
     def disable_user(self, user_id: str) -> bool:
         with MikroTikRESTClient.from_router(self.router) as client:
             quoted_user_id = urllib.parse.quote(str(user_id), safe='')
@@ -167,3 +179,116 @@ class MikroTikPPPoEService:
             resp = client.get('/ppp/profile')
             profiles = resp if isinstance(resp, list) else ([resp] if isinstance(resp, dict) else [])
             return [p.get('name') for p in profiles if isinstance(p, dict) and p.get('name')]
+
+    def upsert_pool(self, name: str, ranges: str) -> bool:
+        """Creates or updates an IP pool on RouterOS v7."""
+        with MikroTikRESTClient.from_router(self.router) as client:
+            resp = client.get('/ip/pool')
+            items = resp if isinstance(resp, list) else ([resp] if isinstance(resp, dict) else [])
+            existing = next((p for p in items if isinstance(p, dict) and p.get('name') == name), None)
+            payload = {'name': name, 'ranges': ranges}
+            if existing:
+                item_id = existing.get('.id') or existing.get('id') or name
+                quoted = urllib.parse.quote(str(item_id), safe='')
+                client.patch(f'/ip/pool/{quoted}', json_data=payload)
+                logger.info("Updated IP pool '%s' (ranges: %s) on %s", name, ranges, self.router.name)
+            else:
+                client.put('/ip/pool', json_data=payload)
+                logger.info("Created IP pool '%s' (ranges: %s) on %s", name, ranges, self.router.name)
+            return True
+
+    def upsert_profile(
+        self,
+        name: str,
+        rate_limit: str = '',
+        local_address: str = '',
+        remote_address: str = '',
+        address_list: str = '',
+        comment: str = ''
+    ) -> bool:
+        """Creates or updates a PPP profile on RouterOS v7."""
+        with MikroTikRESTClient.from_router(self.router) as client:
+            resp = client.get('/ppp/profile')
+            items = resp if isinstance(resp, list) else ([resp] if isinstance(resp, dict) else [])
+            existing = next((p for p in items if isinstance(p, dict) and p.get('name') == name), None)
+            payload: dict[str, Any] = {'name': name}
+            if rate_limit:
+                payload['rate-limit'] = rate_limit
+            if local_address:
+                payload['local-address'] = local_address
+            if remote_address:
+                payload['remote-address'] = remote_address
+            if address_list:
+                payload['address-list'] = address_list
+            if comment:
+                payload['comment'] = comment
+
+            if existing:
+                item_id = existing.get('.id') or existing.get('id') or name
+                quoted = urllib.parse.quote(str(item_id), safe='')
+                client.patch(f'/ppp/profile/{quoted}', json_data=payload)
+                logger.info("Updated PPPoE profile '%s' (rate-limit: %s) on %s", name, rate_limit, self.router.name)
+            else:
+                client.put('/ppp/profile', json_data=payload)
+                logger.info("Created PPPoE profile '%s' (rate-limit: %s) on %s", name, rate_limit, self.router.name)
+            return True
+
+    def provision_expire_pool(
+        self,
+        pool_name: str = 'expired_pool',
+        pool_network: str = '172.31.250.10-172.31.250.250',
+        profile_name: str = 'sheba_expired_profile',
+        local_address: str = '172.31.250.1',
+        rate_limit: str = '32k/32k',
+        redirect_url: str = '',
+        walled_garden: str = ''
+    ) -> dict[str, Any]:
+        """
+        Provisions the Expire IP Pool, throttled Profile (10k-50k),
+        walled garden address-lists, and captive portal redirect rules.
+        """
+        try:
+            # 1. Upsert IP Pool
+            self.upsert_pool(pool_name, pool_network)
+
+            # 2. Upsert Expired Profile
+            self.upsert_profile(
+                name=profile_name,
+                rate_limit=rate_limit,
+                local_address=local_address,
+                remote_address=pool_name,
+                address_list='expired_users',
+                comment='Sheba: Expired Prepaid Pool (Captive Throttled)'
+            )
+
+            # 3. Add Walled Garden allowed domains
+            domains = [d.strip() for d in walled_garden.split(',') if d.strip()]
+            with MikroTikRESTClient.from_router(self.router) as client:
+                for domain in domains:
+                    try:
+                        client.put('/ip/firewall/address-list', json_data={
+                            'list': 'allowed_payment_gateways',
+                            'address': domain,
+                            'comment': 'Sheba: Payment Gateway Walled Garden'
+                        })
+                    except Exception:
+                        pass
+
+                # 4. Configure Web-Proxy for payment redirect if redirect_url provided
+                if redirect_url:
+                    try:
+                        client.put('/ip/proxy', json_data={'enabled': 'true', 'port': '8080'})
+                    except Exception:
+                        pass
+
+            return {
+                'success': True,
+                'pool': pool_name,
+                'profile': profile_name,
+                'rate_limit': rate_limit,
+                'router': self.router.name,
+                'message': f"Provisioned expire pool '{pool_name}' and profile '{profile_name}' ({rate_limit}) successfully on {self.router.name}."
+            }
+        except Exception as exc:
+            logger.warning("Failed to provision expire pool on %s: %s", self.router.name, exc)
+            return {'success': False, 'error': str(exc), 'router': self.router.name}

@@ -59,10 +59,11 @@ export function SaaSTenantsList({
   const [actionError, setActionError] = useState<string | null>(null);
 
   const normalizedSearchTerm = searchTerm.toLowerCase();
-  const filteredTenants = tenants.filter((t) => {
-    // A partially populated record must not take down the control-plane page.
-    // The API remains the source of truth, but string coercion keeps filtering
-    // safe while an incomplete/legacy response is investigated.
+  const filteredTenants = tenants.filter((raw) => {
+    const t: SaaSTenant = (raw as any)?.tenant && (raw as any)?.tenant?.id
+      ? (raw as any).tenant
+      : raw;
+    if (!t) return false;
     const name = typeof t.name === 'string' ? t.name : '';
     const slug = typeof t.slug === 'string' ? t.slug : '';
     const domain = typeof t.domain === 'string' ? t.domain : '';
@@ -85,10 +86,16 @@ export function SaaSTenantsList({
 
   const handleDeleteConfirm = async () => {
     if (!tenantToDelete) return;
+    const targetId = tenantToDelete.id || (tenantToDelete as any)?.tenant?.id;
+    if (!targetId) {
+      setActionError('Cannot delete tenant: missing tenant ID.');
+      setTenantToDelete(null);
+      return;
+    }
     setIsDeleting(true);
     setActionError(null);
     try {
-      await onDeleteTenant(tenantToDelete.id);
+      await onDeleteTenant(targetId);
       setTenantToDelete(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to delete tenant.';
@@ -101,10 +108,16 @@ export function SaaSTenantsList({
 
   const handleToggleConfirm = async () => {
     if (!tenantToToggle) return;
+    const targetId = tenantToToggle.id || (tenantToToggle as any)?.tenant?.id;
+    if (!targetId) {
+      setActionError('Cannot update tenant status: missing tenant ID.');
+      setTenantToToggle(null);
+      return;
+    }
     setIsToggling(true);
     setActionError(null);
     try {
-      await onToggleStatus(tenantToToggle.id);
+      await onToggleStatus(targetId);
       setTenantToToggle(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to update tenant status.';
@@ -117,6 +130,18 @@ export function SaaSTenantsList({
 
   return (
     <div className="space-y-4">
+      {actionError && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-destructive text-xs flex items-center justify-between">
+          <span>{actionError}</span>
+          <button
+            onClick={() => setActionError(null)}
+            className="text-xs font-semibold hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Search & Actions Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border">
         <div className="flex flex-wrap items-center gap-2.5 flex-1 max-w-2xl">
@@ -217,14 +242,18 @@ export function SaaSTenantsList({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredTenants.map((tenant) => {
-                  const tenantName = typeof tenant.name === 'string' && tenant.name.trim()
+                {filteredTenants.map((rawTenant, index) => {
+                  const tenant: SaaSTenant = (rawTenant as any)?.tenant && (rawTenant as any)?.tenant?.id
+                    ? (rawTenant as any).tenant
+                    : rawTenant;
+                  const tenantId = tenant?.id || `tenant-${tenant?.slug || index}`;
+                  const tenantName = typeof tenant?.name === 'string' && tenant.name.trim()
                     ? tenant.name
                     : 'Unnamed tenant';
-                  const tenantSlug = typeof tenant.slug === 'string' ? tenant.slug : '';
+                  const tenantSlug = typeof tenant?.slug === 'string' ? tenant.slug : '';
 
                   return <tr
-                    key={tenant.id}
+                    key={tenantId}
                     className="hover:bg-muted/30 transition-colors group"
                   >
                     <td className="p-3.5">
@@ -392,8 +421,8 @@ export function SaaSTenantsList({
         onConfirm={handleDeleteConfirm}
         isLoading={isDeleting}
         isDestructive={true}
-        title={`Delete Tenant: ${tenantToDelete?.name}?`}
-        description={`This action is IRREVERSIBLE. It will completely drop the tenant partition, all customer records, billing ledger, and router credentials for ${tenantToDelete?.name} (${tenantToDelete?.slug}).`}
+        title={`Delete Tenant: ${tenantToDelete?.name || 'Tenant'}?`}
+        description={`This action is IRREVERSIBLE. It will completely drop the tenant partition, all customer records, billing ledger, and router credentials for ${tenantToDelete?.name || 'this tenant'} (${tenantToDelete?.slug || 'unknown'}).`}
         confirmText="Confirm Permanent Deletion"
       />
 
@@ -407,8 +436,8 @@ export function SaaSTenantsList({
         title={tenantToToggle?.is_active ? 'Suspend ISP Tenant?' : 'Activate ISP Tenant?'}
         description={
           tenantToToggle?.is_active
-            ? `Suspending ${tenantToToggle?.name} will prevent all staff from logging into their ERP portal and block radius/network provisioning.`
-            : `Re-activating ${tenantToToggle?.name} will immediately restore full portal access and network synchronization.`
+            ? `Suspending ${tenantToToggle?.name || 'this tenant'} will prevent all staff from logging into their ERP portal and block radius/network provisioning.`
+            : `Re-activating ${tenantToToggle?.name || 'this tenant'} will immediately restore full portal access and network synchronization.`
         }
         confirmText={tenantToToggle?.is_active ? 'Suspend Tenant' : 'Activate Tenant'}
       />

@@ -15,6 +15,21 @@ export interface Customer {
   connection_type: string;
   router: string | null;
   router_name?: string;
+  router_ip?: string;
+  router_protocol?: 'REST' | 'API' | 'RADIUS';
+  router_status?: string;
+  live_session?: {
+    is_online: boolean;
+    ip_address?: string;
+    mac_address?: string;
+    caller_id?: string;
+    uptime?: string;
+    bytes_in?: number;
+    bytes_out?: number;
+    router_name?: string;
+    connected_at?: string;
+    last_seen?: string;
+  };
   pppoe_username: string;
   pppoe_password?: string;
   package: string | null;
@@ -76,12 +91,19 @@ export interface Router {
   name: string;
   ip_address: string;
   hostname?: string;
-  api_protocol?: 'REST' | 'API';
+  api_protocol?: 'REST' | 'API' | 'RADIUS';
   https_port?: number;
   api_port?: number;
   winbox_port?: number;
   username?: string;
   password?: string;
+  radius_secret?: string;
+  has_radius_secret?: boolean;
+  radius_auth_port?: number;
+  radius_acct_port?: number;
+  radius_coa_port?: number;
+  nas_identifier?: string;
+  radius_script?: string;
   location?: string;
   description?: string;
   model?: string;
@@ -103,6 +125,62 @@ export interface Router {
   active_pppoe_count?: number;
   total_customers_count?: number;
   last_ping?: string | null;
+
+  // Expire Pool / Captive Walled Garden
+  expire_pool_enabled?: boolean;
+  expire_pool_name?: string;
+  expire_profile_name?: string;
+  expire_rate_limit?: string;
+  expire_pool_network?: string;
+  expire_local_address?: string;
+  expire_redirect_url?: string;
+  expire_walled_garden?: string;
+  expire_pool_script?: string;
+
+  // Live interface telemetry (populated by health endpoint)
+  interfaces?: RouterInterface[];
+}
+
+export interface RouterInterface {
+  name: string;
+  type: string;
+  running: boolean;
+  disabled: boolean;
+  mac_address: string;
+  mtu: number;
+  rx_bytes: number;
+  tx_bytes: number;
+  rx_errors: number;
+  tx_errors: number;
+  comment: string;
+}
+
+export interface RouterExpirePoolConfig {
+  router_id: string;
+  router_name: string;
+  expire_pool_enabled: boolean;
+  expire_pool_name: string;
+  expire_profile_name: string;
+  expire_rate_limit: string;
+  expire_pool_network: string;
+  expire_local_address: string;
+  expire_redirect_url?: string;
+  expire_walled_garden?: string;
+  script?: string;
+  stats?: {
+    expired_subscribers: number;
+    active_subscribers: number;
+    total_subscribers: number;
+  };
+  provision_result?: {
+    success: boolean;
+    pool?: any;
+    profile?: any;
+    walled_garden?: any;
+    nat_rule?: any;
+    web_proxy?: any;
+    error?: string;
+  };
 }
 
 
@@ -121,6 +199,10 @@ export interface OLT {
   type?: string;
   pon_ports?: number;
   warning_onus?: number;
+  upstream_router?: string | null;
+  upstream_router_name?: string;
+  upstream_router_ip?: string;
+  upstream_router_status?: string;
 }
 
 export interface ONU {
@@ -1169,6 +1251,167 @@ export interface UnregisteredSecret {
   profile: string;
   disabled: boolean;
   comment?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 21: Advanced Health & Datewise Archive types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface AdvancedHealthInterface {
+  name: string;
+  type: string;
+  running: boolean;
+  disabled: boolean;
+  mac_address: string;
+  mtu: number;
+  rx_bytes: number;
+  tx_bytes: number;
+  rx_errors: number;
+  tx_errors: number;
+  rx_drop: number;
+  tx_drop: number;
+  link_downs: number;
+  rx_rate_bps: number;
+  tx_rate_bps: number;
+  last_link_up_time: string;
+  last_link_down_time: string;
+  comment: string;
+}
+
+export interface AdvancedHealthArpEntry {
+  address: string;
+  mac_address: string;
+  interface: string;
+  dynamic: boolean;
+  complete: boolean;
+  published: boolean;
+  comment: string;
+}
+
+export interface AdvancedHealthNeighborEntry {
+  address: string;
+  mac_address: string;
+  identity: string;
+  platform: string;
+  board: string;
+  version: string;
+  interface: string;
+  uptime: string;
+  last_seen: string;
+}
+
+export interface AdvancedHealthRouteEntry {
+  dst_address: string;
+  gateway: string;
+  interface: string;
+  distance: number;
+  scope: number;
+  target_scope: number;
+  active: boolean;
+  static: boolean;
+  dynamic: boolean;
+  comment: string;
+}
+
+export interface AdvancedHealthLogEntry {
+  time: string;
+  topics: string;
+  message: string;
+}
+
+export interface RouterAdvancedHealth {
+  router_id: string;
+  router_name: string;
+  captured_at: string;
+  interfaces: AdvancedHealthInterface[];
+  arp: AdvancedHealthArpEntry[];
+  neighbors: AdvancedHealthNeighborEntry[];
+  routes: AdvancedHealthRouteEntry[];
+  log_tail: AdvancedHealthLogEntry[];
+}
+
+export interface AdvancedHealthPingRequest {
+  target: string;
+  count?: number;
+  timeout?: number | null;
+}
+
+export interface AdvancedHealthPingResult {
+  id: string;
+  router: string;
+  router_name: string;
+  target: string;
+  packet_count: number;
+  received: number;
+  min_latency_ms: number | null;
+  avg_latency_ms: number | null;
+  max_latency_ms: number | null;
+  status: 'SUCCESS' | 'TIMEOUT' | 'UNREACHABLE' | 'ERROR';
+  raw_output: unknown[];
+  ran_by: string;
+  ran_at: string;
+}
+
+export type ArchiveKind = 'sessions' | 'actions' | 'interfaces' | 'pings';
+
+export interface ArchiveQueryParams {
+  type?: ArchiveKind;
+  date_from?: string;
+  date_to?: string;
+  date?: string;
+  router_id?: string;
+  username?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ArchiveRow {
+  kind: ArchiveKind | 'session' | 'action' | 'interface_snapshot' | 'ping';
+  id: string;
+  occurred_at: string | null;
+  router_id: string;
+  router_name: string;
+  username?: string;
+  ip_address?: string;
+  mac_address?: string;
+  caller_id?: string;
+  connected_at?: string | null;
+  duration_seconds?: number;
+  bytes_in?: number;
+  bytes_out?: number;
+  terminate_cause?: string;
+  action?: string;
+  status?: string;
+  actor?: string;
+  target_type?: string;
+  target_id?: string;
+  target_name?: string;
+  error_message?: string;
+  target?: string;
+  packet_count?: number;
+  received?: number;
+  min_latency_ms?: number | null;
+  avg_latency_ms?: number | null;
+  max_latency_ms?: number | null;
+  ran_by?: string;
+  snapshot_date?: string | null;
+  interfaces?: AdvancedHealthInterface[];
+}
+
+export interface ArchiveQueryResponse {
+  type: ArchiveKind;
+  count: number;
+  limit: number;
+  offset: number;
+  date_from: string;
+  date_to: string;
+  results: ArchiveRow[];
+}
+
+export type ArchiveExportFormat = 'csv' | 'json';
+
+export interface ArchiveExportParams extends ArchiveQueryParams {
+  export_format?: ArchiveExportFormat;
 }
 
 export * from './corporate';

@@ -13,7 +13,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.core.permissions import IsTenantMember
 from apps.core.utils import get_tenant_for_request
-from apps.customers.models import Customer
+from apps.customers.models import Customer, PPPoECredentialRescueEvent
 from .models import Router, PPPoESecretItem, ReconciliationRun, UserSession
 from .permissions import CanViewNetworkMetrics, CanControlDevices
 from .services.reconciliation import ReconciliationService
@@ -23,6 +23,7 @@ from .reconciliation_serializers import (
     ReconciliationRunSerializer,
     SafeSyncActionSerializer,
     TriggerReconciliationSerializer,
+    PPPoERescueActionSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -245,3 +246,82 @@ class CustomerNetworkIdentityView(APIView):
                 "uptime": session.uptime if session else "0s",
             } if session else {"is_online": False},
         }, status=status.HTTP_200_OK)
+
+
+class PPPoECredentialRescueView(APIView):
+    """
+    POST /api/v1/network/reconciliation/customers/<id>/rescue/
+    Execute a PPPoE Credential Rescue action (v4.2.2).
+    """
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, CanControlDevices]
+
+    @extend_schema(
+        summary="Execute PPPoE Credential Rescue",
+        tags=["4. Network & Core Routers"],
+        request=PPPoERescueActionSerializer,
+    )
+    def post(self, request, customer_id):
+        tenant = get_tenant_for_request(request)
+        if not tenant:
+            return Response({"error": "Tenant context required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        customer = get_object_or_404(Customer, id=customer_id, tenant=tenant)
+        serializer = PPPoERescueActionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        action = serializer.validated_data['action']
+        manual_password = serializer.validated_data.get('manual_password', '')
+        save_to_cpe = serializer.validated_data.get('save_to_cpe', False)
+
+        from apps.network.services.mikrotik.service import MikroTikService
+        from django.db import transaction
+
+        if not customer.router:
+            return Response({"error": "Customer is not assigned to any router."}, status=status.HTTP_400_BAD_REQUEST)
+
+        mk_service = MikroTikService(customer.router)
+        new_password = None
+
+        if action == 'USE_CPE':
+            if not customer.cpe_pppoe_password:
+                return Response({"error": "No CPE PPPoE password stored for this customer."}, status=status.HTTP_400_BAD_REQUEST)
+            new_password = customer.cpe_pppoe_password
+        elif action == 'USE_DB':
+            if not customer.pppoe_password:
+                return Response({"error": "No DB PPPoE password stored for this customer."}, status=status.HTTP_400_BAD_REQUEST)
+            new_password = customer.pppoe_password
+        elif action == 'MANUAL':
+            if not manual_password:
+                return Response({"error": "Manual password is required for MANUAL action."}, status=status.HTTP_400_BAD_REQUEST)
+            new_password = manual_password
+
+        # Update router password before database writes
+        try:
+            mk_service.update_pppoe_user(customer.pppoe_username, password=new_password)
+        except Exception as e:
+            logger.error(f"Failed to update PPPoE password on router for {customer.pppoe_username}: {e}")
+            return Response({"error": f"Failed to update password on router: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
+
+        # Treat disconnect failures as non-fatal warnings
+        try:
+            mk_service.disconnect_session(customer.pppoe_username)
+        except Exception as e:
+            logger.warning(f"Could not disconnect active session for {customer.pppoe_username} on router: {e}")
+
+        with transaction.atomic():
+            if action in ['USE_CPE', 'MANUAL']:
+                customer.pppoe_password = new_password
+                if save_to_cpe and action == 'MANUAL':
+                    customer.cpe_pppoe_password = new_password
+                customer.save(update_fields=['pppoe_password', 'cpe_pppoe_password'])
+
+            PPPoECredentialRescueEvent.objects.create(
+                tenant=tenant,
+                customer=customer,
+                action=action,
+                finding=f"Set password to {action} source",
+                performed_by=request.user
+            )
+
+        return Response({"message": f"Credential rescue successful via {action}."}, status=status.HTTP_200_OK)

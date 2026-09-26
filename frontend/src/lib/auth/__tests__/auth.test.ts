@@ -25,10 +25,18 @@ const localStorageMock = new LocalStorageMock();
 let documentCookieMock = '';
 const eventListeners: Record<string, Array<(e: any) => void>> = {};
 
+let currentFetchImpl: any = async () => ({
+  ok: true,
+  status: 200,
+  json: async () => ({}),
+  clone: () => ({ json: async () => ({}) }),
+});
+
 (global as any).localStorage = localStorageMock;
 (global as any).window = {
   localStorage: localStorageMock,
-  location: { hostname: 'localhost', href: 'http://localhost:3000' },
+  location: { hostname: 'localhost', href: 'http://localhost:3000', origin: 'http://localhost:3000' },
+  fetch: async (...args: any[]) => currentFetchImpl(...args),
   addEventListener: (event: string, cb: any) => {
     eventListeners[event] = eventListeners[event] || [];
     eventListeners[event].push(cb);
@@ -44,6 +52,7 @@ const eventListeners: Record<string, Array<(e: any) => void>> = {};
     return true;
   },
 };
+(global as any).fetch = (global as any).window.fetch;
 (global as any).document = {
   get cookie() {
     return documentCookieMock;
@@ -74,8 +83,10 @@ const eventListeners: Record<string, Array<(e: any) => void>> = {};
 import { TokenStorage } from '../token-storage';
 import { AuthService } from '../auth-service';
 import { AuthError } from '../auth-types';
+import { ApiClient, setupFetchInterceptor } from '../../api';
 
 describe('SHEBAFI AUTHENTICATION SUITE — PHASE 1', () => {
+  setupFetchInterceptor();
   const originalFetch = global.fetch;
 
   beforeEach(() => {
@@ -341,6 +352,34 @@ describe('SHEBAFI AUTHENTICATION SUITE — PHASE 1', () => {
 
       assert.equal(eventFired, true);
       assert.equal(TokenStorage.getStoredToken(), null);
+
+      (global as any).window.removeEventListener('sheba:unauthorized', handler);
+    });
+
+    it('preserves user token and clears api key when error is INVALID_API_KEY', async () => {
+      TokenStorage.setStoredToken('active-token', 'tenant', 'shebafi');
+      localStorageMock.setItem('sheba_api_key', 'bad-api-key');
+      let eventFired = false;
+
+      const handler = () => {
+        eventFired = true;
+      };
+      (global as any).window.addEventListener('sheba:unauthorized', handler);
+
+      currentFetchImpl = async () => ({
+        status: 401,
+        ok: false,
+        clone: () => ({
+          json: async () => ({ detail: 'Invalid API key provided.', code: 'INVALID_API_KEY' })
+        }),
+        json: async () => ({ detail: 'Invalid API key provided.', code: 'INVALID_API_KEY' })
+      });
+
+      await ApiClient.getDashboardKPIs();
+
+      assert.equal(eventFired, false);
+      assert.equal(TokenStorage.getStoredToken(), 'active-token');
+      assert.equal(localStorageMock.getItem('sheba_api_key'), null);
 
       (global as any).window.removeEventListener('sheba:unauthorized', handler);
     });

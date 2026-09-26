@@ -17,6 +17,7 @@ from .interfaces import MikroTikInterfaceService
 from .sessions import MikroTikSessionService
 from .pppoe import MikroTikPPPoEService
 from .traffic import MikroTikTrafficService
+from .diagnostics import MikroTikDiagnosticsService
 
 __all__ = [
     'MikroTikRESTClient',
@@ -32,4 +33,5 @@ __all__ = [
     'MikroTikSessionService',
     'MikroTikPPPoEService',
     'MikroTikTrafficService',
+    'MikroTikDiagnosticsService',
 ]

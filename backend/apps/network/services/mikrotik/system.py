@@ -190,4 +190,12 @@ class MikroTikSystemService:
         details['is_online'] = True
         details['message'] = msg
         details['last_ping'] = self.router.last_ping.isoformat() if self.router.last_ping else None
+
+        # Attach live interface telemetry (best-effort — never blocks or raises)
+        try:
+            from .interfaces import MikroTikInterfaceService
+            details['interfaces'] = MikroTikInterfaceService(self.router).get_interface_health()
+        except Exception:
+            details['interfaces'] = []
+
         return details

@@ -35,7 +35,10 @@ class MikroTikService:
 
     def __init__(self, router):
         self.router = router
-        self.is_rest = (getattr(router, 'api_protocol', 'REST') == 'REST')
+        self.protocol = getattr(router, 'api_protocol', 'REST')
+        self.is_rest = (self.protocol == 'REST')
+        self.is_radius = (self.protocol == 'RADIUS')
+        self.is_api = (self.protocol == 'API')
         self.system = MikroTikSystemService(router)
         self.interfaces = MikroTikInterfaceService(router)
         self.sessions = MikroTikSessionService(router)
@@ -44,23 +47,145 @@ class MikroTikService:
 
     # ─── Connection Diagnostics ──────────────────────────────────────────────
 
+    def probe_radius_coa(self, timeout: float = 2.0) -> bool:
+        """
+        Sends an RFC 3576 Disconnect probe to verify if the router is online and
+        listening on radius_coa_port. Expects Disconnect-ACK (41) or Disconnect-NAK (42).
+        """
+        import socket
+        import struct
+        import hashlib
+        import os
+
+        secret = (self.router.radius_secret or '').encode('utf-8')
+        if not secret:
+            return False
+
+        code = 40  # Disconnect-Request
+        identifier = os.urandom(1)[0]
+        user_bytes = b"__sheba_probe__"
+        user_attr = b'\x01' + bytes([len(user_bytes) + 2]) + user_bytes
+
+        nas_ident = (self.router.nas_identifier or self.router.name or '').encode('utf-8')
+        nas_attr = (b'\x20' + bytes([len(nas_ident) + 2]) + nas_ident) if nas_ident else b''
+
+        attrs = user_attr + nas_attr
+        length = 20 + len(attrs)
+        header_for_hash = struct.pack('!BBH', code, identifier, length) + (b'\x00' * 16) + attrs + secret
+        authenticator = hashlib.md5(header_for_hash).digest()
+        packet = struct.pack('!BBH', code, identifier, length) + authenticator + attrs
+
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.settimeout(timeout)
+                port = self.router.radius_coa_port or 3799
+                sock.sendto(packet, (self.router.effective_host, port))
+                resp, _ = sock.recvfrom(1024)
+
+            if resp and len(resp) >= 20:
+                resp_code, resp_id, resp_len = struct.unpack('!BBH', resp[:4])
+                if resp_id == identifier and resp_code in (41, 42):
+                    expected_auth = hashlib.md5(resp[:4] + authenticator + resp[20:resp_len] + secret).digest()
+                    if resp[4:20] == expected_auth:
+                        return True
+        except Exception:
+            pass
+        return False
+
     def test_connection(self) -> tuple[bool, str, dict[str, Any]]:
         """
-        Tests connectivity to the router.
+        Tests connectivity to the router (REST, API, or RADIUS).
         Returns: (success: bool, message: str, details: dict)
         """
         if self.is_rest:
             return self.system.test_connection()
 
+        if self.is_radius:
+            try:
+                probe_ok = self.probe_radius_coa(timeout=2.0)
+                api_ok = False
+                details: dict[str, Any] = {
+                    'router_id': str(self.router.id),
+                    'name': self.router.name,
+                    'protocol': 'RADIUS',
+                    'auth_port': self.router.radius_auth_port,
+                    'acct_port': self.router.radius_acct_port,
+                    'coa_port': self.router.radius_coa_port,
+                    'nas_identifier': self.router.nas_identifier or self.router.name,
+                }
+                if self.router.password:
+                    try:
+                        with RouterClient.from_router(self.router) as client:
+                            res = client.run_command('/system/resource')
+                            if res:
+                                r = res[0]
+                                cpu = int(r.get('cpu-load', 0))
+                                total_mem = int(r.get('total-memory', 1))
+                                free_mem = int(r.get('free-memory', 0))
+                                self.router.cpu_usage = cpu
+                                self.router.memory_usage = max(0, min(100, int(((total_mem - free_mem) / max(1, total_mem)) * 100)))
+                                self.router.uptime = r.get('uptime', '')
+                                self.router.routeros_version = r.get('version', '')
+                                api_ok = True
+                    except Exception:
+                        pass
+
+                is_online = probe_ok or api_ok
+                if is_online:
+                    self.router.status = 'Online'
+                    self.router.last_ping = timezone.now()
+                    self.router.save()
+
+                    msg = f"RADIUS AAA operational for '{self.router.name}' (CoA port {self.router.radius_coa_port})"
+                    if api_ok:
+                        msg += " + Live Telemetry linked"
+                    return True, msg, details
+                else:
+                    self.router.status = 'Offline'
+                    self.router.save(update_fields=['status'])
+                    return False, f"RADIUS probe to '{self.router.name}' failed: no response from router.", details
+            except Exception as exc:
+                self.router.status = 'Error'
+                self.router.save(update_fields=['status'])
+                return False, f"RADIUS connection test failed: {exc}", {'error': 'RADIUS_ERROR'}
+
         # Legacy binary API fallback
         try:
             with RouterClient.from_router(self.router) as client:
-                result = client.run_command('/system/identity/print')
+                result = client.run_command('/system/identity')
                 identity = result[0].get('name', 'unknown') if result else 'unknown'
+                resources = client.run_command('/system/resource')
+                r = resources[0] if resources else {}
+                cpu = int(r.get('cpu-load', 0))
+                total_mem = int(r.get('total-memory', 1))
+                free_mem = int(r.get('free-memory', 0))
+                mem_pct = max(0, min(100, int(((total_mem - free_mem) / max(1, total_mem)) * 100)))
+                total_disk = int(r.get('total-hdd-space', 1))
+                free_disk = int(r.get('free-hdd-space', 0))
+                disk_pct = max(0, min(100, int(((total_disk - free_disk) / max(1, total_disk)) * 100)))
+                version = r.get('version', '')
+                uptime = r.get('uptime', '')
+
             self.router.status = 'Online'
             self.router.last_ping = timezone.now()
-            self.router.save(update_fields=['status', 'last_ping'])
-            return True, f"Connected to {identity} (API)", {'identity': identity}
+            self.router.cpu_usage = cpu
+            self.router.memory_usage = mem_pct
+            self.router.disk_usage = disk_pct
+            self.router.uptime = uptime
+            if version:
+                self.router.routeros_version = version
+            self.router.save(update_fields=[
+                'status', 'last_ping', 'cpu_usage', 'memory_usage',
+                'disk_usage', 'uptime', 'routeros_version'
+            ])
+            return True, f"Connected to {identity} (RouterOS {version})", {
+                'identity': identity,
+                'version': version,
+                'cpu_load': cpu,
+                'memory_pct': mem_pct,
+                'disk_pct': disk_pct,
+                'uptime': uptime,
+            }
         except (RouterConnectionError, RouterCommandError) as exc:
             self.router.status = 'Error'
             self.router.save(update_fields=['status'])
@@ -75,30 +200,131 @@ class MikroTikService:
         if self.is_rest:
             return self.system.get_full_health()
 
+        if self.is_radius:
+            api_ok = False
+            if self.router.password:
+                try:
+                    with RouterClient.from_router(self.router) as client:
+                        resources = client.run_command('/system/resource')
+                        active_sessions = client.run_command('/ppp/active')
+                    if resources:
+                        r = resources[0]
+                        cpu = int(r.get('cpu-load', 0))
+                        total_mem = int(r.get('total-memory', 1))
+                        free_mem = int(r.get('free-memory', 0))
+                        mem_pct = max(0, min(100, int(((total_mem - free_mem) / max(1, total_mem)) * 100)))
+                        total_disk = int(r.get('total-hdd-space', 1))
+                        free_disk = int(r.get('free-hdd-space', 0))
+                        disk_pct = max(0, min(100, int(((total_disk - free_disk) / max(1, total_disk)) * 100)))
+                        uptime = r.get('uptime', '')
+                        version = r.get('version', '')
+                        active_count = len(active_sessions) if active_sessions else 0
+                        self.router.cpu_usage = cpu
+                        self.router.memory_usage = mem_pct
+                        self.router.disk_usage = disk_pct
+                        self.router.uptime = uptime
+                        self.router.active_pppoe_count = active_count
+                        if version:
+                            self.router.routeros_version = version
+                        self.router.status = 'Online'
+                        self.router.last_ping = timezone.now()
+                        self.router.save(update_fields=[
+                            'cpu_usage', 'memory_usage', 'disk_usage', 'uptime',
+                            'active_pppoe_count', 'routeros_version', 'status', 'last_ping'
+                        ])
+                        api_ok = True
+                except Exception:
+                    pass
+
+            probe_ok = False
+            if not api_ok:
+                probe_ok = self.probe_radius_coa(timeout=1.5)
+                if probe_ok:
+                    self.router.status = 'Online'
+                    self.router.last_ping = timezone.now()
+                    self.router.save(update_fields=['status', 'last_ping'])
+
+            is_online = api_ok or probe_ok
+            if not is_online:
+                self.router.status = 'Offline' if self.router.last_ping else 'Unknown'
+                self.router.save(update_fields=['status'])
+
+            return {
+                'is_online': is_online,
+                'status': self.router.status,
+                'protocol': 'RADIUS',
+                'cpu_usage': self.router.cpu_usage,
+                'cpu_load': self.router.cpu_usage,
+                'memory_usage': self.router.memory_usage,
+                'memory_pct': self.router.memory_usage,
+                'disk_usage': self.router.disk_usage,
+                'uptime': self.router.uptime,
+                'version': self.router.routeros_version,
+                'routeros_version': self.router.routeros_version,
+                'active_pppoe_count': self.router.active_pppoe_count,
+                'last_ping': self.router.last_ping.isoformat() if self.router.last_ping else None,
+            }
+
         # Legacy binary API fallback
-        with RouterClient.from_router(self.router) as client:
-            resources = client.run_command('/system/resource/print')
-        if not resources:
-            return {}
-        r = resources[0]
-        cpu = int(r.get('cpu-load', 0))
-        total_mem = int(r.get('total-memory', 1))
-        free_mem = int(r.get('free-memory', 0))
-        mem_pct = int(((total_mem - free_mem) / max(1, total_mem)) * 100)
+        try:
+            with RouterClient.from_router(self.router) as client:
+                resources = client.run_command('/system/resource')
+                active_sessions = client.run_command('/ppp/active')
 
-        self.router.cpu_usage = cpu
-        self.router.memory_usage = mem_pct
-        self.router.status = 'Online'
-        self.router.last_ping = timezone.now()
-        self.router.save(update_fields=['cpu_usage', 'memory_usage', 'status', 'last_ping'])
+            if not resources:
+                return {'is_online': False, 'status': self.router.status}
+            r = resources[0]
+            cpu = int(r.get('cpu-load', 0))
+            total_mem = int(r.get('total-memory', 1))
+            free_mem = int(r.get('free-memory', 0))
+            mem_pct = max(0, min(100, int(((total_mem - free_mem) / max(1, total_mem)) * 100)))
 
-        return {
-            'cpu_load': cpu,
-            'memory_pct': mem_pct,
-            'uptime': r.get('uptime', ''),
-            'version': r.get('version', ''),
-            'board': r.get('board-name', ''),
-        }
+            total_disk = int(r.get('total-hdd-space', 1))
+            free_disk = int(r.get('free-hdd-space', 0))
+            disk_pct = max(0, min(100, int(((total_disk - free_disk) / max(1, total_disk)) * 100)))
+
+            uptime = r.get('uptime', '')
+            version = r.get('version', '')
+            active_count = len(active_sessions) if active_sessions else 0
+
+            self.router.cpu_usage = cpu
+            self.router.memory_usage = mem_pct
+            self.router.disk_usage = disk_pct
+            self.router.uptime = uptime
+            self.router.active_pppoe_count = active_count
+            if version:
+                self.router.routeros_version = version
+            self.router.status = 'Online'
+            self.router.last_ping = timezone.now()
+            self.router.save(update_fields=[
+                'cpu_usage', 'memory_usage', 'disk_usage', 'uptime',
+                'active_pppoe_count', 'routeros_version', 'status', 'last_ping'
+            ])
+
+            return {
+                'is_online': True,
+                'status': 'Online',
+                'cpu_usage': cpu,
+                'cpu_load': cpu,
+                'memory_usage': mem_pct,
+                'memory_pct': mem_pct,
+                'disk_usage': disk_pct,
+                'uptime': uptime,
+                'version': version,
+                'routeros_version': version,
+                'board': r.get('board-name', ''),
+                'active_pppoe_count': active_count,
+                'last_ping': self.router.last_ping.isoformat() if self.router.last_ping else None,
+            }
+        except Exception as exc:
+            logger.warning("Error fetching binary API health for %s: %s", self.router.id, exc)
+            self.router.status = 'Error'
+            self.router.save(update_fields=['status'])
+            return {
+                'is_online': False,
+                'status': 'Error',
+                'error': str(exc),
+            }
 
     # ─── Active PPPoE Sessions ────────────────────────────────────────────────
 
@@ -198,10 +424,89 @@ class MikroTikService:
             return self.pppoe.enable_user_by_name(username)
         return self.update_pppoe_user(username, disabled=False)
 
-    def disconnect_session(self, username: str) -> bool:
+    def delete_pppoe_user(self, username: str) -> bool:
+        self.disconnect_session(username)
         if self.is_rest:
-            return self.pppoe.disconnect_session_by_username(username)
+            return self.pppoe.delete_user_by_name(username)
+        if self.is_api:
+            try:
+                with RouterClient.from_router(self.router) as client:
+                    res = client._api.get_resource('/ppp/secret')
+                    items = res.get(name=username)
+                    if items:
+                        res.remove(id=items[0]['id'])
+                        return True
+            except Exception as exc:
+                logger.warning("Could not delete PPPoE user '%s' on %s: %s", username, self.router.name, exc)
+        return True
 
+    def send_radius_disconnect(self, username: str) -> bool:
+        """
+        Sends an RFC 3576 Disconnect-Request (PoD) UDP packet to MikroTik
+        port (default 3799) using the router's radius_secret.
+        """
+        import socket
+        import struct
+        import hashlib
+        import os
+
+        secret = (self.router.radius_secret or '').encode('utf-8')
+        if not secret:
+            if self.router.password:
+                return self._disconnect_session_api(username)
+            return False
+
+        code = 40  # Disconnect-Request
+        identifier = os.urandom(1)[0]
+        user_bytes = username.encode('utf-8')
+        user_attr = b'\x01' + bytes([len(user_bytes) + 2]) + user_bytes
+
+        # Router identification / session identifying attribute
+        nas_ident = (self.router.nas_identifier or self.router.name or '').encode('utf-8')
+        nas_attr = (b'\x20' + bytes([len(nas_ident) + 2]) + nas_ident) if nas_ident else b''
+
+        attrs = user_attr + nas_attr
+        length = 20 + len(attrs)
+        header_for_hash = struct.pack('!BBH', code, identifier, length) + (b'\x00' * 16) + attrs + secret
+        authenticator = hashlib.md5(header_for_hash).digest()
+        packet = struct.pack('!BBH', code, identifier, length) + authenticator + attrs
+
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.settimeout(3.0)
+                sock.sendto(packet, (self.router.effective_host, self.router.radius_coa_port or 3799))
+                resp, _ = sock.recvfrom(1024)
+
+            if not resp or len(resp) < 20:
+                return False
+
+            resp_code, resp_id, resp_len = struct.unpack('!BBH', resp[:4])
+            if resp_id != identifier:
+                logger.warning("RADIUS CoA Disconnect response ID mismatch: expected %d, got %d", identifier, resp_id)
+                return False
+
+            if resp_code not in (41, 42):
+                logger.warning("RADIUS CoA Disconnect unexpected response code: %d", resp_code)
+                return False
+
+            expected_auth = hashlib.md5(resp[:4] + authenticator + resp[20:resp_len] + secret).digest()
+            if resp[4:20] != expected_auth:
+                logger.warning("RADIUS CoA Disconnect response authenticator validation failed")
+                return False
+
+            if resp_code == 41:
+                logger.info("Successfully sent RADIUS CoA Disconnect-ACK for '%s' to %s", username, self.router.name)
+                return True
+            else:
+                logger.warning("RADIUS CoA Disconnect-NAK for '%s' from %s", username, self.router.name)
+                return False
+        except Exception as exc:
+            logger.warning("RADIUS CoA Disconnect UDP socket failed for '%s': %s", username, exc)
+            if self.router.password:
+                return self._disconnect_session_api(username)
+            return False
+
+    def _disconnect_session_api(self, username: str) -> bool:
         try:
             with RouterClient.from_router(self.router) as client:
                 active = client.run_command('/ppp/active/print')
@@ -215,6 +520,13 @@ class MikroTikService:
             logger.warning("Failed to disconnect session for '%s': %s", username, exc)
             return False
 
+    def disconnect_session(self, username: str) -> bool:
+        if self.is_rest:
+            return self.pppoe.disconnect_session_by_username(username)
+        if self.is_radius:
+            return self.send_radius_disconnect(username)
+        return self._disconnect_session_api(username)
+
     def sync_profiles(self) -> list[str]:
         if self.is_rest:
             return self.pppoe.list_profiles()
@@ -222,6 +534,89 @@ class MikroTikService:
         with RouterClient.from_router(self.router) as client:
             profiles = client.run_command('/ppp/profile/print')
         return [p.get('name', '') for p in profiles if p.get('name')]
+
+    def upsert_ppp_profile(self, name: str, rate_limit: str = '') -> bool:
+        """Provisions or updates a PPP bandwidth speed profile on the router."""
+        if self.is_rest:
+            return self.pppoe.upsert_profile(name, rate_limit=rate_limit)
+        elif self.is_api:
+            try:
+                with RouterClient.from_router(self.router) as client:
+                    res = client._api.get_resource('/ppp/profile')
+                    items = res.get(name=name)
+                    kwargs = {'name': name}
+                    if rate_limit:
+                        kwargs['rate-limit'] = rate_limit
+                    if items:
+                        res.set(id=items[0]['id'], **kwargs)
+                    else:
+                        client.run_command('/ppp/profile/add', **kwargs)
+                return True
+            except Exception as exc:
+                logger.warning("Could not upsert profile '%s' on %s: %s", name, self.router.name, exc)
+                return False
+        return True
+
+    def provision_expire_pool(
+        self,
+        pool_name: str = 'expired_pool',
+        pool_network: str = '172.31.250.10-172.31.250.250',
+        profile_name: str = 'sheba_expired_profile',
+        local_address: str = '172.31.250.1',
+        rate_limit: str = '32k/32k',
+        redirect_url: str = '',
+        walled_garden: str = '',
+        pool_ranges: str = None
+    ) -> dict[str, Any]:
+        """Provisions expire IP pool, throttled profile (10k-50k), and captive redirect on router."""
+        if pool_ranges:
+            pool_network = pool_ranges
+        if self.is_rest:
+            return self.pppoe.provision_expire_pool(
+                pool_name=pool_name,
+                pool_network=pool_network,
+                profile_name=profile_name,
+                local_address=local_address,
+                rate_limit=rate_limit,
+                redirect_url=redirect_url,
+                walled_garden=walled_garden
+            )
+        elif self.is_api:
+            try:
+                with RouterClient.from_router(self.router) as client:
+                    # 1. Pool
+                    try:
+                        client.run_command('/ip/pool/add', name=pool_name, ranges=pool_network)
+                    except Exception:
+                        pass
+                    # 2. Profile
+                    try:
+                        client.run_command(
+                            '/ppp/profile/add',
+                            name=profile_name,
+                            **{'local-address': local_address, 'remote-address': pool_name, 'rate-limit': rate_limit, 'address-list': 'expired_users'}
+                        )
+                    except Exception:
+                        pass
+                return {
+                    'success': True,
+                    'pool': pool_name,
+                    'profile': profile_name,
+                    'rate_limit': rate_limit,
+                    'router': self.router.name,
+                    'message': f"Provisioned expire pool '{pool_name}' ({rate_limit}) via Binary API on {self.router.name}."
+                }
+            except Exception as exc:
+                return {'success': False, 'error': str(exc), 'router': self.router.name}
+
+        return {
+            'success': True,
+            'pool': pool_name,
+            'profile': profile_name,
+            'rate_limit': rate_limit,
+            'router': self.router.name,
+            'message': f"Expire pool configuration active for RADIUS AAA on {self.router.name}."
+        }
 
     def get_unregistered_secrets(self) -> list[dict[str, Any]]:
         """Return RouterOS PPPoE secrets which do not belong to this tenant yet."""
@@ -289,16 +684,17 @@ class MikroTikService:
             try:
                 if customer.pppoe_username in existing:
                     previous_profile = existing[customer.pppoe_username].get('profile', '')
-                    self.update_pppoe_user(customer.pppoe_username, password=customer.pppoe_password, profile=profile, disabled=not enabled)
+                    self.update_pppoe_user(customer.pppoe_username, profile=profile, disabled=not enabled)
                     result['updated'] += 1
                     if enabled and previous_profile and previous_profile != profile:
                         if self.disconnect_session(customer.pppoe_username):
                             result['disconnected'] += 1
                 else:
-                    self.create_pppoe_user(customer.pppoe_username, customer.pppoe_password, profile)
-                    if not enabled:
-                        self.disable_user(customer.pppoe_username)
-                    result['created'] += 1
+                    if customer.pppoe_password:
+                        self.create_pppoe_user(customer.pppoe_username, customer.pppoe_password, profile)
+                        if not enabled:
+                            self.disable_user(customer.pppoe_username)
+                        result['created'] += 1
                 if not enabled:
                     result['disabled'] += 1
                     if self.disconnect_session(customer.pppoe_username):

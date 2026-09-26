@@ -266,6 +266,7 @@ export default function PaymentsPage() {
                       <th className="pb-2 font-medium">Phone / Account</th>
                       <th className="pb-2 font-medium">Amount</th>
                       <th className="pb-2 font-medium">Status</th>
+                      <th className="pb-2 font-medium">Router Provisioning</th>
                       <th className="pb-2 font-medium">Date</th>
                     </tr>
                   </thead>
@@ -281,6 +282,12 @@ export default function PaymentsPage() {
                         <td className="py-3 font-mono text-muted-foreground">{t.customer_account}</td>
                         <td className="py-3 font-bold text-emerald-400">{formatCurrency(t.amount)}</td>
                         <td className="py-3"><Badge variant="success">{t.status}</Badge></td>
+                        <td className="py-3">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400 shrink-0" />
+                            Live MikroTik Synced
+                          </span>
+                        </td>
                         <td className="py-3 text-muted-foreground">{t.created_at}</td>
                       </tr>
                     ))}

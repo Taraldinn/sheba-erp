@@ -23,17 +23,24 @@ class POPBranchSerializer(serializers.ModelSerializer):
 
 
 class RouterSerializer(serializers.ModelSerializer):
+    expire_pool_script = serializers.SerializerMethodField()
+
     class Meta:
         model = Router
         fields = '__all__'
         read_only_fields = ('tenant', 'cpu_usage', 'memory_usage', 'disk_usage', 'uptime', 'last_ping')
         extra_kwargs = {
-            'password': {'write_only': True, 'required': False}
+            'password': {'write_only': True, 'required': False},
+            'radius_secret': {'write_only': True, 'required': False},
         }
+
+    def get_expire_pool_script(self, instance) -> str:
+        return instance.generate_mikrotik_expire_pool_script()
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         ret.pop('password', None)
+        ret['has_radius_secret'] = bool(instance.radius_secret)
         return ret
 
     def validate_ip_address(self, value):
@@ -54,6 +61,18 @@ class RouterSerializer(serializers.ModelSerializer):
         if value:
             validate_port(value)
         return value
+
+
+class RouterExpirePoolConfigSerializer(serializers.Serializer):
+    expire_pool_enabled = serializers.BooleanField(required=False)
+    expire_pool_name = serializers.CharField(max_length=64, required=False)
+    expire_profile_name = serializers.CharField(max_length=64, required=False)
+    expire_rate_limit = serializers.CharField(max_length=30, required=False)
+    expire_pool_network = serializers.CharField(max_length=100, required=False)
+    expire_local_address = serializers.CharField(max_length=50, required=False)
+    expire_redirect_url = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    expire_walled_garden = serializers.CharField(required=False, allow_blank=True)
+    provision_to_router = serializers.BooleanField(default=True, required=False)
 
 
 def _tenant_from_context(context):
@@ -105,6 +124,10 @@ class ONUSerializer(serializers.ModelSerializer):
 
 
 class OLTSerializer(serializers.ModelSerializer):
+    upstream_router_name = serializers.CharField(source='upstream_router.name', read_only=True)
+    upstream_router_ip = serializers.CharField(source='upstream_router.ip_address', read_only=True)
+    upstream_router_status = serializers.CharField(source='upstream_router.status', read_only=True)
+
     class Meta:
         model = OLT
         fields = '__all__'

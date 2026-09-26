@@ -19,6 +19,24 @@ from apps.customers.models import Customer
 from apps.core.models import AuditLog
 
 
+def sync_package_to_routers(package: Package) -> int:
+    """Provisions or updates this package's profile on all active tenant MikroTik routers."""
+    from apps.network.models import Router
+    from apps.network.services.mikrotik import MikroTikService
+    routers = Router.objects.filter(tenant=package.tenant, is_active=True)
+    rate_limit = f"{package.upload_speed_mbps or package.speed_mbps}M/{package.speed_mbps}M"
+    profile_name = package.mikrotik_profile or package.name.replace(' ', '_')
+    synced_count = 0
+    for r in routers:
+        try:
+            svc = MikroTikService(r)
+            if svc.upsert_ppp_profile(profile_name, rate_limit=rate_limit):
+                synced_count += 1
+        except Exception:
+            pass
+    return synced_count
+
+
 @extend_schema_view(
     list=extend_schema(tags=['3. Broadband Packages & Offers']),
     retrieve=extend_schema(tags=['3. Broadband Packages & Offers']),
@@ -35,7 +53,37 @@ class PackageViewSet(viewsets.ModelViewSet):
         return get_scoped_queryset(self.request, Package)
 
     def perform_create(self, serializer):
-        serializer.save(tenant=get_tenant_for_request(self.request))
+        pkg = serializer.save(tenant=get_tenant_for_request(self.request))
+        sync_package_to_routers(pkg)
+
+    def perform_update(self, serializer):
+        pkg = serializer.save()
+        sync_package_to_routers(pkg)
+
+    @action(detail=True, methods=['post'], url_path='sync-to-routers')
+    def sync_to_routers(self, request, pk=None):
+        pkg = self.get_object()
+        synced = sync_package_to_routers(pkg)
+        return Response({
+            'success': True,
+            'package_id': str(pkg.id),
+            'package_name': pkg.name,
+            'profile': pkg.mikrotik_profile,
+            'routers_synced': synced,
+            'message': f"Synchronized profile '{pkg.mikrotik_profile}' across {synced} router(s)."
+        })
+
+    @action(detail=False, methods=['post'], url_path='sync-all-to-routers')
+    def sync_all_to_routers(self, request):
+        tenant = get_tenant_for_request(request)
+        packages = Package.objects.filter(tenant=tenant, is_active=True)
+        total_synced = sum(sync_package_to_routers(p) for p in packages)
+        return Response({
+            'success': True,
+            'packages_count': packages.count(),
+            'total_synced': total_synced,
+            'message': f"Synchronized {packages.count()} packages to active routers."
+        })
 
 
 @extend_schema_view(

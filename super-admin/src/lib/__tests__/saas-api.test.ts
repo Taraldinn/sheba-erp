@@ -154,6 +154,43 @@ describe('SHEBAFI CENTRAL CONTROL PLANE API SUITE — PHASE 2', () => {
       assert.equal(created.slug, 'metro-link');
     });
 
+    it('creates a new tenant unwrapping nested backend response payload', async () => {
+      const payload: SaaSTenantCreatePayload = {
+        name: 'Delta Fiber',
+        slug: 'delta-fiber',
+        domain: 'delta.shebafi.xyz',
+        plan: 'Starter',
+      };
+
+      global.fetch = mock.fn(async (url: any, opts: any) => {
+        assert.ok(String(url).includes('/api/v1/saas/tenants/'));
+        assert.equal(opts.method, 'POST');
+        return new Response(
+          JSON.stringify({
+            message: 'Tenant "Delta Fiber" successfully provisioned and onboarded.',
+            tenant: {
+              id: 'delta-tenant-uuid',
+              name: 'Delta Fiber',
+              slug: 'delta-fiber',
+              is_active: true,
+              subscription_status: 'active',
+              plan: 'Starter',
+            },
+            admin_credentials: {
+              username: 'delta_admin',
+              token: 'tok-xyz',
+            },
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } }
+        );
+      }) as any;
+
+      const created = await SaaSClient.createTenant(payload);
+      assert.equal(created.id, 'delta-tenant-uuid');
+      assert.equal(created.slug, 'delta-fiber');
+      assert.equal(created.is_active, true);
+    });
+
     it('toggles tenant active status', async () => {
       global.fetch = mock.fn(async (url: any, opts: any) => {
         assert.ok(String(url).includes('/api/v1/saas/tenants/tenant-123/toggle-status/'));

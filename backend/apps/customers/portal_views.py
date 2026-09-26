@@ -8,10 +8,15 @@ Customer Portal self-care views:
 """
 
 import logging
+import hashlib
+import json
+from urllib.parse import unquote
 from rest_framework import views, viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+import requests
 from django.utils import timezone
+from django.core.cache import cache
 from apps.customers.authentication import CustomerJWTAuthentication
 from apps.customers.models import Customer, CustomerStatus
 from apps.billing.models import Package, Invoice
@@ -463,6 +468,147 @@ class CustomerPortalFunboxView(CustomerPortalBaseView):
                     links = []
 
         return Response(links, status=status.HTTP_200_OK)
+
+
+class CustomerPortalLiveTVProxyView(CustomerPortalBaseView):
+    def get(self, request, path, *args, **kwargs):
+        customer = self.get_customer()
+        if not customer:
+            return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.core.models import CompanySetting
+        setting = CompanySetting.objects.filter(tenant=customer.tenant).first()
+        if not setting or not setting.funbox_live_tv_enabled or not setting.funbox_live_tv_url:
+            return Response({"error": "Live TV is not enabled."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Reject path segments that resolve to "." or "..", including percent-encoded forms
+        decoded_path = unquote(path)
+        while '%' in decoded_path:
+            new_decoded = unquote(decoded_path)
+            if new_decoded == decoded_path:
+                break
+            decoded_path = new_decoded
+
+        segments = [s for s in decoded_path.split('/') if s]
+        if any(s in ('.', '..') for s in segments):
+            return Response({"error": "Invalid path segments."}, status=status.HTTP_400_BAD_REQUEST)
+
+        ALLOWED_LIVE_TV_RESOURCES = {'categories', 'channels', 'search', 'epg', 'stream'}
+        if not segments or segments[0] not in ALLOWED_LIVE_TV_RESOURCES:
+            return Response({"error": "Resource not allowed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        base_url = setting.funbox_live_tv_url.rstrip('/')
+        api_key = setting.funbox_live_tv_api_key
+
+        # Always keep the resulting path under the /api/v1 prefix; remove the path.startswith('api') bypass
+        clean_path = '/'.join(segments)
+        if base_url.endswith('/api/v1'):
+            url = f"{base_url}/{clean_path}"
+        else:
+            url = f"{base_url}/api/v1/{clean_path}"
+
+        query_params = request.GET.dict()
+
+        # Deterministic digest of tenant ID, path, and sorted query parameters
+        sorted_params = json.dumps(sorted(request.GET.items()))
+        cache_key_raw = f"{customer.tenant.id}:{clean_path}:{sorted_params}"
+        digest = hashlib.sha256(cache_key_raw.encode('utf-8')).hexdigest()
+        cache_key = f"livetv_{customer.tenant.id}_{digest}"
+
+        cached_response = cache.get(cache_key)
+        if cached_response:
+            return Response(cached_response)
+
+        headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+        try:
+            resp = requests.get(url, headers=headers, params=query_params, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+
+                timeout = 0
+                if "categories" in clean_path:
+                    timeout = 300
+                elif "search" in clean_path:
+                    timeout = 10
+                elif "channels" in clean_path and not clean_path.rstrip('/').split('/')[-1].isdigit():
+                    timeout = 20
+
+                if timeout > 0:
+                    cache.set(cache_key, data, timeout)
+
+                return Response(data)
+
+            # Return 401, 403, and 5xx statuses to client as 502; preserve upstream status for other errors
+            if resp.status_code in (401, 403) or (500 <= resp.status_code < 600):
+                client_status = status.HTTP_502_BAD_GATEWAY
+            else:
+                client_status = resp.status_code
+            return Response(
+                {"error": "Live TV server returned an error.", "status_code": resp.status_code},
+                status=client_status
+            )
+        except Exception as e:
+            logger.error(f"Live TV proxy error: {e}")
+            return Response({"error": "Failed to connect to Live TV server."}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class CustomerPortalMovieServerProxyView(CustomerPortalBaseView):
+    def handle_proxy(self, request):
+        customer = self.get_customer()
+        if not customer:
+            return Response({"error": "Customer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.core.models import CompanySetting
+        setting = CompanySetting.objects.filter(tenant=customer.tenant).first()
+        if not setting or not setting.funbox_movie_server_enabled or not setting.funbox_movie_server_url:
+            return Response({"error": "Movie Server is not enabled."}, status=status.HTTP_400_BAD_REQUEST)
+
+        base_url = setting.funbox_movie_server_url.rstrip('/')
+        if not base_url.endswith('/api'):
+            base_url = f"{base_url}/api"
+        url = f"{base_url}/"
+
+        api_key = setting.funbox_movie_server_api_key
+        headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+
+        query_params = request.GET.dict()
+
+        try:
+            if request.method == 'GET':
+                resp = requests.get(url, headers=headers, params=query_params, timeout=10)
+            elif request.method == 'POST':
+                raw_data = getattr(request, 'data', {})
+                data = raw_data.copy() if hasattr(raw_data, 'copy') else raw_data
+                if not isinstance(data, dict):
+                    return Response(
+                        {"error": "Request body must be a valid JSON object."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                data['customer_id'] = customer.pppoe_username
+                resp = requests.post(url, headers=headers, params=query_params, json=data, timeout=10)
+            else:
+                return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        except Exception as e:
+            logger.error(f"Movie server proxy error: {e}")
+            return Response({"error": "Failed to connect to Movie Server."}, status=status.HTTP_502_BAD_GATEWAY)
+
+        try:
+            resp_data = resp.json()
+        except (ValueError, json.JSONDecodeError):
+            return Response(
+                {"error": "Invalid response from Movie Server.", "raw_response": resp.text},
+                status=resp.status_code
+            )
+
+        return Response(resp_data, status=resp.status_code)
+
+    def get(self, request, *args, **kwargs):
+        return self.handle_proxy(request)
+
+    def post(self, request, *args, **kwargs):
+        return self.handle_proxy(request)
+
+
 
 
 class CustomerPortalTrafficView(CustomerPortalBaseView):

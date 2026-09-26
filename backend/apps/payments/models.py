@@ -106,9 +106,18 @@ class SmsLog(models.Model):
 
 
 class PaymentTransaction(models.Model):
+    class EntityType(models.TextChoices):
+        CUSTOMER = 'CUSTOMER', 'Customer'
+        RESELLER = 'RESELLER', 'Reseller'
+        STAFF = 'STAFF', 'Staff Wallet'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='transactions')
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='payments')
+    entity_type = models.CharField(max_length=20, choices=EntityType.choices, default=EntityType.CUSTOMER)
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
+    reseller = models.ForeignKey('authentication.Reseller', on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
+    initiator_user = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True)
+    reference_id = models.CharField(max_length=150, blank=True)
     gateway = models.ForeignKey(PaymentGateway, on_delete=models.SET_NULL, null=True, blank=True)
     sms_log = models.ForeignKey(SmsLog, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
@@ -154,7 +163,11 @@ class PaymentAttempt(models.Model):
     """Tracks each payment initiation with full state machine."""
     id                  = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant              = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='payment_attempts')
-    customer            = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='payment_attempts')
+    entity_type         = models.CharField(max_length=20, choices=PaymentTransaction.EntityType.choices, default=PaymentTransaction.EntityType.CUSTOMER)
+    customer            = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='payment_attempts', null=True, blank=True)
+    reseller            = models.ForeignKey('authentication.Reseller', on_delete=models.CASCADE, related_name='payment_attempts', null=True, blank=True)
+    initiator_user      = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True)
+    reference_id        = models.CharField(max_length=150, blank=True)
     gateway             = models.ForeignKey(PaymentGateway, on_delete=models.SET_NULL, null=True, blank=True)
     amount              = models.DecimalField(max_digits=12, decimal_places=2)
     currency            = models.CharField(max_length=10, default='BDT')

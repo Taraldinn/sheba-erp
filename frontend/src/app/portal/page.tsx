@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Wifi,
@@ -67,7 +68,10 @@ import { ThreadedTicketModal } from "@/components/portal/ThreadedTicketModal";
 
 type PortalTab = "overview" | "billing" | "speedtest" | "packages" | "support" | "wifi";
 
-export default function SubscriberPortalPage() {
+function SubscriberPortalContent() {
+  const searchParams = useSearchParams();
+  const isCaptiveExpired = searchParams?.get("expired") === "true" || searchParams?.get("expire_pool") === "true";
+
   const [activeTab, setActiveTab] = useState<PortalTab>("overview");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -81,6 +85,16 @@ export default function SubscriberPortalPage() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // Auto popup payment modal when redirected by router in captive expire pool mode
+  useEffect(() => {
+    if (isCaptiveExpired) {
+      const timer = setTimeout(() => {
+        setPayModalOpen(true);
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [isCaptiveExpired]);
 
   // Extended self-care modals state
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
@@ -488,6 +502,37 @@ export default function SubscriberPortalPage() {
       </header>
 
       <div className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        {/* Captive Expire Pool Notification */}
+        {(isCaptiveExpired || profile?.status === "Expired") && (
+          <div className="p-4 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 text-foreground shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-amber-500/20 text-amber-500 border border-amber-500/30 flex items-center justify-center shrink-0">
+                <Zap className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-sm sm:text-base font-bold text-amber-500">
+                    Subscription Expired — Payment Grace Bandwidth Active
+                  </h2>
+                  <Badge className="bg-amber-500/20 border-amber-500/40 text-amber-600 dark:text-amber-400 font-mono text-[10px]">
+                    10k-50k Emergency Data
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Your regular high-speed line has paused, but your router is providing emergency payment bandwidth so you can recharge via bKash / Nagad without visiting our office. Line speed restores automatically upon payment.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => setPayModalOpen(true)}
+              className="bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-xs h-9 px-4 shrink-0 shadow-md cursor-pointer"
+            >
+              <CreditCard className="h-4 w-4 mr-1.5" />
+              Recharge Now (Instant Unblock)
+            </Button>
+          </div>
+        )}
+
         {/* Notifications Alert Bar */}
         {notifications.length > 0 && (
           <div className="space-y-2">
@@ -1524,5 +1569,22 @@ export default function SubscriberPortalPage() {
         onTicketUpdated={loadPortalData}
       />
     </div>
+  );
+}
+
+export default function SubscriberPortalPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">
+          <div className="flex flex-col items-center gap-2">
+            <RefreshCw className="h-6 w-6 animate-spin text-indigo-500" />
+            <span className="text-xs">Loading subscriber self-care portal...</span>
+          </div>
+        </div>
+      }
+    >
+      <SubscriberPortalContent />
+    </Suspense>
   );
 }

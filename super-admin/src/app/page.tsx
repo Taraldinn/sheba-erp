@@ -174,7 +174,14 @@ function SaaSAdminContent() {
         }
       } else {
         const created = await SaaSClient.createTenant(payload);
-        setTenants((prev) => [created, ...prev]);
+        const tenantObj = (created && (created as any).tenant && (created as any).tenant.id)
+          ? (created as any).tenant
+          : created;
+        if (tenantObj && tenantObj.id) {
+          setTenants((prev) => [tenantObj, ...prev.filter((t) => t.id !== tenantObj.id)]);
+        } else {
+          await loadTabData();
+        }
       }
     } finally {
       setIsFormSubmitting(false);
@@ -291,8 +298,13 @@ function SaaSAdminContent() {
       setRequests((prev) =>
         prev.map((r) => (r.id === requestId ? { ...r, status: 'approved' } : r))
       );
-      if (res.tenant) {
-        setTenants((prev) => [res.tenant, ...prev]);
+      const tenantObj = (res && (res as any).tenant && (res as any).tenant.id)
+        ? (res as any).tenant
+        : null;
+      if (tenantObj && tenantObj.id) {
+        setTenants((prev) => [tenantObj, ...prev.filter((t) => t.id !== tenantObj.id)]);
+      } else {
+        await loadTabData();
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to approve request.';

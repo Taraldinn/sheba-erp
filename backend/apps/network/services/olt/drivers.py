@@ -851,11 +851,19 @@ class HSGQEponDriver(BDCOMEponDriver):
 
 
 def get_olt_driver(olt) -> BaseOLTDriver:
+    from .snmp_drivers import CDataV2EponDriver, CDataV2GponDriver, BDCOMSnmpEponDriver
     brand = (olt.brand or 'VSOL').upper()
     mode = getattr(olt, 'access_mode', 'EPON').upper()
+    if brand == 'CDATA' and mode == 'GPON':
+        return CDataV2GponDriver(olt)
+    if brand == 'CDATA' and mode == 'EPON':
+        return CDataV2EponDriver(olt)
     if brand == 'BDCOM' and mode == 'GPON':
         return BDCOMGponDriver(olt)
     if brand == 'BDCOM' and mode == 'EPON':
+        # Select SNMP driver if CLI/Telnet is not enabled (applicable SNMP config)
+        if not getattr(olt, 'cli_enabled', False):
+            return BDCOMSnmpEponDriver(olt)
         return BDCOMEponDriver(olt)
     if brand == 'VSOL' and mode == 'GPON':
         return VSOLGponDriver(olt)

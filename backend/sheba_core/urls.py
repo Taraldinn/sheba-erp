@@ -30,7 +30,8 @@ from apps.payments.views import (
     SmsWebhookView, InboundPaymentEventViewSet
 )
 from apps.payments.bkash_views import (
-    BKashPayBillQueryView, BKashPayBillPayView, BKashPayBillSearchView, ManualSMSForwarderView
+    BKashPayBillQueryView, BKashPayBillPayView, BKashPayBillSearchView, ManualSMSForwarderView,
+    CheckoutStatusView
 )
 from apps.network.views import RouterViewSet, OLTViewSet, ONUViewSet, UserSessionViewSet, POPBranchViewSet, TJBoxViewSet
 from apps.support.views import TicketViewSet
@@ -147,6 +148,8 @@ urlpatterns = [
     path('api/searchTransaction', BKashPayBillSearchView.as_view(), name='bkash-outbound-search-transaction-noslash'),
 
     path('api/v1/payments/forwarder/webhook/', ManualSMSForwarderView.as_view(), name='manual-sms-forwarder-webhook'),
+    path('api/v1/payments/checkout-status/', CheckoutStatusView.as_view(), name='checkout-status'),
+    path('ajax/checkout_status.php', CheckoutStatusView.as_view(), name='legacy-checkout-status'),
     
     # Analytics & Reports
     path('api/v1/reports/dashboard/', DashboardAnalyticsView.as_view(), name='reports-dashboard'),

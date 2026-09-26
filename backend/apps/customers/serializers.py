@@ -14,18 +14,40 @@ class CustomerListSerializer(serializers.ModelSerializer):
     package_name = serializers.CharField(source='package.name', read_only=True)
     package_speed = serializers.IntegerField(source='package.speed_mbps', read_only=True)
     router_name = serializers.CharField(source='router.name', read_only=True)
+    router_ip = serializers.CharField(source='router.ip_address', read_only=True)
+    router_protocol = serializers.CharField(source='router.api_protocol', read_only=True)
+    router_status = serializers.CharField(source='router.status', read_only=True)
     reseller_name = serializers.CharField(source='reseller.user.username', read_only=True)
+    live_session = serializers.SerializerMethodField()
 
     class Meta:
         model = Customer
         fields = [
             'id', 'customer_code', 'full_name', 'mobile', 'email', 'address', 'area_zone',
-            'connection_type', 'router', 'router_name', 'pppoe_username',
-            'package', 'package_name', 'package_speed', 'billing_type',
+            'connection_type', 'router', 'router_name', 'router_ip', 'router_protocol', 'router_status',
+            'pppoe_username', 'package', 'package_name', 'package_speed', 'billing_type',
             'monthly_bill', 'due_amount', 'advance_amount', 'discount',
             'bill_date', 'expiry_date', 'promise_date', 'status',
-            'auto_lock_enabled', 'reseller', 'reseller_name', 'created_at'
+            'auto_lock_enabled', 'reseller', 'reseller_name', 'live_session', 'created_at'
         ]
+
+    def get_live_session(self, obj):
+        from apps.network.models import UserSession
+        session = UserSession.objects.filter(tenant=obj.tenant, username=obj.pppoe_username).first()
+        if session:
+            return {
+                'is_online': True,
+                'ip_address': session.ip_address,
+                'mac_address': session.mac_address,
+                'caller_id': session.caller_id,
+                'uptime': session.uptime,
+                'bytes_in': session.bytes_in,
+                'bytes_out': session.bytes_out,
+                'router_name': session.router.name if session.router else '',
+                'connected_at': session.connected_at.isoformat() if session.connected_at else None,
+                'last_seen': session.last_seen.isoformat() if session.last_seen else None,
+            }
+        return {'is_online': False}
 
 
 class CustomerDetailSerializer(serializers.ModelSerializer):
@@ -38,6 +60,10 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
     """
     package_name = serializers.CharField(source='package.name', read_only=True)
     router_name = serializers.CharField(source='router.name', read_only=True)
+    router_ip = serializers.CharField(source='router.ip_address', read_only=True)
+    router_protocol = serializers.CharField(source='router.api_protocol', read_only=True)
+    router_status = serializers.CharField(source='router.status', read_only=True)
+    live_session = serializers.SerializerMethodField()
 
     class Meta:
         model = Customer
@@ -51,6 +77,24 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         ret.pop('pppoe_password', None)
         return ret
+
+    def get_live_session(self, obj):
+        from apps.network.models import UserSession
+        session = UserSession.objects.filter(tenant=obj.tenant, username=obj.pppoe_username).first()
+        if session:
+            return {
+                'is_online': True,
+                'ip_address': session.ip_address,
+                'mac_address': session.mac_address,
+                'caller_id': session.caller_id,
+                'uptime': session.uptime,
+                'bytes_in': session.bytes_in,
+                'bytes_out': session.bytes_out,
+                'router_name': session.router.name if session.router else '',
+                'connected_at': session.connected_at.isoformat() if session.connected_at else None,
+                'last_seen': session.last_seen.isoformat() if session.last_seen else None,
+            }
+        return {'is_online': False}
 
     def validate_package(self, package):
         """Ensure the assigned package belongs to this tenant (Plan Phase 7)."""

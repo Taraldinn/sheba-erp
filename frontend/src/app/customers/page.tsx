@@ -15,6 +15,10 @@ import {
   Edit2,
   Loader2,
   Eye,
+  Zap,
+  Power,
+  Server,
+  Radio,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ExpirePoolModal } from "@/components/network/ExpirePoolModal";
 import { Customer, CustomerStatus, Package, Router } from "@/types";
 import { ApiClient } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
@@ -38,6 +43,10 @@ function CustomersContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+
+  // Expire Pool Captive Modal State
+  const [expirePoolModalOpen, setExpirePoolModalOpen] = useState(false);
+  const [selectedRouterForExpirePool, setSelectedRouterForExpirePool] = useState<Router | null>(null);
 
   // Filters State
   const [selectedPackage, setSelectedPackage] = useState("All Packages");
@@ -77,9 +86,29 @@ function CustomersContent() {
   // Notifications
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
 
+  // Router sync & disconnect state
+  const [syncingCustomerIds, setSyncingCustomerIds] = useState<Record<string, boolean>>({});
+  const [disconnectingCustomerIds, setDisconnectingCustomerIds] = useState<Record<string, boolean>>({});
+
+  // Live session refresh state (per-customer override shown in detail modal)
+  const [refreshingSessionIds, setRefreshingSessionIds] = useState<Record<string, boolean>>({});
+  const [liveSessionOverrides, setLiveSessionOverrides] = useState<Record<string, Customer['live_session']>>({});
+
   const showNotification = (msg: string) => {
     setActionSuccessMsg(msg);
     setTimeout(() => setActionSuccessMsg(null), 3500);
+  };
+
+  const handleRefreshLiveSession = async (customer: Customer) => {
+    setRefreshingSessionIds((prev) => ({ ...prev, [customer.id]: true }));
+    try {
+      const data = await ApiClient.getCustomerLiveSession(customer.id);
+      setLiveSessionOverrides((prev) => ({ ...prev, [customer.id]: data }));
+    } catch {
+      // silently ignore — existing data stays
+    } finally {
+      setRefreshingSessionIds((prev) => ({ ...prev, [customer.id]: false }));
+    }
   };
 
   const loadData = useCallback(async () => {
@@ -156,7 +185,9 @@ function CustomersContent() {
 
     let matchesStatus = true;
     if (selectedStatus !== "All" && selectedStatus !== "Any Status") {
-      if (selectedStatus === "Due") {
+      if (selectedStatus === "ExpirePool") {
+        matchesStatus = c.status === "Expired";
+      } else if (selectedStatus === "Due") {
         matchesStatus = Number(c.due_amount) > 0 || c.status === "Suspended";
       } else if (selectedStatus === "PromiseActive") {
         matchesStatus = c.status === "Active" && Boolean(c.promise_date);
@@ -202,6 +233,34 @@ function CustomersContent() {
       console.error("Toggle internet error:", err);
       showNotification(`Failed to toggle internet for ${customer.full_name}`);
       loadData();
+    }
+  };
+
+  const handleSyncToRouter = async (customer: Customer) => {
+    setSyncingCustomerIds((prev) => ({ ...prev, [customer.id]: true }));
+    try {
+      const res = await ApiClient.syncCustomerToRouter(customer.id);
+      showNotification(res.detail || `Synchronized ${customer.pppoe_username} to MikroTik router.`);
+      loadData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(msg || "Failed to synchronize subscriber with router.");
+    } finally {
+      setSyncingCustomerIds((prev) => ({ ...prev, [customer.id]: false }));
+    }
+  };
+
+  const handleDisconnectSession = async (customer: Customer) => {
+    setDisconnectingCustomerIds((prev) => ({ ...prev, [customer.id]: true }));
+    try {
+      const res = await ApiClient.disconnectCustomerSession(customer.id);
+      showNotification(res.detail || `Disconnected session for ${customer.pppoe_username}.`);
+      loadData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(msg || "Failed to disconnect session.");
+    } finally {
+      setDisconnectingCustomerIds((prev) => ({ ...prev, [customer.id]: false }));
     }
   };
 
@@ -326,6 +385,22 @@ function CustomersContent() {
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const target = routers.find((r) => r.is_active) || routers[0] || null;
+              setSelectedRouterForExpirePool(target);
+              setExpirePoolModalOpen(true);
+            }}
+            className="h-8 text-xs gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 font-bold cursor-pointer"
+            title="Configure router captive redirection, rate limits (10kb-50kb), and walled garden"
+          >
+            <Zap className="h-3.5 w-3.5 text-amber-500" />
+            Expire Pool & Captive Portal
+          </Button>
+
           <Link href="/customers/new">
             <Button size="sm" className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold cursor-pointer">
               <Plus className="h-3.5 w-3.5" />
@@ -356,7 +431,88 @@ function CustomersContent() {
         </div>
       )}
 
-      {/* 2. Filter Bar */}
+      {/* 2. KPI Cards: Prepaid User Management & Expire Pool */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card className="border-border bg-card shadow-xs">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase font-bold tracking-wider">
+                Total Subscribers
+              </span>
+              <Users className="h-4 w-4 text-indigo-500" />
+            </div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-xl font-bold font-mono text-foreground">{customers.length}</span>
+              <span className="text-[10px] text-muted-foreground">Directory database</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-card shadow-xs">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 uppercase font-bold tracking-wider">
+                Active (Full Speed)
+              </span>
+              <Wifi className="h-4 w-4 text-emerald-500" />
+            </div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                {customers.filter((c) => c.status === "Active").length}
+              </span>
+              <span className="text-[10px] text-muted-foreground">Full package profiles</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          onClick={() => setSelectedStatus(selectedStatus === "ExpirePool" ? "All" : "ExpirePool")}
+          className={`border transition-all cursor-pointer shadow-xs ${
+            selectedStatus === "ExpirePool"
+              ? "border-amber-500 bg-amber-500/10 ring-1 ring-amber-500"
+              : "border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10"
+          }`}
+        >
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 uppercase font-bold tracking-wider flex items-center gap-1">
+                <Zap className="h-3 w-3 animate-pulse" />
+                In Expire Pool
+              </span>
+              <Badge variant="outline" className="text-[9px] bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400 font-mono">
+                10k-50k Grace
+              </Badge>
+            </div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
+                {customers.filter((c) => c.status === "Expired").length}
+              </span>
+              <span className="text-[10px] text-amber-600/80 dark:text-amber-400/80">
+                Click to filter captive users
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-card shadow-xs">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-rose-600 dark:text-rose-400 uppercase font-bold tracking-wider">
+                Due / Suspended
+              </span>
+              <AlertTriangle className="h-4 w-4 text-rose-500" />
+            </div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-xl font-bold font-mono text-rose-600 dark:text-rose-400">
+                {customers.filter((c) => Number(c.due_amount) > 0 || c.status === "Suspended").length}
+              </span>
+              <span className="text-[10px] text-muted-foreground">Unpaid or hard suspended</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 3. Filter Bar */}
       <Card className="border-border bg-card shadow-xs">
         <CardContent className="p-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
@@ -379,6 +535,7 @@ function CustomersContent() {
             >
               <option value="All">All Statuses</option>
               <option value="Active">Active</option>
+              <option value="ExpirePool">⚡ In Expire Pool (10k-50k Throttled)</option>
               <option value="Suspended">Suspended</option>
               <option value="Expired">Expired</option>
               <option value="Due">Due / Outstanding</option>
@@ -433,9 +590,10 @@ function CustomersContent() {
                   </th>
                   <th className="p-3">Subscriber</th>
                   <th className="p-3">Mobile & Address</th>
-                  <th className="p-3">PPPoE Username</th>
+                  <th className="p-3">PPPoE User</th>
+                  <th className="p-3">Router & IP</th>
                   <th className="p-3">Package / Rate</th>
-                  <th className="p-3">Internet Status</th>
+                  <th className="p-3">Live Session</th>
                   <th className="p-3">Account State</th>
                   <th className="p-3">Remaining</th>
                   <th className="p-3 text-right">Actions</th>
@@ -444,7 +602,7 @@ function CustomersContent() {
               <tbody className="divide-y divide-border">
                 {loading && customers.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-12 text-muted-foreground">
+                    <td colSpan={10} className="text-center py-12 text-muted-foreground">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
                         <span>Loading subscribers from network database...</span>
@@ -453,7 +611,7 @@ function CustomersContent() {
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-12 text-muted-foreground">
+                    <td colSpan={10} className="text-center py-12 text-muted-foreground">
                       No subscribers found matching your search or filter parameters.
                     </td>
                   </tr>
@@ -508,6 +666,24 @@ function CustomersContent() {
                           {c.pppoe_username || "—"}
                         </td>
 
+                        {/* Router & Leased IP */}
+                        <td className="p-3">
+                          <div className="flex items-center gap-1.5">
+                            <Server className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="font-semibold text-foreground truncate max-w-[110px] block" title={c.router_name || "Unassigned"}>
+                              {c.router_name || "Default"}
+                            </span>
+                            {c.router_protocol && (
+                              <span className="text-[9px] uppercase px-1 py-0.2 rounded font-mono font-bold bg-muted text-muted-foreground border border-border/50">
+                                {c.router_protocol}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] font-mono text-muted-foreground block mt-0.5">
+                            {c.live_session?.ip_address || "No IP leased"}
+                          </span>
+                        </td>
+
                         {/* Package / Rate */}
                         <td className="p-3">
                           <span className="font-medium text-foreground block">
@@ -518,37 +694,51 @@ function CustomersContent() {
                           </span>
                         </td>
 
-                        {/* Internet On/Off Toggle */}
+                        {/* Live Session & Internet On/Off */}
                         <td className="p-3">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleInternet(c)}
-                            title={isOnline ? "Suspend Subscriber" : "Activate Subscriber"}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold transition-all border shadow-xs cursor-pointer ${
-                              isOnline
-                                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25"
-                                : "bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/25"
-                            }`}
-                          >
-                            {isOnline ? (
-                              <>
+                          <div className="flex items-center gap-1.5">
+                            {c.live_session?.is_online ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
                                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                <Wifi className="h-3 w-3" />
-                                <span>ON</span>
-                              </>
+                                Online
+                              </span>
                             ) : (
-                              <>
-                                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                                <WifiOff className="h-3 w-3" />
-                                <span>OFF</span>
-                              </>
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+                                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+                                Off
+                              </span>
                             )}
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleInternet(c)}
+                              title={isOnline ? "Suspend Subscriber" : "Activate Subscriber"}
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold transition-all border shadow-xs cursor-pointer ${
+                                isOnline
+                                  ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25"
+                                  : "bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/25"
+                              }`}
+                            >
+                              {isOnline ? <Wifi className="h-2.5 w-2.5" /> : <WifiOff className="h-2.5 w-2.5" />}
+                              <span>{isOnline ? "ON" : "OFF"}</span>
+                            </button>
+                          </div>
                         </td>
 
                         {/* Account Status */}
                         <td className="p-3">
-                          <StatusBadge status={c.status} />
+                          {c.status === "Expired" ? (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400">
+                                <Zap className="h-2.5 w-2.5 animate-pulse text-amber-500" />
+                                In Expire Pool
+                              </span>
+                              <span className="text-[9px] font-mono text-muted-foreground block">
+                                10k-50k Throttled
+                              </span>
+                            </div>
+                          ) : (
+                            <StatusBadge status={c.status} />
+                          )}
                           {Number(c.due_amount) > 0 && (
                             <span className="block text-[10px] text-amber-500 font-bold mt-0.5">
                               Due: {formatCurrency(c.due_amount)}
@@ -574,6 +764,28 @@ function CustomersContent() {
                         {/* Action Buttons */}
                         <td className="p-3 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleSyncToRouter(c)}
+                              disabled={syncingCustomerIds[c.id]}
+                              className="h-7 w-7 p-0 text-indigo-500 hover:bg-indigo-500/10 cursor-pointer"
+                              title="Sync subscriber to MikroTik Router"
+                            >
+                              <Zap className={`h-3.5 w-3.5 ${syncingCustomerIds[c.id] ? "animate-spin text-amber-500" : ""}`} />
+                            </Button>
+                            {c.live_session?.is_online && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDisconnectSession(c)}
+                                disabled={disconnectingCustomerIds[c.id]}
+                                className="h-7 w-7 p-0 text-amber-500 hover:bg-amber-500/10 cursor-pointer"
+                                title="Kick/Disconnect live router session"
+                              >
+                                <Power className={`h-3.5 w-3.5 ${disconnectingCustomerIds[c.id] ? "animate-spin" : ""}`} />
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"
@@ -682,6 +894,118 @@ function CustomersContent() {
                   </div>
                 </div>
               </div>
+
+              {/* Dynamic Live MikroTik Router Session */}
+              {(() => {
+                const session = liveSessionOverrides[detailCustomer.id] ?? detailCustomer.live_session;
+                return (
+                  <div className="p-3 bg-muted/40 rounded-lg border border-border space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Radio className="h-3.5 w-3.5 text-indigo-500" />
+                        <span className="text-[10px] uppercase font-bold text-indigo-500">Live MikroTik Session Telemetry</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {session?.is_online ? (
+                          <Badge variant="success" className="text-[10px] gap-1 py-0.5">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+                            Active Session Leased
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground py-0.5">
+                            No Active Leased Session
+                          </Badge>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRefreshLiveSession(detailCustomer)}
+                          disabled={refreshingSessionIds[detailCustomer.id]}
+                          className="h-5 px-1.5 text-[9px] gap-1 cursor-pointer border-indigo-500/30 text-indigo-500 hover:bg-indigo-500/10"
+                          title="Query router for latest session data"
+                        >
+                          <RefreshCw className={`h-2.5 w-2.5 ${refreshingSessionIds[detailCustomer.id] ? "animate-spin" : ""}`} />
+                          Refresh Live
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1 bg-background/60 p-2.5 rounded-md border border-border/50">
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block">Leased IP</span>
+                        <span className="font-mono font-bold text-foreground text-xs">
+                          {session?.ip_address || "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block">Client MAC</span>
+                        <span className="font-mono text-foreground text-xs truncate block" title={session?.mac_address || "—"}>
+                          {session?.mac_address || "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block">Session Uptime</span>
+                        <span className="font-semibold text-foreground text-xs truncate block">
+                          {session?.uptime || "Offline"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block">Router</span>
+                        <span className="font-mono text-foreground text-xs truncate block" title={detailCustomer.router_ip ? `${detailCustomer.router_ip} (${detailCustomer.router_protocol || "API"})` : "Default"}>
+                          {session?.router_name || detailCustomer.router_name || detailCustomer.router_ip || "Default"}
+                        </span>
+                      </div>
+                      {session?.connected_at && (
+                        <div className="col-span-2">
+                          <span className="text-[10px] text-muted-foreground block">Connected At</span>
+                          <span className="font-mono text-foreground text-xs">
+                            {new Date(session.connected_at).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                      {session?.caller_id && (
+                        <div className="col-span-2">
+                          <span className="text-[10px] text-muted-foreground block">Caller ID (NAS)</span>
+                          <span className="font-mono text-foreground text-xs truncate block" title={session.caller_id}>
+                            {session.caller_id}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-mono">
+                        <span>Rx: <strong className="text-foreground">{session?.bytes_in ? (session.bytes_in / (1024 * 1024)).toFixed(2) + " MB" : "0 MB"}</strong></span>
+                        <span>Tx: <strong className="text-foreground">{session?.bytes_out ? (session.bytes_out / (1024 * 1024)).toFixed(2) + " MB" : "0 MB"}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSyncToRouter(detailCustomer)}
+                          disabled={syncingCustomerIds[detailCustomer.id]}
+                          className="h-6 px-2 text-[10px] gap-1 cursor-pointer"
+                        >
+                          <Zap className={`h-3 w-3 ${syncingCustomerIds[detailCustomer.id] ? "animate-spin text-amber-500" : ""}`} />
+                          Sync Router
+                        </Button>
+                        {session?.is_online && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDisconnectSession(detailCustomer)}
+                            disabled={disconnectingCustomerIds[detailCustomer.id]}
+                            className="h-6 px-2 text-[10px] gap-1 cursor-pointer"
+                          >
+                            <Power className={`h-3 w-3 ${disconnectingCustomerIds[detailCustomer.id] ? "animate-spin" : ""}`} />
+                            Drop Session
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Billing Info */}
               <div className="grid grid-cols-3 gap-2 text-center p-3 bg-muted/40 rounded-lg border border-border">
@@ -937,6 +1261,14 @@ function CustomersContent() {
         confirmLabel="Delete Subscriber"
         variant="destructive"
         onConfirm={handleDeleteConfirm}
+      />
+
+      {/* 8. Expire Pool & Captive Portal Configuration Modal */}
+      <ExpirePoolModal
+        router={selectedRouterForExpirePool}
+        open={expirePoolModalOpen}
+        onOpenChange={setExpirePoolModalOpen}
+        onSuccess={loadData}
       />
     </div>
   );

@@ -5,6 +5,7 @@ from apps.core.models import Tenant
 from apps.authentication.models import StaffProfile
 from apps.network.models import Router
 from apps.billing.models import Package
+from apps.core.fields import EncryptedCharField
 
 
 class CustomerStatus(models.TextChoices):
@@ -57,6 +58,15 @@ class Customer(models.Model):
     advance_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
+    # CPE / Diagnostics (v4.2.2)
+    cpe_management_ip = models.GenericIPAddressField(null=True, blank=True)
+    cpe_router_model = models.CharField(max_length=100, blank=True)
+    cpe_api_port = models.IntegerField(default=8728)
+    cpe_api_ssl = models.BooleanField(default=False)
+    cpe_admin_username = models.CharField(max_length=100, blank=True)
+    cpe_admin_password = EncryptedCharField(max_length=255, blank=True)
+    cpe_pppoe_password = EncryptedCharField(max_length=255, blank=True, help_text="Stored CPE PPPoE password")
+    
     # Lifecycles
     bill_date = models.DateField(default=timezone.localdate)
     expiry_date = models.DateField(null=True, blank=True, db_index=True)
@@ -100,3 +110,19 @@ class Customer(models.Model):
 
     def __str__(self):
         return f"{self.full_name} ({self.pppoe_username}) - {self.status}"
+
+
+class PPPoECredentialRescueEvent(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='pppoe_rescue_events')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='rescue_events')
+    action = models.CharField(max_length=50)
+    finding = models.CharField(max_length=100, blank=True)
+    performed_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.action} on {self.customer.pppoe_username}"

@@ -37,7 +37,11 @@ class Command(BaseCommand):
                 locked_cust.status = CustomerStatus.EXPIRED
                 locked_cust.save(update_fields=['status', 'updated_at'])
 
-                # Terminate active PPPoE router session
+                # Sync to router (moves to Expire Pool if enabled, or disables secret)
+                from apps.customers.router_sync import sync_customer_to_router
+                sync_res = sync_customer_to_router(locked_cust)
+
+                # Clear old session record so fresh leased IP/profile is tracked
                 UserSession.objects.filter(tenant=locked_cust.tenant, username=locked_cust.pppoe_username).delete()
 
                 AuditLog.objects.create(

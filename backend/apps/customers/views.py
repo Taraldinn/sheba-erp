@@ -21,6 +21,7 @@ from apps.core.lock import distributed_lock, LockAcquisitionError
 from apps.finance.services import execute_transactional_recharge
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import PermissionDenied
+from .router_sync import sync_customer_to_router, disconnect_customer_session, get_customer_live_session
 
 
 @extend_schema_view(
@@ -50,6 +51,9 @@ class CustomerViewSet(viewsets.ModelViewSet):
         'lock': 'customer.update',
         'unlock': 'customer.update',
         'toggle_status': 'customer.update',
+        'sync_router': 'customer.update',
+        'disconnect_session': 'customer.update',
+        'live_session': 'customer.view',
     }
 
     def get_serializer_class(self):
@@ -94,18 +98,21 @@ class CustomerViewSet(viewsets.ModelViewSet):
         tenant = get_tenant_for_request(self.request)
         if not can(self.request.user, tenant, 'customer.create'):
             raise PermissionDenied("Permission denied: customer.create capability required.")
-        serializer.save(tenant=tenant)
+        customer = serializer.save(tenant=tenant)
+        sync_customer_to_router(customer)
 
     def perform_update(self, serializer):
         tenant = get_tenant_for_request(self.request)
         if not can(self.request.user, tenant, 'customer.update', serializer.instance):
             raise PermissionDenied("Permission denied: customer.update capability required.")
-        serializer.save()
+        customer = serializer.save()
+        sync_customer_to_router(customer)
 
     def perform_destroy(self, instance):
         tenant = get_tenant_for_request(self.request)
         if not can(self.request.user, tenant, 'customer.delete', instance):
             raise PermissionDenied("Permission denied: customer.delete capability required.")
+        sync_customer_to_router(instance, is_delete=True)
         super().perform_destroy(instance)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsBillingStaff])
@@ -205,6 +212,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
         if action_type == 'on' or (action_type == 'toggle' and customer.status != CustomerStatus.ACTIVE):
             customer.status = CustomerStatus.ACTIVE
             customer.save(update_fields=['status', 'updated_at'])
+            sync_customer_to_router(customer)
             
             AuditLog.objects.create(
                 tenant=customer.tenant,
@@ -216,7 +224,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
             )
             return Response({
                 'success': True,
-                'message': f'Internet turned ON for {customer.pppoe_username}. Line is active.',
+                'message': f'Internet turned ON for {customer.pppoe_username}. Router line is active.',
                 'status': customer.status,
                 'is_active': True
             })
@@ -224,7 +232,10 @@ class CustomerViewSet(viewsets.ModelViewSet):
             customer.status = CustomerStatus.SUSPENDED
             customer.save(update_fields=['status', 'updated_at'])
             
-            # Disconnect active PPPoE user session from router
+            disconnect_customer_session(customer)
+            sync_customer_to_router(customer)
+            
+            # Clean up active PPPoE user session from router
             from apps.network.models import UserSession
             UserSession.objects.filter(tenant=customer.tenant, username=customer.pppoe_username).delete()
 
@@ -255,6 +266,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
         if target_status in CustomerStatus.values:
             customer.status = target_status
             customer.save(update_fields=['status', 'updated_at'])
+            sync_customer_to_router(customer)
             return Response({'message': f'Status updated to {target_status}', 'status': target_status})
         return Response({'error': 'Invalid status provided'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -275,8 +287,11 @@ class CustomerViewSet(viewsets.ModelViewSet):
         customer.save(update_fields=['status', 'updated_at'])
 
         if disconnect_session:
+            disconnect_customer_session(customer)
             from apps.network.models import UserSession
             UserSession.objects.filter(tenant=customer.tenant, username=customer.pppoe_username).delete()
+
+        sync_customer_to_router(customer)
 
         AuditLog.objects.create(
             tenant=customer.tenant,
@@ -288,7 +303,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
         )
         return Response({
             'success': True,
-            'message': f'Customer {customer.pppoe_username} locked. Internet disabled.',
+            'message': f'Customer {customer.pppoe_username} locked. Sessions terminated.',
             'status': customer.status,
             'is_active': False
         })
@@ -304,6 +319,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
         customer = Customer.objects.select_for_update().get(id=customer_id)
         customer.status = CustomerStatus.ACTIVE
         customer.save(update_fields=['status', 'updated_at'])
+        sync_customer_to_router(customer)
 
         AuditLog.objects.create(
             tenant=customer.tenant,
@@ -315,10 +331,34 @@ class CustomerViewSet(viewsets.ModelViewSet):
         )
         return Response({
             'success': True,
-            'message': f'Customer {customer.pppoe_username} unlocked. Internet active.',
+            'message': f'Customer {customer.pppoe_username} unlocked. Internet active on router.',
             'status': customer.status,
             'is_active': True
         })
+
+    @action(detail=True, methods=['post'], url_path='sync-router')
+    def sync_router(self, request, pk=None):
+        customer = self.get_object()
+        if not can(request.user, request.tenant, 'customer.update', customer):
+            return Response({'error': 'Permission denied: customer.update capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        res = sync_customer_to_router(customer)
+        return Response(res, status=status.HTTP_200_OK if res.get('synced') else status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='disconnect-session')
+    def disconnect_session(self, request, pk=None):
+        customer = self.get_object()
+        if not can(request.user, request.tenant, 'customer.update', customer):
+            return Response({'error': 'Permission denied: customer.update capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        ok = disconnect_customer_session(customer)
+        from apps.network.models import UserSession
+        UserSession.objects.filter(tenant=customer.tenant, username=customer.pppoe_username).delete()
+        return Response({'success': ok, 'message': f'Session disconnect signal sent for {customer.pppoe_username}'})
+
+    @action(detail=True, methods=['get'], url_path='live-session')
+    def live_session(self, request, pk=None):
+        customer = self.get_object()
+        data = get_customer_live_session(customer)
+        return Response(data)
 
     @action(detail=True, methods=['get'], url_path='financial-summary')
     def financial_summary(self, request, pk=None):

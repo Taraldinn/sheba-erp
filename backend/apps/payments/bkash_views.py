@@ -163,6 +163,52 @@ def _settle_customer_payment(tenant, customer, amount: Decimal, trx_id: str, pay
         raise
 
 
+def _settle_reseller_payment(tenant, reseller, amount: Decimal, trx_id: str, payment_method: str = "bKash", gateway=None, raw_payload=None):
+    from apps.authentication.models import ResellerLedgerEntry
+    sanitized_payload = sanitize_payload(raw_payload) if raw_payload else {}
+    try:
+        with transaction.atomic():
+            existing_txn = PaymentTransaction.objects.filter(tenant=tenant, trx_id=trx_id).first()
+            if existing_txn:
+                return existing_txn, False
+
+            from apps.authentication.models import Reseller
+            locked_reseller = Reseller.objects.select_for_update().get(id=reseller.id)
+
+            txn = PaymentTransaction.objects.create(
+                tenant=tenant,
+                reseller=locked_reseller,
+                entity_type=PaymentTransaction.EntityType.RESELLER,
+                gateway=gateway,
+                amount=amount,
+                trx_id=trx_id,
+                payment_method=payment_method,
+                status=TransactionStatus.SUCCESS,
+                customer_account=locked_reseller.contact_phone or locked_reseller.user.username,
+                raw_payload=sanitized_payload
+            )
+
+            locked_reseller.wallet_balance = Decimal(str(locked_reseller.wallet_balance or '0.00')) + amount
+            locked_reseller.save(update_fields=['wallet_balance'])
+
+            ResellerLedgerEntry.objects.create(
+                tenant=tenant,
+                reseller=locked_reseller,
+                entry_type=ResellerLedgerEntry.EntryType.CREDIT,
+                amount=amount,
+                balance_after=locked_reseller.wallet_balance,
+                reference=trx_id,
+                notes=f"Wallet top-up via {payment_method}"
+            )
+
+            return txn, True
+    except IntegrityError:
+        existing_txn = PaymentTransaction.objects.filter(tenant=tenant, trx_id=trx_id).first()
+        if existing_txn:
+            return existing_txn, False
+        raise
+
+
 class BKashCheckoutCreateView(views.APIView):
     """
     Initiates bKash Tokenized Checkout for authenticated customers.
@@ -911,25 +957,55 @@ class ManualSMSForwarderView(views.APIView):
                 "trx_id": trx_id,
                 "message": "Payment matched and customer line recharged successfully."
             }, status=status.HTTP_200_OK)
-        else:
-            # Store as unmatched InboundPaymentEvent for manual resolution or customer claim
-            event = InboundPaymentEvent.objects.create(
-                tenant=tenant,
-                source=InboundPaymentEvent.EventSource.SMS,
-                raw_payload=json.dumps(sanitized_payload, ensure_ascii=False) if isinstance(sanitized_payload, dict) else str(sanitized_payload),
-                provider=provider,
-                amount=amount if amount > 0 else None,
-                trx_id=trx_id,
-                sender_account=sender_account,
-                reference_id=reference_id,
-                status=InboundPaymentEvent.EventStatus.UNMATCHED
-            )
-            return Response({
-                "status": "unmatched",
-                "matched": False,
-                "event_id": str(event.id),
-                "message": "Payment recorded as unmatched. Waiting for customer claim or staff review."
-            }, status=status.HTTP_202_ACCEPTED)
+            
+        # Partner Wallet Top-up Matching
+        if not customer and amount > Decimal('0.00'):
+            from apps.authentication.models import Reseller
+            reseller = None
+            if reference_id:
+                reseller = Reseller.objects.filter(tenant=tenant).filter(
+                    models.Q(user__username__iexact=reference_id) |
+                    models.Q(contact_phone=reference_id)
+                ).first()
+            if not reseller and sender_account:
+                reseller = Reseller.objects.filter(tenant=tenant, contact_phone=sender_account).first()
+                
+            if reseller:
+                txn, _ = _settle_reseller_payment(
+                    tenant=tenant,
+                    reseller=reseller,
+                    amount=amount,
+                    trx_id=trx_id,
+                    payment_method=f"Manual {provider} Forwarder",
+                    raw_payload=sanitized_payload
+                )
+                return Response({
+                    "status": "matched",
+                    "matched": True,
+                    "customer_name": reseller.user.username,
+                    "amount": str(amount),
+                    "trx_id": trx_id,
+                    "message": "Payment matched and partner wallet recharged successfully."
+                }, status=status.HTTP_200_OK)
+
+        # Store as unmatched InboundPaymentEvent for manual resolution or customer claim
+        event = InboundPaymentEvent.objects.create(
+            tenant=tenant,
+            source=InboundPaymentEvent.EventSource.SMS,
+            raw_payload=json.dumps(sanitized_payload, ensure_ascii=False) if isinstance(sanitized_payload, dict) else str(sanitized_payload),
+            provider=provider,
+            amount=amount if amount > 0 else None,
+            trx_id=trx_id,
+            sender_account=sender_account,
+            reference_id=reference_id,
+            status=InboundPaymentEvent.EventStatus.UNMATCHED
+        )
+        return Response({
+            "status": "unmatched",
+            "matched": False,
+            "event_id": str(event.id),
+            "message": "Payment recorded as unmatched. Waiting for customer claim or staff review."
+        }, status=status.HTTP_202_ACCEPTED)
 
 
 class CustomerPortalClaimPaymentView(views.APIView):
@@ -994,3 +1070,208 @@ class CustomerPortalClaimPaymentView(views.APIView):
             "amount": str(event.amount),
             "new_expiry": customer.expiry_date
         }, status=status.HTTP_200_OK)
+
+
+class CheckoutStatusView(views.APIView):
+    """
+    Polling endpoint with MFS catch-up matching by username reference first, then payer mobile.
+    GET /api/v1/payments/checkout-status/ (Read-only polling)
+    POST /api/v1/payments/checkout-status/ (Authorized settlement)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_entity_for_user(self, user, tenant):
+        """
+        Derives the entity (Customer or Reseller) strictly from request.user.
+        """
+        customer = getattr(user, 'customer', None)
+        if not customer:
+            customer = Customer.objects.filter(user=user, tenant=tenant).first()
+        if customer:
+            return 'customer', customer
+
+        from apps.authentication.models import Reseller
+        reseller = getattr(user, 'reseller_profile', None)
+        if not reseller:
+            reseller = Reseller.objects.filter(user=user, tenant=tenant).first()
+        if reseller:
+            return 'reseller', reseller
+
+        if user.is_staff or user.is_superuser:
+            return 'staff', user
+
+        return None, None
+
+    def get(self, request, *args, **kwargs):
+        tenant = get_tenant_for_request(request)
+        reference = (request.query_params.get('reference') or '').strip()
+        amount_str = request.query_params.get('amount')
+
+        if not reference:
+            return Response({"error": "reference required"}, status=400)
+
+        amount = None
+        if amount_str:
+            try:
+                amount = Decimal(str(amount_str))
+            except Exception:
+                pass
+
+        # Check if already processed for this specific checkout
+        txn_qs = PaymentTransaction.objects.filter(tenant=tenant)
+        checkout_lookup = (
+            models.Q(raw_payload__reference_id=reference) |
+            models.Q(gateway_transaction_id=reference)
+        )
+        if amount and amount > Decimal('0.00'):
+            # Only match customer_account if accompanied by the expected amount for this checkout
+            checkout_lookup |= (models.Q(customer_account=reference) & models.Q(amount=amount))
+            txn = txn_qs.filter(checkout_lookup).order_by('-created_at').first()
+        else:
+            # Do not treat a match on customer_account alone as completion
+            txn = txn_qs.filter(checkout_lookup).order_by('-created_at').first()
+
+        if txn:
+            return Response({"status": "Completed", "transaction_id": str(txn.id)})
+
+        return Response({"status": "Pending"})
+
+    def post(self, request, *args, **kwargs):
+        tenant = get_tenant_for_request(request)
+        data = request.data if isinstance(request.data, dict) else {}
+        reference = str(data.get('reference') or request.query_params.get('reference') or '').strip()
+        amount_str = data.get('amount') or request.query_params.get('amount')
+
+        if not reference:
+            return Response({"error": "reference required"}, status=400)
+
+        amount = None
+        if amount_str:
+            try:
+                amount = Decimal(str(amount_str))
+            except Exception:
+                pass
+
+        entity_type, entity = self._get_entity_for_user(request.user, tenant)
+        if not entity_type:
+            return Response({"error": "Unauthorized: requester is not linked to an active customer or reseller account."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Unmatched events queryset: exclude events unless their amount is positive
+        unmatched_events = InboundPaymentEvent.objects.filter(
+            tenant=tenant,
+            status=InboundPaymentEvent.EventStatus.UNMATCHED,
+            amount__gt=Decimal('0.00')
+        )
+        if amount and amount > Decimal('0.00'):
+            unmatched_events = unmatched_events.filter(amount=amount)
+
+        # Authorize settlement against the authenticated requester's own account
+        if entity_type == 'customer':
+            customer = entity
+            event = unmatched_events.filter(
+                models.Q(reference_id__iexact=customer.customer_code) |
+                models.Q(reference_id__iexact=customer.pppoe_username) |
+                models.Q(reference_id__iexact=str(customer.id)) |
+                models.Q(reference_id__iexact=reference) |
+                models.Q(sender_account=reference)
+            ).first()
+
+            if event:
+                txn, _ = _settle_customer_payment(
+                    tenant=tenant,
+                    customer=customer,
+                    amount=event.amount,
+                    trx_id=event.trx_id,
+                    payment_method=f"Matched {event.provider or 'MFS'}",
+                    raw_payload={"event_id": str(event.id), "reference_id": reference}
+                )
+                event.status = InboundPaymentEvent.EventStatus.MATCHED
+                event.matched_customer = customer
+                event.matched_transaction = txn
+                event.processed_at = timezone.now()
+                event.save(update_fields=['status', 'matched_customer', 'matched_transaction', 'processed_at'])
+                return Response({"status": "Completed", "transaction_id": str(txn.id)})
+
+        elif entity_type == 'reseller':
+            reseller = entity
+            event = unmatched_events.filter(
+                models.Q(reference_id__iexact=reseller.user.username) |
+                models.Q(reference_id__iexact=str(reseller.id)) |
+                models.Q(reference_id__iexact=reference) |
+                models.Q(sender_account=reference)
+            ).first()
+
+            if event:
+                txn, _ = _settle_reseller_payment(
+                    tenant=tenant,
+                    reseller=reseller,
+                    amount=event.amount,
+                    trx_id=event.trx_id,
+                    payment_method=f"Matched {event.provider or 'MFS'}",
+                    raw_payload={"event_id": str(event.id), "reference_id": reference}
+                )
+                event.status = InboundPaymentEvent.EventStatus.MATCHED
+                event.matched_transaction = txn
+                event.processed_at = timezone.now()
+                event.save(update_fields=['status', 'matched_transaction', 'processed_at'])
+                return Response({"status": "Completed", "transaction_id": str(txn.id)})
+
+        elif entity_type == 'staff':
+            event = unmatched_events.filter(
+                models.Q(reference_id__iexact=reference) |
+                models.Q(sender_account=reference)
+            ).first()
+            if event:
+                customer = Customer.objects.filter(tenant=tenant).filter(
+                    models.Q(customer_code__iexact=reference) |
+                    models.Q(pppoe_username__iexact=reference)
+                ).first()
+                if customer:
+                    txn, _ = _settle_customer_payment(
+                        tenant=tenant,
+                        customer=customer,
+                        amount=event.amount,
+                        trx_id=event.trx_id,
+                        payment_method=f"Matched {event.provider or 'MFS'}",
+                        raw_payload={"event_id": str(event.id), "reference_id": reference}
+                    )
+                    event.status = InboundPaymentEvent.EventStatus.MATCHED
+                    event.matched_customer = customer
+                    event.matched_transaction = txn
+                    event.processed_at = timezone.now()
+                    event.save(update_fields=['status', 'matched_customer', 'matched_transaction', 'processed_at'])
+                    return Response({"status": "Completed", "transaction_id": str(txn.id)})
+
+                from apps.authentication.models import Reseller
+                reseller = Reseller.objects.filter(tenant=tenant, user__username__iexact=reference).first()
+                if reseller:
+                    txn, _ = _settle_reseller_payment(
+                        tenant=tenant,
+                        reseller=reseller,
+                        amount=event.amount,
+                        trx_id=event.trx_id,
+                        payment_method=f"Matched {event.provider or 'MFS'}",
+                        raw_payload={"event_id": str(event.id), "reference_id": reference}
+                    )
+                    event.status = InboundPaymentEvent.EventStatus.MATCHED
+                    event.matched_transaction = txn
+                    event.processed_at = timezone.now()
+                    event.save(update_fields=['status', 'matched_transaction', 'processed_at'])
+                    return Response({"status": "Completed", "transaction_id": str(txn.id)})
+
+        # Check if already processed for this specific checkout
+        txn_qs = PaymentTransaction.objects.filter(tenant=tenant)
+        checkout_lookup = (
+            models.Q(raw_payload__reference_id=reference) |
+            models.Q(gateway_transaction_id=reference)
+        )
+        if amount and amount > Decimal('0.00'):
+            checkout_lookup |= (models.Q(customer_account=reference) & models.Q(amount=amount))
+            txn = txn_qs.filter(checkout_lookup).order_by('-created_at').first()
+        else:
+            txn = txn_qs.filter(checkout_lookup).order_by('-created_at').first()
+
+        if txn:
+            return Response({"status": "Completed", "transaction_id": str(txn.id)})
+
+        return Response({"status": "Pending"})

@@ -133,10 +133,16 @@ export class SaaSClient {
   }
 
   static async createTenant(payload: SaaSTenantCreatePayload): Promise<SaaSTenant> {
-    return this.request<SaaSTenant>('/saas/tenants/', {
+    const res = await this.request<any>('/saas/tenants/', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    if (res && typeof res === 'object') {
+      if (res.tenant && typeof res.tenant === 'object' && res.tenant.id) {
+        return res.tenant as SaaSTenant;
+      }
+    }
+    return res as SaaSTenant;
   }
 
   static async updateTenant(

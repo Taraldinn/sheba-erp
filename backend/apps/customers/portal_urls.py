@@ -21,6 +21,8 @@ from apps.customers.portal_views import (
     CustomerPortalPaymentHistoryView,
     CustomerPortalSettingsView,
     CustomerPortalFunboxView,
+    CustomerPortalLiveTVProxyView,
+    CustomerPortalMovieServerProxyView,
     CustomerPortalTrafficView,
     CustomerPortalSessionsView,
 )
@@ -46,6 +48,8 @@ urlpatterns = [
     path('profile/', CustomerPortalProfileView.as_view(), name='portal-profile'),
     path('settings/', CustomerPortalSettingsView.as_view(), name='portal-settings'),
     path('funbox/', CustomerPortalFunboxView.as_view(), name='portal-funbox'),
+    path('funbox/live-tv/<path:path>', CustomerPortalLiveTVProxyView.as_view(), name='portal-funbox-livetv'),
+    path('funbox/movies/', CustomerPortalMovieServerProxyView.as_view(), name='portal-funbox-movies'),
     path('traffic/', CustomerPortalTrafficView.as_view(), name='portal-traffic'),
     path('sessions/', CustomerPortalSessionsView.as_view(), name='portal-sessions'),
     path('session/', CustomerPortalSessionView.as_view(), name='portal-session'),
