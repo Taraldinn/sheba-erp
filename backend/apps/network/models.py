@@ -768,6 +768,26 @@ class WireGuardConfig(models.Model):
     router_location = models.CharField(max_length=255, blank=True, default='')
     last_tested_at = models.DateTimeField(null=True, blank=True)
     is_reachable = models.BooleanField(default=False)
+    # Phase 22: key-rotation tracking. We keep a short history of past
+    # MikroTik public-key fingerprints so the audit log can answer
+    # "what was the public key on date X?" without keeping the private
+    # key material itself.
+    key_rotation_count = models.PositiveIntegerField(default=0)
+    last_rotated_at = models.DateTimeField(null=True, blank=True)
+    last_rotated_by = models.CharField(max_length=150, blank=True, default='')
+    mik_public_key_history = models.JSONField(
+        default=list, blank=True,
+        help_text='Stack of {"fingerprint", "rotated_at", "rotated_by"} records '
+                  'for the most recent MikroTik public keys.',
+    )
+    # Phase 22: last successful push of the RouterOS .rsc script.
+    last_pushed_at = models.DateTimeField(null=True, blank=True)
+    last_pushed_by = models.CharField(max_length=150, blank=True, default='')
+    last_push_status = models.CharField(
+        max_length=20, blank=True, default='',
+        help_text='success | failed | pending',
+    )
+    last_push_message = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -837,6 +857,118 @@ class WireGuardSubnet(models.Model):
 # ─────────────────────────────────────────────────────────────────────────────
 # Phase 21: Advanced Health & Datewise Archive
 # ─────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 22: WireGuard full-lifecycle audit + handshake telemetry
+# ─────────────────────────────────────────────────────────────────────────────
+
+class WireGuardAuditEvent(models.Model):
+    """
+    Append-only event log for WireGuard configuration changes. Surfaced in
+    the tenant dashboard and (cross-tenant) in the SaaS control plane.
+    Captures the diff snapshot so auditors can answer "what changed?".
+    """
+    class EventType(models.TextChoices):
+        CREATED = 'CREATED', 'Configuration created'
+        UPDATED = 'UPDATED', 'Configuration edited'
+        ROTATED = 'ROTATED', 'Key rotation'
+        PUSHED = 'PUSHED', 'Pushed to MikroTik'
+        SUBNET_ADDED = 'SUBNET_ADDED', 'Subnet added'
+        SUBNET_REMOVED = 'SUBNET_REMOVED', 'Subnet removed'
+        DELETED = 'DELETED', 'Configuration deleted'
+        HANDSHAKE_FAILED = 'HANDSHAKE_FAILED', 'Handshake probe failure'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='wireguard_audit_events'
+    )
+    config = models.ForeignKey(
+        WireGuardConfig, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='audit_events',
+    )
+    router = models.ForeignKey(
+        Router, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='wireguard_audit_events',
+    )
+    event_type = models.CharField(
+        max_length=30, choices=EventType.choices, db_index=True,
+    )
+    actor = models.CharField(max_length=150, blank=True, default='')
+    actor_role = models.CharField(max_length=60, blank=True, default='')
+    is_saas_admin = models.BooleanField(
+        default=False,
+        help_text='True when the change came from the SaaS control plane.',
+    )
+    summary = models.CharField(max_length=255, blank=True, default='')
+    before = models.JSONField(default=dict, blank=True)
+    after = models.JSONField(default=dict, blank=True)
+    occurred_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ['-occurred_at']
+        indexes = [
+            models.Index(
+                fields=['tenant', 'occurred_at'],
+                name='wgaudit_tenant_occured_idx',
+            ),
+            models.Index(
+                fields=['config', 'occurred_at'],
+                name='wgaudit_config_occurred_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'WireGuardAuditEvent[{self.event_type}] {self.config_id} {self.occurred_at}'
+
+
+class WireGuardHandshake(models.Model):
+    """
+    Periodic WireGuard peer-handshake telemetry. Written by the
+    ``poll_wireguard_handshakes`` Celery beat task and on-demand refresh
+    endpoints. Used by the lifecycle UI (peer liveness badge + last
+    handshake age) and the datewise Archive & Export page.
+    """
+    class PeerState(models.TextChoices):
+        ACTIVE = 'ACTIVE', 'Active'
+        STALE = 'STALE', 'Stale (no handshake in 2-3 min)'
+        DEAD = 'DEAD', 'Dead (no handshake in 5+ min)'
+        UNKNOWN = 'UNKNOWN', 'Unknown'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='wireguard_handshakes'
+    )
+    config = models.ForeignKey(
+        WireGuardConfig, on_delete=models.CASCADE, related_name='handshakes'
+    )
+    router = models.ForeignKey(
+        Router, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='wireguard_handshakes',
+    )
+    peer_public_key = models.CharField(max_length=128, db_index=True)
+    peer_endpoint = models.CharField(max_length=128, blank=True, default='')
+    last_handshake_at = models.DateTimeField(null=True, blank=True)
+    rx_bytes = models.BigIntegerField(default=0)
+    tx_bytes = models.BigIntegerField(default=0)
+    state = models.CharField(
+        max_length=12, choices=PeerState.choices, default=PeerState.UNKNOWN,
+        db_index=True,
+    )
+    captured_at = models.DateTimeField(default=timezone.now, db_index=True)
+    raw = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-captured_at']
+        indexes = [
+            models.Index(
+                fields=['config', 'captured_at'],
+                name='wghs_config_captured_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'WireGuardHandshake[{self.config_id}] {self.state}'
+
 
 class InterfaceSnapshot(models.Model):
     """

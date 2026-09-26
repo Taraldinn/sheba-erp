@@ -314,3 +314,23 @@ class WireGuardConfigSerializer(serializers.ModelSerializer):
             validated_data['mik_private_key_enc'] = WireGuardService.encrypt_private_key(raw_key, instance.tenant_id)
             validated_data['mik_private_key_set'] = True
         return super().update(instance, validated_data)
+
+
+class WireGuardAuditEventSerializer(serializers.ModelSerializer):
+    router_name = serializers.SerializerMethodField()
+
+    class Meta:
+        from .models import WireGuardAuditEvent
+        model = WireGuardAuditEvent
+        fields = [
+            'id', 'config', 'router', 'router_name', 'event_type',
+            'actor', 'actor_role', 'is_saas_admin', 'summary',
+            'before', 'after', 'occurred_at',
+        ]
+        read_only_fields = fields
+
+    def get_router_name(self, obj):
+        if obj.router_id:
+            return obj.router.name if obj.router else ''
+        cfg = obj.config
+        return cfg.router.name if cfg and cfg.router_id else (cfg.router_name if cfg else '')

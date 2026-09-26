@@ -174,6 +174,42 @@ export class SaaSClient {
     return this.request<Record<string, unknown>>(`/saas/tenants/${tenantId}/telemetry/`);
   }
 
+  // ════════════════════════ PHASE 22: WIREGUARD CROSS-TENANT ════════════════════════
+  static async getWireGuardConfigs(tenantId?: string): Promise<{ count: number; results: any[] }> {
+    const q = tenantId ? `?tenant=${encodeURIComponent(tenantId)}` : '';
+    return this.request<{ count: number; results: any[] }>(`/saas/wireguard/${q}`);
+  }
+
+  static async rotateWireGuardForTenant(configId: string): Promise<{ ok: boolean; public_key: string; private_key: string }> {
+    return this.request<{ ok: boolean; public_key: string; private_key: string }>(
+      `/saas/wireguard/${configId}/rotate/`,
+      { method: 'POST' }
+    );
+  }
+
+  static async pushWireGuardForTenant(configId: string): Promise<{ ok: boolean; message: string; script: string }> {
+    return this.request<{ ok: boolean; message: string; script: string }>(
+      `/saas/wireguard/${configId}/push/`,
+      { method: 'POST' }
+    );
+  }
+
+  static async refreshHandshakesForTenant(configId: string): Promise<{ ok: boolean; count: number; peers: any[] }> {
+    return this.request<{ ok: boolean; count: number; peers: any[] }>(
+      `/saas/wireguard/${configId}/refresh_handshakes/`,
+      { method: 'POST' }
+    );
+  }
+
+  static async getTenantWireGuardAuditLog(tenantId?: string, limit = 100): Promise<{ count: number; results: any[] }> {
+    const q = new URLSearchParams();
+    if (tenantId) q.set('tenant', tenantId);
+    q.set('limit', String(limit));
+    return this.request<{ count: number; results: any[] }>(
+      `/saas/wireguard/audit_log/?${q.toString()}`
+    );
+  }
+
   static async impersonateTenant(
     tenantId: string
   ): Promise<{ token: string; target_url: string }> {

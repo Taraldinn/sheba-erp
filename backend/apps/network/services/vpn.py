@@ -117,3 +117,10 @@ class WireGuardService:
             config.is_reachable, config.last_tested_at = False, timezone.now()
             config.save(update_fields=['is_reachable', 'last_tested_at'])
             return False, f'TCP management probe failed: {exc}', None
+
+
+# Phase 22 helpers (keypair gen, rotate, push, audit, handshakes) live in
+# vpn_phase22.py so the original module keeps its single-class focus. They
+# are installed onto WireGuardService on import below.
+from apps.network.services.vpn_phase22 import install as _install_phase22  # noqa: E402
+_install_phase22(WireGuardService)

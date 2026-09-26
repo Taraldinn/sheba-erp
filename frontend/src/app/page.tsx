@@ -18,6 +18,7 @@ import {
   CreditCard,
   Radio,
   WifiOff,
+  Shield,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Router, PaymentTransaction, ONU, DashboardKPIs } from "@/types";
 import { mockKPIs } from "@/lib/mock-data";
 import { RoleGuard } from "@/components/auth/RoleGuard";
+import { WireGuardPanel } from "@/components/network/WireGuardPanel";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -525,6 +527,18 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Phase 22: WireGuard lifecycle dashboard widget */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-indigo-500" />
+            <h2 className="text-lg font-bold">WireGuard Tunnels</h2>
+            <Link href="/network" className="text-xs text-indigo-600 hover:underline ml-2">
+              Open full network panel →
+            </Link>
+          </div>
+          <WireGuardPanel routers={[]} olts={[]} />
         </div>
       </div>
     </RoleGuard>

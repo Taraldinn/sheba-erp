@@ -1208,7 +1208,73 @@ export interface WireGuardConfig {
   router_location: string;
   last_tested_at?: string | null;
   is_reachable: boolean;
+  // Phase 22: full lifecycle fields
+  key_rotation_count?: number;
+  last_rotated_at?: string | null;
+  last_rotated_by?: string;
+  mik_public_key_history?: Array<{
+    fingerprint: string;
+    public_key: string;
+    rotated_at: string;
+    rotated_by: string;
+  }>;
+  last_pushed_at?: string | null;
+  last_pushed_by?: string;
+  last_push_status?: 'success' | 'failed' | 'pending' | '';
+  last_push_message?: string;
   subnets?: WireGuardSubnet[];
+}
+
+export type WireGuardAuditEventType =
+  | 'CREATED'
+  | 'UPDATED'
+  | 'ROTATED'
+  | 'PUSHED'
+  | 'SUBNET_ADDED'
+  | 'SUBNET_REMOVED'
+  | 'DELETED'
+  | 'HANDSHAKE_FAILED';
+
+export interface WireGuardAuditEvent {
+  id: string;
+  config?: string | null;
+  router?: string | null;
+  router_name?: string;
+  event_type: WireGuardAuditEventType;
+  actor: string;
+  actor_role: string;
+  is_saas_admin: boolean;
+  summary: string;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  occurred_at: string;
+}
+
+export type WireGuardPeerState = 'ACTIVE' | 'STALE' | 'DEAD' | 'UNKNOWN';
+
+export interface WireGuardHandshake {
+  id: string;
+  config: string;
+  peer_public_key: string;
+  peer_endpoint: string;
+  last_handshake_at: string | null;
+  rx_bytes: number;
+  tx_bytes: number;
+  state: WireGuardPeerState;
+  captured_at: string;
+}
+
+export interface WireGuardKeypair {
+  public_key: string;
+  private_key: string;
+}
+
+export interface WireGuardPushResponse {
+  ok: boolean;
+  message: string;
+  script: string;
+  status?: 'success' | 'failed' | 'pending' | '';
+  pushed_at?: string | null;
 }
 
 export interface RouterPingResult {

@@ -634,7 +634,7 @@ export default function ConfigurationPage() {
   });
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="p-4 lg:p-6 space-y-6 pb-12 max-w-[1600px] mx-auto text-xs">
       {/* ════════════════════════ TOP HEADER ════════════════════════ */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>

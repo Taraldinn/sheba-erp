@@ -18,6 +18,10 @@ import {
   Globe,
   Radio,
   ExternalLink,
+  RotateCw,
+  Send,
+  History,
+  Activity,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,8 +35,15 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiClient } from "@/lib/api";
-import { WireGuardConfig, WireGuardSubnet, OLT, Router } from "@/types";
+import {
+  WireGuardConfig,
+  WireGuardAuditEvent,
+  WireGuardHandshake,
+  OLT,
+  Router,
+} from "@/types";
 
 interface WireGuardPanelProps {
   routers?: Router[];
@@ -75,6 +86,21 @@ export function WireGuardPanel({ routers = [], olts = [] }: WireGuardPanelProps)
   });
 
   const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Phase 22: lifecycle state
+  const [rotating, setRotating] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [refreshingHandshakes, setRefreshingHandshakes] = useState(false);
+  const [handshakes, setHandshakes] = useState<WireGuardHandshake[]>([]);
+  const [auditEvents, setAuditEvents] = useState<WireGuardAuditEvent[]>([]);
+  const [rotationResult, setRotationResult] = useState<{
+    public_key: string; private_key: string;
+  } | null>(null);
+  const [pushResult, setPushResult] = useState<{
+    ok: boolean; message: string; script: string;
+  } | null>(null);
+  const [lifecycleTab, setLifecycleTab] = useState<"handshakes" | "audit">("handshakes");
+  const [generatingKeypair, setGeneratingKeypair] = useState(false);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
     setNotification({ type, message });
@@ -237,6 +263,85 @@ export function WireGuardPanel({ routers = [], olts = [] }: WireGuardPanelProps)
     }
   };
 
+  // ── Phase 22 lifecycle ────────────────────────────────────────────────
+  const handleGenerateKeypair = async () => {
+    setGeneratingKeypair(true);
+    try {
+      const kp = await ApiClient.generateWireGuardKeypair();
+      setFormData((prev) => ({
+        ...prev,
+        mik_public_key: kp.public_key,
+        mik_private_key: kp.private_key,
+      }));
+      showToast("Generated fresh WireGuard keypair. Save the config to persist it.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to generate keypair", "error");
+    } finally {
+      setGeneratingKeypair(false);
+    }
+  };
+
+  const handleRotateKeys = async (configId: string) => {
+    if (!confirm("Rotate the MikroTik-side WireGuard keypair? This updates the private key server-side and records an audit event. Re-push the script to the router.")) return;
+    setRotating(true);
+    try {
+      const result = await ApiClient.rotateWireGuardKeys(configId);
+      setRotationResult({ public_key: result.public_key, private_key: result.private_key });
+      showToast("Keypair rotated. Copy the new private key now — it will not be shown again.");
+      await loadConfigs();
+    } catch (err: any) {
+      showToast(err.message || "Key rotation failed", "error");
+    } finally {
+      setRotating(false);
+    }
+  };
+
+  const handlePushScript = async (configId: string) => {
+    if (!confirm("Generate and push the RouterOS .rsc script to the MikroTik now?")) return;
+    setPushing(true);
+    try {
+      const result = await ApiClient.pushWireGuardScript(configId);
+      setPushResult({ ok: result.ok, message: result.message, script: result.script || "" });
+      showToast(result.ok ? "Push succeeded." : `Push failed: ${result.message}`);
+      await loadConfigs();
+    } catch (err: any) {
+      showToast(err.message || "Push failed", "error");
+    } finally {
+      setPushing(false);
+    }
+  };
+
+  const handleRefreshHandshakes = async (configId: string) => {
+    setRefreshingHandshakes(true);
+    try {
+      await ApiClient.refreshWireGuardHandshakes(configId);
+      const list = await ApiClient.getWireGuardHandshakes(configId, 20);
+      setHandshakes(list.results || []);
+      showToast("Handshakes refreshed.");
+    } catch (err: any) {
+      showToast(err.message || "Failed to refresh handshakes", "error");
+    } finally {
+      setRefreshingHandshakes(false);
+    }
+  };
+
+  const loadAuditLog = async (configId: string) => {
+    try {
+      const list = await ApiClient.getWireGuardAuditLog(configId, 50);
+      setAuditEvents(list.results || []);
+    } catch {
+      setAuditEvents([]);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedConfig) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadAuditLog(selectedConfig.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConfig?.id]);
+
   return (
     <div className="space-y-6 text-xs">
       {notification && (
@@ -296,6 +401,35 @@ export function WireGuardPanel({ routers = [], olts = [] }: WireGuardPanelProps)
               >
                 <FileCode className="h-3.5 w-3.5" />
                 Generate Script (.rsc)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleRotateKeys(selectedConfig.id)}
+                disabled={rotating}
+                className="gap-1.5 text-xs border-amber-500/40 text-amber-700 hover:bg-amber-500/10"
+              >
+                <RotateCw className={`h-3.5 w-3.5 ${rotating ? "animate-spin" : ""}`} />
+                {rotating ? "Rotating…" : "Rotate Keys"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePushScript(selectedConfig.id)}
+                disabled={pushing}
+                className="gap-1.5 text-xs border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10"
+              >
+                <Send className="h-3.5 w-3.5" /> {pushing ? "Pushing…" : "Push to Router"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleRefreshHandshakes(selectedConfig.id)}
+                disabled={refreshingHandshakes}
+                className="gap-1.5 text-xs"
+              >
+                <Activity className={`h-3.5 w-3.5 ${refreshingHandshakes ? "animate-pulse" : ""}`} />
+                {refreshingHandshakes ? "Checking…" : "Refresh Handshakes"}
               </Button>
             </>
           )}
@@ -405,15 +539,29 @@ export function WireGuardPanel({ routers = [], olts = [] }: WireGuardPanelProps)
                 </div>
 
                 <div className="space-y-3 pt-1 border-t border-border/60">
-                  <div>
-                    <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">MikroTik WireGuard Public Key</label>
-                    <Input
-                      value={formData.mik_public_key}
-                      onChange={(e) => setFormData({ ...formData, mik_public_key: e.target.value })}
-                      placeholder="MikroTik wg public key"
-                      className="mt-1 text-xs font-mono"
-                      required
-                    />
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">MikroTik WireGuard Public Key</label>
+                      <Input
+                        value={formData.mik_public_key}
+                        onChange={(e) => setFormData({ ...formData, mik_public_key: e.target.value })}
+                        placeholder="MikroTik wg public key"
+                        className="mt-1 text-xs font-mono"
+                        required
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateKeypair}
+                      disabled={generatingKeypair}
+                      className="gap-1.5 text-xs"
+                      title="Server-side Curve25519 keypair generation"
+                    >
+                      <Key className={`h-3.5 w-3.5 ${generatingKeypair ? "animate-pulse" : ""}`} />
+                      {generatingKeypair ? "Generating…" : "Generate Keypair"}
+                    </Button>
                   </div>
                   <div>
                     <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -579,6 +727,111 @@ export function WireGuardPanel({ routers = [], olts = [] }: WireGuardPanelProps)
               )}
             </CardContent>
           </Card>
+
+          {/* Phase 22: Lifecycle — Handshakes + Audit Log */}
+          <Card className="border-border bg-card shadow-xs">
+            <CardHeader className="pb-3 border-b border-border">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Activity className="h-4 w-4 text-emerald-500" />
+                Tunnel Lifecycle
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Live WireGuard peer liveness and the datewise audit log
+                (key rotations, pushes, handshake failures).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <Tabs value={lifecycleTab} onValueChange={(v) => setLifecycleTab(v as any)}>
+                <TabsList className="grid grid-cols-2 w-full">
+                  <TabsTrigger value="handshakes" className="text-xs">
+                    <Activity className="h-3.5 w-3.5 mr-1" /> Handshakes ({handshakes.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="audit" className="text-xs">
+                    <History className="h-3.5 w-3.5 mr-1" /> Audit Log ({auditEvents.length})
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="handshakes" className="mt-4">
+                  {!selectedConfig ? (
+                    <div className="text-xs text-muted-foreground py-6 text-center">
+                      Select a configuration to view peer handshakes.
+                    </div>
+                  ) : handshakes.length === 0 ? (
+                    <div className="text-xs text-muted-foreground py-6 text-center">
+                      No handshakes yet. Click &ldquo;Refresh Handshakes&rdquo; to poll the router.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-md border">
+                      <table className="w-full text-xs">
+                        <thead className="bg-slate-50 dark:bg-slate-800/50 text-[10px] uppercase text-slate-500">
+                          <tr>
+                            <th className="text-left px-2 py-1.5">Peer</th>
+                            <th className="text-left px-2 py-1.5">Endpoint</th>
+                            <th className="text-left px-2 py-1.5">Last Handshake</th>
+                            <th className="text-right px-2 py-1.5">RX</th>
+                            <th className="text-right px-2 py-1.5">TX</th>
+                            <th className="text-left px-2 py-1.5">State</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {handshakes.map((h) => (
+                            <tr key={h.id} className="border-t border-slate-100 dark:border-slate-800">
+                              <td className="px-2 py-1.5 font-mono">{h.peer_public_key.slice(0, 12)}…</td>
+                              <td className="px-2 py-1.5 font-mono text-[10px]">{h.peer_endpoint || "—"}</td>
+                              <td className="px-2 py-1.5">{h.last_handshake_at ? new Date(h.last_handshake_at).toLocaleString() : "—"}</td>
+                              <td className="px-2 py-1.5 text-right">{h.rx_bytes}</td>
+                              <td className="px-2 py-1.5 text-right">{h.tx_bytes}</td>
+                              <td className="px-2 py-1.5">
+                                <Badge variant={h.state === "ACTIVE" ? "default" : h.state === "STALE" ? "secondary" : "destructive"}>
+                                  {h.state}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="audit" className="mt-4">
+                  {auditEvents.length === 0 ? (
+                    <div className="text-xs text-muted-foreground py-6 text-center">
+                      No audit events yet for this configuration.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-md border">
+                      <table className="w-full text-xs">
+                        <thead className="bg-slate-50 dark:bg-slate-800/50 text-[10px] uppercase text-slate-500">
+                          <tr>
+                            <th className="text-left px-2 py-1.5">When</th>
+                            <th className="text-left px-2 py-1.5">Event</th>
+                            <th className="text-left px-2 py-1.5">Actor</th>
+                            <th className="text-left px-2 py-1.5">Summary</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {auditEvents.map((e) => (
+                            <tr key={e.id} className="border-t border-slate-100 dark:border-slate-800">
+                              <td className="px-2 py-1.5 text-[11px]">{new Date(e.occurred_at).toLocaleString()}</td>
+                              <td className="px-2 py-1.5">
+                                <Badge variant="outline" className="text-[10px]">{e.event_type}</Badge>
+                                {e.is_saas_admin ? (
+                                  <Badge variant="outline" className="ml-1 text-[10px] border-violet-400 text-violet-700">SaaS</Badge>
+                                ) : null}
+                              </td>
+                              <td className="px-2 py-1.5 text-[11px]">{e.actor || "—"}</td>
+                              <td className="px-2 py-1.5 text-[11px] text-muted-foreground truncate max-w-[300px]">{e.summary}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -632,6 +885,73 @@ export function WireGuardPanel({ routers = [], olts = [] }: WireGuardPanelProps)
               <Download className="h-3.5 w-3.5" />
               Download .rsc File
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rotation Result — private key shown ONCE */}
+      <Dialog open={!!rotationResult} onOpenChange={(o) => !o && setRotationResult(null)}>
+        <DialogContent className="border-border bg-card text-foreground">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Key className="h-5 w-5 text-amber-500" />
+              New WireGuard Keypair (Copy Now)
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              The private key is shown only once. Save it somewhere safe;
+              afterward only the encrypted-at-rest copy is available.
+            </DialogDescription>
+          </DialogHeader>
+          {rotationResult && (
+            <div className="space-y-3 text-xs">
+              <div>
+                <div className="font-semibold uppercase text-[10px] text-muted-foreground">Public Key</div>
+                <div className="font-mono bg-slate-50 dark:bg-slate-800/60 p-2 rounded text-[11px] break-all">
+                  {rotationResult.public_key}
+                </div>
+              </div>
+              <div>
+                <div className="font-semibold uppercase text-[10px] text-muted-foreground">Private Key</div>
+                <div className="font-mono bg-amber-50 dark:bg-amber-950/40 p-2 rounded text-[11px] break-all flex items-start gap-2">
+                  <span className="flex-1">{rotationResult.private_key}</span>
+                  <Button variant="ghost" size="sm" onClick={() => navigator.clipboard?.writeText(rotationResult.private_key)}>
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="text-amber-700 dark:text-amber-300 text-xs">
+                Re-push the script to the MikroTik after rotation so it picks up the new public key.
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRotationResult(null)}>
+              I have saved the keys
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Push Result — show script + status */}
+      <Dialog open={!!pushResult} onOpenChange={(o) => !o && setPushResult(null)}>
+        <DialogContent className="max-w-3xl border-border bg-card text-foreground">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Send className="h-5 w-5 text-emerald-500" />
+              Push to MikroTik
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {pushResult?.ok ? "Script applied successfully." : "Push failed."}
+              {pushResult?.message ? ` — ${pushResult.message}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {pushResult?.script && (
+            <pre className="bg-slate-950 text-slate-100 font-mono text-[11px] p-3 rounded max-h-[320px] overflow-auto">
+              {pushResult.script}
+            </pre>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPushResult(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

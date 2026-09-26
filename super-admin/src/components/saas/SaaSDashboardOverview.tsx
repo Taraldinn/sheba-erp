@@ -10,6 +10,7 @@ import {
   Activity,
   ArrowUpRight,
   ShieldCheck,
+  Shield,
   Cpu,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -263,6 +264,24 @@ export function SaaSDashboardOverview({
                   </h4>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
                     Assign custom hostnames and toggle verification flags.
+                  </p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => onNavigateTab('wireguard')}
+                className="p-3.5 rounded-xl border border-border bg-muted/20 hover:bg-muted/50 text-left transition-all flex items-start gap-3 cursor-pointer group"
+              >
+                <div className="w-8 h-8 rounded-lg bg-amber-600/10 text-amber-400">
+                  <Shield className="h-4 w-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-foreground group-hover:text-amber-400 transition-colors">
+                    WireGuard Tunnels
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Cross-tenant WireGuard-on-MikroTik visibility, key
+                    rotation, push to router, audit log.
                   </p>
                 </div>
               </button>

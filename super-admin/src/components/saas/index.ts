@@ -12,4 +12,5 @@ export * from './SaaSBackupsManagement';
 export * from './SaaSUsersManagement';
 export * from './SaaSAuditLogsViewer';
 export * from './SaaSApiCredentialsManagement';
+export * from './SaaSWireGuardManagement';
 

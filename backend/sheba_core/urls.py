@@ -15,6 +15,7 @@ from apps.core.saas_views import (
     SaaSPackageViewSet, SaaSSubscriptionViewSet, SaaSPaymentViewSet,
     SaaSBackupViewSet, SaaSUserViewSet, SaaSAuditLogViewSet,
     SaaSApiCredentialViewSet, SaaSApplicationViewSet,
+    SaaSWireGuardViewSet,
     SaaSLoginView, SaaSMeView, SaaSLogoutView,
     SaaSPasswordResetView, SaaSPasswordResetConfirmView
 )
@@ -60,6 +61,7 @@ router.register(r'saas/users', SaaSUserViewSet, basename='saas-user')
 router.register(r'saas/audit-logs', SaaSAuditLogViewSet, basename='saas-audit-log')
 router.register(r'saas/api-credentials', SaaSApiCredentialViewSet, basename='saas-api-credential')
 router.register(r'saas/applications', SaaSApplicationViewSet, basename='saas-application')
+router.register(r'saas/wireguard', SaaSWireGuardViewSet, basename='saas-wireguard')
 router.register(r'settings', CompanySettingViewSet, basename='setting')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 router.register(r'staff', StaffProfileViewSet, basename='staff')

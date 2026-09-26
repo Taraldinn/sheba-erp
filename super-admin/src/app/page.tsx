@@ -32,6 +32,7 @@ import {
   SaaSBackupsManagement,
   SaaSUsersManagement,
   SaaSAuditLogsViewer,
+  SaaSWireGuardManagement,
   SaaSApiCredentialsManagement,
 } from '@/components/saas';
 
@@ -146,6 +147,10 @@ function SaaSAdminContent() {
       } else if (activeTab === 'audit') {
         const al = await SaaSClient.getAuditLogs();
         setAuditLogs(al);
+      } else if (activeTab === 'wireguard') {
+        const getTenantsCached = () =>
+          tenants.length > 0 ? Promise.resolve(tenants) : SaaSClient.getTenants().catch(() => []);
+        await getTenantsCached();
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to retrieve control plane data.';
@@ -566,6 +571,8 @@ function SaaSAdminContent() {
               ? 'Disaster Recovery & Snapshots'
               : activeTab === 'users' || activeTab === 'tenant-owners'
               ? 'Software User Directory'
+              : activeTab === 'wireguard'
+              ? 'WireGuard Tunnels — Central Control'
               : 'Central Security Audit Stream'}
           </h1>
         </div>
@@ -750,6 +757,13 @@ function SaaSAdminContent() {
           logs={auditLogs}
           isLoading={isLoading}
           onRefresh={loadTabData}
+        />
+      )}
+
+      {activeTab === 'wireguard' && (
+        <SaaSWireGuardManagement
+          tenants={tenants}
+          onError={setOperationError}
         />
       )}
 

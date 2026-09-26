@@ -514,3 +514,26 @@ class IsAdminUserOrReadOnly(permissions.BasePermission):
                 return True
 
         return False  # Never fall through to StaffProfile
+
+
+class IsTenantAdminMember(permissions.BasePermission):
+    """
+    Phase 22: admin-only gate used by WireGuard lifecycle endpoints
+    (rotate keys, push to MikroTik). Requires a StaffMembership with an
+    admin-equivalent role, or superuser / control-plane access.
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+        if not IsTenantMember().has_permission(request, view):
+            return False
+        membership = getattr(request, 'membership', None)
+        if membership and membership.role and membership.role.name in [
+            UserRole.SUPER_ADMIN, UserRole.ADMIN,
+            'Admin', 'Super Admin', 'Admin / Managing Director',
+            'ISP_ADMIN', 'ISP Admin',
+        ]:
+            return True
+        return False

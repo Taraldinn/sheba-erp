@@ -485,3 +485,34 @@ def archive_interface_snapshot(self=None, tenant_id=None, router_id=None):
             results.append({'router_id': str(router.id), 'success': False, 'error': str(exc)})
 
     return {'success': True, 'snapshots': results}
+
+
+@shared_task(bind=True, max_retries=1, default_retry_delay=120, time_limit=300, soft_time_limit=240)
+def poll_wireguard_handshakes(self=None, tenant_id=None):
+    """
+    Phase 22: Periodic WireGuard peer-handshake poll. Walks every active
+    WireGuard config with a bound MikroTik router and records a
+    WireGuardHandshake row per peer (state is computed in
+    WireGuardService.record_handshakes). Also raises audit events for
+    STALE / DEAD peers.
+    """
+    from apps.network.models import WireGuardConfig
+    from apps.network.services.vpn import WireGuardService
+
+    qs = WireGuardConfig.objects.exclude(router__isnull=True)
+    if tenant_id:
+        qs = qs.filter(tenant_id=tenant_id)
+
+    summary = {'scanned': 0, 'peers': 0, 'failures': 0}
+    for config in qs.select_related('router', 'tenant'):
+        summary['scanned'] += 1
+        try:
+            peers = WireGuardService.record_handshakes(
+                config,
+                actor='system', actor_role='system', is_saas_admin=False,
+            )
+            summary['peers'] += len(peers)
+        except Exception as exc:
+            summary['failures'] += 1
+            logger.warning('poll_wireguard_handshakes failed for %s: %s', config.id, exc)
+    return {'success': True, **summary}

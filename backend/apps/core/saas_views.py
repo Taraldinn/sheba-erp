@@ -2602,6 +2602,96 @@ class SaaSApplicationSerializer(serializers.ModelSerializer):
         description='Reactivates a suspended application credential.'
     ),
 )
+class SaaSWireGuardViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Phase 22: Central admin surface for every tenant's WireGuard tunnels.
+    Lists configs across all tenants, lets the super-admin trigger key
+    rotation, push to MikroTik, and read the datewise audit log on any
+    tenant's behalf. All mutations are recorded with ``is_saas_admin``
+    so ISP admins can see SaaS-side changes.
+    """
+    from apps.network.models import (
+        WireGuardAuditEvent,
+        WireGuardConfig,
+    )
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    serializer_class = None  # populated lazily to avoid circular import
+
+    def get_serializer_class(self):
+        from apps.network.serializers import WireGuardConfigSerializer
+        return WireGuardConfigSerializer
+
+    def get_queryset(self):
+        from apps.network.models import WireGuardConfig
+        qs = WireGuardConfig.objects.select_related('router', 'tenant').order_by('-updated_at')
+        tenant_param = self.request.query_params.get('tenant')
+        if tenant_param:
+            from .saas_utils import get_tenant_by_id_or_slug
+            t = get_tenant_by_id_or_slug(tenant_param)
+            qs = qs.filter(tenant=t) if t else qs.none()
+        return qs
+
+    @action(detail=True, methods=['post'])
+    def rotate(self, request, pk=None):
+        from apps.network.services.vpn import WireGuardService
+        meta = _saas_actor(request)
+        try:
+            keys = WireGuardService.rotate_keys(
+                self.get_object(),
+                actor=meta['actor'], actor_role=meta['actor_role'],
+                is_saas_admin=True,
+            )
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'ok': True, 'public_key': keys['public_key'], 'private_key': keys['private_key']})
+
+    @action(detail=True, methods=['post'])
+    def push(self, request, pk=None):
+        from apps.network.services.vpn import WireGuardService
+        meta = _saas_actor(request)
+        result = WireGuardService.push_to_router(
+            self.get_object(),
+            actor=meta['actor'], actor_role=meta['actor_role'],
+            is_saas_admin=True,
+        )
+        return Response({'ok': result['ok'], 'message': result['message'], 'script': result['script']})
+
+    @action(detail=True, methods=['post'])
+    def refresh_handshakes(self, request, pk=None):
+        from apps.network.services.vpn import WireGuardService
+        meta = _saas_actor(request)
+        peers = WireGuardService.record_handshakes(
+            self.get_object(),
+            actor=meta['actor'], actor_role=meta['actor_role'],
+            is_saas_admin=True,
+        )
+        return Response({'ok': True, 'count': len(peers), 'peers': peers})
+
+    @action(detail=False, methods=['get'])
+    def audit_log(self, request):
+        from apps.network.models import WireGuardAuditEvent
+        from apps.network.serializers import WireGuardAuditEventSerializer
+        limit = int(request.query_params.get('limit', 100))
+        qs = WireGuardAuditEvent.objects.all().order_by('-occurred_at')
+        tenant_param = request.query_params.get('tenant')
+        if tenant_param:
+            from .saas_utils import get_tenant_by_id_or_slug
+            t = get_tenant_by_id_or_slug(tenant_param)
+            qs = qs.filter(tenant=t) if t else qs.none()
+        events = qs[:limit]
+        data = WireGuardAuditEventSerializer(events, many=True).data
+        return Response({
+            'count': qs.count() if hasattr(qs, 'count') else len(data),
+            'results': data,
+        })
+
+
+def _saas_actor(request) -> dict:
+    user = getattr(request, 'user', None)
+    actor = user.get_username() if user and getattr(user, 'is_authenticated', False) and hasattr(user, 'get_username') else ''
+    return {'actor': actor, 'actor_role': 'central_admin', 'is_saas_admin': True}
+
+
 class SaaSApplicationViewSet(viewsets.ModelViewSet):
     """
     Super Admin ViewSet to register, manage, generate, rotate, revoke, and monitor

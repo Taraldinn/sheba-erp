@@ -17,6 +17,10 @@ import {
   ArchiveQueryParams,
   ArchiveQueryResponse,
   ArchiveExportParams,
+  WireGuardAuditEvent,
+  WireGuardHandshake,
+  WireGuardKeypair,
+  WireGuardPushResponse,
 } from '@/types';
 
 import { TokenStorage } from './auth/token-storage';
@@ -804,6 +808,86 @@ export class ApiClient {
     });
     if (!res.ok) throw new Error('Failed to delete OLT subnet');
     return true;
+  }
+
+  // ════════════════════════ PHASE 22: WIREGUARD LIFECYCLE ════════════════════════
+  static async generateWireGuardKeypair(): Promise<WireGuardKeypair> {
+    const res = await fetch(
+      `${API_BASE}/wireguard/configs/generate-keypair/`,
+      { method: 'POST', headers: this.getHeaders() }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.detail || 'Keypair generation failed');
+    return data;
+  }
+
+  static async rotateWireGuardKeys(configId: string): Promise<WireGuardKeypair & { ok: boolean }> {
+    const res = await fetch(
+      `${API_BASE}/wireguard/configs/${configId}/rotate-keys/`,
+      { method: 'POST', headers: this.getHeaders() }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.detail || 'Key rotation failed');
+    return data;
+  }
+
+  static async pushWireGuardScript(configId: string): Promise<WireGuardPushResponse> {
+    const res = await fetch(
+      `${API_BASE}/wireguard/configs/${configId}/push/`,
+      { method: 'POST', headers: this.getHeaders() }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.detail || 'Push failed');
+    return data;
+  }
+
+  static async refreshWireGuardHandshakes(configId: string): Promise<{
+    ok: boolean; count: number; peers: WireGuardHandshake[];
+  }> {
+    const res = await fetch(
+      `${API_BASE}/wireguard/configs/${configId}/refresh-handshakes/`,
+      { method: 'POST', headers: this.getHeaders() }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.detail || 'Handshake refresh failed');
+    return data;
+  }
+
+  static async getWireGuardHandshakes(configId: string, limit = 50): Promise<{
+    count: number; results: WireGuardHandshake[];
+  }> {
+    const res = await fetch(
+      `${API_BASE}/wireguard/configs/${configId}/handshakes/?limit=${limit}`,
+      { headers: this.getHeaders() }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.detail || 'Handshake fetch failed');
+    return data;
+  }
+
+  static async getWireGuardAuditLog(
+    configId: string,
+    limit = 50,
+  ): Promise<{ count: number; results: WireGuardAuditEvent[] }> {
+    const res = await fetch(
+      `${API_BASE}/wireguard/configs/${configId}/audit-log/?limit=${limit}`,
+      { headers: this.getHeaders() }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.detail || 'Audit log fetch failed');
+    return data;
+  }
+
+  static async getTenantWireGuardAuditLog(limit = 100): Promise<{
+    count: number; results: WireGuardAuditEvent[];
+  }> {
+    const res = await fetch(
+      `${API_BASE}/wireguard/configs/audit-log/?limit=${limit}`,
+      { headers: this.getHeaders() }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.detail || 'Tenant audit log fetch failed');
+    return data;
   }
 
   static async getONUs(params?: { olt?: string; search?: string }): Promise<ONU[]> {
