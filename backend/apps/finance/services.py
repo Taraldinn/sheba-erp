@@ -3,7 +3,7 @@ import datetime
 from decimal import Decimal
 from typing import Optional, Dict, Any, List
 
-from django.db import transaction, models
+from django.db import transaction, models, IntegrityError
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
@@ -48,58 +48,59 @@ def allocate_payment_to_invoices(
     if alloc_amount <= 0:
         return {'allocated_total': Decimal('0.00'), 'overpayment_amount': Decimal('0.00'), 'allocations': []}
 
-    open_invoices = Invoice.objects.filter(
-        tenant=tenant,
-        customer=cust,
-        status__in=[Invoice.InvoiceStatus.UNPAID, Invoice.InvoiceStatus.PARTIAL]
-    ).order_by('created_at').select_for_update()
-
-    allocated_total = Decimal('0.00')
-    remaining = alloc_amount
-    allocations_created = []
-
-    for inv in open_invoices:
-        if remaining <= 0:
-            break
-
-        current_paid = Decimal(str(inv.paid_amount or '0.00'))
-        total_payable = Decimal(str(inv.total_payable or '0.00'))
-        due = total_payable - current_paid
-
-        if due <= 0:
-            inv.status = Invoice.InvoiceStatus.PAID
-            inv.due_amount = Decimal('0.00')
-            inv.save(update_fields=['status', 'due_amount'])
-            continue
-
-        chunk = min(remaining, due)
-        alloc = PaymentAllocation.objects.create(
+    with transaction.atomic():
+        open_invoices = Invoice.objects.filter(
             tenant=tenant,
-            payment=payment,
-            invoice=inv,
-            amount=chunk,
-            notes=notes or f"Allocation from Trx {payment.trx_id}"
-        )
-        allocations_created.append(alloc)
+            customer=cust,
+            status__in=[Invoice.InvoiceStatus.UNPAID, Invoice.InvoiceStatus.PARTIAL]
+        ).order_by('created_at').select_for_update()
 
-        new_paid = current_paid + chunk
-        new_due = total_payable - new_paid
-        inv.paid_amount = new_paid
-        inv.due_amount = max(Decimal('0.00'), new_due)
-        if inv.due_amount <= Decimal('0.00'):
-            inv.status = Invoice.InvoiceStatus.PAID
-        else:
-            inv.status = Invoice.InvoiceStatus.PARTIAL
-        inv.save(update_fields=['paid_amount', 'due_amount', 'status'])
+        allocated_total = Decimal('0.00')
+        remaining = alloc_amount
+        allocations_created = []
 
-        remaining -= chunk
-        allocated_total += chunk
+        for inv in open_invoices:
+            if remaining <= 0:
+                break
 
-    return {
-        'allocated_total': allocated_total,
-        'overpayment_amount': remaining,
-        'allocations': allocations_created
-    }
+            current_paid = Decimal(str(inv.paid_amount or '0.00'))
+            total_payable = Decimal(str(inv.total_payable or '0.00'))
+            due = total_payable - current_paid
+
+            if due <= 0:
+                inv.status = Invoice.InvoiceStatus.PAID
+                inv.due_amount = Decimal('0.00')
+                inv.save(update_fields=['status', 'due_amount'])
+                continue
+
+            chunk = min(remaining, due)
+            alloc = PaymentAllocation.objects.create(
+                tenant=tenant,
+                payment=payment,
+                invoice=inv,
+                amount=chunk,
+                notes=notes or f"Allocation from Trx {payment.trx_id}"
+            )
+            allocations_created.append(alloc)
+
+            new_paid = current_paid + chunk
+            new_due = total_payable - new_paid
+            inv.paid_amount = new_paid
+            inv.due_amount = max(Decimal('0.00'), new_due)
+            if inv.due_amount <= Decimal('0.00'):
+                inv.status = Invoice.InvoiceStatus.PAID
+            else:
+                inv.status = Invoice.InvoiceStatus.PARTIAL
+            inv.save(update_fields=['paid_amount', 'due_amount', 'status'])
+
+            remaining -= chunk
+            allocated_total += chunk
+
+        return {
+            'allocated_total': allocated_total,
+            'overpayment_amount': remaining,
+            'allocations': allocations_created
+        }
 
 
 def record_ledger_entry(
@@ -288,19 +289,22 @@ def execute_transactional_recharge(
         payment_trx = None
         allocation_result = None
         if amount_dec > 0:
-            payment_trx = PaymentTransaction.objects.create(
-                tenant=tenant,
-                customer=locked_customer,
-                amount=amount_dec,
-                payment_method=payment_method,
-                trx_id=final_trx_id,
-                status=TransactionStatus.SUCCESS,
-                raw_payload={
-                    'notes': f"Recharge payment for {locked_customer.pppoe_username}",
-                    'idempotency_key': idempotency_key or '',
-                    'processed_by': actor_username
-                }
-            )
+            try:
+                payment_trx = PaymentTransaction.objects.create(
+                    tenant=tenant,
+                    customer=locked_customer,
+                    amount=amount_dec,
+                    payment_method=payment_method,
+                    trx_id=final_trx_id,
+                    status=TransactionStatus.SUCCESS,
+                    raw_payload={
+                        'notes': f"Recharge payment for {locked_customer.pppoe_username}",
+                        'idempotency_key': idempotency_key or '',
+                        'processed_by': actor_username
+                    }
+                )
+            except IntegrityError:
+                raise ValidationError(f"Transaction ID {final_trx_id} has already been processed.")
 
             # Update BillingAccount total_paid & last_payment_at
             billing_acct.total_paid = Decimal(str(billing_acct.total_paid or '0.00')) + amount_dec

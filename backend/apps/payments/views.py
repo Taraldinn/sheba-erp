@@ -22,6 +22,15 @@ from decimal import Decimal
 from apps.finance.models import BillingAccount, LedgerEntry, IdempotencyKey
 from apps.finance.services import get_or_create_billing_account, record_ledger_entry, allocate_payment_to_invoices
 from apps.core.tasks import process_payment_event
+from .security import (
+    validate_webhook_tenant,
+    validate_webhook_signature,
+    validate_webhook_timestamp_and_replay,
+    validate_currency,
+    validate_amount,
+    validate_customer_and_invoice_mapping,
+    sanitize_payload,
+)
 
 
 @extend_schema_view(
@@ -119,8 +128,9 @@ class PaymentTransactionViewSet(viewsets.ModelViewSet):
                 )
 
                 if customer:
+                    locked_customer = Customer.objects.select_for_update().get(id=customer.id)
                     amount_dec = Decimal(str(payment.amount))
-                    billing_acct = get_or_create_billing_account(tenant, customer)
+                    billing_acct = get_or_create_billing_account(tenant, locked_customer)
                     billing_acct = BillingAccount.objects.select_for_update().get(id=billing_acct.id)
                     billing_acct.total_paid = Decimal(str(billing_acct.total_paid or '0.00')) + amount_dec
                     billing_acct.balance = Decimal(str(billing_acct.balance or '0.00')) + amount_dec
@@ -129,7 +139,7 @@ class PaymentTransactionViewSet(viewsets.ModelViewSet):
 
                     record_ledger_entry(
                         tenant=tenant,
-                        customer=customer,
+                        customer=locked_customer,
                         entry_type=LedgerEntry.EntryType.PAYMENT,
                         amount=amount_dec,
                         balance_after=billing_acct.balance,
@@ -143,13 +153,12 @@ class PaymentTransactionViewSet(viewsets.ModelViewSet):
                     allocate_payment_to_invoices(
                         tenant=tenant,
                         payment=payment,
-                        customer=customer,
+                        customer=locked_customer,
                         amount=amount_dec,
                         notes=f"Allocation from Payment {payment.id}"
                     )
 
                     # Offset customer due / advance
-                    locked_customer = Customer.objects.select_for_update().get(id=customer.id)
                     due_dec = Decimal(str(locked_customer.due_amount or '0.00'))
                     adv_dec = Decimal(str(locked_customer.advance_amount or '0.00'))
                     if due_dec > 0:
@@ -217,10 +226,20 @@ class SmsWebhookView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        # Resolve tenant strictly from request domain/header
-        tenant = get_tenant_for_request(request)
-        if not tenant:
-            return Response({'error': 'Tenant could not be resolved from request host or context.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Resolve tenant strictly from request domain/header, rejecting cross-tenant attempts
+        tenant, err_resp = validate_webhook_tenant(request)
+        if err_resp:
+            return err_resp
+
+        # Signature validation where supported/configured
+        valid_sig, sig_err = validate_webhook_signature(request, tenant)
+        if not valid_sig:
+            return sig_err
+
+        # Currency validation
+        valid_curr, curr_err = validate_currency(request.data.get('currency'))
+        if not valid_curr:
+            return curr_err
 
         sender = request.data.get('sender') or request.data.get('from', 'Unknown')
         message = request.data.get('message') or request.data.get('text') or request.data.get('body', '')
@@ -242,6 +261,12 @@ class SmsWebhookView(views.APIView):
                 parsed_amount = float(amount_match.group(1).replace(',', ''))
             except Exception:
                 parsed_amount = None
+
+        if parsed_amount is not None:
+            amt_validated, amt_err = validate_amount(parsed_amount, min_amount=Decimal('0.01'))
+            if amt_err:
+                return amt_err
+
         parsed_acc = request.data.get('sender_account') or ((account_match.group(1)) if account_match else '')
         parsed_ref = request.data.get('reference_id') or request.data.get('reference') or ((ref_match.group(1)) if ref_match else '')
         parsed_provider = request.data.get('provider')
@@ -259,6 +284,22 @@ class SmsWebhookView(views.APIView):
                 parsed_provider = 'SSLCommerz'
             else:
                 parsed_provider = 'SMS'
+
+        # Timestamp and replay validation
+        valid_ts, ts_err = validate_webhook_timestamp_and_replay(request, tenant, trx_id=parsed_trx)
+        if not valid_ts:
+            return ts_err
+
+        # Customer & invoice mapping validation
+        customer_id_req = request.data.get('customer_id')
+        invoice_id_req = request.data.get('invoice_id')
+        if customer_id_req or invoice_id_req:
+            cust, inv, map_err = validate_customer_and_invoice_mapping(
+                tenant, customer_id=customer_id_req, invoice_id=invoice_id_req,
+                amount=Decimal(str(parsed_amount)) if parsed_amount else None
+            )
+            if map_err:
+                return map_err
 
         # --- Fast Idempotency: duplicate TrxID or Reference ID returns early HTTP 202 ---
         if parsed_trx:
@@ -297,6 +338,11 @@ class SmsWebhookView(views.APIView):
                     'message': f'Reference ID {parsed_ref} already processed.'
                 }, status=status.HTTP_202_ACCEPTED)
 
+        # Sanitize payload to prevent credential leakage
+        sanitized_raw = sanitize_payload(message if isinstance(message, str) else raw_payload)
+        if isinstance(sanitized_raw, dict):
+            sanitized_raw = json.dumps(sanitized_raw, ensure_ascii=False)
+
         # Ingestion-only: record SMS and create InboundPaymentEvent
         sms_log = SmsLog.objects.create(
             tenant=tenant,
@@ -312,7 +358,7 @@ class SmsWebhookView(views.APIView):
         event = InboundPaymentEvent.objects.create(
             tenant=tenant,
             source=InboundPaymentEvent.EventSource.SMS,
-            raw_payload=message if isinstance(message, str) else str(raw_payload),
+            raw_payload=sanitized_raw,
             provider=parsed_provider,
             amount=parsed_amount,
             trx_id=parsed_trx,
@@ -359,9 +405,9 @@ class InboundPaymentEventViewSet(viewsets.ModelViewSet):
         )
 
     def create(self, request, *args, **kwargs):
-        tenant = get_tenant_for_request(request)
-        if not tenant:
-            return Response({'error': 'Tenant could not be resolved from request host or context.'}, status=status.HTTP_400_BAD_REQUEST)
+        tenant, err_resp = validate_webhook_tenant(request)
+        if err_resp:
+            return err_resp
 
         serializer = InboundPaymentEventSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -374,6 +420,38 @@ class InboundPaymentEventViewSet(viewsets.ModelViewSet):
         trx_id = str(validated.get('trx_id') or request.data.get('trx_id') or '').strip()
         sender_account = str(validated.get('sender_account') or request.data.get('sender') or '').strip()
         reference_id = str(validated.get('reference_id') or request.data.get('reference') or '').strip()
+
+        # Signature validation
+        valid_sig, sig_err = validate_webhook_signature(request, tenant)
+        if not valid_sig:
+            return sig_err
+
+        # Currency validation
+        valid_curr, curr_err = validate_currency(request.data.get('currency'))
+        if not valid_curr:
+            return curr_err
+
+        # Amount validation
+        if amount is not None:
+            amt_val, amt_err = validate_amount(amount, min_amount=Decimal('0.01'))
+            if amt_err:
+                return amt_err
+
+        # Timestamp and replay validation
+        valid_ts, ts_err = validate_webhook_timestamp_and_replay(request, tenant, trx_id=trx_id)
+        if not valid_ts:
+            return ts_err
+
+        # Customer & invoice mapping validation
+        customer_id_req = request.data.get('customer_id')
+        invoice_id_req = request.data.get('invoice_id')
+        if customer_id_req or invoice_id_req:
+            cust, inv, map_err = validate_customer_and_invoice_mapping(
+                tenant, customer_id=customer_id_req, invoice_id=invoice_id_req,
+                amount=amount
+            )
+            if map_err:
+                return map_err
 
         if not raw_payload and not trx_id:
             return Response({'error': 'raw_payload or trx_id required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -415,11 +493,16 @@ class InboundPaymentEventViewSet(viewsets.ModelViewSet):
                     'message': f'Reference ID {reference_id} already processed.'
                 }, status=status.HTTP_202_ACCEPTED)
 
+        # Sanitize payload
+        sanitized_raw = sanitize_payload(raw_payload)
+        if isinstance(sanitized_raw, dict):
+            sanitized_raw = json.dumps(sanitized_raw, ensure_ascii=False)
+
         # Ingestion-only: create InboundPaymentEvent
         event = InboundPaymentEvent.objects.create(
             tenant=tenant,
             source=source,
-            raw_payload=raw_payload,
+            raw_payload=sanitized_raw,
             provider=provider,
             amount=amount,
             trx_id=trx_id,

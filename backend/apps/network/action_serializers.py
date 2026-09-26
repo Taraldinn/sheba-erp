@@ -45,10 +45,14 @@ class NetworkActionSerializer(serializers.ModelSerializer):
             'current_state',
             'sanitized_payload',
             'result',
+            'correlation_id',
+            'device_identity',
             'idempotency_key',
+            'timeout_seconds',
             'actor',
             'created_at',
             'updated_at',
+            'started_at',
             'completed_at',
         ]
         read_only_fields = fields

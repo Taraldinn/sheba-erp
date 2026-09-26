@@ -4,6 +4,7 @@ from django.utils import timezone
 from django.contrib.auth.models import User
 from apps.core.models import Tenant
 from apps.customers.models import Customer
+from apps.core.fields import EncryptedCharField
 
 
 class CallLog(models.Model):
@@ -87,3 +88,24 @@ class VoiceTemplate(models.Model):
 
     def __str__(self):
         return f"{self.voice_name} ({self.status})"
+
+
+class MikoPBXConfig(models.Model):
+    tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='mikopbx_config')
+    is_enabled = models.BooleanField(default=False)
+    pbx_url = models.URLField(blank=True, null=True, help_text="MikoPBX HTTPS URL")
+    pbx_did = models.CharField(max_length=50, blank=True, help_text="Tenant's assigned DID")
+    api_key = EncryptedCharField(max_length=255, blank=True, help_text="Read-only MikoPBX API key with cdr:read")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"MikoPBX Config for {self.tenant.name}"
+
+
+class AgentPBXMapping(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='pbx_agent_mappings')
+    agent = models.OneToOneField(User, on_delete=models.CASCADE, related_name='pbx_mapping')
+    extension = models.CharField(max_length=20, help_text="PBX extension (e.g. 101)")
+
+    def __str__(self):
+        return f"{self.agent.username} -> {self.extension}"

@@ -18,6 +18,17 @@ class TaskSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('tenant',)
 
+    def validate_assigned_to(self, user):
+        if user is None:
+            return user
+        request = self.context.get('request')
+        tenant = getattr(request, 'tenant', None) if request else None
+        if tenant:
+            from apps.authentication.models import StaffMembership
+            if not StaffMembership.objects.filter(tenant=tenant, user=user).exists() and not user.is_superuser:
+                raise serializers.ValidationError("Assigned user does not belong to your organization.")
+        return user
+
 
 @extend_schema_view(
     list=extend_schema(tags=['9. Field Tasks & Maintenance']),

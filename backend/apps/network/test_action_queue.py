@@ -131,10 +131,10 @@ class ActionQueueAndBulkOperationsTests(TestCase):
             action_id=str(job.id)
         )
         self.assertTrue(result['success'])
-        self.assertEqual(result['status'], 'SUCCESS')
+        self.assertIn(result['status'], [NetworkAction.JobStatus.SUCCEEDED, NetworkAction.JobStatus.SUCCESS])
 
         job.refresh_from_db()
-        self.assertEqual(job.status, NetworkAction.JobStatus.SUCCESS)
+        self.assertIn(job.status, [NetworkAction.JobStatus.SUCCEEDED, NetworkAction.JobStatus.SUCCESS])
         self.assertIsNotNone(job.completed_at)
         mock_svc.pppoe.enable_user_by_name.assert_called_once_with("sub_001")
 

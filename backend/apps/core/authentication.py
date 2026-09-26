@@ -131,9 +131,76 @@ class TenantApiKeyAuthentication(authentication.BaseAuthentication):
 
         # Bind context to request
         request.tenant = matched_token.tenant
-        request.auth_type = 'api_key'
+        request.application = matched_token
         request.api_token = matched_token
         request.api_scopes = set(matched_token.permissions or [])
+
+        # Check for Staff User Credentials (Dual-Token / BFF Flow)
+        # 1. Authorization: Token <key> or Bearer <key>
+        auth_header = authentication.get_authorization_header(request).split()
+        if auth_header and len(auth_header) == 2:
+            auth_scheme = auth_header[0].decode('utf-8', errors='ignore').lower()
+            if auth_scheme in ('token', 'bearer'):
+                token_key = auth_header[1].decode('utf-8', errors='ignore').strip()
+                token_auth = authentication.TokenAuthentication()
+                staff_user, token_obj = token_auth.authenticate_credentials(token_key)
+
+                # Cross-tenant check: staff user MUST belong to matched_token.tenant
+                from apps.authentication.models import StaffMembership
+                membership = StaffMembership.get_active_membership(staff_user, matched_token.tenant)
+                if not membership and not staff_user.is_superuser:
+                    # Fallback sync from legacy StaffProfile
+                    profile = getattr(staff_user, 'profile', None)
+                    if profile and profile.tenant_id == matched_token.tenant_id and profile.is_active:
+                        from apps.authentication.models import Role
+                        role_obj = Role.objects.filter(tenant=matched_token.tenant, name__iexact=profile.get_role_display()).first()
+                        membership, _ = StaffMembership.objects.get_or_create(
+                            user=staff_user, tenant=matched_token.tenant, defaults={'is_active': True, 'role': role_obj}
+                        )
+
+                if not membership and not staff_user.is_superuser:
+                    raise exceptions.PermissionDenied(
+                        detail={
+                            "error": f'Access denied: Staff user "{staff_user.username}" is not an active staff member of tenant "{matched_token.tenant.name}".',
+                            "code": "CROSS_TENANT_APPLICATION_ACCESS"
+                        }
+                    )
+
+                if membership and not membership.is_active:
+                    raise exceptions.PermissionDenied(
+                        detail={
+                            "error": f'Access denied: Staff membership for "{staff_user.username}" is inactive.',
+                            "code": "MEMBERSHIP_INACTIVE"
+                        }
+                    )
+
+                request.membership = membership
+                request.auth_type = 'staff_token'
+                return (staff_user, token_obj)
+
+        # 2. Session Authentication (if user is authenticated via Django session)
+        raw_request = getattr(request, '_request', request)
+        session_user = getattr(raw_request, 'user', None)
+        if session_user and session_user.is_authenticated and not hasattr(session_user, 'api_token'):
+            from apps.authentication.models import StaffMembership
+            membership = StaffMembership.get_active_membership(session_user, matched_token.tenant)
+            if not membership and not session_user.is_superuser:
+                raise exceptions.PermissionDenied(
+                    detail={
+                        "error": f'Access denied: Staff user "{session_user.username}" is not an active staff member of tenant "{matched_token.tenant.name}".',
+                        "code": "CROSS_TENANT_APPLICATION_ACCESS"
+                    }
+                )
+            if membership and not membership.is_active:
+                raise exceptions.PermissionDenied(
+                    detail={
+                        "error": f'Access denied: Staff membership for "{session_user.username}" is inactive.',
+                        "code": "MEMBERSHIP_INACTIVE"
+                    }
+                )
+            request.membership = membership
+            request.auth_type = 'staff_session'
+            return (session_user, None)
 
         principal = ApiKeyPrincipal(matched_token)
         return (principal, matched_token)
@@ -147,16 +214,30 @@ try:
 
     class TenantApiKeyScheme(OpenApiAuthenticationExtension):
         target_class = 'apps.core.authentication.TenantApiKeyAuthentication'
-        name = 'apiKeyAuth'
+        name = ['apiKeyHeaderAuth', 'apiKeyAuthorizationAuth']
         match_subclasses = True
         priority = 1
 
         def get_security_definition(self, auto_schema):
-            return {
-                'type': 'apiKey',
-                'in': 'header',
-                'name': 'X-API-Key',
-                'description': 'Secret ISP API Key (prefix: shb_). Passed via X-API-Key or Authorization: Api-Key <key>',
-            }
+            return [
+                {
+                    'type': 'apiKey',
+                    'in': 'header',
+                    'name': 'X-API-Key',
+                    'description': 'Secret ISP API Key (prefix: shb_). Passed via X-API-Key header.',
+                },
+                {
+                    'type': 'apiKey',
+                    'in': 'header',
+                    'name': 'Authorization',
+                    'description': 'Secret ISP API Key using Authorization header with prefix "Api-Key <key>".',
+                },
+            ]
+
+        def get_security_requirement(self, auto_schema):
+            return [
+                {'apiKeyHeaderAuth': []},
+                {'apiKeyAuthorizationAuth': []},
+            ]
 except ImportError:
     pass

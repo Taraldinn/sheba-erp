@@ -22,7 +22,7 @@ from rest_framework.authtoken.models import Token
 from .models import (
     Tenant, TenantDomain, CompanySetting, AuditLog,
     TenantOnboardingRequest, SaaSPackage, TenantSubscription, SaaSPayment, DatabaseBackup,
-    TenantApiToken
+    TenantApiToken, ApiApplication
 )
 from .permissions import IsCentralAdmin
 from .redis_service import RedisService
@@ -314,9 +314,10 @@ class SaaSDomainSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'tenant', 'tenant_name', 'tenant_slug',
             'hostname', 'is_primary', 'is_active', 'verified',
+            'verification_method', 'dns_challenge_token',
             'domain_type', 'created_at', 'updated_at'
         ]
-        read_only_fields = ('created_at', 'updated_at')
+        read_only_fields = ('dns_challenge_token', 'created_at', 'updated_at')
 
 
 class TenantOnboardingRequestSerializer(serializers.ModelSerializer):
@@ -569,6 +570,46 @@ class SaaSOverviewView(views.APIView):
         response = Response(data)
         response['X-Cache'] = 'MISS'
         return response
+
+
+@extend_schema(
+    tags=['16. Multi-Tenant SaaS & Control Plane'],
+    summary='SaaS Platform Operational Health',
+    description='Platform-level operational health diagnostics (database, Redis, tenant metrics). Restricted strictly to Central Platform Administrators.',
+    responses={200: dict, 503: dict}
+)
+class SaaSHealthView(views.APIView):
+    """
+    Platform-level operational health diagnostics for the SaaS Control Plane.
+    Strictly restricted to Central Platform Administrators via IsCentralAdmin.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+
+    def get(self, request):
+        from django.db import connection
+        from apps.core.redis_service import RedisService
+
+        db_status = 'connected'
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT 1;')
+        except Exception as exc:
+            db_status = f'error: {exc}'
+
+        redis_status = 'connected' if RedisService.ping() else 'disconnected'
+        tenants_total = Tenant.objects.count()
+        tenants_active = Tenant.objects.filter(is_active=True).count()
+
+        is_healthy = (db_status == 'connected')
+
+        return Response({
+            'status': 'healthy' if is_healthy else 'degraded',
+            'database': db_status,
+            'redis': redis_status,
+            'tenants_total': tenants_total,
+            'tenants_active': tenants_active,
+            'timestamp': timezone.now().isoformat(),
+        }, status=status.HTTP_200_OK if is_healthy else status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 class SaaSTenantViewSet(viewsets.ModelViewSet):
@@ -1795,12 +1836,35 @@ class SaaSDomainViewSet(viewsets.ModelViewSet):
             'message': f'Domain {domain.hostname} verification marked as {domain.verified}.'
         })
 
+    @action(detail=True, methods=['post'], url_path='verify-dns')
+    def verify_dns(self, request, pk=None):
+        domain = self.get_object()
+        success = domain.verify_dns_txt()
+        return Response({
+            'id': domain.id,
+            'hostname': domain.hostname,
+            'verified': domain.verified,
+            'success': success,
+            'message': f"Domain {domain.hostname} DNS TXT verification {'succeeded' if success else 'failed'}."
+        }, status=status.HTTP_200_OK if success else status.HTTP_400_BAD_REQUEST)
+
+
+class SaaSUserItemSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    username = serializers.CharField(read_only=True)
+    email = serializers.CharField(read_only=True)
+    is_active = serializers.BooleanField(read_only=True)
+    last_login = serializers.CharField(read_only=True)
+    role = serializers.CharField(read_only=True)
+    tenant_name = serializers.CharField(read_only=True)
+    is_platform_admin = serializers.BooleanField(read_only=True)
+
 
 @extend_schema_view(
     list=extend_schema(
         tags=['16. Multi-Tenant SaaS & Control Plane'],
         summary='List SaaS platform administrators and tenant master owners',
-        responses={200: dict}
+        responses={200: SaaSUserItemSerializer(many=True)}
     ),
     create=extend_schema(
         tags=['16. Multi-Tenant SaaS & Control Plane'],
@@ -1829,6 +1893,8 @@ class SaaSUserViewSet(viewsets.ViewSet):
     Only accessible by Central Platform Administrators.
     """
     permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    serializer_class = SaaSUserItemSerializer
+    queryset = User.objects.all()
 
     def list(self, request):
         super_admins = []
@@ -2133,22 +2199,23 @@ class SaaSMeView(views.APIView):
 )
 class SaaSLogoutView(views.APIView):
     """Terminates session for the authenticated Central SaaS Administrator."""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
 
     def post(self, request):
-        try:
-            if hasattr(request.user, 'auth_token'):
-                request.user.auth_token.delete()
-        except Exception:
-            pass
+        if hasattr(request.user, 'auth_token'):
+            request.user.auth_token.delete()
         return Response({'message': 'Logged out successfully.'}, status=status.HTTP_200_OK)
+
+
+class SaaSPasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True, help_text="Platform super administrator registered email address")
 
 
 @extend_schema(
     tags=['16. Multi-Tenant SaaS & Control Plane'],
     summary='SaaS Administrator Password Reset Request',
     description='Requests a password reset link for a platform super administrator. Always returns HTTP 200.',
-    request=serializers.Serializer,
+    request=SaaSPasswordResetRequestSerializer,
     responses={200: dict}
 )
 class SaaSPasswordResetView(views.APIView):
@@ -2189,11 +2256,17 @@ class SaaSPasswordResetView(views.APIView):
         }, status=status.HTTP_200_OK)
 
 
+class SaaSPasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField(required=True, help_text="Base64-encoded user ID")
+    token = serializers.CharField(required=True, help_text="Cryptographic reset token")
+    new_password = serializers.CharField(required=True, write_only=True, min_length=8, help_text="New administrator password")
+
+
 @extend_schema(
     tags=['16. Multi-Tenant SaaS & Control Plane'],
     summary='SaaS Administrator Password Reset Confirm',
     description='Validates token and updates the platform super administrator password.',
-    request=serializers.Serializer,
+    request=SaaSPasswordResetConfirmSerializer,
     responses={200: dict, 400: dict}
 )
 class SaaSPasswordResetConfirmView(views.APIView):
@@ -2460,4 +2533,240 @@ class SaaSApiCredentialViewSet(viewsets.ModelViewSet):
         )
 
         return Response(SaaSApiCredentialSerializer(token_obj).data)
+
+
+# ════════════════════════ 13. API APPLICATIONS MANAGEMENT ════════════════════════
+
+class SaaSApplicationSerializer(serializers.ModelSerializer):
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    tenant_slug = serializers.CharField(source='tenant.slug', read_only=True)
+    created_by_username = serializers.SerializerMethodField()
+    status = serializers.CharField(source='effective_status', read_only=True)
+
+    class Meta:
+        model = ApiApplication
+        fields = [
+            'id', 'tenant', 'tenant_name', 'tenant_slug', 'name',
+            'key_prefix', 'status', 'rate_limit', 'permissions', 'is_active',
+            'expires_at', 'revoked_at', 'last_used_at',
+            'created_by', 'created_by_username', 'created_at', 'updated_at',
+        ]
+        read_only_fields = (
+            'id', 'key_prefix', 'status', 'revoked_at', 'last_used_at',
+            'created_by', 'created_at', 'updated_at'
+        )
+
+    def get_created_by_username(self, obj):
+        return obj.created_by.username if obj.created_by else 'system'
+
+
+@extend_schema_view(
+    list=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='List External ISP Frontend Applications',
+        description='Returns all registered API Applications across tenants. Filterable by tenant UUID or slug.'
+    ),
+    create=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Register an External ISP Frontend Application',
+        description='Registers an API Application bound to an ISP tenant and generates a high-entropy API key. The one-time secret is returned in secret_key.'
+    ),
+    retrieve=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Retrieve ISP Application metadata',
+        description='Returns application metadata (safe key prefix, permissions, status). Does NOT return the secret key.'
+    ),
+    rotate=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Rotate an External ISP Frontend Application API key',
+        description='Generates a new API key for the application and revokes the previous key. Returns a one-time secret_key.'
+    ),
+    revoke=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Revoke an External ISP Frontend Application',
+        description='Immediately revokes the application credentials and prevents any further API authentication.'
+    ),
+    suspend=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Suspend an External ISP Frontend Application',
+        description='Temporarily suspends application credentials without permanent revocation.'
+    ),
+    reactivate=extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Reactivate a suspended External ISP Frontend Application',
+        description='Reactivates a suspended application credential.'
+    ),
+)
+class SaaSApplicationViewSet(viewsets.ModelViewSet):
+    """
+    Super Admin ViewSet to register, manage, generate, rotate, revoke, and monitor
+    External ISP Frontend Applications (e.g. Next.js, Mobile App) for each ISP tenant.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    serializer_class = SaaSApplicationSerializer
+    queryset = ApiApplication.objects.select_related('tenant', 'created_by').all().order_by('-created_at')
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        tenant_param = self.request.query_params.get('tenant')
+        if tenant_param:
+            t = get_tenant_by_id_or_slug(tenant_param)
+            if t:
+                qs = qs.filter(tenant=t)
+            else:
+                qs = qs.none()
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param.upper())
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        tenant_param = request.query_params.get('tenant', '')
+        status_param = request.query_params.get('status', '')
+        page = request.query_params.get('page', '1')
+        cache_key = f"saas:applications:list:{tenant_param}:{status_param}:{page}"
+        cached = RedisService.get(cache_key)
+        if cached is not None:
+            res = Response(cached)
+            res['X-Cache'] = 'HIT'
+            return res
+        res = super().list(request, *args, **kwargs)
+        RedisService.set(cache_key, res.data, timeout=300)
+        res['X-Cache'] = 'MISS'
+        return res
+
+    def create(self, request, *args, **kwargs):
+        tenant_identifier = request.data.get('tenant')
+        name = (request.data.get('name') or '').strip()
+        permissions_list = request.data.get('permissions') or []
+        expires_at = request.data.get('expires_at') or None
+        rate_limit = request.data.get('rate_limit') or 1000
+
+        if not tenant_identifier:
+            return Response({'error': 'tenant is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not name:
+            return Response({'error': 'name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        tenant = get_tenant_by_id_or_slug(tenant_identifier)
+        if not tenant:
+            return Response({'error': f'Tenant "{tenant_identifier}" not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            rate_limit = int(rate_limit)
+        except (ValueError, TypeError):
+            rate_limit = 1000
+
+        app_obj, raw_secret = ApiApplication.create_application(
+            tenant=tenant,
+            name=name,
+            permissions=permissions_list,
+            expires_at=expires_at,
+            created_by=request.user,
+            rate_limit=rate_limit,
+        )
+
+        AuditLog.objects.create(
+            tenant=tenant,
+            actor_username=request.user.username,
+            action='api_application_created',
+            module='api_applications',
+            resource_type='ApiApplication',
+            resource_id=str(app_obj.id),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            after={
+                'name': app_obj.name,
+                'key_prefix': app_obj.key_prefix,
+                'permissions': app_obj.permissions,
+                'rate_limit': app_obj.rate_limit,
+                'expires_at': str(app_obj.expires_at) if app_obj.expires_at else None,
+            }
+        )
+
+        data = SaaSApplicationSerializer(app_obj).data
+        data['secret_key'] = raw_secret  # ONE-TIME secret display
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def rotate(self, request, pk=None):
+        """Rotate an existing application API key. Returns a new one-time secret."""
+        app_obj = self.get_object()
+        old_prefix = app_obj.key_prefix
+        app_obj, raw_secret = app_obj.rotate(created_by=request.user)
+
+        AuditLog.objects.create(
+            tenant=app_obj.tenant,
+            actor_username=request.user.username,
+            action='api_application_rotated',
+            module='api_applications',
+            resource_type='ApiApplication',
+            resource_id=str(app_obj.id),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            before={'old_prefix': old_prefix},
+            after={'new_prefix': app_obj.key_prefix, 'status': app_obj.status}
+        )
+
+        data = SaaSApplicationSerializer(app_obj).data
+        data['secret_key'] = raw_secret
+        return Response(data)
+
+    @action(detail=True, methods=['post'])
+    def revoke(self, request, pk=None):
+        """Immediately revokes an application credential."""
+        app_obj = self.get_object()
+        app_obj.revoke()
+
+        AuditLog.objects.create(
+            tenant=app_obj.tenant,
+            actor_username=request.user.username,
+            action='api_application_revoked',
+            module='api_applications',
+            resource_type='ApiApplication',
+            resource_id=str(app_obj.id),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            after={'status': app_obj.status, 'revoked_at': str(app_obj.revoked_at)}
+        )
+
+        return Response(SaaSApplicationSerializer(app_obj).data)
+
+    @action(detail=True, methods=['post'])
+    def suspend(self, request, pk=None):
+        """Temporarily suspends an application credential without revoking it."""
+        app_obj = self.get_object()
+        app_obj.suspend()
+
+        AuditLog.objects.create(
+            tenant=app_obj.tenant,
+            actor_username=request.user.username,
+            action='api_application_suspended',
+            module='api_applications',
+            resource_type='ApiApplication',
+            resource_id=str(app_obj.id),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            after={'status': app_obj.status}
+        )
+
+        return Response(SaaSApplicationSerializer(app_obj).data)
+
+    @action(detail=True, methods=['post'])
+    def reactivate(self, request, pk=None):
+        """Reactivates a suspended application credential."""
+        app_obj = self.get_object()
+        try:
+            app_obj.reactivate()
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        AuditLog.objects.create(
+            tenant=app_obj.tenant,
+            actor_username=request.user.username,
+            action='api_application_reactivated',
+            module='api_applications',
+            resource_type='ApiApplication',
+            resource_id=str(app_obj.id),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            after={'status': app_obj.status}
+        )
+
+        return Response(SaaSApplicationSerializer(app_obj).data)
+
 

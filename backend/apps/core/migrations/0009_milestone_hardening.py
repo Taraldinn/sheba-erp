@@ -62,13 +62,13 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='tenantapitoken',
             name='token_hash',
-            field=models.CharField(blank=True, db_index=True, max_length=64, null=True),
+            field=models.CharField(blank=True, max_length=64, null=True),
         ),
         migrations.RunPython(backfill_token_hashes, reverse_code=migrations.RunPython.noop),
         migrations.AlterField(
             model_name='tenantapitoken',
             name='token_hash',
-            field=models.CharField(db_index=True, default='', max_length=64, unique=True),
+            field=models.CharField(default='', max_length=64, unique=True),
         ),
         migrations.AddField(
             model_name='tenantapitoken',

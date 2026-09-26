@@ -484,3 +484,32 @@ class TenantAwareAuthenticationStage2Tests(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(response.data.get('code'), 'TENANT_DOMAIN_REQUIRED')
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 14. Control plane logout invalidates token
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_control_plane_logout_invalidates_token(self):
+        """SaaS superadmin logout invalidates token so subsequent calls return 401."""
+        login_resp = self.client.post(
+            '/api/v1/saas/auth/login/',
+            {'username': 'central_superadmin', 'password': 'supersecret123'},
+            HTTP_HOST='admin.shebafi.xyz'
+        )
+        self.assertEqual(login_resp.status_code, status.HTTP_200_OK)
+        token = login_resp.data['token']
+        headers = {
+            'HTTP_AUTHORIZATION': f'Token {token}',
+            'HTTP_HOST': 'admin.shebafi.xyz',
+        }
+
+        # Session is valid
+        me_resp = self.client.get('/api/v1/saas/auth/me/', **headers)
+        self.assertEqual(me_resp.status_code, status.HTTP_200_OK)
+
+        # Logout
+        logout_resp = self.client.post('/api/v1/saas/auth/logout/', **headers)
+        self.assertEqual(logout_resp.status_code, status.HTTP_200_OK)
+
+        # Token must now be invalidated
+        me_after = self.client.get('/api/v1/saas/auth/me/', **headers)
+        self.assertEqual(me_after.status_code, status.HTTP_401_UNAUTHORIZED)

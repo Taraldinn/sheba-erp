@@ -550,7 +550,7 @@ class Phase9FinanceBillingCompletionTests(TestCase):
             self.assertTrue(res['success'])
 
             job.refresh_from_db()
-            self.assertEqual(job.status, NetworkSyncJob.JobStatus.SUCCESS)
+            self.assertIn(job.status, [NetworkSyncJob.JobStatus.SUCCEEDED, NetworkSyncJob.JobStatus.SUCCESS])
             self.assertIsNotNone(job.completed_at)
 
     def test_advance_and_reversal_ledger_reconciliation_consistency(self):

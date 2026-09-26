@@ -98,13 +98,27 @@ def get_network_dashboard_overview(tenant: Tenant, pop_id: str = None, area: str
 
     # 5. Pending & Failed Actions
     pending_actions = jobs_qs.filter(
-        status__in=[NetworkSyncJob.JobStatus.PENDING, NetworkSyncJob.JobStatus.PROCESSING]
+        status__in=[
+            NetworkSyncJob.JobStatus.PENDING,
+            NetworkSyncJob.JobStatus.QUEUED,
+            NetworkSyncJob.JobStatus.RUNNING,
+            NetworkSyncJob.JobStatus.PROCESSING,
+            NetworkSyncJob.JobStatus.RETRYING,
+        ]
     ).count()
-    failed_actions = jobs_qs.filter(status=NetworkSyncJob.JobStatus.FAILED).count()
+    failed_actions = jobs_qs.filter(
+        status__in=[
+            NetworkSyncJob.JobStatus.FAILED,
+            NetworkSyncJob.JobStatus.STALE,
+        ]
+    ).count()
 
     # 6. Recent Network Failures (last 10)
     recent_failures_raw = jobs_qs.filter(
-        status=NetworkSyncJob.JobStatus.FAILED
+        status__in=[
+            NetworkSyncJob.JobStatus.FAILED,
+            NetworkSyncJob.JobStatus.STALE,
+        ]
     ).select_related('customer', 'router', 'olt').order_by('-created_at')[:10]
 
     recent_failures = []

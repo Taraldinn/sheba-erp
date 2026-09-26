@@ -248,6 +248,13 @@ class TJBoxAPITests(APITestCase):
         self.assertEqual(box.latitude, Decimal('23.8103'))
         self.assertEqual(box.longitude, Decimal('90.4125'))
 
+        # Update via update_fields=['lat_long'] persists derived coordinates to DB
+        box.lat_long = '24.1234, 89.5678'
+        box.save(update_fields=['lat_long'])
+        box.refresh_from_db()
+        self.assertEqual(box.latitude, Decimal('24.1234'))
+        self.assertEqual(box.longitude, Decimal('89.5678'))
+
         # Empty lat_long clears latitude and longitude
         box.lat_long = ''
         box.save()

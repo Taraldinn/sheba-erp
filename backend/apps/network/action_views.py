@@ -63,6 +63,16 @@ class NetworkActionQueueViewSet(viewsets.ReadOnlyModelViewSet):
         if batch_id:
             qs = qs.filter(batch_id=batch_id)
 
+        # Filter by correlation_id
+        correlation_id = self.request.query_params.get('correlation_id')
+        if correlation_id:
+            qs = qs.filter(correlation_id=correlation_id)
+
+        # Filter by device_identity
+        device_identity = self.request.query_params.get('device_identity')
+        if device_identity:
+            qs = qs.filter(device_identity__icontains=device_identity)
+
         # Search by customer name, code, target_name, or username
         search = self.request.query_params.get('search')
         if search:
@@ -83,6 +93,8 @@ class NetworkActionQueueViewSet(viewsets.ReadOnlyModelViewSet):
         router_id = request.data.get('router_id')
         payload = request.data.get('payload', {})
         idempotency_key = request.data.get('idempotency_key', '')
+        correlation_id = request.data.get('correlation_id', '')
+        timeout_seconds = request.data.get('timeout_seconds', 120)
 
         if not action_type:
             return Response({'error': 'action is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -107,7 +119,9 @@ class NetworkActionQueueViewSet(viewsets.ReadOnlyModelViewSet):
             router=router,
             payload=payload,
             actor=actor,
+            correlation_id=correlation_id,
             idempotency_key=idempotency_key,
+            timeout_seconds=timeout_seconds,
             execute_async=True
         )
         return Response(NetworkActionSerializer(job).data, status=status.HTTP_201_CREATED)

@@ -184,6 +184,14 @@ class BandwidthDailyUsage(models.Model):
                 fields=['customer', 'usage_date'],
                 name='unique_customer_daily_bandwidth',
             ),
+            models.CheckConstraint(
+                condition=models.Q(rx_bytes__gte=0) & models.Q(tx_bytes__gte=0),
+                name='bdu_bytes_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(last_rx_snapshot__gte=0) & models.Q(last_tx_snapshot__gte=0),
+                name='bdu_snapshots_non_negative',
+            ),
         ]
         indexes = [
             models.Index(fields=['tenant', 'usage_date'], name='bdu_tenant_date_idx'),

@@ -226,7 +226,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
             
             # Disconnect active PPPoE user session from router
             from apps.network.models import UserSession
-            UserSession.objects.filter(username=customer.pppoe_username).delete()
+            UserSession.objects.filter(tenant=customer.tenant, username=customer.pppoe_username).delete()
 
             AuditLog.objects.create(
                 tenant=customer.tenant,
@@ -276,7 +276,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
         if disconnect_session:
             from apps.network.models import UserSession
-            UserSession.objects.filter(username=customer.pppoe_username).delete()
+            UserSession.objects.filter(tenant=customer.tenant, username=customer.pppoe_username).delete()
 
         AuditLog.objects.create(
             tenant=customer.tenant,

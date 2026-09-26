@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.db import transaction
 
 from apps.core.models import Tenant
+from apps.core.lock import distributed_lock, LockAcquisitionError
 from apps.corporate.models import (
     CorporateCustomer,
     CorporateConnection,
@@ -23,52 +24,59 @@ def collect_corporate_telemetry_for_tenant(tenant_id: str) -> dict:
     Polls router interface traffic metrics for all active corporate connections
     belonging to a specific tenant.
     Operates outside DB transactions for device I/O, then records discrete 5-min samples.
+    Protected by distributed lock to prevent duplicate concurrent polling.
     """
-    tenant = Tenant.objects.filter(id=tenant_id, is_active=True).first()
-    if not tenant:
-        return {'success': False, 'error': f'Tenant {tenant_id} not found or inactive'}
+    lock_key = f"lock:corp_telemetry:{tenant_id}"
+    try:
+        with distributed_lock(lock_key, timeout=180, blocking=False):
+            tenant = Tenant.objects.filter(id=tenant_id, is_active=True).first()
+            if not tenant:
+                return {'success': False, 'error': f'Tenant {tenant_id} not found or inactive'}
 
-    connections = CorporateConnection.objects.filter(
-        tenant_id=tenant_id,
-        status='ACTIVE',
-    ).select_related('router', 'corporate_customer')
+            connections = CorporateConnection.objects.filter(
+                tenant_id=tenant_id,
+                status='ACTIVE',
+            ).select_related('router', 'corporate_customer')
 
-    now = timezone.now()
-    # Align timestamp to discrete 5-minute bucket
-    epoch = int(now.timestamp())
-    bucket_time = datetime.datetime.fromtimestamp(epoch - (epoch % 300), tz=datetime.timezone.utc)
+            now = timezone.now()
+            # Align timestamp to discrete 5-minute bucket
+            epoch = int(now.timestamp())
+            bucket_time = datetime.datetime.fromtimestamp(epoch - (epoch % 300), tz=datetime.timezone.utc)
 
-    created_samples = 0
-    for conn in connections:
-        # Check if sample for this bucket already exists
-        exists = CorporateTrafficSample.objects.filter(
-            tenant_id=tenant_id,
-            connection=conn,
-            timestamp=bucket_time
-        ).exists()
+            created_samples = 0
+            for conn in connections:
+                # Check if sample for this bucket already exists
+                exists = CorporateTrafficSample.objects.filter(
+                    tenant_id=tenant_id,
+                    connection=conn,
+                    timestamp=bucket_time
+                ).exists()
 
-        if exists:
-            continue
+                if exists:
+                    continue
 
-        # In production, router query uses MikroTik API / REST outside transactional blocks.
-        # Fallback simulation / default non-blocking polling:
-        # We record a non-negative counter representation (or last known metric)
-        # Default baseline: connection committed bandwidth in bps with normal variance
-        inbound_bps = int(conn.committed_bandwidth_mbps * 1_000_000 * 0.75)
-        outbound_bps = int(conn.committed_bandwidth_mbps * 1_000_000 * 0.40)
+                # In production, router query uses MikroTik API / REST outside transactional blocks.
+                # Fallback simulation / default non-blocking polling:
+                # We record a non-negative counter representation (or last known metric)
+                # Default baseline: connection committed bandwidth in bps with normal variance
+                inbound_bps = int(conn.committed_bandwidth_mbps * 1_000_000 * 0.75)
+                outbound_bps = int(conn.committed_bandwidth_mbps * 1_000_000 * 0.40)
 
-        CorporateTrafficSample.objects.create(
-            tenant_id=tenant_id,
-            connection=conn,
-            timestamp=bucket_time,
-            inbound_bps=inbound_bps,
-            outbound_bps=outbound_bps,
-            inbound_bytes=inbound_bps * 300 // 8,
-            outbound_bytes=outbound_bps * 300 // 8,
-        )
-        created_samples += 1
+                CorporateTrafficSample.objects.create(
+                    tenant_id=tenant_id,
+                    connection=conn,
+                    timestamp=bucket_time,
+                    inbound_bps=inbound_bps,
+                    outbound_bps=outbound_bps,
+                    inbound_bytes=inbound_bps * 300 // 8,
+                    outbound_bytes=outbound_bps * 300 // 8,
+                )
+                created_samples += 1
 
-    return {'success': True, 'tenant_id': str(tenant_id), 'samples_created': created_samples}
+            return {'success': True, 'tenant_id': str(tenant_id), 'samples_created': created_samples}
+    except LockAcquisitionError:
+        logger.info("collect_corporate_telemetry: lock already held for tenant %s, skipping.", tenant_id)
+        return {'success': False, 'error': 'DUPLICATE_TASK_SKIPPED', 'lock_key': lock_key}
 
 
 @shared_task(name='apps.corporate.tasks.collect_corporate_telemetry')
@@ -115,26 +123,33 @@ def generate_monthly_corporate_invoices_for_tenant(tenant_id: str) -> dict:
     Generates monthly corporate invoices for a tenant.
     Finds open billing periods whose period_end has elapsed, calculates p95,
     finalizes period, and raises itemized invoice.
+    Protected by distributed lock to prevent duplicate invoice runs.
     """
-    now = timezone.now()
-    periods_to_close = CorporateBillingPeriod.objects.filter(
-        tenant_id=tenant_id,
-        status__in=[PeriodCalculationStatus.OPEN, PeriodCalculationStatus.CALCULATED],
-        period_end__lte=now
-    )
+    lock_key = f"lock:corp_invoices:{tenant_id}"
+    try:
+        with distributed_lock(lock_key, timeout=300, blocking=False):
+            now = timezone.now()
+            periods_to_close = CorporateBillingPeriod.objects.filter(
+                tenant_id=tenant_id,
+                status__in=[PeriodCalculationStatus.OPEN, PeriodCalculationStatus.CALCULATED],
+                period_end__lte=now
+            )
 
-    invoiced_count = 0
-    errors = []
+            invoiced_count = 0
+            errors = []
 
-    for period in periods_to_close:
-        try:
-            invoice = CorporateBillingService.finalize_period_and_invoice(period, actor_username='celery_cron')
-            invoiced_count += 1
-        except Exception as e:
-            logger.error("Failed to invoice period %s: %s", period.id, e)
-            errors.append({'period_id': str(period.id), 'error': str(e)})
+            for period in periods_to_close:
+                try:
+                    invoice = CorporateBillingService.finalize_period_and_invoice(period, actor_username='celery_cron')
+                    invoiced_count += 1
+                except Exception as e:
+                    logger.error("Failed to invoice period %s: %s", period.id, e)
+                    errors.append({'period_id': str(period.id), 'error': str(e)})
 
-    return {'success': True, 'tenant_id': str(tenant_id), 'invoiced_count': invoiced_count, 'errors': errors}
+            return {'success': True, 'tenant_id': str(tenant_id), 'invoiced_count': invoiced_count, 'errors': errors}
+    except LockAcquisitionError:
+        logger.info("generate_monthly_corporate_invoices: lock already held for tenant %s, skipping.", tenant_id)
+        return {'success': False, 'error': 'DUPLICATE_TASK_SKIPPED', 'lock_key': lock_key}
 
 
 @shared_task(name='apps.corporate.tasks.generate_monthly_corporate_invoices')

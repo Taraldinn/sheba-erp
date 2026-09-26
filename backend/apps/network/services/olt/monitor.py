@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from decimal import Decimal
 from django.utils import timezone
 from django.db import transaction
-
+from apps.core.lock import distributed_lock, LockAcquisitionError
 from apps.network.models import OLT, ONU
 from .drivers import get_olt_driver, BaseOLTDriver
 
@@ -27,9 +27,12 @@ class OLTMonitorService:
         Discovers all connected ONUs, queries optical signal levels,
         alive times, and learned customer CPE MAC addresses.
         Persists all data to the database under the OLT's tenant.
+        Guarded by distributed lock to prevent concurrent Telnet sessions to hardware.
         """
-        driver: BaseOLTDriver = get_olt_driver(olt)
-        raw_data = driver.monitor_all_onus()
+        lock_key = f"lock:sync_olt:{olt.tenant_id}:{olt.id}"
+        with distributed_lock(lock_key, timeout=180, blocking=False):
+            driver: BaseOLTDriver = get_olt_driver(olt)
+            raw_data = driver.monitor_all_onus()
 
         onu_list = raw_data.get('onu_list', [])
         power_dict = raw_data.get('power', {})

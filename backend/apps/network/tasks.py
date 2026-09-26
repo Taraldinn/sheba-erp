@@ -15,11 +15,20 @@ from apps.core.lock import distributed_lock, LockAcquisitionError
 logger = logging.getLogger(__name__)
 
 
-def sync_router_task(tenant_id, router_id):
+@shared_task(bind=True, max_retries=3, default_retry_delay=30, time_limit=120, soft_time_limit=90)
+def sync_router_task(self=None, tenant_id=None, router_id=None):
     """
     Synchronises MikroTik router state and sessions.
-    Strictly scoped to tenant_id.
+    Strictly scoped to explicit tenant_id. Guarded by distributed lock.
     """
+    if self is not None and not hasattr(self, 'request') and tenant_id is not None and router_id is None:
+        router_id = tenant_id
+        tenant_id = self
+        self = None
+
+    if not tenant_id or not router_id:
+        raise ValueError("tenant_id and router_id are required for sync_router_task")
+
     router = Router.objects.filter(id=router_id, tenant_id=tenant_id).first()
     if not router:
         logger.warning("sync_router_task: Router %s not found for tenant %s", router_id, tenant_id)
@@ -61,17 +70,28 @@ def sync_router_task(tenant_id, router_id):
                 router.last_ping = timezone.now()
                 router.status = 'Error'
                 router.save(update_fields=['last_ping', 'status'])
+                if self and hasattr(self, 'request') and self.request.retries < self.max_retries:
+                    raise self.retry(exc=exc)
                 return {'success': False, 'error': str(exc)}
     except LockAcquisitionError:
         logger.info("sync_router_task: Lock already held for router %s, skipping.", router_id)
         return {'success': False, 'error': 'LOCKED'}
 
 
-def sync_olt_task(tenant_id, olt_id, pon_port=None):
+@shared_task(bind=True, max_retries=3, default_retry_delay=30, time_limit=180, soft_time_limit=120)
+def sync_olt_task(self=None, tenant_id=None, olt_id=None, pon_port=None):
     """
     Synchronises OLT state, hardware health, and auto-discovers connected ONUs.
-    Strictly scoped to tenant_id.
+    Strictly scoped to explicit tenant_id. Guarded by distributed lock.
     """
+    if self is not None and not hasattr(self, 'request') and tenant_id is not None and olt_id is None:
+        olt_id = tenant_id
+        tenant_id = self
+        self = None
+
+    if not tenant_id or not olt_id:
+        raise ValueError("tenant_id and olt_id are required for sync_olt_task")
+
     olt = OLT.objects.filter(id=olt_id, tenant_id=tenant_id).first()
     if not olt:
         logger.warning("sync_olt_task: OLT %s not found for tenant %s", olt_id, tenant_id)
@@ -111,6 +131,8 @@ def sync_olt_task(tenant_id, olt_id, pon_port=None):
                 logger.warning("sync_olt_task failed for OLT %s: %s", olt_id, exc)
                 olt.status = 'Offline'
                 olt.save(update_fields=['status'])
+                if self and hasattr(self, 'request') and self.request.retries < self.max_retries:
+                    raise self.retry(exc=exc)
                 return {'success': False, 'error': str(exc)}
     except LockAcquisitionError:
         logger.info("sync_olt_task: Lock already held for OLT %s, skipping.", olt_id)
@@ -138,7 +160,7 @@ def process_network_sync_job(self=None, tenant_id=None, job_id=None):
 
     lock_key = f"lock:network_sync:{tenant_id}:{job_id}"
     try:
-        with distributed_lock(lock_key, timeout=60, blocking=False):
+        with distributed_lock(lock_key, timeout=120, blocking=False):
             from .models import NetworkSyncJob
             with transaction.atomic():
                 job = NetworkSyncJob.objects.select_for_update().filter(
@@ -149,11 +171,17 @@ def process_network_sync_job(self=None, tenant_id=None, job_id=None):
                     logger.warning("process_network_sync_job: job %s not found for tenant %s", job_id, tenant_id)
                     return {'success': False, 'error': f'Job {job_id} not found'}
 
-                if job.status == NetworkSyncJob.JobStatus.SUCCESS:
+                if job.status in [
+                    NetworkSyncJob.JobStatus.SUCCEEDED,
+                    NetworkSyncJob.JobStatus.SUCCESS,
+                    NetworkSyncJob.JobStatus.CANCELLED,
+                    NetworkSyncJob.JobStatus.STALE,
+                ]:
                     return {'success': True, 'status': 'ALREADY_COMPLETED'}
 
-                job.status = NetworkSyncJob.JobStatus.PROCESSING
-                job.save(update_fields=['status', 'updated_at'])
+                job.status = NetworkSyncJob.JobStatus.RUNNING
+                job.started_at = timezone.now()
+                job.save(update_fields=['status', 'started_at', 'updated_at'])
 
             # Hardware call executed outside database transaction lock
             target_router = job.router or (job.customer.router if job.customer else None)
@@ -191,11 +219,12 @@ def process_network_sync_job(self=None, tenant_id=None, job_id=None):
                 else:
                     raise ValueError(f"Action '{job.action}' is unsupported or performs no direct MikroTik hardware operation.")
 
-                job.status = NetworkSyncJob.JobStatus.SUCCESS
+                job.status = NetworkSyncJob.JobStatus.SUCCEEDED
                 job.result = op_result
+                job.current_state = op_result
                 job.completed_at = timezone.now()
                 job.error_message = ''
-                job.save(update_fields=['status', 'result', 'completed_at', 'error_message', 'updated_at'])
+                job.save(update_fields=['status', 'result', 'current_state', 'completed_at', 'error_message', 'updated_at'])
 
                 log_network_action(
                     tenant=job.tenant,
@@ -207,10 +236,11 @@ def process_network_sync_job(self=None, tenant_id=None, job_id=None):
                         'action': job.action,
                         'customer': username,
                         'router': target_router.name if target_router else None,
+                        'correlation_id': job.correlation_id,
                         'result': op_result
                     }
                 )
-                return {'success': True, 'job_id': str(job.id), 'action': job.action, 'status': 'SUCCESS'}
+                return {'success': True, 'job_id': str(job.id), 'action': job.action, 'status': job.status}
 
             except Exception as exc:
                 logger.warning("process_network_sync_job: execution failed for job %s: %s", job.id, exc)
@@ -218,7 +248,11 @@ def process_network_sync_job(self=None, tenant_id=None, job_id=None):
                 job.retry_count += 1
                 if job.retry_count >= job.max_retries or isinstance(exc, ValueError):
                     job.status = NetworkSyncJob.JobStatus.FAILED
-                job.save(update_fields=['error_message', 'retry_count', 'status', 'updated_at'])
+                    job.completed_at = timezone.now()
+                    job.save(update_fields=['error_message', 'retry_count', 'status', 'completed_at', 'updated_at'])
+                else:
+                    job.status = NetworkSyncJob.JobStatus.RETRYING
+                    job.save(update_fields=['error_message', 'retry_count', 'status', 'updated_at'])
 
                 if not isinstance(exc, ValueError) and self and hasattr(self, 'request') and self.request.retries < self.max_retries:
                     raise self.retry(exc=exc)
@@ -236,6 +270,9 @@ def dispatch_network_sync_job(
     router=None,
     olt=None,
     payload: dict = None,
+    correlation_id: str = '',
+    idempotency_key: str = '',
+    timeout_seconds: int = 120,
     execute_async: bool = True
 ):
     """
@@ -244,14 +281,50 @@ def dispatch_network_sync_job(
     Enqueues the worker ONLY after the current DB transaction commits (on_commit).
     Never holds open a DB transaction during hardware network calls.
     """
+    import uuid
     from .models import NetworkSyncJob
+
+    if idempotency_key:
+        existing = NetworkSyncJob.objects.filter(
+            tenant=tenant,
+            idempotency_key=idempotency_key,
+            status__in=[
+                NetworkSyncJob.JobStatus.PENDING,
+                NetworkSyncJob.JobStatus.QUEUED,
+                NetworkSyncJob.JobStatus.RUNNING,
+                NetworkSyncJob.JobStatus.PROCESSING,
+                NetworkSyncJob.JobStatus.SUCCEEDED,
+                NetworkSyncJob.JobStatus.SUCCESS,
+                NetworkSyncJob.JobStatus.RETRYING,
+            ]
+        ).first()
+        if existing:
+            return existing
+
+    target_router = router or (customer.router if customer else None)
+    target_olt = olt or (customer.onu.olt if customer and hasattr(customer, 'onu') and customer.onu else None)
+
+    device_identity = ''
+    if target_router:
+        device_identity = target_router.name or target_router.hostname or str(target_router.ip_address)
+    elif target_olt:
+        device_identity = target_olt.name or str(target_olt.ip_address)
+    else:
+        device_identity = 'UNASSIGNED'
+
+    resolved_corr_id = correlation_id or uuid.uuid4().hex
+
     job = NetworkSyncJob.objects.create(
         tenant=tenant,
         customer=customer,
-        router=router or (customer.router if customer else None),
-        olt=olt,
+        router=target_router,
+        olt=target_olt,
         action=action,
         status=NetworkSyncJob.JobStatus.PENDING,
+        correlation_id=resolved_corr_id,
+        device_identity=device_identity,
+        idempotency_key=idempotency_key,
+        timeout_seconds=max(10, int(timeout_seconds)),
         payload=payload or {}
     )
 
@@ -260,16 +333,24 @@ def dispatch_network_sync_job(
 
     def _enqueue():
         try:
+            NetworkSyncJob.objects.filter(
+                id=job_id_str,
+                status=NetworkSyncJob.JobStatus.PENDING
+            ).update(
+                status=NetworkSyncJob.JobStatus.QUEUED,
+                updated_at=timezone.now()
+            )
             if execute_async:
                 process_network_sync_job.delay(tenant_id_str, job_id_str)
             else:
                 process_network_sync_job(tenant_id=tenant_id_str, job_id=job_id_str)
         except Exception as err:
-            logger.warning("dispatch_network_sync_job: fallback sync for %s due to: %s", job_id_str, err)
-            try:
-                process_network_sync_job(tenant_id=tenant_id_str, job_id=job_id_str)
-            except Exception as inner_err:
-                logger.error("dispatch_network_sync_job: failed to run sync: %s", inner_err)
+            logger.warning("dispatch_network_sync_job: execution error for %s: %s", job_id_str, err)
+            if execute_async:
+                try:
+                    process_network_sync_job(tenant_id=tenant_id_str, job_id=job_id_str)
+                except Exception as inner_err:
+                    logger.error("dispatch_network_sync_job: failed to run sync: %s", inner_err)
 
     transaction.on_commit(_enqueue)
     return job
@@ -341,4 +422,14 @@ def process_bulk_batch_task(self, tenant_id: str, batch_id: str):
     except Exception as exc:
         logger.error("process_bulk_batch_task: error for batch %s: %s", batch_id, exc)
         return {'success': False, 'batch_id': batch_id, 'error': str(exc)}
+
+
+@shared_task
+def reap_stale_network_actions_task(tenant_id: str = None, threshold_seconds: int = 300):
+    """
+    Periodic watchdog background task to identify and mark stale network actions.
+    """
+    from .services.action_queue import ActionQueueService
+    reaped = ActionQueueService.reap_stale_actions(tenant_id=tenant_id, stale_threshold_seconds=threshold_seconds)
+    return {'reaped_count': reaped}
 

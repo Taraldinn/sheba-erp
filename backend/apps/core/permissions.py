@@ -37,9 +37,14 @@ class IsTenantMember(permissions.BasePermission):
         if getattr(request, 'auth_type', None) == 'api_key' or hasattr(request.user, 'api_token'):
             token = getattr(request, 'api_token', None) or getattr(request.user, 'api_token', None)
             tenant = getattr(request, 'tenant', None)
-            if token and tenant and token.tenant_id == tenant.id and token.effective_status == 'ACTIVE' and tenant.is_active:
-                return True
-            return False
+            if not (token and tenant and token.tenant_id == tenant.id and token.effective_status == 'ACTIVE' and tenant.is_active):
+                return False
+            # Application API keys identify the frontend application and MUST NOT bypass staff authentication.
+            # An API key without machine scopes cannot access tenant resources without staff credentials.
+            scopes = getattr(request, 'api_scopes', set())
+            if not scopes:
+                return False
+            return True
 
         # Central control plane: ordinary ISP users are denied access
         if getattr(request, 'is_control_plane', False):
@@ -79,6 +84,9 @@ class IsTenantMember(permissions.BasePermission):
             token = getattr(request, 'api_token', None)
             if not token or token.tenant_id != tenant.id or token.effective_status != 'ACTIVE':
                 return False
+            scopes = getattr(request, 'api_scopes', set())
+            if not scopes:
+                return False
 
         obj_tenant_id = getattr(obj, 'tenant_id', None)
         if obj_tenant_id is not None:
@@ -90,11 +98,16 @@ class IsTenantMember(permissions.BasePermission):
 class IsCentralAdmin(permissions.BasePermission):
     """
     Restricts access to Central Platform Administrators on the Control Plane.
-    ISP staff and API Key clients are completely blocked.
+    ISP staff, API Key clients, and Application callers are completely blocked.
     """
     def has_permission(self, request, view):
-        # API Keys are strictly forbidden from accessing SaaS Control Plane endpoints
-        if getattr(request, 'auth_type', None) == 'api_key' or hasattr(request.user, 'api_token'):
+        # API Keys and applications are strictly forbidden from accessing SaaS Control Plane endpoints
+        if (
+            getattr(request, 'auth_type', None) == 'api_key'
+            or hasattr(request.user, 'api_token')
+            or getattr(request, 'api_token', None)
+            or getattr(request, 'application', None)
+        ):
             return False
         if not request.user or not request.user.is_authenticated:
             return False
@@ -107,6 +120,38 @@ class IsCentralAdmin(permissions.BasePermission):
         if StaffMembership.objects.filter(user=request.user, is_active=True).exists():
             return False
         return False  # non-superuser always denied
+
+
+class IsApplicationAuthenticated(permissions.BasePermission):
+    """
+    Ensures the request is authenticated through an active ISP Application API Key.
+    """
+    message = "Request must be authenticated via a valid ISP Application API key."
+
+    def has_permission(self, request, view):
+        app = getattr(request, 'application', None) or getattr(request, 'api_token', None)
+        tenant = getattr(request, 'tenant', None)
+        if not app or not tenant:
+            return False
+        return app.tenant_id == tenant.id and app.effective_status == 'ACTIVE' and tenant.is_active
+
+
+class IsApplicationStaffAuthenticated(permissions.BasePermission):
+    """
+    Ensures the request comes from an authenticated staff member through a valid
+    ISP Application API Key bound to the same tenant.
+    """
+    message = "Staff authentication through a valid application API key is required."
+
+    def has_permission(self, request, view):
+        if not IsApplicationAuthenticated().has_permission(request, view):
+            return False
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if getattr(request, 'auth_type', None) not in ('staff_token', 'staff_session'):
+            return False
+        membership = getattr(request, 'membership', None)
+        return bool(membership and membership.is_active)
 
 
 class HasApiKeyScope(permissions.BasePermission):

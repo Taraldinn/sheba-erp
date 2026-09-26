@@ -264,11 +264,7 @@ export function SaaSSidebar() {
       <div className="p-3 border-t border-border space-y-2">
         {!collapsed && (
           <a
-            href={
-              typeof window !== "undefined" && window.location.hostname.endsWith("shebafi.xyz")
-                ? "https://app.shebafi.xyz"
-                : "http://localhost:3000"
-            }
+            href={process.env.NEXT_PUBLIC_ERP_URL || "http://localhost:3000"}
             target="_blank"
             rel="noopener noreferrer"
           >

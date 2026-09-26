@@ -30,7 +30,7 @@ def turn_off_internet(modeladmin, request, queryset):
         customer.status = CustomerStatus.SUSPENDED
         customer.save(update_fields=['status', 'updated_at'])
         # Terminate active PPPoE router sessions
-        UserSession.objects.filter(username=customer.pppoe_username).delete()
+        UserSession.objects.filter(tenant=customer.tenant, username=customer.pppoe_username).delete()
         AuditLog.objects.create(
             tenant=customer.tenant,
             actor_username=request.user.username,

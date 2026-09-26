@@ -194,8 +194,11 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_409_CONFLICT
                 )
 
+            # Lock Customer first, then BillingAccount (canonical lock hierarchy)
+            locked_customer = Customer.objects.select_for_update().get(id=customer.id)
+
             # Update BillingAccount
-            billing_acct = get_or_create_billing_account(tenant, customer)
+            billing_acct = get_or_create_billing_account(tenant, locked_customer)
             billing_acct = BillingAccount.objects.select_for_update().get(id=billing_acct.id)
             billing_acct.total_paid = Decimal(str(billing_acct.total_paid or '0.00')) + pay_amount
             billing_acct.balance = Decimal(str(billing_acct.balance or '0.00')) + pay_amount
@@ -205,7 +208,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             # Record LedgerEntry
             record_ledger_entry(
                 tenant=tenant,
-                customer=customer,
+                customer=locked_customer,
                 entry_type=LedgerEntry.EntryType.PAYMENT,
                 amount=pay_amount,
                 balance_after=billing_acct.balance,
@@ -236,7 +239,6 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             locked_invoice.save(update_fields=['paid_amount', 'due_amount', 'status'])
 
             # Offset customer due
-            locked_customer = Customer.objects.select_for_update().get(id=customer.id)
             if locked_customer.due_amount > 0:
                 due_dec = Decimal(str(locked_customer.due_amount))
                 if alloc_amount >= due_dec:

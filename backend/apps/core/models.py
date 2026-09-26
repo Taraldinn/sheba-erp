@@ -2,6 +2,7 @@ import uuid
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+from apps.core.fields import EncryptedCharField
 
 
 class Tenant(models.Model):
@@ -99,6 +100,11 @@ class TenantDomain(models.Model):
         import secrets
         return 'sheba-verify-' + secrets.token_urlsafe(24)
 
+    def save(self, *args, **kwargs):
+        if not self.dns_challenge_token:
+            self.dns_challenge_token = self.generate_challenge_token()
+        super().save(*args, **kwargs)
+
     def verify_dns_txt(self) -> bool:
         """
         Attempt DNS TXT verification of this domain.
@@ -166,7 +172,7 @@ class TenantApiToken(models.Model):
     key_prefix = models.CharField(max_length=16, blank=True, db_index=True)
 
     # SHA-256 hash of the full raw key — never the key itself
-    token_hash = models.CharField(max_length=64, unique=True, db_index=True, default='')
+    token_hash = models.CharField(max_length=64, unique=True, default='')
 
     # Legacy field kept for DB compatibility during migration — DO NOT USE for new tokens
     token = models.CharField(max_length=255, unique=True, null=True, blank=True)
@@ -315,6 +321,51 @@ class TenantApiToken(models.Model):
         self.save(update_fields=['is_active', 'status', 'updated_at'])
 
 
+class ApiApplication(TenantApiToken):
+    """
+    Proxy model representing an External ISP Frontend Application.
+
+    Architecture:
+        Central Control Plane
+                │
+                ▼
+            ISP/Tenant
+                │
+                ▼
+        External ISP Frontend (e.g. Next.js / Mobile App)
+                │
+                ▼
+           Django /api/v1/
+
+    An API Application is bound to a single ISP Tenant and issued a high-entropy API key.
+    The API key identifies the application container and establishes trusted tenant context.
+    It MUST NOT:
+    - bypass staff authentication
+    - bypass RBAC
+    - bypass object permissions
+    - select arbitrary tenant_id
+    - access another tenant
+    - become a superadmin credential
+    """
+    class Meta:
+        proxy = True
+        verbose_name = "API Application"
+        verbose_name_plural = "API Applications"
+
+    @classmethod
+    def create_application(cls, tenant, name: str, permissions: list | None = None,
+                           expires_at=None, created_by=None, rate_limit: int = 1000) -> tuple:
+        """Convenience alias for TenantApiToken.generate()."""
+        return cls.generate(
+            tenant=tenant,
+            name=name,
+            permissions=permissions,
+            expires_at=expires_at,
+            created_by=created_by,
+            rate_limit=rate_limit,
+        )
+
+
 def validate_funbox_links(value):
     if not isinstance(value, list):
         raise ValidationError("funbox_links must be a list of link objects.")
@@ -335,6 +386,14 @@ class CompanySetting(models.Model):
         validators=[validate_funbox_links],
         help_text="JSON array of entertainment links [{name, url, category, icon}]"
     )
+    funbox_live_tv_enabled = models.BooleanField(default=False)
+    funbox_live_tv_url = models.URLField(blank=True)
+    funbox_live_tv_api_key = EncryptedCharField(max_length=255, blank=True)
+    
+    funbox_movie_server_enabled = models.BooleanField(default=False)
+    funbox_movie_server_url = models.URLField(blank=True)
+    funbox_movie_server_api_key = EncryptedCharField(max_length=255, blank=True)
+    
     currency_symbol = models.CharField(max_length=10, default='৳')
     currency_code = models.CharField(max_length=10, default='BDT')
     invoice_prefix = models.CharField(max_length=20, default='SHB-INV-')

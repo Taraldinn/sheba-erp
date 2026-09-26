@@ -310,12 +310,16 @@ class NetworkSyncJob(models.Model):
         REBOOT_ONU = 'REBOOT_ONU', 'Reboot ONU'
 
     class JobStatus(models.TextChoices):
-        PENDING = 'PENDING', 'Pending Execution'
-        PROCESSING = 'PROCESSING', 'Processing'
-        SUCCESS = 'SUCCESS', 'Completed Successfully'
+        PENDING = 'PENDING', 'Pending'
+        QUEUED = 'QUEUED', 'Queued'
+        RUNNING = 'RUNNING', 'Running'
+        PROCESSING = 'PROCESSING', 'Processing'  # Backwards-compatible alias for RUNNING
+        SUCCEEDED = 'SUCCEEDED', 'Succeeded'
+        SUCCESS = 'SUCCESS', 'Completed Successfully'  # Backwards-compatible alias for SUCCEEDED
         FAILED = 'FAILED', 'Failed'
         RETRYING = 'RETRYING', 'Retrying'
         CANCELLED = 'CANCELLED', 'Cancelled'
+        STALE = 'STALE', 'Stale / Timed Out'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='network_sync_jobs')
@@ -325,6 +329,8 @@ class NetworkSyncJob(models.Model):
     batch = models.ForeignKey(BulkNetworkBatch, on_delete=models.SET_NULL, null=True, blank=True, related_name='actions')
     action = models.CharField(max_length=50, choices=Action.choices)
     status = models.CharField(max_length=20, choices=JobStatus.choices, default=JobStatus.PENDING, db_index=True)
+    correlation_id = models.CharField(max_length=128, blank=True, db_index=True)
+    device_identity = models.CharField(max_length=200, blank=True, db_index=True)
     idempotency_key = models.CharField(max_length=128, blank=True, db_index=True)
     requested_state = models.JSONField(default=dict, blank=True)
     current_state = models.JSONField(default=dict, blank=True)
@@ -335,10 +341,12 @@ class NetworkSyncJob(models.Model):
     payload = models.JSONField(default=dict, blank=True)
     result = models.JSONField(default=dict, blank=True)
     error_message = models.TextField(blank=True)
+    timeout_seconds = models.PositiveIntegerField(default=120)
     retry_count = models.PositiveIntegerField(default=0)
     max_retries = models.PositiveIntegerField(default=3)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -347,7 +355,33 @@ class NetworkSyncJob(models.Model):
             models.Index(fields=['tenant', 'status'], name='netsync_tenant_status_idx'),
             models.Index(fields=['tenant', 'created_at'], name='netsync_tenant_created_idx'),
             models.Index(fields=['tenant', 'idempotency_key'], name='netsync_idempotency_idx'),
+            models.Index(fields=['tenant', 'correlation_id'], name='netsync_tenant_corr_idx'),
+            models.Index(fields=['tenant', 'device_identity'], name='netsync_tenant_dev_idx'),
         ]
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.status in [
+            self.JobStatus.SUCCEEDED,
+            self.JobStatus.SUCCESS,
+            self.JobStatus.FAILED,
+            self.JobStatus.CANCELLED,
+            self.JobStatus.STALE,
+        ]
+
+    @property
+    def is_active(self) -> bool:
+        return self.status in [
+            self.JobStatus.PENDING,
+            self.JobStatus.QUEUED,
+            self.JobStatus.RUNNING,
+            self.JobStatus.PROCESSING,
+            self.JobStatus.RETRYING,
+        ]
+
+    @property
+    def is_successful(self) -> bool:
+        return self.status in [self.JobStatus.SUCCEEDED, self.JobStatus.SUCCESS]
 
     def __str__(self):
         return f"NetworkAction[{self.action}] - {self.status} (Tenant: {self.tenant_id})"
@@ -574,6 +608,13 @@ class TJBox(models.Model):
                 raise ValidationError("Coordinates out of range: latitude must be between -90 and 90, longitude between -180 and 180.")
             self.latitude = lat
             self.longitude = lng
+
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and 'lat_long' in update_fields:
+            update_fields = set(update_fields)
+            update_fields.update(['latitude', 'longitude'])
+            kwargs['update_fields'] = list(update_fields)
+
         super().save(*args, **kwargs)
 
     def __str__(self):

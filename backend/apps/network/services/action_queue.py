@@ -37,7 +37,9 @@ class ActionQueueService:
         current_state: Optional[Dict[str, Any]] = None,
         payload: Optional[Dict[str, Any]] = None,
         actor: str = '',
+        correlation_id: str = '',
         idempotency_key: str = '',
+        timeout_seconds: int = 120,
         batch: Optional[BulkNetworkBatch] = None,
         execute_async: bool = True
     ) -> NetworkAction:
@@ -52,7 +54,10 @@ class ActionQueueService:
                 idempotency_key=idempotency_key,
                 status__in=[
                     NetworkAction.JobStatus.PENDING,
+                    NetworkAction.JobStatus.QUEUED,
+                    NetworkAction.JobStatus.RUNNING,
                     NetworkAction.JobStatus.PROCESSING,
+                    NetworkAction.JobStatus.SUCCEEDED,
                     NetworkAction.JobStatus.SUCCESS,
                     NetworkAction.JobStatus.RETRYING,
                 ]
@@ -65,6 +70,7 @@ class ActionQueueService:
         target_id = ''
         target_name = ''
         target_router = router or (customer.router if customer else None)
+        target_olt = olt or (customer.onu.olt if customer and hasattr(customer, 'onu') and customer.onu else None)
 
         if customer:
             target_type = 'customer'
@@ -79,15 +85,28 @@ class ActionQueueService:
             target_id = str(olt.id)
             target_name = olt.name
 
+        device_identity = ''
+        if target_router:
+            device_identity = target_router.name or target_router.hostname or str(target_router.ip_address)
+        elif target_olt:
+            device_identity = target_olt.name or str(target_olt.ip_address)
+        else:
+            device_identity = 'UNASSIGNED'
+
+        resolved_corr_id = correlation_id or uuid.uuid4().hex
+
         job = NetworkAction.objects.create(
             tenant=tenant,
             customer=customer,
             router=target_router,
-            olt=olt,
+            olt=target_olt,
             batch=batch,
             action=action,
             status=NetworkAction.JobStatus.PENDING,
+            correlation_id=resolved_corr_id,
+            device_identity=device_identity,
             idempotency_key=idempotency_key,
+            timeout_seconds=max(10, int(timeout_seconds)),
             requested_state=requested_state or {},
             current_state=current_state or {},
             payload=payload or {},
@@ -105,6 +124,14 @@ class ActionQueueService:
         def _dispatch():
             from apps.network.tasks import process_network_action_task
             try:
+                # Transition from PENDING to QUEUED when dispatched
+                NetworkAction.objects.filter(
+                    id=job_id_str,
+                    status=NetworkAction.JobStatus.PENDING
+                ).update(
+                    status=NetworkAction.JobStatus.QUEUED,
+                    updated_at=timezone.now()
+                )
                 if execute_async:
                     process_network_action_task.delay(tenant_id_str, job_id_str)
                 else:
@@ -127,7 +154,7 @@ class ActionQueueService:
         """
         lock_key = f"lock:action:{tenant_id}:{action_id}"
         try:
-            with distributed_lock(lock_key, timeout=90, blocking=False):
+            with distributed_lock(lock_key, timeout=120, blocking=False):
                 with transaction.atomic():
                     job = NetworkAction.objects.select_for_update().filter(
                         id=action_id,
@@ -137,11 +164,17 @@ class ActionQueueService:
                         logger.warning("execute_action: action %s not found for tenant %s", action_id, tenant_id)
                         return {'success': False, 'error': f"Action {action_id} not found"}
 
-                    if job.status in [NetworkAction.JobStatus.SUCCESS, NetworkAction.JobStatus.CANCELLED]:
+                    if job.status in [
+                        NetworkAction.JobStatus.SUCCEEDED,
+                        NetworkAction.JobStatus.SUCCESS,
+                        NetworkAction.JobStatus.CANCELLED,
+                        NetworkAction.JobStatus.STALE,
+                    ]:
                         return {'success': True, 'status': job.status, 'message': 'Already finalized'}
 
-                    job.status = NetworkAction.JobStatus.PROCESSING
-                    job.save(update_fields=['status', 'updated_at'])
+                    job.status = NetworkAction.JobStatus.RUNNING
+                    job.started_at = timezone.now()
+                    job.save(update_fields=['status', 'started_at', 'updated_at'])
 
                 target_router = job.router or (job.customer.router if job.customer else None)
                 username = job.payload.get('username') or (job.customer.pppoe_username if job.customer else '')
@@ -207,11 +240,10 @@ class ActionQueueService:
                             job.current_state = {'health': health}
 
                         elif job.action == NetworkAction.Action.REBOOT_ONU:
-                            # Handled via OLT if applicable
                             op_result = {'rebooted': True}
                             job.current_state = {'rebooted': True}
 
-                    job.status = NetworkAction.JobStatus.SUCCESS
+                    job.status = NetworkAction.JobStatus.SUCCEEDED
                     job.result = op_result
                     job.completed_at = timezone.now()
                     job.error_message = ''
@@ -227,6 +259,7 @@ class ActionQueueService:
                             'action': job.action,
                             'target': job.target_name,
                             'router': target_router.name if target_router else None,
+                            'correlation_id': job.correlation_id,
                             'result': op_result
                         }
                     )
@@ -235,7 +268,7 @@ class ActionQueueService:
                     if job.batch:
                         cls._update_batch_progress(job.batch)
 
-                    return {'success': True, 'job_id': str(job.id), 'status': 'SUCCESS', 'result': op_result}
+                    return {'success': True, 'job_id': str(job.id), 'status': job.status, 'result': op_result}
 
                 except Exception as exc:
                     logger.warning("execute_action failed for job %s: %s", job.id, exc)
@@ -243,9 +276,11 @@ class ActionQueueService:
                     job.retry_count += 1
                     if job.retry_count >= job.max_retries:
                         job.status = NetworkAction.JobStatus.FAILED
+                        job.completed_at = timezone.now()
+                        job.save(update_fields=['error_message', 'retry_count', 'status', 'completed_at', 'updated_at'])
                     else:
                         job.status = NetworkAction.JobStatus.RETRYING
-                    job.save(update_fields=['error_message', 'retry_count', 'status', 'updated_at'])
+                        job.save(update_fields=['error_message', 'retry_count', 'status', 'updated_at'])
 
                     if job.batch:
                         cls._update_batch_progress(job.batch, error_item={'target': job.target_name, 'error': str(exc)})
@@ -258,7 +293,7 @@ class ActionQueueService:
 
     @classmethod
     def retry_action(cls, action_id: str, tenant_id: str, actor: str = '') -> Optional[NetworkAction]:
-        """Manually re-enqueues a failed or retrying action."""
+        """Manually re-enqueues a failed, stale, or retrying action."""
         job = NetworkAction.objects.filter(id=action_id, tenant_id=tenant_id).first()
         if not job:
             return None
@@ -266,9 +301,11 @@ class ActionQueueService:
         job.status = NetworkAction.JobStatus.PENDING
         job.retry_count = 0
         job.error_message = ''
+        job.started_at = None
+        job.completed_at = None
         if actor:
             job.actor = actor
-        job.save(update_fields=['status', 'retry_count', 'error_message', 'actor', 'updated_at'])
+        job.save(update_fields=['status', 'retry_count', 'error_message', 'actor', 'started_at', 'completed_at', 'updated_at'])
 
         from apps.network.tasks import process_network_action_task
         process_network_action_task.delay(str(tenant_id), str(job.id))
@@ -276,12 +313,12 @@ class ActionQueueService:
 
     @classmethod
     def cancel_action(cls, action_id: str, tenant_id: str, actor: str = '') -> Optional[NetworkAction]:
-        """Cancels an action if it is still in PENDING status."""
+        """Cancels an action if it is still in PENDING or QUEUED status."""
         job = NetworkAction.objects.filter(id=action_id, tenant_id=tenant_id).first()
         if not job:
             return None
 
-        if job.status == NetworkAction.JobStatus.PENDING:
+        if job.status in [NetworkAction.JobStatus.PENDING, NetworkAction.JobStatus.QUEUED]:
             job.status = NetworkAction.JobStatus.CANCELLED
             job.completed_at = timezone.now()
             if actor:
@@ -290,12 +327,68 @@ class ActionQueueService:
             return job
         return job
 
+    @classmethod
+    def reap_stale_actions(
+        cls,
+        tenant_id: Optional[str] = None,
+        stale_threshold_seconds: Optional[int] = None
+    ) -> int:
+        """
+        Watchdog reaper for orphaned or hanging actions:
+        - Actions in RUNNING / PROCESSING exceeding their timeout (or threshold).
+        - Actions in QUEUED older than 10 minutes without pickup.
+        Marks them as STALE and updates batch progress.
+        """
+        now = timezone.now()
+        base_qs = NetworkAction.objects.all()
+        if tenant_id:
+            base_qs = base_qs.filter(tenant_id=tenant_id)
+
+        reaped_count = 0
+        in_flight_jobs = base_qs.filter(
+            status__in=[
+                NetworkAction.JobStatus.RUNNING,
+                NetworkAction.JobStatus.PROCESSING,
+                NetworkAction.JobStatus.QUEUED,
+            ]
+        ).select_related('batch')
+
+        for job in in_flight_jobs:
+            is_stale = False
+            effective_timeout = stale_threshold_seconds or getattr(job, 'timeout_seconds', 120) or 120
+
+            if job.status in [NetworkAction.JobStatus.RUNNING, NetworkAction.JobStatus.PROCESSING]:
+                ref_time = job.started_at or job.updated_at
+                if ref_time and (now - ref_time).total_seconds() > effective_timeout:
+                    is_stale = True
+            elif job.status == NetworkAction.JobStatus.QUEUED:
+                if job.updated_at and (now - job.updated_at).total_seconds() > max(300, effective_timeout):
+                    is_stale = True
+
+            if is_stale:
+                job.status = NetworkAction.JobStatus.STALE
+                job.completed_at = now
+                job.error_message = f"Execution timed out after {effective_timeout}s (marked STALE by watchdog)"
+                job.save(update_fields=['status', 'completed_at', 'error_message', 'updated_at'])
+                reaped_count += 1
+                if job.batch:
+                    cls._update_batch_progress(
+                        job.batch,
+                        error_item={'target': job.target_name, 'error': job.error_message}
+                    )
+
+        return reaped_count
+
     @staticmethod
     def _update_batch_progress(batch: BulkNetworkBatch, error_item: Optional[Dict[str, Any]] = None):
         """Updates counts and error summaries for a BulkNetworkBatch."""
         batch.refresh_from_db()
-        success_count = batch.actions.filter(status=NetworkAction.JobStatus.SUCCESS).count()
-        failure_count = batch.actions.filter(status=NetworkAction.JobStatus.FAILED).count()
+        success_count = batch.actions.filter(
+            status__in=[NetworkAction.JobStatus.SUCCEEDED, NetworkAction.JobStatus.SUCCESS]
+        ).count()
+        failure_count = batch.actions.filter(
+            status__in=[NetworkAction.JobStatus.FAILED, NetworkAction.JobStatus.STALE]
+        ).count()
         batch.success_count = success_count
         batch.failure_count = failure_count
 
@@ -304,9 +397,15 @@ class ActionQueueService:
             errors.append(error_item)
             batch.error_summary = errors
 
-        # If all actions are completed (success, failed, cancelled)
+        # If all actions are completed (success, failed, cancelled, stale)
         pending_or_proc = batch.actions.filter(
-            status__in=[NetworkAction.JobStatus.PENDING, NetworkAction.JobStatus.PROCESSING, NetworkAction.JobStatus.RETRYING]
+            status__in=[
+                NetworkAction.JobStatus.PENDING,
+                NetworkAction.JobStatus.QUEUED,
+                NetworkAction.JobStatus.RUNNING,
+                NetworkAction.JobStatus.PROCESSING,
+                NetworkAction.JobStatus.RETRYING,
+            ]
         ).count()
         if pending_or_proc == 0:
             batch.status = BulkNetworkBatch.BatchStatus.COMPLETED
@@ -498,7 +597,10 @@ class BulkOperationsService:
                     batch=batch,
                     action=action_type,
                     status=NetworkAction.JobStatus.PENDING,
+                    correlation_id=f"batch:{batch.id}",
+                    device_identity=target.get('router_name') or 'UNASSIGNED',
                     idempotency_key=idempotency_key,
+                    timeout_seconds=120,
                     target_type='customer',
                     target_id=target['id'],
                     target_name=target['username'] or target['name'],
@@ -518,6 +620,11 @@ class BulkOperationsService:
         def _dispatch():
             from apps.network.tasks import process_bulk_batch_task
             try:
+                # Transition pending actions to QUEUED on dispatch
+                batch.actions.filter(status=NetworkAction.JobStatus.PENDING).update(
+                    status=NetworkAction.JobStatus.QUEUED,
+                    updated_at=timezone.now()
+                )
                 process_bulk_batch_task.delay(tenant_id_str, batch_id_str)
             except Exception as err:
                 logger.warning("queue_bulk_operation: fallback sync batch run: %s", err)

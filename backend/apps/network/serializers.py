@@ -11,6 +11,16 @@ class POPBranchSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('tenant',)
 
+    def validate_upstream_router(self, router):
+        if router is None:
+            return router
+        tenant = _tenant_from_context(self.context)
+        if tenant and router.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Selected router does not belong to your ISP. Cross-tenant assignment is not allowed."
+            )
+        return router
+
 
 class RouterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -103,6 +113,26 @@ class OLTSerializer(serializers.ModelSerializer):
             'telnet_password': {'write_only': True, 'required': False},
             'snmp_community': {'write_only': True, 'required': False},
         }
+
+    def validate_upstream_router(self, router):
+        if router is None:
+            return router
+        tenant = _tenant_from_context(self.context)
+        if tenant and router.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Selected router does not belong to your ISP. Cross-tenant assignment is not allowed."
+            )
+        return router
+
+    def validate_pop_branch(self, pop):
+        if pop is None:
+            return pop
+        tenant = _tenant_from_context(self.context)
+        if tenant and pop.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Selected POP branch does not belong to your ISP. Cross-tenant assignment is not allowed."
+            )
+        return pop
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)

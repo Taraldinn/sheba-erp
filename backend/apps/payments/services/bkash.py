@@ -164,13 +164,16 @@ class BKashService:
             logger.warning("bKash execute payment exception: %s", exc)
 
         # Simulated response for test/sandbox
+        from apps.payments.models import PaymentAttempt
+        attempt = PaymentAttempt.objects.filter(idempotency_key=payment_id).first()
+        simulated_amount = f"{attempt.amount:.2f}" if attempt else "800.00"
         trx_id = f"BKA{uuid.uuid4().hex[:8].upper()}"
         return {
             "statusCode": "0000",
             "statusMessage": "Successful",
             "paymentID": payment_id,
             "trxID": trx_id,
-            "amount": "800.00",
+            "amount": simulated_amount,
             "customerMsisdn": "01700000000",
             "transactionStatus": "Completed",
             "paymentExecuteTime": "2026-09-09T15:05:00+06:00",

@@ -125,7 +125,21 @@ class CorporateIPAddressSerializer(serializers.ModelSerializer):
             'id', 'pool', 'pool_name', 'ip_address', 'status', 'connection',
             'circuit_id', 'allocated_at', 'released_at', 'notes',
         ]
-        read_only_fields = ['id', 'allocated_at', 'released_at']
+    def validate_pool(self, value):
+        if value:
+            request = self.context.get('request')
+            if request and hasattr(request, 'tenant'):
+                if value.tenant_id != request.tenant.id:
+                    raise serializers.ValidationError("IP pool must belong to the active tenant.")
+        return value
+
+    def validate_connection(self, value):
+        if value:
+            request = self.context.get('request')
+            if request and hasattr(request, 'tenant'):
+                if value.tenant_id != request.tenant.id:
+                    raise serializers.ValidationError("Corporate connection must belong to the active tenant.")
+        return value
 
 
 class CorporateVLANSerializer(serializers.ModelSerializer):
@@ -147,6 +161,14 @@ class CorporateVLANSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Router must belong to the active tenant.")
         return value
 
+    def validate_connection(self, value):
+        if value:
+            request = self.context.get('request')
+            if request and hasattr(request, 'tenant'):
+                if value.tenant_id != request.tenant.id:
+                    raise serializers.ValidationError("Corporate connection must belong to the active tenant.")
+        return value
+
 
 class CorporateTrafficSampleSerializer(serializers.ModelSerializer):
     circuit_id = serializers.CharField(source='connection.circuit_id', read_only=True)
@@ -159,6 +181,14 @@ class CorporateTrafficSampleSerializer(serializers.ModelSerializer):
             'collection_status',
         ]
         read_only_fields = ['id']
+
+    def validate_connection(self, value):
+        if value:
+            request = self.context.get('request')
+            if request and hasattr(request, 'tenant'):
+                if value.tenant_id != request.tenant.id:
+                    raise serializers.ValidationError("Corporate connection must belong to the active tenant.")
+        return value
 
 
 class CorporateBillingPeriodSerializer(serializers.ModelSerializer):
@@ -183,3 +213,11 @@ class CorporateBillingPeriodSerializer(serializers.ModelSerializer):
             'base_charge', 'burst_charge', 'total_payable',
             'invoice', 'calculation_metadata', 'calculated_at', 'finalized_at',
         ]
+
+    def validate_corporate_customer(self, value):
+        if value:
+            request = self.context.get('request')
+            if request and hasattr(request, 'tenant'):
+                if value.tenant_id != request.tenant.id:
+                    raise serializers.ValidationError("Corporate customer must belong to the active tenant.")
+        return value

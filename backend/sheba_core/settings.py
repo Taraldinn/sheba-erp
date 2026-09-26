@@ -209,7 +209,7 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
-    'EXCEPTION_HANDLER': 'rest_framework.views.exception_handler',
+    'EXCEPTION_HANDLER': 'apps.core.exceptions.standardized_exception_handler',
 }
 
 # ─── Swagger / OpenAPI ────────────────────────────────────────────────────────
@@ -476,17 +476,85 @@ LOGGING = {
     },
 }
 
-# ─── Celery & Redis Configuration (Stage 4) ──────────────────────────────────
+# ─── Celery & Redis Configuration (Production Ready) ──────────────────────────
 if 'test' not in sys.argv and REDIS_URL:
     CELERY_BROKER_URL = REDIS_URL
     CELERY_RESULT_BACKEND = REDIS_URL
+    CELERY_BROKER_TRANSPORT_OPTIONS = {
+        'visibility_timeout': 3600,
+        'max_connections': 50,
+        'socket_timeout': 10.0,
+        'socket_connect_timeout': 10.0,
+        'retry_on_timeout': True,
+    }
+    CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
+        'retry_on_timeout': True,
+    }
 
+CELERY_BROKER_CONNECTION_RETRY_ON_START = True
+
+# Queues & Routing Architecture
+CELERY_TASK_DEFAULT_QUEUE = 'default'
+CELERY_TASK_DEFAULT_EXCHANGE = 'default'
+CELERY_TASK_DEFAULT_ROUTING_KEY = 'default'
+
+CELERY_TASK_QUEUES = {
+    'default': {
+        'exchange': 'default',
+        'routing_key': 'default',
+    },
+    'network': {
+        'exchange': 'network',
+        'routing_key': 'network',
+    },
+    'billing': {
+        'exchange': 'billing',
+        'routing_key': 'billing',
+    },
+}
+
+CELERY_TASK_ROUTES = {
+    # Network queue: MikroTik, OLT, router sync, telemetry, network action jobs
+    'apps.network.tasks.*': {'queue': 'network'},
+    'apps.core.tasks.sync_router': {'queue': 'network'},
+    'apps.core.tasks.sync_olt': {'queue': 'network'},
+    'apps.corporate.tasks.collect_corporate_telemetry': {'queue': 'network'},
+
+    # Billing queue: Monthly invoices, customer expiries, payment reconciliations, corporate invoices
+    'apps.core.tasks.generate_monthly_invoices': {'queue': 'billing'},
+    'apps.core.tasks.expire_customers': {'queue': 'billing'},
+    'apps.core.tasks.process_payment_event': {'queue': 'billing'},
+    'apps.core.tasks.reconcile_payments': {'queue': 'billing'},
+    'apps.corporate.tasks.generate_monthly_corporate_invoices': {'queue': 'billing'},
+    'apps.corporate.tasks.calculate_corporate_p95_period_task': {'queue': 'billing'},
+
+    # Default queue: notifications, transactional emails, platform audit, subscription lifecycle
+    'apps.core.tasks.send_sms': {'queue': 'default'},
+    'apps.core.tasks.retry_sms': {'queue': 'default'},
+    'apps.core.tasks.send_transactional_email_task': {'queue': 'default'},
+    'apps.core.tasks.emit_platform_audit_event': {'queue': 'default'},
+    'apps.core.tasks.enforce_subscription_lifecycle': {'queue': 'default'},
+    'sheba_core.celery.debug_task': {'queue': 'default'},
+}
+
+# Worker Concurrency & Reliability
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
-CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+
+# Reliability & Acknowledgment Policies
+CELERY_TASK_ACKS_LATE = True
+CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000
+CELERY_WORKER_MAX_MEMORY_PER_CHILD = 250000  # 250MB (recycles child if memory expands)
+
+# Timeouts & Expirations
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  # 25 minutes
+CELERY_TASK_TIME_LIMIT = 30 * 60       # 30 minutes
+CELERY_RESULT_EXPIRES = 3600           # 1 hour (prevent stale result bloat in Redis)
 
 from celery.schedules import crontab
 
@@ -523,6 +591,12 @@ CELERY_BEAT_SCHEDULE = {
     'generate_monthly_corporate_invoices_monthly': {
         'task': 'apps.corporate.tasks.generate_monthly_corporate_invoices',
         'schedule': crontab(day_of_month=1, hour=2, minute=0),
+        'args': (),
+    },
+    # Network Action Queue Watchdog — reap stale/timed-out network actions every 5 minutes
+    'reap_stale_network_actions_every_5m': {
+        'task': 'apps.network.tasks.reap_stale_network_actions_task',
+        'schedule': crontab(minute='*/5'),
         'args': (),
     },
 }

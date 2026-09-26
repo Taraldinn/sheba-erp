@@ -3,10 +3,11 @@ bKash Tokenized Checkout, PayBill Biller API, and Manual Forwarder Webhook Views
 Complies with bKash Developer Specs (https://developer.bka.sh/docs/product-overview).
 """
 
+import json
 import logging
 import uuid
 from decimal import Decimal
-from django.db import models, transaction
+from django.db import models, transaction, IntegrityError
 from django.utils import timezone
 from rest_framework import views, status, permissions, parsers
 from rest_framework.response import Response
@@ -24,6 +25,15 @@ from apps.payments.models import (
     PaymentAttempt, PaymentAttemptStatus, InboundPaymentEvent
 )
 from apps.payments.services.bkash import BKashService
+from apps.payments.security import (
+    validate_webhook_tenant,
+    validate_webhook_signature,
+    validate_webhook_timestamp_and_replay,
+    validate_currency,
+    validate_amount,
+    validate_customer_and_invoice_mapping,
+    sanitize_payload,
+)
 from apps.network.models import NetworkSyncJob
 from apps.network.tasks import dispatch_network_sync_job
 
@@ -41,107 +51,116 @@ def _settle_customer_payment(tenant, customer, amount: Decimal, trx_id: str, pay
     6. Record Recharge entry
     7. Dispatch network sync job (ENABLE_USER)
     """
-    with transaction.atomic():
-        # Check idempotency
+    sanitized_payload = sanitize_payload(raw_payload) if raw_payload else {}
+    try:
+        with transaction.atomic():
+            # Check idempotency
+            existing_txn = PaymentTransaction.objects.filter(tenant=tenant, trx_id=trx_id).first()
+            if existing_txn:
+                return existing_txn, False
+
+            # Lock Customer first, then BillingAccount (canonical lock hierarchy)
+            locked_cust = Customer.objects.select_for_update().get(id=customer.id)
+
+            txn = PaymentTransaction.objects.create(
+                tenant=tenant,
+                customer=locked_cust,
+                gateway=gateway,
+                amount=amount,
+                trx_id=trx_id,
+                payment_method=payment_method,
+                status=TransactionStatus.SUCCESS,
+                customer_account=locked_cust.mobile,
+                raw_payload=sanitized_payload
+            )
+
+            # Financial ledger & billing account
+            billing_acct = get_or_create_billing_account(tenant, locked_cust)
+            billing_acct = BillingAccount.objects.select_for_update().get(id=billing_acct.id)
+            billing_acct.total_paid = Decimal(str(billing_acct.total_paid or '0.00')) + amount
+            billing_acct.balance = Decimal(str(billing_acct.balance or '0.00')) + amount
+            billing_acct.last_payment_at = timezone.now()
+            billing_acct.save(update_fields=['total_paid', 'balance', 'last_payment_at'])
+
+            record_ledger_entry(
+                tenant=tenant,
+                customer=locked_cust,
+                entry_type=LedgerEntry.EntryType.PAYMENT,
+                amount=amount,
+                balance_after=billing_acct.balance,
+                reference_id=str(txn.id),
+                reference_type='PaymentTransaction',
+                description=f"Online Payment via {payment_method} (TrxID: {trx_id})",
+                created_by='system'
+            )
+
+            allocate_payment_to_invoices(
+                tenant=tenant,
+                payment=txn,
+                customer=locked_cust,
+                amount=amount,
+                notes=f"Auto allocation from {payment_method} {trx_id}"
+            )
+
+            # Update customer balance & expiry
+            due_dec = Decimal(str(locked_cust.due_amount or '0.00'))
+            adv_dec = Decimal(str(locked_cust.advance_amount or '0.00'))
+
+            if due_dec > 0:
+                if amount >= due_dec:
+                    surplus = amount - due_dec
+                    locked_cust.due_amount = Decimal('0.00')
+                    locked_cust.advance_amount = adv_dec + surplus
+                else:
+                    locked_cust.due_amount = due_dec - amount
+            else:
+                locked_cust.advance_amount = adv_dec + amount
+
+            # Extend expiry if needed
+            validity = locked_cust.package.validity_days if locked_cust.package else 30
+            today = timezone.localdate()
+            old_expiry = locked_cust.expiry_date
+            if not old_expiry or old_expiry < today:
+                new_expiry = today + timezone.timedelta(days=validity)
+            else:
+                new_expiry = old_expiry + timezone.timedelta(days=validity)
+
+            locked_cust.expiry_date = new_expiry
+            if locked_cust.status != CustomerStatus.ACTIVE:
+                locked_cust.status = CustomerStatus.ACTIVE
+
+            locked_cust.save(update_fields=['due_amount', 'advance_amount', 'expiry_date', 'status'])
+
+            # Recharge record
+            Recharge.objects.create(
+                tenant=tenant,
+                customer=locked_cust,
+                package=locked_cust.package,
+                amount=amount,
+                validity_days=validity,
+                old_expiry=old_expiry,
+                new_expiry=new_expiry,
+                payment_method=payment_method,
+                trx_id=trx_id,
+                notes=f"Auto-recharged via {payment_method} online payment"
+            )
+
+            # Dispatch network sync job to unblock / enable user
+            if locked_cust.router:
+                dispatch_network_sync_job(
+                    tenant=tenant,
+                    action=NetworkSyncJob.Action.ENABLE_USER,
+                    customer=locked_cust,
+                    router=locked_cust.router,
+                    payload={'pppoe_username': locked_cust.pppoe_username, 'reason': 'PAYMENT_SUCCESS'}
+                )
+
+            return txn, True
+    except IntegrityError:
         existing_txn = PaymentTransaction.objects.filter(tenant=tenant, trx_id=trx_id).first()
         if existing_txn:
             return existing_txn, False
-
-        txn = PaymentTransaction.objects.create(
-            tenant=tenant,
-            customer=customer,
-            gateway=gateway,
-            amount=amount,
-            trx_id=trx_id,
-            payment_method=payment_method,
-            status=TransactionStatus.SUCCESS,
-            customer_account=customer.mobile,
-            raw_payload=raw_payload or {}
-        )
-
-        # Financial ledger & billing account
-        billing_acct = get_or_create_billing_account(tenant, customer)
-        billing_acct = BillingAccount.objects.select_for_update().get(id=billing_acct.id)
-        billing_acct.total_paid = Decimal(str(billing_acct.total_paid or '0.00')) + amount
-        billing_acct.balance = Decimal(str(billing_acct.balance or '0.00')) + amount
-        billing_acct.last_payment_at = timezone.now()
-        billing_acct.save(update_fields=['total_paid', 'balance', 'last_payment_at'])
-
-        record_ledger_entry(
-            tenant=tenant,
-            customer=customer,
-            entry_type=LedgerEntry.EntryType.PAYMENT,
-            amount=amount,
-            balance_after=billing_acct.balance,
-            reference_id=str(txn.id),
-            reference_type='PaymentTransaction',
-            description=f"Online Payment via {payment_method} (TrxID: {trx_id})",
-            created_by='system'
-        )
-
-        allocate_payment_to_invoices(
-            tenant=tenant,
-            payment=txn,
-            customer=customer,
-            amount=amount,
-            notes=f"Auto allocation from {payment_method} {trx_id}"
-        )
-
-        # Update customer balance & expiry
-        locked_cust = Customer.objects.select_for_update().get(id=customer.id)
-        due_dec = Decimal(str(locked_cust.due_amount or '0.00'))
-        adv_dec = Decimal(str(locked_cust.advance_amount or '0.00'))
-
-        if due_dec > 0:
-            if amount >= due_dec:
-                surplus = amount - due_dec
-                locked_cust.due_amount = Decimal('0.00')
-                locked_cust.advance_amount = adv_dec + surplus
-            else:
-                locked_cust.due_amount = due_dec - amount
-        else:
-            locked_cust.advance_amount = adv_dec + amount
-
-        # Extend expiry if needed
-        validity = locked_cust.package.validity_days if locked_cust.package else 30
-        today = timezone.localdate()
-        old_expiry = locked_cust.expiry_date
-        if not old_expiry or old_expiry < today:
-            new_expiry = today + timezone.timedelta(days=validity)
-        else:
-            new_expiry = old_expiry + timezone.timedelta(days=validity)
-
-        locked_cust.expiry_date = new_expiry
-        if locked_cust.status != CustomerStatus.ACTIVE:
-            locked_cust.status = CustomerStatus.ACTIVE
-
-        locked_cust.save(update_fields=['due_amount', 'advance_amount', 'expiry_date', 'status'])
-
-        # Recharge record
-        Recharge.objects.create(
-            tenant=tenant,
-            customer=locked_cust,
-            package=locked_cust.package,
-            amount=amount,
-            validity_days=validity,
-            old_expiry=old_expiry,
-            new_expiry=new_expiry,
-            payment_method=payment_method,
-            trx_id=trx_id,
-            notes=f"Auto-recharged via {payment_method} online payment"
-        )
-
-        # Dispatch network sync job to unblock / enable user
-        if locked_cust.router:
-            dispatch_network_sync_job(
-                tenant=tenant,
-                action=NetworkSyncJob.Action.ENABLE_USER,
-                customer=locked_cust,
-                router=locked_cust.router,
-                payload={'pppoe_username': locked_cust.pppoe_username, 'reason': 'PAYMENT_SUCCESS'}
-            )
-
-        return txn, True
+        raise
 
 
 class BKashCheckoutCreateView(views.APIView):
@@ -277,8 +296,26 @@ class BKashCheckoutExecuteView(views.APIView):
                 "details": exec_result
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # Provider currency validation
+        exec_curr = exec_result.get('currency') or 'BDT'
+        valid_curr, curr_err = validate_currency(exec_curr)
+        if not valid_curr:
+            return curr_err
+
+        # Provider amount validation against initiated attempt
         if attempt:
             amount = attempt.amount
+            if exec_result.get('amount'):
+                try:
+                    exec_amount = Decimal(str(exec_result['amount']))
+                    if exec_amount != attempt.amount:
+                        logger.warning("bKash execute amount mismatch: attempt=%s, exec=%s", attempt.amount, exec_amount)
+                        return Response({
+                            "success": False,
+                            "error": f"Payment amount mismatch: initiated {attempt.amount} but provider executed {exec_amount}."
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                except Exception:
+                    pass
         else:
             amount = Decimal(str(exec_result.get('amount', customer.monthly_bill)))
 
@@ -289,8 +326,14 @@ class BKashCheckoutExecuteView(views.APIView):
             trx_id=trx_id,
             payment_method="bKash",
             gateway=gateway,
-            raw_payload=exec_result
+            raw_payload=sanitize_payload(exec_result)
         )
+
+        if attempt:
+            attempt.status = PaymentAttemptStatus.SUCCESS
+            attempt.transaction = txn
+            attempt.completed_at = timezone.now()
+            attempt.save(update_fields=['status', 'transaction', 'completed_at'])
 
         return Response({
             "success": True,
@@ -408,6 +451,16 @@ class BKashPayBillQueryView(views.APIView):
                 "status": err_code,
                 "message": err_msg
             }, status=status.HTTP_200_OK)
+
+        # Cross-tenant check
+        if request.data.get('tenant_id'):
+            if str(request.data.get('tenant_id')).strip().lower() != str(tenant.id).strip().lower():
+                return Response({
+                    "ErrorCode": "403",
+                    "ErrorMsg": "Cross-tenant access prohibited",
+                    "status": "403",
+                    "message": "Cross-tenant access prohibited"
+                }, status=status.HTTP_200_OK)
 
         # 3. Lookup customer by customer_code, pppoe_username, or mobile
         customer = Customer.objects.filter(
@@ -531,6 +584,36 @@ class BKashPayBillPayView(views.APIView):
                 "message": err_msg
             }, status=status.HTTP_200_OK)
 
+        # Cross-tenant check
+        if request.data.get('tenant_id'):
+            if str(request.data.get('tenant_id')).strip().lower() != str(tenant.id).strip().lower():
+                return Response({
+                    "ErrorCode": "403",
+                    "ErrorMsg": "Cross-tenant access prohibited",
+                    "status": "403",
+                    "message": "Cross-tenant access prohibited"
+                }, status=status.HTTP_200_OK)
+
+        # Currency validation
+        valid_curr, curr_err = validate_currency(request.data.get('currency'))
+        if not valid_curr:
+            return Response({
+                "ErrorCode": "435",
+                "ErrorMsg": "Data Mismatch - Unsupported currency",
+                "status": "435",
+                "message": "Data Mismatch"
+            }, status=status.HTTP_200_OK)
+
+        # Timestamp and replay validation
+        valid_ts, ts_err = validate_webhook_timestamp_and_replay(request, tenant, trx_id=trx_id)
+        if not valid_ts:
+            return Response({
+                "ErrorCode": "409",
+                "ErrorMsg": "Replay detected or timestamp expired",
+                "status": "409",
+                "message": "Replay detected"
+            }, status=status.HTTP_200_OK)
+
         # 3. Validate Amount
         try:
             amount = Decimal(str(raw_amount).strip().strip('"\''))
@@ -573,6 +656,22 @@ class BKashPayBillPayView(views.APIView):
                 "message": "Data not found"
             }, status=status.HTTP_200_OK)
 
+        # Customer & Invoice mapping validation
+        cust_id_req = request.data.get('customer_id')
+        inv_no_req = request.data.get('BillNo') or request.data.get('invoice_id')
+        if cust_id_req or inv_no_req:
+            v_cust, v_inv, map_err = validate_customer_and_invoice_mapping(
+                tenant, customer_id=cust_id_req, customer_no=customer_no,
+                invoice_id=inv_no_req, amount=amount
+            )
+            if map_err:
+                return Response({
+                    "ErrorCode": "435",
+                    "ErrorMsg": "Data Mismatch - Invalid mapping",
+                    "status": "435",
+                    "message": "Data Mismatch"
+                }, status=status.HTTP_200_OK)
+
         # 5. Idempotency check: duplicate bKash TrxId
         existing_txn = PaymentTransaction.objects.filter(tenant=tenant, trx_id=trx_id).first()
         if existing_txn:
@@ -600,7 +699,7 @@ class BKashPayBillPayView(views.APIView):
             trx_id=trx_id,
             payment_method="bKash PayBill",
             gateway=gateway,
-            raw_payload=request.data
+            raw_payload=sanitize_payload(request.data)
         )
 
         customer.refresh_from_db()
@@ -663,6 +762,16 @@ class BKashPayBillSearchView(views.APIView):
                 "message": err_msg
             }, status=status.HTTP_200_OK)
 
+        # Cross-tenant check
+        if request.data.get('tenant_id'):
+            if str(request.data.get('tenant_id')).strip().lower() != str(tenant.id).strip().lower():
+                return Response({
+                    "ErrorCode": "403",
+                    "ErrorMsg": "Cross-tenant access prohibited",
+                    "status": "403",
+                    "message": "Cross-tenant access prohibited"
+                }, status=status.HTTP_200_OK)
+
         txn = PaymentTransaction.objects.filter(
             tenant=tenant,
             trx_id=trx_id
@@ -708,9 +817,20 @@ class ManualSMSForwarderView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
-        tenant = get_tenant_for_request(request)
-        if not tenant:
-            return Response({"error": "Tenant context could not be resolved from Host header."}, status=status.HTTP_400_BAD_REQUEST)
+        # Resolve tenant strictly from request domain/header, rejecting cross-tenant attempts
+        tenant, err_resp = validate_webhook_tenant(request)
+        if err_resp:
+            return err_resp
+
+        # Signature validation
+        valid_sig, sig_err = validate_webhook_signature(request, tenant)
+        if not valid_sig:
+            return sig_err
+
+        # Currency validation
+        valid_curr, curr_err = validate_currency(request.data.get('currency'))
+        if not valid_curr:
+            return curr_err
 
         sender_account = str(request.data.get('sender_account') or request.data.get('phone_number') or '').strip()
         reference_id = str(request.data.get('reference_id') or request.data.get('ref') or '').strip()
@@ -718,13 +838,21 @@ class ManualSMSForwarderView(views.APIView):
         provider = str(request.data.get('provider') or 'bKash').strip()
 
         raw_amount = request.data.get('amount')
-        try:
-            amount = Decimal(str(raw_amount)) if raw_amount else Decimal('0.00')
-        except Exception:
+        if raw_amount is not None:
+            amt, amt_err = validate_amount(raw_amount, min_amount=Decimal('0.01'))
+            if amt_err:
+                return amt_err
+            amount = amt
+        else:
             amount = Decimal('0.00')
 
         if not trx_id:
             return Response({"error": "trx_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Timestamp and replay validation
+        valid_ts, ts_err = validate_webhook_timestamp_and_replay(request, tenant, trx_id=trx_id)
+        if not valid_ts:
+            return ts_err
 
         # Idempotency
         if PaymentTransaction.objects.filter(tenant=tenant, trx_id=trx_id).exists():
@@ -734,9 +862,21 @@ class ManualSMSForwarderView(views.APIView):
                 "message": f"TrxID {trx_id} has already been processed."
             }, status=status.HTTP_200_OK)
 
-        # Check for customer match by reference_id or sender_account
+        # Check for customer match by reference_id, customer_id, or sender_account
         customer = None
-        if reference_id:
+        cust_id_req = request.data.get('customer_id')
+        inv_id_req = request.data.get('invoice_id')
+        if cust_id_req or inv_id_req:
+            v_cust, v_inv, map_err = validate_customer_and_invoice_mapping(
+                tenant, customer_id=cust_id_req, invoice_id=inv_id_req,
+                amount=amount if amount > Decimal('0.00') else None
+            )
+            if map_err:
+                return map_err
+            if v_cust:
+                customer = v_cust
+
+        if not customer and reference_id:
             customer = Customer.objects.filter(
                 tenant=tenant
             ).filter(
@@ -750,6 +890,8 @@ class ManualSMSForwarderView(views.APIView):
                 mobile=sender_account
             ).first()
 
+        sanitized_payload = sanitize_payload(request.data)
+
         if customer and amount > Decimal('0.00'):
             # Instant automated match & line restoration!
             txn, _ = _settle_customer_payment(
@@ -758,7 +900,7 @@ class ManualSMSForwarderView(views.APIView):
                 amount=amount,
                 trx_id=trx_id,
                 payment_method=f"Manual {provider} Forwarder",
-                raw_payload=request.data
+                raw_payload=sanitized_payload
             )
             return Response({
                 "status": "matched",
@@ -774,7 +916,7 @@ class ManualSMSForwarderView(views.APIView):
             event = InboundPaymentEvent.objects.create(
                 tenant=tenant,
                 source=InboundPaymentEvent.EventSource.SMS,
-                raw_payload=str(request.data),
+                raw_payload=json.dumps(sanitized_payload, ensure_ascii=False) if isinstance(sanitized_payload, dict) else str(sanitized_payload),
                 provider=provider,
                 amount=amount if amount > 0 else None,
                 trx_id=trx_id,

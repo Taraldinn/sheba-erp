@@ -21,7 +21,7 @@ import logging
 from decimal import Decimal
 from celery import shared_task
 from django.utils import timezone
-from django.db import transaction, OperationalError, DatabaseError
+from django.db import transaction, OperationalError, DatabaseError, IntegrityError, models
 from apps.core.models import Tenant, AuditLog
 from apps.customers.models import Customer, CustomerStatus
 from apps.billing.models import Invoice, Package, Recharge
@@ -168,10 +168,12 @@ def generate_monthly_invoices(self=None, tenant_id=None, billing_month=None):
                 skipped = 0
                 for customer in customers:
                     with transaction.atomic():
-                        pkg_name = customer.package.name if customer.package else 'Standard'
-                        pkg_amount = customer.monthly_bill
-                        prev_due = customer.due_amount
-                        payable = pkg_amount + prev_due - customer.discount
+                        # Lock customer first (canonical lock hierarchy)
+                        locked_customer = Customer.objects.select_for_update().get(id=customer.id)
+                        pkg_name = locked_customer.package.name if locked_customer.package else 'Standard'
+                        pkg_amount = locked_customer.monthly_bill
+                        prev_due = locked_customer.due_amount
+                        payable = pkg_amount + prev_due - locked_customer.discount
                         inv_no = f"INV-{now.strftime('%y%m')}-{str(uuid.uuid4())[:6].upper()}"
 
                         # Idempotency guard: get_or_create on the (tenant, customer, billing_month)
@@ -180,14 +182,14 @@ def generate_monthly_invoices(self=None, tenant_id=None, billing_month=None):
                         # the distributed lock are silently skipped here — no double-invoice.
                         invoice, was_created = Invoice.objects.get_or_create(
                             tenant_id=tenant_id,
-                            customer=customer,
+                            customer=locked_customer,
                             billing_month=month_str,
                             defaults=dict(
                                 invoice_no=inv_no,
                                 package_name=pkg_name,
                                 package_amount=pkg_amount,
                                 previous_due=prev_due,
-                                discount=customer.discount,
+                                discount=locked_customer.discount,
                                 total_payable=payable,
                                 paid_amount=Decimal('0.00'),
                                 due_amount=payable,
@@ -220,23 +222,30 @@ def generate_monthly_invoices(self=None, tenant_id=None, billing_month=None):
                                 discount=Decimal('0.00'),
                                 tax_amount=Decimal('0.00')
                             )
-                        if customer.discount > 0:
+                        if locked_customer.discount > 0:
                             InvoiceLine.objects.create(
                                 invoice=invoice,
                                 tenant_id=tenant_id,
                                 description="Promotional / Loyalty Discount",
                                 quantity=1,
                                 unit_price=Decimal('0.00'),
-                                discount=customer.discount,
+                                discount=locked_customer.discount,
                                 tax_amount=Decimal('0.00')
                             )
 
-                        # Update BillingAccount & create LedgerEntry
-                        billing_acct, _ = BillingAccount.objects.get_or_create(
+                        # Update BillingAccount & create LedgerEntry under row lock
+                        billing_acct = BillingAccount.objects.select_for_update().filter(
                             tenant_id=tenant_id,
-                            customer=customer,
-                            defaults={'balance': Decimal('0.00'), 'total_paid': Decimal('0.00')}
-                        )
+                            customer=locked_customer,
+                        ).first()
+                        if not billing_acct:
+                            billing_acct, _ = BillingAccount.objects.get_or_create(
+                                tenant_id=tenant_id,
+                                customer=locked_customer,
+                                defaults={'balance': Decimal('0.00'), 'total_paid': Decimal('0.00')}
+                            )
+                            billing_acct = BillingAccount.objects.select_for_update().get(id=billing_acct.id)
+
                         payable_dec = Decimal(str(payable))
                         billing_acct.total_invoiced = Decimal(str(billing_acct.total_invoiced or '0.00')) + payable_dec
                         billing_acct.balance = Decimal(str(billing_acct.balance or '0.00')) - payable_dec
@@ -245,7 +254,7 @@ def generate_monthly_invoices(self=None, tenant_id=None, billing_month=None):
 
                         LedgerEntry.objects.create(
                             tenant_id=tenant_id,
-                            customer=customer,
+                            customer=locked_customer,
                             entry_type=LedgerEntry.EntryType.INVOICE,
                             amount=payable_dec,
                             balance_after=billing_acct.balance,
@@ -256,12 +265,12 @@ def generate_monthly_invoices(self=None, tenant_id=None, billing_month=None):
                         )
 
                         # Auto-settle with customer advance balance if available
-                        if customer.advance_amount and customer.advance_amount > Decimal('0.00'):
+                        if locked_customer.advance_amount and locked_customer.advance_amount > Decimal('0.00'):
                             from apps.finance.services import apply_advance_to_invoice
                             tenant_obj = Tenant.objects.get(id=tenant_id)
                             apply_advance_to_invoice(
                                 tenant=tenant_obj,
-                                customer=customer,
+                                customer=locked_customer,
                                 invoice=invoice,
                                 actor_username='MONTHLY_INVOICE_CRON'
                             )
@@ -472,30 +481,37 @@ def process_payment_event(self=None, tenant_id=None, event_id=None, customer_id=
                     locked_event.save(update_fields=['status', 'processed_at'])
                     return {'success': True, 'result': 'DUPLICATE', 'trx_id': final_trx_id}
 
-                # Create PaymentTransaction
-                trx = PaymentTransaction.objects.create(
-                    tenant_id=tenant_id,
-                    customer=locked_customer,
-                    amount=event.amount,
-                    trx_id=final_trx_id,
-                    payment_method=event.provider or 'SMS',
-                    status=TransactionStatus.SUCCESS,
-                    customer_account=event.sender_account,
-                    raw_payload={
-                        'source': event.source,
-                        'reference_id': event.reference_id,
-                        'payload': event.raw_payload,
-                    },
-                    sms_log=event.sms_log
-                )
+                # Create PaymentTransaction (guarded against concurrent duplicate trx_id)
+                try:
+                    trx = PaymentTransaction.objects.create(
+                        tenant_id=tenant_id,
+                        customer=locked_customer,
+                        amount=event.amount,
+                        trx_id=final_trx_id,
+                        payment_method=event.provider or 'SMS',
+                        status=TransactionStatus.SUCCESS,
+                        customer_account=event.sender_account,
+                        raw_payload={
+                            'source': event.source,
+                            'reference_id': event.reference_id,
+                            'payload': event.raw_payload,
+                        },
+                        sms_log=event.sms_log
+                    )
+                except IntegrityError:
+                    locked_event.status = InboundPaymentEvent.EventStatus.DUPLICATE
+                    locked_event.processed_at = timezone.now()
+                    locked_event.save(update_fields=['status', 'processed_at'])
+                    return {'success': True, 'result': 'DUPLICATE', 'trx_id': final_trx_id}
 
-                # Append LedgerEntry 1: PAYMENT
+                # Append LedgerEntry 1: PAYMENT under row lock
                 amount_dec = Decimal(str(event.amount))
                 billing_acct, _ = BillingAccount.objects.get_or_create(
                     tenant_id=tenant_id,
                     customer=locked_customer,
                     defaults={'balance': Decimal('0.00'), 'total_paid': Decimal('0.00')}
                 )
+                billing_acct = BillingAccount.objects.select_for_update().get(id=billing_acct.id)
                 billing_acct.balance = Decimal(str(billing_acct.balance or '0.00')) + amount_dec
                 billing_acct.total_paid = Decimal(str(billing_acct.total_paid or '0.00')) + amount_dec
                 billing_acct.last_payment_at = timezone.now()
@@ -599,7 +615,18 @@ def process_payment_event(self=None, tenant_id=None, event_id=None, customer_id=
                     }
                 )
 
-                # Send SMS confirmation (outside or inside transaction)
+                # Post-commit durable network sync & SMS confirmation (Rules 11 & 12)
+                if locked_customer.router_id:
+                    from apps.network.models import NetworkSyncJob
+                    from apps.network.tasks import dispatch_network_sync_job
+                    dispatch_network_sync_job(
+                        tenant=locked_customer.tenant,
+                        action=NetworkSyncJob.Action.ENABLE_USER,
+                        customer=locked_customer,
+                        payload={'username': locked_customer.pppoe_username}
+                    )
+
+                # Send SMS confirmation
                 send_sms(tenant_id=tenant_id, payment_id=str(trx.id))
 
                 return {
@@ -826,49 +853,56 @@ def enforce_subscription_lifecycle(self=None):
 
     Reactivation must be performed manually by a central admin after the
     ISP tenant renews their subscription.
+    Guarded by distributed lock to prevent duplicate concurrent runs.
     """
-    now = timezone.now()
-    expired_tenants = Tenant.objects.filter(
-        subscription_expires_at__lt=now,
-        subscription_status__in=['active', 'trial', 'past_due'],
-        is_active=True,
-    )
-
-    suspended = []
-    for tenant in expired_tenants.iterator():
-        try:
-            tenant.subscription_status = 'suspended'
-            tenant.is_active = False
-            tenant.save(update_fields=['subscription_status', 'is_active', 'updated_at'])
-
-            emit_platform_audit_event.delay(
-                event_type='TENANT_AUTO_SUSPENDED',
-                actor='SYSTEM:subscription_lifecycle_task',
-                resource_type='Tenant',
-                resource_id=str(tenant.id),
-                details={
-                    'tenant_slug': tenant.slug,
-                    'subscription_expires_at': str(tenant.subscription_expires_at),
-                    'reason': 'Subscription expired — automatic suspension.',
-                }
-            )
-            logger.warning(
-                "enforce_subscription_lifecycle: suspended tenant %s (slug=%s) — subscription expired at %s",
-                tenant.id, tenant.slug, tenant.subscription_expires_at
-            )
-            suspended.append(str(tenant.id))
-        except Exception as exc:
-            logger.error(
-                "enforce_subscription_lifecycle: failed to suspend tenant %s: %s",
-                tenant.id, exc
+    lock_key = "lock:subscription_lifecycle"
+    try:
+        with distributed_lock(lock_key, timeout=300, blocking=False):
+            now = timezone.now()
+            expired_tenants = Tenant.objects.filter(
+                subscription_expires_at__lt=now,
+                subscription_status__in=['active', 'trial', 'past_due'],
+                is_active=True,
             )
 
-    return {
-        'success': True,
-        'evaluated_at': str(now),
-        'tenants_suspended': len(suspended),
-        'tenant_ids': suspended,
-    }
+            suspended = []
+            for tenant in expired_tenants.iterator():
+                try:
+                    tenant.subscription_status = 'suspended'
+                    tenant.is_active = False
+                    tenant.save(update_fields=['subscription_status', 'is_active', 'updated_at'])
+
+                    emit_platform_audit_event.delay(
+                        event_type='TENANT_AUTO_SUSPENDED',
+                        actor='SYSTEM:subscription_lifecycle_task',
+                        resource_type='Tenant',
+                        resource_id=str(tenant.id),
+                        details={
+                            'tenant_slug': tenant.slug,
+                            'subscription_expires_at': str(tenant.subscription_expires_at),
+                            'reason': 'Subscription expired — automatic suspension.',
+                        }
+                    )
+                    logger.warning(
+                        "enforce_subscription_lifecycle: suspended tenant %s (slug=%s) — subscription expired at %s",
+                        tenant.id, tenant.slug, tenant.subscription_expires_at
+                    )
+                    suspended.append(str(tenant.id))
+                except Exception as exc:
+                    logger.error(
+                        "enforce_subscription_lifecycle: failed to suspend tenant %s: %s",
+                        tenant.id, exc
+                    )
+
+            return {
+                'success': True,
+                'evaluated_at': str(now),
+                'tenants_suspended': len(suspended),
+                'tenant_ids': suspended,
+            }
+    except LockAcquisitionError:
+        logger.warning("enforce_subscription_lifecycle: lock %s already acquired, skipping duplicate task.", lock_key)
+        return {'success': False, 'error': 'DUPLICATE_TASK_SKIPPED', 'lock_key': lock_key}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

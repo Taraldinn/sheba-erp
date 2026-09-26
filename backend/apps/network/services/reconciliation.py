@@ -3,6 +3,7 @@ MikroTik Reconciliation Service Layer (Phase 12).
 Bidirectional reconciliation between ERP Customer/Package state and actual MikroTik RouterOS PPPoE secrets.
 """
 import logging
+import uuid
 from typing import Optional, Dict, Any, List
 from django.db import transaction
 from django.utils import timezone
@@ -326,12 +327,17 @@ class ReconciliationService:
             item.last_synced_at = timezone.now()
             item.save()
 
+            dev_identity = router.name or router.hostname or str(router.ip_address)
             job = NetworkSyncJob.objects.create(
                 tenant=tenant,
                 customer=cust,
                 router=router,
                 action=NetworkSyncJob.Action.ENABLE_USER if cust.status == CustomerStatus.ACTIVE else NetworkSyncJob.Action.DISABLE_USER,
-                status=NetworkSyncJob.JobStatus.SUCCESS,
+                status=NetworkSyncJob.JobStatus.SUCCEEDED,
+                correlation_id=uuid.uuid4().hex,
+                device_identity=dev_identity,
+                requested_state={'status': cust.status, 'profile': profile},
+                current_state={'user_enabled': cust.status == CustomerStatus.ACTIVE, 'profile': profile},
                 payload={'username': cust.pppoe_username, 'profile': profile},
                 completed_at=timezone.now()
             )
@@ -363,12 +369,17 @@ class ReconciliationService:
             item.last_synced_at = timezone.now()
             item.save()
 
+            dev_identity = router.name or router.hostname or str(router.ip_address)
             job = NetworkSyncJob.objects.create(
                 tenant=tenant,
                 customer=item.customer,
                 router=router,
                 action=NetworkSyncJob.Action.UPDATE_PACKAGE,
-                status=NetworkSyncJob.JobStatus.SUCCESS,
+                status=NetworkSyncJob.JobStatus.SUCCEEDED,
+                correlation_id=uuid.uuid4().hex,
+                device_identity=dev_identity,
+                requested_state={'profile': item.expected_profile},
+                current_state={'profile': item.expected_profile},
                 payload={'username': item.username, 'profile': item.expected_profile},
                 completed_at=timezone.now()
             )
@@ -403,12 +414,17 @@ class ReconciliationService:
             item.last_synced_at = timezone.now()
             item.save()
 
+            dev_identity = router.name or router.hostname or str(router.ip_address)
             job = NetworkSyncJob.objects.create(
                 tenant=tenant,
                 customer=item.customer,
                 router=router,
                 action=NetworkSyncJob.Action.DISABLE_USER if should_disable else NetworkSyncJob.Action.ENABLE_USER,
-                status=NetworkSyncJob.JobStatus.SUCCESS,
+                status=NetworkSyncJob.JobStatus.SUCCEEDED,
+                correlation_id=uuid.uuid4().hex,
+                device_identity=dev_identity,
+                requested_state={'disabled': should_disable},
+                current_state={'disabled': should_disable},
                 payload={'username': item.username, 'disabled': should_disable},
                 completed_at=timezone.now()
             )
@@ -433,11 +449,16 @@ class ReconciliationService:
             item.last_synced_at = timezone.now()
             item.save()
 
+            dev_identity = router.name or router.hostname or str(router.ip_address)
             job = NetworkSyncJob.objects.create(
                 tenant=tenant,
                 router=router,
                 action=NetworkSyncJob.Action.DISABLE_USER,
-                status=NetworkSyncJob.JobStatus.SUCCESS,
+                status=NetworkSyncJob.JobStatus.SUCCEEDED,
+                correlation_id=uuid.uuid4().hex,
+                device_identity=dev_identity,
+                requested_state={'orphan': True, 'disabled': True},
+                current_state={'disabled': True},
                 payload={'username': item.username, 'orphan': True},
                 completed_at=timezone.now()
             )

@@ -10,11 +10,11 @@ from apps.core.views import (
 )
 from apps.core.readiness_views import ProductionReadinessView
 from apps.core.saas_views import (
-    SaaSOverviewView, SaaSTenantViewSet, SaaSDomainViewSet,
+    SaaSOverviewView, SaaSHealthView, SaaSTenantViewSet, SaaSDomainViewSet,
     SaaSTenantRequestViewSet,
     SaaSPackageViewSet, SaaSSubscriptionViewSet, SaaSPaymentViewSet,
     SaaSBackupViewSet, SaaSUserViewSet, SaaSAuditLogViewSet,
-    SaaSApiCredentialViewSet,
+    SaaSApiCredentialViewSet, SaaSApplicationViewSet,
     SaaSLoginView, SaaSMeView, SaaSLogoutView,
     SaaSPasswordResetView, SaaSPasswordResetConfirmView
 )
@@ -37,7 +37,10 @@ from apps.support.views import TicketViewSet
 from apps.hr.views import EmployeeViewSet, AttendanceViewSet, LeaveRequestViewSet, AdvanceSalaryViewSet, PayrollRecordViewSet
 from apps.store.views import StoreItemViewSet, StockTransactionViewSet
 from apps.tasks.views import TaskViewSet
-from apps.callcenter.views import CallLogViewSet, VoiceSettingViewSet, VoiceTemplateViewSet
+from apps.callcenter.views import (
+    CallLogViewSet, VoiceSettingViewSet, VoiceTemplateViewSet,
+    MikoPBXConfigViewSet, AgentPBXMappingViewSet
+)
 from apps.reports.views import DashboardAnalyticsView
 
 # API Router
@@ -55,6 +58,7 @@ router.register(r'saas/backups', SaaSBackupViewSet, basename='saas-backup')
 router.register(r'saas/users', SaaSUserViewSet, basename='saas-user')
 router.register(r'saas/audit-logs', SaaSAuditLogViewSet, basename='saas-audit-log')
 router.register(r'saas/api-credentials', SaaSApiCredentialViewSet, basename='saas-api-credential')
+router.register(r'saas/applications', SaaSApplicationViewSet, basename='saas-application')
 router.register(r'settings', CompanySettingViewSet, basename='setting')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 router.register(r'staff', StaffProfileViewSet, basename='staff')
@@ -96,6 +100,8 @@ router.register(r'tasks', TaskViewSet, basename='task')
 router.register(r'call-logs', CallLogViewSet, basename='call-log')
 router.register(r'voice-settings', VoiceSettingViewSet, basename='voice-setting')
 router.register(r'voice-templates', VoiceTemplateViewSet, basename='voice-template')
+router.register(r'mikopbx-config', MikoPBXConfigViewSet, basename='mikopbx-config')
+router.register(r'agent-pbx-mappings', AgentPBXMappingViewSet, basename='agent-pbx-mapping')
 
 admin.site.site_header = "Sheba ERP Administration"
 admin.site.site_title = "Sheba ERP Admin Portal"
@@ -147,6 +153,7 @@ urlpatterns = [
     
     # SaaS Control Plane Endpoints (admin.shebafi.xyz)
     path('api/v1/saas/overview/', SaaSOverviewView.as_view(), name='saas-overview'),
+    path('api/v1/saas/health/', SaaSHealthView.as_view(), name='saas-health'),
     path('api/v1/saas/auth/login/', SaaSLoginView.as_view(), name='saas-auth-login'),
     path('api/v1/saas/auth/me/', SaaSMeView.as_view(), name='saas-auth-me'),
     path('api/v1/saas/auth/logout/', SaaSLogoutView.as_view(), name='saas-auth-logout'),

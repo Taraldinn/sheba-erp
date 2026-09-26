@@ -172,7 +172,36 @@ class TenantResolutionMiddleware(MiddlewareMixin):
             request.tenant = tenant
             request.auth_type = 'api_key'
             request.api_token = matched_candidate
+            request.application = matched_candidate
             request.api_scopes = set(matched_candidate.permissions or [])
+
+            # ── Cross-validate: API key tenant must match the request domain tenant ──
+            # Resolve the domain tenant independently for validation
+            domain_tenant = None
+            try:
+                domain_record = (
+                    TenantDomain.objects
+                    .select_related('tenant')
+                    .filter(hostname__iexact=raw_host, is_active=True)
+                    .first()
+                )
+                if domain_record:
+                    domain_tenant = domain_record.tenant
+            except Exception:
+                pass
+            if not domain_tenant:
+                try:
+                    domain_tenant = Tenant.objects.filter(domain__iexact=raw_host).first()
+                except Exception:
+                    pass
+            # Only enforce mismatch when the domain resolves to a known tenant
+            # that differs from the API key's tenant. Unknown/localhost domains
+            # are permitted (API key alone provides context).
+            if domain_tenant and domain_tenant.id != tenant.id:
+                return JsonResponse({
+                    'detail': 'API key tenant does not match the request domain.',
+                    'code': 'TENANT_MISMATCH',
+                }, status=401)
 
         # 4. Domain-based resolution (multi-stage)
         # A. TenantDomain table — preferred (Plan Phase 4)

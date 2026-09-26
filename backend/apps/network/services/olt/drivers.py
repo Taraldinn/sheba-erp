@@ -102,6 +102,10 @@ class BaseOLTDriver(BaseOLTClient):
                     break
                 lowered = output.lower()
 
+                if 'login incorrect' in lowered or 'authentication failed' in lowered:
+                    self._telnet_disconnect()
+                    raise OLTAuthError(f"Authentication failed for OLT {self.olt.ip_address}")
+
                 # Username prompt detection
                 if any(k in lowered for k in ('username', 'login', 'user:')) or re.search(r'us(?:er)?(?:name)?:?\s*$', output, re.I):
                     self._write((self.olt.telnet_user or '') + "\r\n")
@@ -109,12 +113,20 @@ class BaseOLTDriver(BaseOLTClient):
                     output = self._telnet_read(timeout=5)
                     lowered = output.lower()
 
+                if 'login incorrect' in lowered or 'authentication failed' in lowered:
+                    self._telnet_disconnect()
+                    raise OLTAuthError(f"Authentication failed for OLT {self.olt.ip_address}")
+
                 # Password prompt detection
                 if 'password' in lowered or re.search(r'pass(?:word)?:?\s*$', output, re.I):
                     self._write((self.olt.telnet_password or '') + "\r\n")
                     time.sleep(1)
                     output = self._telnet_read(timeout=5)
                     lowered = output.lower()
+
+                if 'login incorrect' in lowered or 'authentication failed' in lowered:
+                    self._telnet_disconnect()
+                    raise OLTAuthError(f"Authentication failed for OLT {self.olt.ip_address}")
 
                 # Prompt reached?
                 if re.search(r'[#>]\s*$', output):
@@ -435,11 +447,14 @@ class BDCOMEponDriver(BaseOLTDriver):
             if match:
                 port = match.group(1)
                 onu_idx = match.group(2)
-                if i + 1 < len(lines):
+                parts = line.split()
+                if len(parts) >= 3:
+                    uptime_data[f"{port}:{onu_idx}"] = parts[-1]
+                elif i + 1 < len(lines):
                     next_line = lines[i + 1].strip()
-                    parts = next_line.split()
-                    if len(parts) >= 2:
-                        uptime_data[f"{port}:{onu_idx}"] = parts[-1]
+                    next_parts = next_line.split()
+                    if len(next_parts) >= 2:
+                        uptime_data[f"{port}:{onu_idx}"] = next_parts[-1]
                         i += 1
             i += 1
         return uptime_data

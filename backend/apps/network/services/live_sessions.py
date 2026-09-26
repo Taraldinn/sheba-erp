@@ -207,13 +207,32 @@ class LiveSessionService:
                     }
                 )
 
-            # Detect previously active sessions that dropped off
-            stale_sessions = UserSession.objects.filter(
-                tenant=tenant,
-                router=router
-            ).exclude(username__in=current_usernames)
+        # Update router active pppoe count
+        router.active_pppoe_count = len(current_usernames)
+        router.last_ping = timezone.now()
+        router.status = 'Online'
+        router.save(update_fields=['active_pppoe_count', 'last_ping', 'status'])
 
-            # Archive stale sessions to PostgreSQL UserSessionHistory
+        # Invalidate Redis cache
+        cache.delete(cls.get_cache_key(str(tenant.id), str(router.id)))
+        cache.delete(cls.get_cache_key(str(tenant.id), None))
+
+        # Roll up the byte deltas into the daily-aggregation table BEFORE deleting
+        # stale sessions, ensuring disconnects have their final traffic counted.
+        try:
+            aggregate_router_bandwidth(router)
+        except Exception as exc:
+            # Never let aggregation failures break live session sync.
+            logger.warning("Daily bandwidth rollup failed for router %s: %s", router.id, exc)
+
+        # Detect previously active sessions that dropped off
+        stale_sessions = UserSession.objects.filter(
+            tenant=tenant,
+            router=router
+        ).exclude(username__in=current_usernames)
+
+        # Archive stale sessions to PostgreSQL UserSessionHistory
+        if stale_sessions.exists():
             history_objs = []
             for stale in stale_sessions:
                 cust = Customer.objects.filter(tenant=tenant, pppoe_username=stale.username).first()
@@ -242,25 +261,6 @@ class LiveSessionService:
             if history_objs:
                 UserSessionHistory.objects.bulk_create(history_objs)
             stale_sessions.delete()
-
-        # Update router active pppoe count
-        router.active_pppoe_count = len(current_usernames)
-        router.last_ping = timezone.now()
-        router.status = 'Online'
-        router.save(update_fields=['active_pppoe_count', 'last_ping', 'status'])
-
-        # Invalidate Redis cache
-        cache.delete(cls.get_cache_key(str(tenant.id), str(router.id)))
-        cache.delete(cls.get_cache_key(str(tenant.id), None))
-
-        # Roll up the byte deltas into the daily-aggregation table so that
-        # monthly bandwidth reports have an authoritative source instead of
-        # having to scan raw session history.
-        try:
-            aggregate_router_bandwidth(router)
-        except Exception as exc:
-            # Never let aggregation failures break live session sync.
-            logger.warning("Daily bandwidth rollup failed for router %s: %s", router.id, exc)
 
         return len(current_usernames)
 
@@ -311,6 +311,21 @@ class LiveSessionService:
         # 2. Archive to PostgreSQL UserSessionHistory (only when router_dropped is True)
         cust = Customer.objects.filter(tenant=tenant, pppoe_username=username).first()
         if session:
+            # Roll up remaining session traffic before deleting the session
+            if cust and target_router:
+                try:
+                    from apps.network.services.bandwidth_rollup import _rollup_customer_bandwidth
+                    _rollup_customer_bandwidth(
+                        tenant=tenant,
+                        router=target_router,
+                        customer=cust,
+                        target_date=timezone.localdate(),
+                        cur_rx=_safe_int(session.bytes_in, 0),
+                        cur_tx=_safe_int(session.bytes_out, 0),
+                    )
+                except Exception as exc:
+                    logger.warning("Daily bandwidth rollup failed during terminate_session for %s: %s", username, exc)
+
             duration = max(0, int((timezone.now() - session.connected_at).total_seconds())) if session.connected_at else 0
             UserSessionHistory.objects.create(
                 tenant=tenant,

@@ -25,4 +25,7 @@ app.autodiscover_tasks()
 
 @app.task(bind=True, ignore_result=True)
 def debug_task(self):
-    print(f'Request: {self.request!r}')
+    """Safe Celery ping / debug health probe that never leaks payloads."""
+    task_id = getattr(self.request, 'id', 'unknown')
+    return {'status': 'healthy', 'task_id': str(task_id)}
+

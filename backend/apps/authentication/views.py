@@ -171,11 +171,7 @@ class LogoutView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        try:
-            if hasattr(request.user, 'auth_token'):
-                request.user.auth_token.delete()
-        except Exception:
-            pass
+        Token.objects.filter(user=request.user).delete()
         return Response({'message': 'Logged out successfully.'}, status=status.HTTP_200_OK)
 
 
@@ -385,6 +381,7 @@ class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsTenantMember]
     serializer_class = PermissionSerializer
     pagination_class = None
+    queryset = Permission.objects.all()
 
     def get_queryset(self):
         from apps.authentication.services.rbac import ensure_permission_catalog

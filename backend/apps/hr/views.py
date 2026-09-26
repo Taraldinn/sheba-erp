@@ -5,11 +5,26 @@ from apps.core.permissions import IsTenantMember, IsAdminOrManager
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 
 
+def _tenant_from_context(context):
+    request = context.get('request')
+    return getattr(request, 'tenant', None) if request else None
+
+
 class EmployeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employee
         fields = '__all__'
         read_only_fields = ('tenant',)
+
+    def validate_user(self, user):
+        if user is None:
+            return user
+        tenant = _tenant_from_context(self.context)
+        if tenant:
+            from apps.authentication.models import StaffMembership
+            if not StaffMembership.objects.filter(tenant=tenant, user=user).exists() and not user.is_superuser:
+                raise serializers.ValidationError("Selected user does not belong to your organization.")
+        return user
 
 
 class AttendanceSerializer(serializers.ModelSerializer):
@@ -20,6 +35,14 @@ class AttendanceSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('tenant',)
 
+    def validate_employee(self, employee):
+        if employee is None:
+            return employee
+        tenant = _tenant_from_context(self.context)
+        if tenant and employee.tenant_id != tenant.id:
+            raise serializers.ValidationError("Selected employee does not belong to your organization.")
+        return employee
+
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.full_name', read_only=True)
@@ -28,6 +51,14 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         model = LeaveRequest
         fields = '__all__'
         read_only_fields = ('tenant',)
+
+    def validate_employee(self, employee):
+        if employee is None:
+            return employee
+        tenant = _tenant_from_context(self.context)
+        if tenant and employee.tenant_id != tenant.id:
+            raise serializers.ValidationError("Selected employee does not belong to your organization.")
+        return employee
 
 
 class AdvanceSalarySerializer(serializers.ModelSerializer):
@@ -38,6 +69,14 @@ class AdvanceSalarySerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('tenant',)
 
+    def validate_employee(self, employee):
+        if employee is None:
+            return employee
+        tenant = _tenant_from_context(self.context)
+        if tenant and employee.tenant_id != tenant.id:
+            raise serializers.ValidationError("Selected employee does not belong to your organization.")
+        return employee
+
 
 class PayrollRecordSerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.full_name', read_only=True)
@@ -46,6 +85,14 @@ class PayrollRecordSerializer(serializers.ModelSerializer):
         model = PayrollRecord
         fields = '__all__'
         read_only_fields = ('tenant',)
+
+    def validate_employee(self, employee):
+        if employee is None:
+            return employee
+        tenant = _tenant_from_context(self.context)
+        if tenant and employee.tenant_id != tenant.id:
+            raise serializers.ValidationError("Selected employee does not belong to your organization.")
+        return employee
 
 
 @extend_schema_view(

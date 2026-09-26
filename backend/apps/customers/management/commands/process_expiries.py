@@ -38,7 +38,7 @@ class Command(BaseCommand):
                 locked_cust.save(update_fields=['status', 'updated_at'])
 
                 # Terminate active PPPoE router session
-                UserSession.objects.filter(username=locked_cust.pppoe_username).delete()
+                UserSession.objects.filter(tenant=locked_cust.tenant, username=locked_cust.pppoe_username).delete()
 
                 AuditLog.objects.create(
                     tenant=locked_cust.tenant,

@@ -19,6 +19,7 @@ services:
       - RUN_MIGRATIONS=${RUN_MIGRATIONS:-true}
       - PORT=8000
       - WEB_CONCURRENCY=${WEB_CONCURRENCY:-3}
+      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:-}
       - LOG_LEVEL=INFO
     depends_on:
       postgres:
@@ -53,6 +54,7 @@ services:
       - DATABASE_URL=postgres://${POSTGRES_USER:-sheba_user}:${POSTGRES_PASSWORD:-sheba_secure_password}@postgres:5432/${POSTGRES_DB:-sheba_erp}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:-}
       - LOG_LEVEL=INFO
     depends_on:
       postgres:
@@ -77,7 +79,7 @@ services:
       dockerfile: Dockerfile
     container_name: sheba-celery-beat
     restart: unless-stopped
-    command: celery -A sheba_core beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    command: celery -A sheba_core beat --loglevel=info --schedule=/app/media/celerybeat-schedule.db
     environment:
       - DEBUG=False
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY environment variable is required}
@@ -85,6 +87,7 @@ services:
       - DATABASE_URL=postgres://${POSTGRES_USER:-sheba_user}:${POSTGRES_PASSWORD:-sheba_secure_password}@postgres:5432/${POSTGRES_DB:-sheba_erp}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:-}
       - LOG_LEVEL=INFO
     depends_on:
       postgres:
@@ -93,6 +96,8 @@ services:
         condition: service_healthy
       celery-worker:
         condition: service_started
+    volumes:
+      - backend_media:/app/media
 
   postgres:
     image: postgres:16-alpine

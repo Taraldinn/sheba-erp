@@ -28,9 +28,15 @@ async function runLiveVerification() {
 
   // Step 1: Central Admin Authentication
   console.log('1. Authenticating Super Admin via AuthService.loginCentralAdmin()...');
+  const username = process.env.SHEBA_ADMIN_USERNAME;
+  const password = process.env.SHEBA_ADMIN_PASSWORD;
+  if (!username || !password) {
+    throw new Error('SHEBA_ADMIN_USERNAME and SHEBA_ADMIN_PASSWORD are required');
+  }
+
   const authResult = await AuthService.loginCentralAdmin({
-    username: 'admin',
-    password: 'admin123',
+    username,
+    password,
   });
   console.log(`   -> SUCCESS: Received Token: ${authResult.token.slice(0, 10)}...`);
   console.log(`   -> Authenticated User: ${authResult.user.username} (Superuser: ${authResult.user.is_superuser})`);
@@ -46,7 +52,7 @@ async function runLiveVerification() {
 
   // Step 3: Overview Metrics & Telemetry
   console.log('\n3. Querying SaaS Overview & Cluster Telemetry via SaaSClient.getOverview()...');
-  const overview = await SaaSClient.getOverview();
+  const overview: any = await SaaSClient.getOverview();
   console.log(`   -> Cluster: ${overview.platform.name}`);
   console.log(`   -> System Status: ${overview.platform.system_status}, DB: ${overview.platform.database_cluster}`);
   console.log(`   -> Active Tenants: ${overview.kpis.active_tenants} / ${overview.kpis.total_tenants}`);
@@ -133,6 +139,19 @@ async function runLiveVerification() {
   // Step 13: Logout
   console.log('\n13. Testing Control Plane Session Logout via AuthService.logout()...');
   await AuthService.logout(authResult.token, 'central_admin');
+
+  // Verify that the token was invalidated and is no longer accepted
+  let tokenStillAccepted = false;
+  try {
+    await AuthService.getCurrentUser(authResult.token, 'central_admin');
+    tokenStillAccepted = true;
+  } catch (err: any) {
+    // Expected unauthorized rejection
+  }
+
+  if (tokenStillAccepted) {
+    throw new Error('Logout verification failed: Token remains accepted after logout.');
+  }
   console.log('   -> SUCCESS: Logout completed successfully.');
 
   console.log('\n======================================================================');

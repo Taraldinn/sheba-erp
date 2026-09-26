@@ -20,10 +20,7 @@ class TenantApiKeyRateThrottle(throttling.SimpleRateThrottle):
             return '1000/minute'
 
     def get_cache_key(self, request, view):
-        if getattr(request, 'auth_type', None) != 'api_key':
-            return None
-
-        token = getattr(request, 'api_token', None)
+        token = getattr(request, 'api_token', None) or getattr(request, 'application', None)
         if not token:
             return None
 
@@ -34,10 +31,7 @@ class TenantApiKeyRateThrottle(throttling.SimpleRateThrottle):
         """
         Dynamically calculate the rate limit based on the matched TenantApiToken's rate_limit setting.
         """
-        if getattr(request, 'auth_type', None) != 'api_key':
-            return True
-
-        token = getattr(request, 'api_token', None)
+        token = getattr(request, 'api_token', None) or getattr(request, 'application', None)
         if not token:
             return True
 

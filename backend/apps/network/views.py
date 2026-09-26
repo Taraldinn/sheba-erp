@@ -18,6 +18,7 @@ from .services.audit import log_network_action
 from apps.core.permissions import IsTenantMember, IsAdminOrManager, IsTechnicalStaff, IsAdminUserOrReadOnly
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 from apps.core.authorization import can
+from apps.core.lock import LockAcquisitionError
 from apps.customers.models import Customer
 
 logger = logging.getLogger(__name__)
@@ -662,6 +663,8 @@ class OLTViewSet(viewsets.ModelViewSet):
                 request=request,
             )
             return Response(res, status=status.HTTP_200_OK)
+        except LockAcquisitionError:
+            return Response({'error': 'Synchronization already in progress for this OLT.'}, status=status.HTTP_409_CONFLICT)
         except Exception as exc:
             logger.warning("sync_monitor failed for OLT %s: %s", olt.id, exc)
             return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
@@ -707,6 +710,8 @@ class OLTViewSet(viewsets.ModelViewSet):
         Executes show mac address-table on OLT for raw CLI diagnostics.
         """
         olt = self.get_object()
+        if not can(request.user, request.tenant, 'olt.view', olt):
+            return Response({'error': 'Permission denied: olt.view capability required.'}, status=status.HTTP_403_FORBIDDEN)
         port = request.data.get('port') or request.query_params.get('port')
         try:
             from .services.olt.drivers import get_olt_driver
