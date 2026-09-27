@@ -30,7 +30,7 @@ export default async function RootLayout({
           id="sheba-theme-init"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('sheba-theme')||'dark';if(t==='system'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.classList.add(t);}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('sheba-theme')||'dark';if(t==='system'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.classList.add(t);var h=localStorage.getItem('sheba-theme-heroui');if(h){var p=JSON.parse(h);if(p.presetId){document.documentElement.setAttribute('data-theme',p.presetId);}if(p.accentHue&&p.accentLightness&&p.accentChroma){var c=p.isVibrant?Math.min(p.accentChroma+0.05,0.3):p.accentChroma;var oklch='oklch('+p.accentLightness.toFixed(3)+' '+c.toFixed(3)+' '+p.accentHue.toFixed(2)+')';document.documentElement.style.setProperty('--accent',oklch);document.documentElement.style.setProperty('--color-accent',oklch);document.documentElement.style.setProperty('--primary',oklch);document.documentElement.style.setProperty('--color-primary',oklch);}}}catch(e){}})();`,
           }}
         />
       </head>
