@@ -59,6 +59,10 @@ import {
   Archive,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import {
+  useFeatureFlag,
+  useFeatureSnapshot,
+} from "@/lib/feature-flags/FeatureFlagContext";
 
 interface SubMenuItem {
   href: string;
@@ -67,6 +71,8 @@ interface SubMenuItem {
   statusParam?: string;
   tabParam?: string;
   adminOnly?: boolean;
+  /** When set, this entry is hidden if the named feature is disabled. */
+  feature?: string;
 }
 
 interface NavGroup {
@@ -82,6 +88,8 @@ interface SingleNavItem {
   icon: React.ComponentType<{ className?: string }>;
   badge?: string;
   adminOnly?: boolean;
+  /** When set, this entry is hidden if the named feature is disabled. */
+  feature?: string;
 }
 
 type NavEntry =
@@ -234,7 +242,12 @@ const navSections: Section[] = [
       },
       {
         type: "single",
-        data: { href: "/payments/verification", label: "Payment Verification", icon: CheckCircle2 },
+        data: {
+          href: "/payments/verification",
+          label: "Payment Verification",
+          icon: CheckCircle2,
+          feature: "billing.payments",
+        },
       },
       {
         type: "single",
@@ -254,11 +267,21 @@ const navSections: Section[] = [
       },
       {
         type: "single",
-        data: { href: "/reports/sms-logs", label: "SMS Logs", icon: MessageSquare },
+        data: {
+          href: "/reports/sms-logs",
+          label: "SMS Logs",
+          icon: MessageSquare,
+          feature: "billing.sms_logs",
+        },
       },
       {
         type: "single",
-        data: { href: "/reports/voice-logs", label: "Voice Logs", icon: PhoneCall },
+        data: {
+          href: "/reports/voice-logs",
+          label: "Voice Logs",
+          icon: PhoneCall,
+          feature: "ip_phone.epbx",
+        },
       },
       {
         type: "group",
@@ -338,27 +361,47 @@ export function Sidebar({ isMobileOpen = false, onCloseMobile }: SidebarProps = 
     return ["admin", "super_admin", "tenant_owner"].includes(userRole);
   }, [userRole]);
 
+  const snapshot = useFeatureSnapshot();
+  const featureFlags = snapshot.flags;
+
+  // Resolve "is this feature enabled for the current tenant?".
+  // When the snapshot hasn't loaded yet we conservatively hide
+  // any feature-gated entry — they'd flash in for a frame if we
+  // defaulted to true, which is worse than a brief missing link.
+  const isFeatureEnabled = (key?: string): boolean => {
+    if (!key) return true;
+    if (!snapshot.loaded) return false;
+    return !!featureFlags[key]?.enabled;
+  };
+
   const visibleSections = useMemo(() => {
-    if (isAdminUser) return navSections;
     return navSections
       .map((section) => ({
         ...section,
-        entries: section.entries.filter((entry) => {
-          if (entry.type === "single") return !entry.data.adminOnly;
-          if (entry.type === "group") {
-            return {
-              ...entry,
-              data: {
-                ...entry.data,
-                items: entry.data.items.filter((item) => !item.adminOnly),
-              },
-            };
-          }
-          return entry;
-        }),
+        entries: section.entries
+          .map((entry) => {
+            if (entry.type === "single") {
+              if (entry.data.adminOnly && !isAdminUser) return null;
+              if (!isFeatureEnabled(entry.data.feature)) return null;
+              return entry;
+            }
+            if (entry.type === "group") {
+              const items = entry.data.items.filter((item) => {
+                if (item.adminOnly && !isAdminUser) return false;
+                return isFeatureEnabled(item.feature);
+              });
+              if (items.length === 0) return null;
+              return {
+                ...entry,
+                data: { ...entry.data, items },
+              };
+            }
+            return null;
+          })
+          .filter((entry): entry is NavEntry => entry !== null),
       }))
       .filter((section) => section.entries.length > 0);
-  }, [isAdminUser]);
+  }, [isAdminUser, snapshot]);
 
   const handleLogout = async () => {
     await logout("/login");

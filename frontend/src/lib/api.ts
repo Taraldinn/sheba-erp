@@ -160,6 +160,43 @@ export class ApiClient {
     return await AuthService.getCurrentUser(token, contextType, tenantId || undefined);
   }
 
+  /**
+   * Returns the effective feature-flag snapshot for the current
+   * tenant. See ``FeatureFlagContext.tsx`` for shape + caching.
+   */
+  static async getMyFeatureFlags(): Promise<{
+    tenant_slug: string;
+    tenant_id: string;
+    flags: Record<
+      string,
+      {
+        enabled: boolean;
+        is_override: boolean;
+        config: Record<string, unknown>;
+        paid?: boolean;
+        label?: string;
+        category?: string;
+      }
+    >;
+  }> {
+    const res = await fetch(`${API_BASE}/features/me/`, {
+      headers: this.getHeaders(),
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      throw new Error(
+        `Failed to load feature flags (${res.status} ${res.statusText})`,
+      );
+    }
+    const data = await res.json();
+    return {
+      tenant_slug: data?.tenant_slug || '',
+      tenant_id: data?.tenant_id || '',
+      flags: data?.flags || {},
+    };
+  }
+
   // ════════════════════════ DASHBOARD & ANALYTICS ════════════════════════
   static async getDashboardKPIs(): Promise<DashboardKPIs> {
     try {

@@ -6,7 +6,8 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, Spec
 
 from apps.core.views import (
     TenantViewSet, TenantDomainViewSet, CompanySettingViewSet,
-    AuditLogViewSet, HealthCheckView, ReadinessView, ApiRootView
+    AuditLogViewSet, HealthCheckView, ReadinessView, ApiRootView,
+    FeatureFlagsForTenantView,
 )
 from apps.core.readiness_views import ProductionReadinessView
 from apps.core.saas_views import (
@@ -16,6 +17,7 @@ from apps.core.saas_views import (
     SaaSBackupViewSet, SaaSUserViewSet, SaaSAuditLogViewSet,
     SaaSApiCredentialViewSet, SaaSApplicationViewSet,
     SaaSWireGuardViewSet,
+    TenantFeatureFlagViewSet, SaaSFeatureCatalogView, SaaSFeatureMatrixView,
     SaaSLoginView, SaaSMeView, SaaSLogoutView,
     SaaSPasswordResetView, SaaSPasswordResetConfirmView
 )
@@ -82,6 +84,7 @@ router.register(r'saas/audit-logs', SaaSAuditLogViewSet, basename='saas-audit-lo
 router.register(r'saas/api-credentials', SaaSApiCredentialViewSet, basename='saas-api-credential')
 router.register(r'saas/applications', SaaSApplicationViewSet, basename='saas-application')
 router.register(r'saas/wireguard', SaaSWireGuardViewSet, basename='saas-wireguard')
+router.register(r'saas/feature-flags', TenantFeatureFlagViewSet, basename='saas-feature-flag')
 router.register(r'settings', CompanySettingViewSet, basename='setting')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 router.register(r'staff', StaffProfileViewSet, basename='staff')
@@ -178,6 +181,7 @@ urlpatterns = [
     path('health', ReadinessView.as_view(), name='health-noslash'),
     path('healthz/', ReadinessView.as_view(), name='readiness'),    # LB / K8s readiness probe
     path('api/v1/health-check/', HealthCheckView.as_view(), name='health-check'),
+    path('api/v1/features/me/', FeatureFlagsForTenantView.as_view(), name='features-me'),
     path('api/v1/system/readiness/', ProductionReadinessView.as_view(), name='system-readiness'),
     path('healthz/production-readiness/', ProductionReadinessView.as_view(), name='healthz-production-readiness'),
     path('api/v1/customer/query/', CustomerQueryApiView.as_view(), name='customer-query'),
@@ -208,6 +212,8 @@ urlpatterns = [
     # SaaS Control Plane Endpoints (admin.shebafi.xyz)
     path('api/v1/saas/overview/', SaaSOverviewView.as_view(), name='saas-overview'),
     path('api/v1/saas/health/', SaaSHealthView.as_view(), name='saas-health'),
+    path('api/v1/saas/features/', SaaSFeatureCatalogView.as_view(), name='saas-features-catalog'),
+    path('api/v1/saas/feature-matrix/', SaaSFeatureMatrixView.as_view(), name='saas-feature-matrix'),
     path('api/v1/saas/auth/login/', SaaSLoginView.as_view(), name='saas-auth-login'),
     path('api/v1/saas/auth/me/', SaaSMeView.as_view(), name='saas-auth-me'),
     path('api/v1/saas/auth/logout/', SaaSLogoutView.as_view(), name='saas-auth-logout'),

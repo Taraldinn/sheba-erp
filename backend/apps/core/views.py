@@ -1,4 +1,5 @@
 import time
+from django.db import transaction
 from rest_framework import serializers, viewsets, permissions, views, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -10,6 +11,12 @@ from .models import Tenant, TenantApiToken, CompanySetting, AuditLog, TenantDoma
 from .permissions import IsCentralAdmin, IsTenantMember, IsAdminOrManager
 from .utils import get_scoped_queryset, get_tenant_for_request
 from .redis_service import RedisService
+from .audit_export import build_audit_queryset, stream_export
+from .feature_gating import (
+    FeatureDisabledError,
+    assert_feature_enabled,
+)
+from .renderers import CSVRenderer, NDJSONRenderer, RawJSONRenderer
 
 
 
@@ -63,6 +70,134 @@ class TenantViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
     queryset = Tenant.objects.all()
     serializer_class = TenantSerializer
+
+    # ── Bulk operations (Tier 3B) ────────────────────────────────────────────
+    # These accept {tenant_ids: [...]} and apply the action to every id in
+    # one transaction so partial failures don't leave the cluster half-
+    # suspended. Returns {succeeded, failed: [{id, reason}], count}.
+
+    @staticmethod
+    def _bulk_apply(tenant_ids, *, action_name, mutate_fn):
+        from .features import invalidate_cache
+        succeeded = []
+        failed = []
+        for tid in tenant_ids:
+            try:
+                tenant = Tenant.objects.get(id=tid)
+                mutate_fn(tenant)
+                invalidate_cache(tenant)
+                succeeded.append(str(tid))
+            except Tenant.DoesNotExist:
+                failed.append({'id': str(tid), 'reason': 'not_found'})
+            except Exception as exc:
+                failed.append({'id': str(tid), 'reason': str(exc)})
+        return succeeded, failed
+
+    @extend_schema(
+        request={'type': 'object', 'properties': {
+            'tenant_ids': {'type': 'array', 'items': {'type': 'string'}},
+        }},
+        responses={200: 'application/json'},
+    )
+    @action(detail=False, methods=['post'], url_path='bulk-suspend')
+    def bulk_suspend(self, request):
+        tenant_ids = request.data.get('tenant_ids') or []
+        if not isinstance(tenant_ids, list) or not tenant_ids:
+            return Response(
+                {'error': 'tenant_ids must be a non-empty list.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        platform_ids = []
+        for tid in tenant_ids:
+            try:
+                t = Tenant.objects.only('id', 'slug').get(id=tid)
+                if t.slug in ('admin', 'control-plane', 'platform'):
+                    platform_ids.append(str(tid))
+            except Tenant.DoesNotExist:
+                continue
+        if platform_ids:
+            return Response(
+                {'error': 'Cannot suspend platform tenant(s).',
+                 'platform_ids': platform_ids},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        with transaction.atomic():
+            succeeded, failed = self._bulk_apply(
+                tenant_ids, action_name='suspend',
+                mutate_fn=lambda t: Tenant.objects.filter(pk=t.pk).update(
+                    is_active=False, subscription_status='suspended'),
+            )
+        return Response({
+            'succeeded': succeeded,
+            'failed': failed,
+            'count': len(succeeded),
+        })
+
+    @extend_schema(
+        request={'type': 'object', 'properties': {
+            'tenant_ids': {'type': 'array', 'items': {'type': 'string'}},
+        }},
+        responses={200: 'application/json'},
+    )
+    @action(detail=False, methods=['post'], url_path='bulk-activate')
+    def bulk_activate(self, request):
+        tenant_ids = request.data.get('tenant_ids') or []
+        if not isinstance(tenant_ids, list) or not tenant_ids:
+            return Response(
+                {'error': 'tenant_ids must be a non-empty list.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        with transaction.atomic():
+            succeeded, failed = self._bulk_apply(
+                tenant_ids, action_name='activate',
+                mutate_fn=lambda t: Tenant.objects.filter(pk=t.pk).update(
+                    is_active=True, subscription_status='active'),
+            )
+        return Response({
+            'succeeded': succeeded,
+            'failed': failed,
+            'count': len(succeeded),
+        })
+
+    @extend_schema(
+        request={'type': 'object', 'properties': {
+            'tenant_ids': {'type': 'array', 'items': {'type': 'string'}},
+        }},
+        responses={200: 'application/json'},
+    )
+    @action(detail=False, methods=['post'], url_path='bulk-delete')
+    def bulk_delete(self, request):
+        tenant_ids = request.data.get('tenant_ids') or []
+        if not isinstance(tenant_ids, list) or not tenant_ids:
+            return Response(
+                {'error': 'tenant_ids must be a non-empty list.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from .features import invalidate_cache
+        refused_platform = []
+        deletable = []
+        for tid in tenant_ids:
+            try:
+                t = Tenant.objects.only('id', 'slug').get(id=tid)
+                if t.slug in ('admin', 'control-plane', 'platform'):
+                    refused_platform.append(str(tid))
+                else:
+                    deletable.append(str(tid))
+            except Tenant.DoesNotExist:
+                continue
+        with transaction.atomic():
+            succeeded, failed = self._bulk_apply(
+                deletable, action_name='delete',
+                mutate_fn=lambda t: Tenant.objects.filter(pk=t.pk).delete(),
+            )
+        if refused_platform:
+            failed.append({'reason': 'platform_tenant', 'ids': refused_platform})
+        return Response({
+            'succeeded': succeeded,
+            'failed': failed,
+            'count': len(succeeded),
+            'refused_platform': refused_platform,
+        })
 
 
 @extend_schema_view(
@@ -176,6 +311,55 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         return get_scoped_queryset(self.request, AuditLog)
 
+    # ── Tier 3C: compliance export ─────────────────────────────────────
+    @extend_schema(
+        parameters=[
+            {'name': 'format', 'in': 'query',
+             'description': 'csv | json | ndjson (default csv)'},
+            {'name': 'from', 'in': 'query',
+             'description': 'ISO-8601 lower-bound timestamp (inclusive)'},
+            {'name': 'to', 'in': 'query',
+             'description': 'ISO-8601 upper-bound timestamp (exclusive)'},
+            {'name': 'action', 'in': 'query', 'description': 'Substring match'},
+            {'name': 'module', 'in': 'query', 'description': 'Exact match'},
+            {'name': 'actor_username', 'in': 'query', 'description': 'Exact match'},
+            {'name': 'resource_type', 'in': 'query', 'description': 'Exact match'},
+            {'name': 'resource_id', 'in': 'query', 'description': 'Exact match'},
+        ],
+        responses={200: 'application/csv'},
+    )
+    @action(detail=False, methods=['get'], url_path='export',
+            renderer_classes=[CSVRenderer, NDJSONRenderer, RawJSONRenderer])
+    def export(self, request, *args, **kwargs):
+        """Stream the tenant's audit log for compliance / regulator review.
+
+        Gated by ``analytics.compliance_export`` — tenants that haven't
+        opted in get a 403. Returns CSV by default; JSON or NDJSON with
+        ``?format=json|ndjson``.
+        """
+        tenant = getattr(request, 'tenant', None)
+        if tenant is None:
+            return Response(
+                {'error': 'tenant context required', 'code': 'TENANT_NOT_FOUND'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            assert_feature_enabled(tenant, 'analytics.compliance_export')
+        except FeatureDisabledError as exc:
+            return Response(
+                {'error': str(exc), 'code': 'FEATURE_DISABLED',
+                 'feature_key': 'analytics.compliance_export'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        qs = build_audit_queryset(tenant=tenant, params=request.query_params)
+        # Prefer ``?format=`` query param, fall back to URL format suffix.
+        fmt = (
+            request.query_params.get('format')
+            or kwargs.get('format')
+            or 'csv'
+        )
+        return stream_export(qs, fmt)
+
 
 @extend_schema(tags=['14. Core & Tenant Settings'], description='Public health check and tenant status endpoint distinguishing DATABASE, REDIS, and APPLICATION.', request=None, responses={200: dict})
 class HealthCheckView(views.APIView):
@@ -204,6 +388,61 @@ class HealthCheckView(views.APIView):
 
 
 @extend_schema(tags=['14. Core & Tenant Settings'], description='Readiness probe for load balancers and Kubernetes. Distinguishes DATABASE, REDIS, and APPLICATION health without leaking credentials. Returns 200 when DB is reachable, 503 when not.', request=None, responses={200: dict, 503: dict})
+class FeatureFlagsForTenantView(views.APIView):
+    """Returns the effective feature-flag snapshot for the current tenant.
+
+    Used by the ISP ERP frontend (``/api/v1/features/me/``) to know
+    which menu items + API endpoints are available. Read-only, cheap:
+    pulls from the in-memory feature registry + tenant overrides (cached).
+
+    Shape:
+      {
+        "tenant_slug": "...",
+        "flags": {
+            "billing.invoices": {"enabled": true, "is_override": false, "config": {}},
+            "ip_phone.epbx":    {"enabled": false, "is_override": true, "config": {}},
+            ...
+        }
+      }
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember]
+
+    def get(self, request):
+        from .features import FEATURE_REGISTRY, is_feature_enabled
+        tenant = getattr(request, 'tenant', None)
+        if tenant is None:
+            return Response(
+                {'error': 'tenant context required',
+                 'code': 'TENANT_NOT_FOUND'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        # Pre-load overrides to avoid N+1.
+        from .models import TenantFeatureFlag
+        overrides = {
+            f.feature_key: f
+            for f in TenantFeatureFlag.objects.filter(tenant=tenant)
+        }
+        flags = {}
+        for spec in FEATURE_REGISTRY.values():
+            flag = overrides.get(spec.key)
+            flags[spec.key] = {
+                'enabled': (
+                    bool(flag.enabled) if flag else bool(spec.default_enabled)
+                ),
+                'is_override': bool(flag),
+                'config': flag.config if flag else {},
+                'paid': spec.paid,
+                'label': spec.label,
+                'category': spec.category,
+            }
+        return Response({
+            'tenant_slug': tenant.slug,
+            'tenant_id': str(tenant.id),
+            'flags': flags,
+        })
+
+
 class ReadinessView(views.APIView):
     permission_classes = [permissions.AllowAny]
 

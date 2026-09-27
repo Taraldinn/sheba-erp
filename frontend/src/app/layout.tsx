@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 };
 
 import { AuthProvider } from "@/lib/auth";
+import { FeatureFlagProvider } from "@/lib/feature-flags/FeatureFlagContext";
 
 export default async function RootLayout({
   children,
@@ -37,9 +38,11 @@ export default async function RootLayout({
       <body className="bg-background text-foreground min-h-screen flex antialiased selection:bg-indigo-500 selection:text-white">
         <ThemeProvider defaultTheme="dark" storageKey="sheba-theme">
           <AuthProvider initialContext="tenant">
-            <AppShell>
-              {children}
-            </AppShell>
+            <FeatureFlagProvider>
+              <AppShell>
+                {children}
+              </AppShell>
+            </FeatureFlagProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>
