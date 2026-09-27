@@ -12,12 +12,17 @@ export function useNotifications() {
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch various data sources and generate notifications
+      // Notifications are advisory; an auth failure on the backing
+      // endpoints shouldn't tear the layout down. Each fetch has its
+      // own 401/403 short-circuit in the api client now, but Promise.all
+      // still rejects on the first thrown error, so guard each one.
+      const safe = <T,>(p: Promise<T>, fallback: T): Promise<T> =>
+        p.catch(() => fallback);
       const [tickets, transactions, customers, routers] = await Promise.all([
-        ApiClient.getTickets(),
-        ApiClient.getTransactions(),
-        ApiClient.getCustomers(),
-        ApiClient.getRouters(),
+        safe(ApiClient.getTickets(), []),
+        safe(ApiClient.getTransactions(), []),
+        safe(ApiClient.getCustomers(), []),
+        safe(ApiClient.getRouters(), []),
       ]);
 
       const generatedNotifications: Notification[] = [];
@@ -125,7 +130,16 @@ export function useNotifications() {
       setNotifications(sorted.slice(0, 10)); // Limit to 10 most recent
       setUnreadCount(sorted.filter((n) => !n.read).length);
     } catch (error) {
-      console.error("Error fetching notifications:", error);
+      // Only log once per session here too — the 30 s poll will trip
+      // this catch every interval if the saved API key is bad.
+      if (typeof window !== 'undefined') {
+        const flag = '__sheba_notif_err_logged';
+        if (!(window as any)[flag]) {
+          (window as any)[flag] = true;
+          // eslint-disable-next-line no-console
+          console.error('Error fetching notifications:', error);
+        }
+      }
     } finally {
       setLoading(false);
     }

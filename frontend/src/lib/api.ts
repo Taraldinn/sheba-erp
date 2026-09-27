@@ -29,6 +29,11 @@ import { AuthService } from './auth/auth-service';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 // Global client-side 401 interceptor for automatic session expiration handling
+// Track the first time we clear a saved API key this session so we
+// don't spam the console every 30s when the persisted key is bad.
+// Module-level + sessionStorage-mirrored so a tab refresh also resets.
+let _invalidApiKeyWarned = false;
+
 export function setupFetchInterceptor() {
   if (typeof window !== 'undefined') {
     const _originalFetch = window.fetch;
@@ -54,7 +59,13 @@ export function setupFetchInterceptor() {
             const data = await cloned.json().catch(() => null);
             const apiKeyCodes = ['INVALID_API_KEY', 'CREDENTIAL_REVOKED', 'CREDENTIAL_EXPIRED', 'CREDENTIAL_SUSPENDED', 'TENANT_MISMATCH'];
             if (data && (apiKeyCodes.includes(data.code) || (typeof data.detail === 'string' && data.detail.toLowerCase().includes('api key')))) {
-              console.warn(`[Sheba ERP] API Key error encountered: ${data.detail || data.code}. Clearing stored API key override.`);
+              // Only warn + clear once per session — the 30s
+              // polling useNotifications() loop would otherwise dump
+              // the same message into the console every interval.
+              if (!_invalidApiKeyWarned) {
+                _invalidApiKeyWarned = true;
+                console.warn(`[Sheba ERP] API Key error encountered: ${data.detail || data.code}. Clearing stored API key override.`);
+              }
               if (typeof window !== 'undefined' && window.localStorage) {
                 window.localStorage.removeItem('sheba_api_key');
               }
