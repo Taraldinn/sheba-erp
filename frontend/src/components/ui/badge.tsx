@@ -28,8 +28,10 @@ export interface BadgeProps
   extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof badgeVariants> {}
 
+type ChipColor = "default" | "danger" | "success" | "warning" | "accent";
+
 export function Badge({ className, variant = "default", children, ...props }: BadgeProps) {
-  let chipColor: "accent" | "default" | "success" | "warning" | "danger" = "accent";
+  let chipColor: ChipColor = "accent";
   let chipVariant: "solid" | "soft" | "outline" = "soft";
 
   if (variant === "secondary" || variant === "ghost") {
@@ -51,7 +53,7 @@ export function Badge({ className, variant = "default", children, ...props }: Ba
 
   return (
     <HeroChip
-      color={chipColor}
+      color={chipColor as any}
       variant={chipVariant as any}
       className={cn(badgeVariants({ variant }), className)}
       {...props}

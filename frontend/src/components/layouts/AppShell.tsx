@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layouts/Sidebar";
 import { Header } from "@/components/layouts/Header";
 import { ProtectedRoute } from "@/lib/auth";
+import { ThemeCustomizerDock } from "@/components/theme/ThemeCustomizerDock";
 
 export function AppShell({
   children,
@@ -37,6 +38,7 @@ export function AppShell({
     return (
       <div className="min-h-screen w-full flex flex-col bg-background">
         {children}
+        <ThemeCustomizerDock />
       </div>
     );
   }
@@ -55,6 +57,7 @@ export function AppShell({
             {children}
           </main>
         </div>
+        <ThemeCustomizerDock />
       </div>
     </ProtectedRoute>
   );

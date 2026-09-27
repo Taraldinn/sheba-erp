@@ -37,13 +37,30 @@ export const buttonVariants = cva(
 )
 
 export interface ButtonProps
-  extends Omit<React.ComponentProps<typeof HeroButton>, "variant" | "size">,
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  isDisabled?: boolean;
+  onPress?: () => void;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "default", size = "default", onClick, onPress, children, ...props }, ref) => {
+  (
+    {
+      className,
+      variant = "default",
+      size = "default",
+      disabled,
+      isDisabled,
+      onClick,
+      onPress,
+      title,
+      type = "button",
+      children,
+      ...props
+    },
+    ref
+  ) => {
     // Map variant to HeroUI semantics
     let heroVariant: "primary" | "secondary" | "outline" | "ghost" | "danger" = "primary";
     if (variant === "secondary") heroVariant = "secondary";
@@ -55,14 +72,19 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     if (size === "sm" || size === "xs" || size === "icon-xs" || size === "icon-sm") heroSize = "sm";
     else if (size === "lg" || size === "icon-lg") heroSize = "lg";
 
+    const actuallyDisabled = Boolean(disabled || isDisabled);
+
     return (
       <HeroButton
         ref={ref}
         variant={heroVariant}
         size={heroSize}
+        isDisabled={actuallyDisabled}
         onPress={onPress || (onClick as any)}
         className={cn(buttonVariants({ variant, size }), className)}
-        {...props}
+        title={title}
+        type={type as any}
+        {...(props as any)}
       >
         {children}
       </HeroButton>
