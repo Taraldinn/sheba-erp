@@ -1088,3 +1088,48 @@ class NetworkArchiveDay(models.Model):
 
     def __str__(self):
         return f"ArchiveDay[{self.router.name}] {self.archive_date}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 23: legacy usage_controller.php port — per-day aggregated usage
+# ─────────────────────────────────────────────────────────────────────────────
+
+class UsageLog(models.Model):
+    """
+    Daily aggregated bandwidth / uptime record per (router, customer,
+    PPPoE username). Ported from the ``user_usage_logs`` PHP table — written
+    by the ``sync_now`` endpoint or a periodic Celery beat task.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='usage_logs'
+    )
+    router = models.ForeignKey(
+        'network.Router', on_delete=models.CASCADE, related_name='usage_logs'
+    )
+    customer = models.ForeignKey(
+        'customers.Customer', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='usage_logs',
+    )
+    username = models.CharField(max_length=120, db_index=True)
+    usage_date = models.DateField(db_index=True)
+    upload_bytes = models.BigIntegerField(default=0)
+    download_bytes = models.BigIntegerField(default=0)
+    uptime_seconds = models.PositiveIntegerField(default=0)
+    captured_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-usage_date', '-download_bytes']
+        indexes = [
+            models.Index(fields=['router', 'usage_date'], name='usagelog_router_date_idx'),
+            models.Index(fields=['customer', 'usage_date'], name='usagelog_customer_date_idx'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['router', 'username', 'usage_date'],
+                name='usagelog_router_user_date_uniq',
+            ),
+        ]
+
+    def __str__(self):
+        return f'UsageLog[{self.router.name} {self.username} {self.usage_date}]'

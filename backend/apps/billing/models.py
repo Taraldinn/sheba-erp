@@ -65,6 +65,12 @@ class Invoice(models.Model):
     due_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     status = models.CharField(max_length=20, choices=InvoiceStatus.choices, default=InvoiceStatus.UNPAID)
     due_date = models.DateField(null=True, blank=True)
+    # Phase 24: tax + coupon tracking
+    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    coupon_code = models.CharField(max_length=50, blank=True, default='')
+    coupon_discount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    late_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    pdf_generated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def clean(self):

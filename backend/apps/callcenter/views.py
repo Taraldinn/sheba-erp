@@ -1,4 +1,4 @@
-from rest_framework import serializers, viewsets, permissions
+from rest_framework import serializers, viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -211,3 +211,89 @@ class AgentPBXMappingViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(tenant=get_tenant_for_request(self.request))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sheba SMS / Automas provider balance endpoint
+# ─────────────────────────────────────────────────────────────────────────────
+from rest_framework.decorators import api_view, permission_classes as perm_classes, authentication_classes
+from rest_framework.permissions import IsAuthenticated
+
+from apps.core.models import CompanySetting
+from apps.core.sms_balance import (
+    fetch_sheba_sms_balance,
+    BalanceResult,
+)
+
+
+def _is_admin_or_manager(user, tenant) -> bool:
+    if not getattr(user, 'is_authenticated', False):
+        return False
+    if user.is_superuser:
+        return True
+    from apps.authentication.models import StaffMembership
+    membership = (
+        StaffMembership.objects
+        .filter(user=user, tenant=tenant)
+        .select_related('role')
+        .first()
+    )
+    if not membership or not membership.role:
+        return False
+    name = (membership.role.name or '').lower()
+    return name in ('admin', 'super admin', 'manager', 'isp_admin', 'isp admin')
+
+
+def _resolve_sheba_sms_context(tenant, user):
+    """Returns a dict with ``visible``, ``api_key``, ``reason`` for the
+    Sheba SMS balance widget. Mirrors PHP ``get_sheba_sms_balance_context``
+    semantics — only admin / super-admin may read the upstream balance."""
+    cfg = CompanySetting.objects.filter(tenant=tenant).first()
+    if not cfg:
+        return {'visible': False, 'reason': 'SMS settings not configured.', 'api_key': ''}
+    if not cfg.sms_enabled:
+        return {'visible': False, 'reason': 'SMS sending is disabled.', 'api_key': ''}
+    api_key = (cfg.sms_api_key or '').strip()
+    if not api_key:
+        return {'visible': False, 'reason': 'Sheba SMS API key is not set.', 'api_key': ''}
+    if not _is_admin_or_manager(user, tenant):
+        return {'visible': False, 'reason': 'Only admins may read provider balance.', 'api_key': ''}
+    return {'visible': True, 'api_key': api_key, 'reason': ''}
+
+
+@api_view(['GET'])
+@perm_classes([IsAuthenticated])
+def sheba_sms_balance(request):
+    """Read-only Sheba / Automas provider balance endpoint.
+
+    Ported from php-legecy-shebafi/controllers/sms_balance_controller.php.
+    Uses Django cache (60s TTL) and falls back to the last known cached value
+    on transient provider failures so the dashboard stays responsive.
+    """
+    tenant = getattr(request, 'tenant', None)
+    if tenant is None:
+        from apps.core.utils import get_tenant_for_request
+        tenant = get_tenant_for_request(request)
+    if tenant is None:
+        return Response(
+            {'success': False, 'message': 'Tenant not resolved.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    ctx = _resolve_sheba_sms_context(tenant, request.user)
+    if not ctx['visible']:
+        return Response(
+            {'success': False, 'message': ctx['reason']},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    force = request.query_params.get('force') in ('1', 'true', 'yes')
+    result: BalanceResult = fetch_sheba_sms_balance(
+        tenant_slug=tenant.slug or 'main',
+        api_key=ctx['api_key'],
+        force=force,
+    )
+    payload = result.to_dict()
+    if not result.success:
+        return Response(payload, status=status.HTTP_502_BAD_GATEWAY)
+    return Response(payload)

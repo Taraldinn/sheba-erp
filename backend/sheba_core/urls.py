@@ -26,6 +26,16 @@ from apps.authentication.views import (
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
 from apps.finance.views import BillingAccountViewSet, LedgerEntryViewSet, PaymentAllocationViewSet, AdjustmentViewSet, InvoiceLineViewSet
+from apps.finance.views_phase24 import (
+    TaxRuleViewSet,
+    DiscountCouponViewSet,
+    CreditNoteViewSet,
+    DunningStageViewSet,
+    DunningEventViewSet,
+    BillDisputeViewSet,
+    InvoiceExtrasViewSet,
+    CustomerBillingPortalView,
+)
 from apps.payments.views import (
     PaymentGatewayViewSet, PaymentTransactionViewSet, SmsLogViewSet,
     SmsWebhookView, InboundPaymentEventViewSet
@@ -41,7 +51,17 @@ from apps.store.views import StoreItemViewSet, StockTransactionViewSet
 from apps.tasks.views import TaskViewSet
 from apps.callcenter.views import (
     CallLogViewSet, VoiceSettingViewSet, VoiceTemplateViewSet,
-    MikoPBXConfigViewSet, AgentPBXMappingViewSet
+    MikoPBXConfigViewSet, AgentPBXMappingViewSet,
+    sheba_sms_balance,
+)
+from apps.callcenter.views_legacy import (
+    IPPhoneConfigViewSet, IPPhoneNumberViewSet, CustomerFollowupViewSet,
+    ReminderTemplateViewSet, VoiceCampaignViewSet,
+    click_to_call, customer_timeline,
+)
+from apps.network.views_legacy import (
+    sync_now, check_router_status, get_live_usage,
+    get_usage_charts_view, get_usage_reports,
 )
 from apps.reports.views import DashboardAnalyticsView
 
@@ -73,6 +93,13 @@ router.register(r'offers', OfferViewSet, basename='offer')
 router.register(r'reseller-rates', ResellerPricingViewSet, basename='reseller-rate')
 router.register(r'invoices', InvoiceViewSet, basename='invoice')
 router.register(r'invoice-lines', InvoiceLineViewSet, basename='invoice-line')
+router.register(r'tax-rules', TaxRuleViewSet, basename='tax-rule')
+router.register(r'discount-coupons', DiscountCouponViewSet, basename='discount-coupon')
+router.register(r'credit-notes', CreditNoteViewSet, basename='credit-note')
+router.register(r'dunning-stages', DunningStageViewSet, basename='dunning-stage')
+router.register(r'dunning-events', DunningEventViewSet, basename='dunning-event')
+router.register(r'bill-disputes', BillDisputeViewSet, basename='bill-dispute')
+router.register(r'invoice-extras', InvoiceExtrasViewSet, basename='invoice-extra')
 router.register(r'recharges', RechargeViewSet, basename='recharge')
 router.register(r'billing-accounts', BillingAccountViewSet, basename='billing-account')
 router.register(r'ledger-entries', LedgerEntryViewSet, basename='ledger-entry')
@@ -106,6 +133,13 @@ router.register(r'voice-templates', VoiceTemplateViewSet, basename='voice-templa
 router.register(r'mikopbx-config', MikoPBXConfigViewSet, basename='mikopbx-config')
 router.register(r'agent-pbx-mappings', AgentPBXMappingViewSet, basename='agent-pbx-mapping')
 
+# Phase 23: legacy call_center_controller.php port
+router.register(r'ip-phone/config', IPPhoneConfigViewSet, basename='ip-phone-config')
+router.register(r'ip-phone/numbers', IPPhoneNumberViewSet, basename='ip-phone-number')
+router.register(r'followups', CustomerFollowupViewSet, basename='customer-followup')
+router.register(r'reminder-templates', ReminderTemplateViewSet, basename='reminder-template')
+router.register(r'reminder-campaigns', VoiceCampaignViewSet, basename='voice-campaign')
+
 admin.site.site_header = "Sheba ERP Administration"
 admin.site.site_title = "Sheba ERP Admin Portal"
 admin.site.index_title = "ISP Operations & Billing Management"
@@ -113,10 +147,25 @@ admin.site.index_title = "ISP Operations & Billing Management"
 urlpatterns = [
     path('', ApiRootView.as_view(), name='api-root'),
     path('admin/', admin.site.urls),
-    
+
     # DRF Browsable API Login/Logout
     path('api-auth/', include('rest_framework.urls')),
-    
+
+    # Phase 23: Sheba SMS / Automas provider balance (port from
+    # php-legecy-shebafi/controllers/sms_balance_controller.php)
+    path('api/v1/sms/balance/', sheba_sms_balance, name='sheba-sms-balance'),
+
+    # Phase 23: legacy call_center_controller.php port
+    path('api/v1/callcenter/click-to-call/', click_to_call, name='callcenter-click-to-call'),
+    path('api/v1/callcenter/timeline/', customer_timeline, name='callcenter-timeline'),
+
+    # Phase 23: legacy usage_controller.php port
+    path('api/v1/network/usage/sync/', sync_now, name='usage-sync'),
+    path('api/v1/network/usage/router-status/', check_router_status, name='usage-router-status'),
+    path('api/v1/network/usage/live/', get_live_usage, name='usage-live'),
+    path('api/v1/network/usage/charts/', get_usage_charts_view, name='usage-charts'),
+    path('api/v1/network/usage/reports/', get_usage_reports, name='usage-reports'),
+
     # Auth endpoints
     path('api/v1/auth/login/', LoginView.as_view(), name='auth-login'),
     path('api/v1/auth/me/', CurrentUserView.as_view(), name='auth-me'),
@@ -167,6 +216,10 @@ urlpatterns = [
     
     # Customer Portal APIs
     path('api/v1/portal/', include('apps.customers.portal_urls')),
+    # Phase 24: customer-facing billing portal (token-based)
+    path('api/v1/billing/portal/',
+         CustomerBillingPortalView.as_view({'get': 'list'}),
+         name='customer-billing-portal-list'),
     
     # Network Operations Cockpit (Phase 11)
     path('api/v1/network/', include('apps.network.urls')),

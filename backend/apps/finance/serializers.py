@@ -77,3 +77,115 @@ class AdjustmentSerializer(serializers.ModelSerializer):
         if not value or len(value.strip()) < 5:
             raise serializers.ValidationError("A detailed reason of at least 5 characters is required for adjustments.")
         return value.strip()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 24 serializers
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CreditNoteSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.full_name', read_only=True)
+    customer_pppoe = serializers.CharField(source='customer.pppoe_username', read_only=True)
+    related_invoice_no = serializers.CharField(source='related_invoice.invoice_no', read_only=True, default='')
+
+    class Meta:
+        from apps.finance.models import CreditNote
+        model = CreditNote
+        fields = [
+            'id', 'credit_note_no', 'amount', 'reason', 'status',
+            'related_invoice', 'related_invoice_no', 'related_recharge',
+            'customer', 'customer_name', 'customer_pppoe',
+            'notes', 'created_by', 'issued_at', 'applied_at',
+        ]
+        read_only_fields = ['id', 'credit_note_no', 'issued_at', 'applied_at',
+                           'created_by', 'related_invoice_no', 'customer_name',
+                           'customer_pppoe']
+
+
+class TaxRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        from apps.finance.models import TaxRule
+        model = TaxRule
+        fields = ['id', 'label', 'percentage', 'is_active', 'updated_at']
+        read_only_fields = ['id', 'updated_at']
+
+
+class DiscountCouponSerializer(serializers.ModelSerializer):
+    times_used = serializers.IntegerField(source='redemptions', read_only=True)
+    is_redeemable = serializers.SerializerMethodField()
+
+    class Meta:
+        from apps.finance.models import DiscountCoupon
+        model = DiscountCoupon
+        fields = [
+            'id', 'code', 'description', 'discount_type', 'value',
+            'min_invoice_amount', 'valid_from', 'valid_until',
+            'max_redemptions', 'redemptions', 'times_used', 'per_customer_limit',
+            'is_active', 'is_redeemable', 'created_at',
+        ]
+        read_only_fields = ['id', 'redemptions', 'times_used', 'is_redeemable',
+                           'created_at']
+
+    def get_is_redeemable(self, obj):
+        from django.utils import timezone
+        today = timezone.localdate()
+        if not obj.is_active:
+            return False
+        if obj.valid_from and today < obj.valid_from:
+            return False
+        if obj.valid_until and today > obj.valid_until:
+            return False
+        if obj.max_redemptions and obj.redemptions >= obj.max_redemptions:
+            return False
+        return True
+
+
+class DunningStageSerializer(serializers.ModelSerializer):
+    class Meta:
+        from apps.finance.models import DunningStage
+        model = DunningStage
+        fields = ['id', 'name', 'days_overdue', 'action', 'template_text',
+                  'is_active', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class DunningEventSerializer(serializers.ModelSerializer):
+    stage_name = serializers.CharField(source='stage.name', read_only=True)
+    customer_pppoe = serializers.CharField(source='customer.pppoe_username', read_only=True)
+    invoice_no = serializers.CharField(source='invoice.invoice_no', read_only=True)
+
+    class Meta:
+        from apps.finance.models import DunningEvent
+        model = DunningEvent
+        fields = ['id', 'stage', 'stage_name', 'customer', 'customer_pppoe',
+                  'invoice', 'invoice_no', 'triggered_at', 'delivery_status',
+                  'provider_response']
+        read_only_fields = fields
+
+
+class BillDisputeSerializer(serializers.ModelSerializer):
+    customer_pppoe = serializers.CharField(source='customer.pppoe_username', read_only=True)
+    invoice_no = serializers.CharField(source='invoice.invoice_no', read_only=True)
+
+    class Meta:
+        from apps.finance.models import BillDispute
+        model = BillDispute
+        fields = ['id', 'customer', 'customer_pppoe', 'invoice', 'invoice_no',
+                  'reason', 'contact_phone', 'status', 'support_ticket_id',
+                  'resolution_notes', 'created_at', 'resolved_at']
+        read_only_fields = ['id', 'status', 'support_ticket_id',
+                           'resolution_notes', 'created_at', 'resolved_at',
+                           'customer_pppoe', 'invoice_no']
+
+
+class ApplyCouponSerializer(serializers.Serializer):
+    """Used by /discount-coupons/apply/ — validates then returns the discount."""
+    code = serializers.CharField(max_length=50)
+    invoice_id = serializers.UUIDField(required=False)
+    invoice_total = serializers.DecimalField(max_digits=12, decimal_places=2,
+                                            required=False)
+
+    def validate(self, attrs):
+        if not attrs.get('invoice_id') and attrs.get('invoice_total') is None:
+            raise serializers.ValidationError('invoice_id or invoice_total is required.')
+        return attrs

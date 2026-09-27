@@ -599,6 +599,22 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute='*/5'),
         'args': (),
     },
+    # Phase 24 — late-fee accrual + dunning cascade + auto-throttle
+    'apply_late_fees_daily': {
+        'task': 'apps.finance.tasks.apply_late_fees_daily',
+        'schedule': crontab(hour=2, minute=30),
+        'args': (),
+    },
+    'cascade_dunning_daily': {
+        'task': 'apps.finance.tasks.cascade_dunning_daily',
+        'schedule': crontab(hour=3, minute=0),
+        'args': (),
+    },
+    'auto_throttle_overdue_daily': {
+        'task': 'apps.finance.tasks.auto_throttle_overdue_daily',
+        'schedule': crontab(hour=3, minute=30),
+        'args': (),
+    },
 }
 
 if 'test' in sys.argv:

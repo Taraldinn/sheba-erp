@@ -296,3 +296,234 @@ class IdempotencyKey(models.Model):
 
     def __str__(self):
         return f"IdempotencyKey[{self.operation}]: {self.key[:16]}... ({self.status})"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 24: extended billing surface — CreditNote, DiscountCoupon,
+# DunningStage + DunningEvent, TaxRule, BillDispute
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class CreditNote(models.Model):
+    """
+    Credit note issued when an Invoice (or Recharge) is reversed or when a
+    customer overpays. ``amount`` is the credit recognised on the customer's
+    BillingAccount; ``applied_to_invoice`` records where the credit was
+    absorbed (if any).
+    """
+    class Reason(models.TextChoices):
+        REVERSAL = 'REVERSAL', 'Recharge reversal'
+        OVERPAYMENT = 'OVERPAYMENT', 'Overpayment'
+        GOODWILL = 'GOODWILL', 'Goodwill'
+        CORRECTION = 'CORRECTION', 'Error correction'
+        WAIVER = 'WAIVER', 'Billing waiver'
+
+    class Status(models.TextChoices):
+        ISSUED = 'ISSUED', 'Issued (unused)'
+        APPLIED = 'APPLIED', 'Applied to invoice'
+        REFUNDED = 'REFUNDED', 'Refunded out'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='credit_notes')
+    customer = models.ForeignKey(
+        'customers.Customer', on_delete=models.PROTECT, related_name='credit_notes'
+    )
+    credit_note_no = models.CharField(max_length=50, unique=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    reason = models.CharField(max_length=20, choices=Reason.choices, default=Reason.REVERSAL)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ISSUED)
+    related_invoice = models.ForeignKey(
+        'billing.Invoice', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='credit_notes',
+    )
+    related_recharge = models.ForeignKey(
+        'billing.Recharge', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='credit_notes',
+    )
+    notes = models.TextField(blank=True)
+    created_by = models.CharField(max_length=150, blank=True, default='system')
+    issued_at = models.DateTimeField(auto_now_add=True)
+    applied_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-issued_at']
+        indexes = [
+            models.Index(fields=['tenant', 'customer', 'status'], name='cn_tenant_cust_status_idx'),
+        ]
+
+    objects = ImmutableQuerySet.as_manager()
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Credit notes are immutable. Issue a reversal instead.")
+
+    def __str__(self):
+        return f"CreditNote[{self.credit_note_no}] ৳{self.amount} {self.status}"
+
+
+class TaxRule(models.Model):
+    """
+    Per-tenant tax/VAT configuration. Used by ``InvoiceService`` to roll tax
+    lines into ``InvoiceLine`` items. Keep it simple: a single percentage
+    rule per tenant for now (the codebase doesn't model multi-zone tax yet).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='tax_rule')
+    label = models.CharField(max_length=80, default='VAT')
+    percentage = models.DecimalField(max_digits=6, decimal_places=3, default=0.000,
+                                     help_text='Tax percentage (e.g. 5.000 = 5%)')
+    is_active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.label}: {self.percentage}%"
+
+
+class DiscountCoupon(models.Model):
+    """
+    Promo / coupon engine. A coupon has a fixed or percentage discount that
+    is applied during billing/checkout.
+    """
+    class DiscountType(models.TextChoices):
+        PERCENTAGE = 'PERCENTAGE', 'Percentage'
+        FIXED = 'FIXED', 'Fixed amount'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='discount_coupons')
+    code = models.CharField(max_length=50, db_index=True)
+    description = models.TextField(blank=True)
+    discount_type = models.CharField(max_length=15, choices=DiscountType.choices)
+    value = models.DecimalField(max_digits=12, decimal_places=2,
+                               help_text='% (0-100) if PERCENTAGE, else ৳ value')
+    min_invoice_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    valid_from = models.DateField(null=True, blank=True)
+    valid_until = models.DateField(null=True, blank=True)
+    max_redemptions = models.PositiveIntegerField(default=0,
+                                                  help_text='0 = unlimited')
+    redemptions = models.PositiveIntegerField(default=0)
+    per_customer_limit = models.PositiveIntegerField(default=0,
+                                                    help_text='0 = unlimited')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'code'], name='coupon_tenant_code_uniq'),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.code} ({self.discount_type} ৳{self.value})"
+
+
+class CouponRedemption(models.Model):
+    """Audit record every time a coupon is applied to an invoice."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='coupon_redemptions')
+    coupon = models.ForeignKey(DiscountCoupon, on_delete=models.PROTECT, related_name='redemption_records')
+    customer = models.ForeignKey('customers.Customer', on_delete=models.PROTECT, related_name='coupon_redemptions')
+    invoice = models.ForeignKey('billing.Invoice', null=True, blank=True, on_delete=models.SET_NULL)
+    amount_applied = models.DecimalField(max_digits=12, decimal_places=2)
+    redeemed_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ImmutableQuerySet.as_manager()
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Coupon redemptions are immutable.")
+
+    class Meta:
+        ordering = ['-redeemed_at']
+        indexes = [
+            models.Index(fields=['tenant', 'coupon'], name='redemption_tenant_coupon_idx'),
+        ]
+
+    def __str__(self):
+        return f"Coupon{self.coupon.code} → {self.amount_applied}"
+
+
+class DunningStage(models.Model):
+    """
+    Multi-step overdue reminder cascade. Each tenant configures one or more
+    stages; ``DunningEvent`` records fire actions triggered for a
+    customer+invoice pair.
+    """
+    class Action(models.TextChoices):
+        SMS = 'SMS', 'SMS reminder'
+        IVR = 'IVR', 'IVR voice call'
+        EMAIL = 'EMAIL', 'Email'
+        DISCONNECT = 'DISCONNECT', 'Network disconnection'
+        PUSH_TO_TICKET = 'TICKET', 'Create support ticket'
+        COLLECTION_NOTE = 'NOTE', 'Collection note only'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='dunning_stages')
+    name = models.CharField(max_length=80)
+    days_overdue = models.PositiveIntegerField(help_text='Trigger when invoice is at least N days past due_date.')
+    action = models.CharField(max_length=20, choices=Action.choices, default=Action.SMS)
+    template_text = models.TextField(blank=True,
+                                     help_text='Optional SMS/IVR template. Supports [NAME] [AMOUNT] [DAYS] [DATE] placeholders.')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['days_overdue']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'days_overdue'], name='dunning_stage_tenant_days_uniq'),
+        ]
+
+    def __str__(self):
+        return f"{self.tenant.slug}: D+{self.days_overdue} {self.action}"
+
+
+class DunningEvent(models.Model):
+    """Audit record of every dunning trigger fired."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='dunning_events')
+    stage = models.ForeignKey(DunningStage, on_delete=models.PROTECT, related_name='events')
+    customer = models.ForeignKey('customers.Customer', on_delete=models.PROTECT, related_name='dunning_events')
+    invoice = models.ForeignKey('billing.Invoice', on_delete=models.PROTECT, related_name='dunning_events')
+    triggered_at = models.DateTimeField(auto_now_add=True)
+    delivery_status = models.CharField(max_length=30, default='queued',
+                                       help_text='queued | sent | failed | pending')
+    provider_response = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-triggered_at']
+        indexes = [
+            models.Index(fields=['tenant', 'triggered_at'], name='dunning_event_tenant_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.stage.name} → {self.customer.pppoe_username} ({self.delivery_status})"
+
+
+class BillDispute(models.Model):
+    """A customer's formal challenge against an invoice → opens a support ticket."""
+    class Status(models.TextChoices):
+        OPEN = 'OPEN', 'Open'
+        UNDER_REVIEW = 'UNDER_REVIEW', 'Under review'
+        RESOLVED = 'RESOLVED', 'Resolved'
+        REJECTED = 'REJECTED', 'Rejected'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='bill_disputes')
+    customer = models.ForeignKey('customers.Customer', on_delete=models.PROTECT, related_name='bill_disputes')
+    invoice = models.ForeignKey('billing.Invoice', on_delete=models.PROTECT, related_name='disputes')
+    reason = models.TextField()
+    contact_phone = models.CharField(max_length=30, blank=True, default='')
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
+    # support_ticket_id is stored as a plain UUID string because
+    # ``apps.support.SupportTicket`` is not yet a modelled entity. When the
+    # support app adds it, swap this for ``models.OneToOneField('support.SupportTicket', ...)``.
+    support_ticket_id = models.CharField(max_length=64, blank=True, default='')
+    resolution_notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status'], name='bill_dispute_status_idx'),
+        ]
+
+    def __str__(self):
+        return f"Dispute[{self.invoice.invoice_no}] {self.status}"
