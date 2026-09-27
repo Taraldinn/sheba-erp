@@ -82,12 +82,35 @@ export function SaaSUsersManagement({
   const platformAdmins = directory?.platform_admins || [];
   const tenantOwners = directory?.tenant_owners || [];
 
+  // When viewing "all" we merge platform_admins + tenant_owners. The
+  // same user can appear in both lists (a platform admin who is also
+  // a tenant owner), so we dedupe by id — keeping the first occurrence
+  // — and stitch together a composite role label so the row still
+  // surfaces both contexts.
+  const mergedAllUsers = (() => {
+    const seen = new Map<string | number, any>();
+    for (const u of platformAdmins) {
+      if (!seen.has(u.id)) {
+        seen.set(u.id, { ...u, _roles: ['platform_admin'] });
+      }
+    }
+    for (const u of tenantOwners) {
+      const existing = seen.get(u.id);
+      if (existing) {
+        existing._roles = [...(existing._roles || []), 'tenant_owner'];
+      } else {
+        seen.set(u.id, { ...u, _roles: ['tenant_owner'] });
+      }
+    }
+    return Array.from(seen.values());
+  })();
+
   const allUsers =
     userGroup === 'admins'
       ? platformAdmins
       : userGroup === 'owners'
       ? tenantOwners
-      : [...platformAdmins, ...tenantOwners];
+      : mergedAllUsers;
 
   const filteredUsers = allUsers.filter((u) => {
     return (
@@ -228,8 +251,11 @@ export function SaaSUsersManagement({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-muted/30 transition-colors">
+              {filteredUsers.map((user, idx) => (
+                <tr
+                  key={`${user.id}-${user._roles?.join('|') ?? ''}-${idx}`}
+                  className="hover:bg-muted/30 transition-colors"
+                >
                   <td className="p-3.5">
                     <span className="font-bold text-foreground block font-mono">
                       {user.username}
