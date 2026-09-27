@@ -1,32 +1,49 @@
 'use client';
 
-import React from 'react';
-import { Palette, Image as ImageIcon, Sparkles, Sliders, Activity } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  Palette,
+  Image as ImageIcon,
+  Sparkles,
+  Sliders,
+  Activity,
+  Type,
+  Check,
+  Dices,
+  Eye,
+  Save,
+  CheckCircle2,
+  RefreshCw,
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { CompanySetting, ThemeModeEnum, AccentColorEnum } from '@/lib/settings/settings-types';
+import { useTheme } from '@/components/theme-provider';
+import { THEME_PRESETS, ThemePreset } from '@/lib/theme/theme-presets';
+import { RadiusSize } from '@/lib/theme/color-utils';
 
 interface BrandingSettingsProps {
   settings: CompanySetting;
   onChange: (patch: Partial<CompanySetting>) => void;
   onOptimisticToggle?: (field: keyof CompanySetting, value: boolean) => void;
+  onSaveTenantTheme?: () => Promise<void>;
 }
 
-const THEME_OPTIONS: { id: ThemeModeEnum; label: string; desc: string }[] = [
-  { id: 'dark', label: 'Dark Glassmorphic', desc: 'Sleek dark theme with translucent glass panels (Recommended)' },
-  { id: 'light', label: 'Clean Light', desc: 'High-contrast bright daylight mode' },
-  { id: 'system', label: 'System Default', desc: 'Syncs automatically with operating system theme' },
-  { id: 'midnight', label: 'Midnight Deep Blue', desc: 'Navy blue deep enterprise night look' },
-  { id: 'cyberpunk', label: 'Cyber Neon', desc: 'Futuristic high-saturation glow UI' },
+const FONT_OPTIONS = [
+  { id: 'var(--font-sans), system-ui, sans-serif', label: 'Space Grotesk (Default)' },
+  { id: "'Inter', sans-serif", label: 'Inter' },
+  { id: "'Roboto', sans-serif", label: 'Roboto' },
+  { id: "'Outfit', sans-serif", label: 'Outfit' },
 ];
 
-const ACCENT_COLORS: { id: AccentColorEnum; label: string; colorClass: string; borderClass: string }[] = [
-  { id: 'indigo', label: 'Electric Indigo', colorClass: 'bg-indigo-500', borderClass: 'border-indigo-500' },
-  { id: 'emerald', label: 'Cyber Emerald', colorClass: 'bg-emerald-500', borderClass: 'border-emerald-500' },
-  { id: 'violet', label: 'Ultra Violet', colorClass: 'bg-violet-500', borderClass: 'border-violet-500' },
-  { id: 'cyan', label: 'Neon Cyan', colorClass: 'bg-cyan-500', borderClass: 'border-cyan-500' },
-  { id: 'amber', label: 'Golden Amber', colorClass: 'bg-amber-500', borderClass: 'border-amber-500' },
-  { id: 'rose', label: 'Vibrant Rose', colorClass: 'bg-rose-500', borderClass: 'border-rose-500' },
+const RADIUS_OPTIONS: { id: RadiusSize; label: string }[] = [
+  { id: 'none', label: 'Sharp (0px)' },
+  { id: 'sm', label: 'Small (6px)' },
+  { id: 'md', label: 'Medium (8px - Default)' },
+  { id: 'lg', label: 'Large (12px)' },
+  { id: 'full', label: 'Rounded Pill' },
 ];
 
 export function BrandingSettings({
@@ -34,9 +51,49 @@ export function BrandingSettings({
   onChange,
   onOptimisticToggle,
 }: BrandingSettingsProps) {
+  const {
+    theme,
+    setTheme,
+    themeState,
+    activePreset,
+    setPreset,
+    setAccentHue,
+    setRadius,
+    setRadiusForm,
+    setFontFamily,
+    setVibrant,
+    randomizeTheme,
+  } = useTheme();
+
+  const [savedLocally, setSavedLocally] = useState(false);
+
+  const handleApplyPreset = (preset: ThemePreset) => {
+    setPreset(preset.id);
+
+    // Map preset to closest existing backend schema values
+    let backendMode: ThemeModeEnum = 'dark';
+    if (theme === 'light') backendMode = 'light';
+    else if (theme === 'system') backendMode = 'system';
+
+    let backendAccent: AccentColorEnum = 'indigo';
+    if (preset.id === 'spotify') backendAccent = 'emerald';
+    else if (preset.id === 'lavender' || preset.id === 'discord') backendAccent = 'violet';
+    else if (preset.id === 'mint' || preset.id === 'sky') backendAccent = 'cyan';
+    else if (preset.id === 'rabbit') backendAccent = 'amber';
+    else if (preset.id === 'airbnb' || preset.id === 'netflix') backendAccent = 'rose';
+
+    onChange({
+      theme_mode: backendMode,
+      accent_color: backendAccent,
+    });
+
+    setSavedLocally(true);
+    setTimeout(() => setSavedLocally(false), 3000);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Logos & Assets */}
+      {/* 1. Logos & Assets */}
       <Card className="border-border bg-card">
         <CardHeader className="pb-4">
           <div className="flex items-center gap-2">
@@ -106,77 +163,234 @@ export function BrandingSettings({
         </CardContent>
       </Card>
 
-      {/* Theme & Aesthetics */}
+      {/* 2. HeroUI Theme Library: 11 Showcase Presets */}
       <Card className="border-border bg-card">
         <CardHeader className="pb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-pink-500/10 text-pink-400 flex items-center justify-center">
-              <Palette className="w-4 h-4" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-pink-500/10 text-pink-400 flex items-center justify-center">
+                <Palette className="w-4 h-4" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-semibold text-foreground">
+                  HeroUI Theme Library (All 11 Default Presets)
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">
+                  Choose from official HeroUI v3 curated theme palettes or customize with OKLCH controls.
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-base font-semibold text-foreground">
-                Theme Mode & Color Scheme
-              </CardTitle>
-              <CardDescription className="text-xs text-muted-foreground">
-                Select your ISP control panel color palette and density.
-              </CardDescription>
-            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={randomizeTheme}
+              className="gap-1.5 text-xs"
+            >
+              <Dices className="w-3.5 h-3.5 text-primary" />
+              Randomize (T)
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Theme Mode Choices */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
-              Theme Mode
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {THEME_OPTIONS.map((theme) => {
-                const isSelected = settings.theme_mode === theme.id;
-                return (
-                  <button
-                    key={theme.id}
-                    type="button"
-                    onClick={() => onChange({ theme_mode: theme.id })}
-                    className={`p-3 rounded-xl border text-left transition-all ${
-                      isSelected
-                        ? 'border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500/30'
-                        : 'border-border bg-muted/20 hover:bg-muted/40'
-                    }`}
+          {/* Preset Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {THEME_PRESETS.map((preset) => {
+              const isSelected = themeState.presetId === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => handleApplyPreset(preset)}
+                  className={`p-3.5 rounded-2xl border text-left transition-all relative flex flex-col justify-between gap-3 group cursor-pointer ${
+                    isSelected
+                      ? 'border-primary bg-primary/10 ring-2 ring-primary/40 shadow-sm'
+                      : 'border-border bg-muted/20 hover:bg-muted/40 hover:border-border/80'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="w-5 h-5 rounded-full shadow-sm ring-1 ring-border"
+                        style={{ backgroundColor: preset.colorHex }}
+                      />
+                      <span className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors">
+                        {preset.name}
+                      </span>
+                    </div>
+                    {isSelected && (
+                      <span className="p-0.5 rounded-full bg-primary text-primary-foreground">
+                        <Check className="w-3 h-3" />
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    {preset.description}
+                  </p>
+                  <div className="flex items-center gap-1.5 pt-1 border-t border-border/50 text-[10px] text-muted-foreground font-mono">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: preset.colorHex }} />
+                    {preset.colorHex}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Real-time Fine-Tuning Sliders */}
+          <div className="pt-4 border-t border-border space-y-4">
+            <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <Sliders className="w-3.5 h-3.5 text-primary" />
+              Fine-Tuning & Adaptive Controls
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Accent Hue OKLCH Rainbow Slider */}
+              <div className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-foreground">Accent OKLCH Hue</span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-4 h-4 rounded-full border border-border shadow-xs"
+                      style={{ backgroundColor: 'var(--accent)' }}
+                    />
+                    <span className="text-xs font-mono font-bold text-primary">
+                      {Math.round(themeState.accentHue)}°
+                    </span>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="360"
+                  value={Math.round(themeState.accentHue)}
+                  onChange={(e) => setAccentHue(Number(e.target.value))}
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+                  style={{
+                    background:
+                      'linear-gradient(to right, #ff0000, #ff7700, #ffff00, #00ff00, #00ffff, #0066ff, #9900ff, #ff0099, #ff0000)',
+                  }}
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>Warm Red</span>
+                  <span>Cool Emerald</span>
+                  <span>HeroUI Blue</span>
+                  <span>Magenta</span>
+                </div>
+              </div>
+
+              {/* Typography & Vibrant Palette */}
+              <div className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                    <Type className="w-3.5 h-3.5 text-muted-foreground" />
+                    Font Family
+                  </span>
+                  <select
+                    value={themeState.fontFamily}
+                    onChange={(e) => setFontFamily(e.target.value)}
+                    className="bg-background text-xs text-foreground font-medium rounded-lg px-2 py-1 border border-border cursor-pointer outline-none"
                   >
-                    <div className="font-semibold text-xs text-foreground">{theme.label}</div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">{theme.desc}</div>
-                  </button>
-                );
-              })}
+                    {FONT_OPTIONS.map((f) => (
+                      <option key={f.label} value={f.id}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-border">
+                  <div>
+                    <div className="text-xs font-semibold text-foreground">Vibrant Color Palette</div>
+                    <div className="text-[10px] text-muted-foreground">Boosts chroma saturation (+0.05)</div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={themeState.isVibrant}
+                      onChange={(e) => setVibrant(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary" />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Corner Radius Controls */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-2">
+                <span className="text-xs font-medium text-foreground">Component Border Radius</span>
+                <div className="grid grid-cols-5 gap-1 pt-1">
+                  {RADIUS_OPTIONS.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setRadius(r.id)}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-medium text-center border transition-all cursor-pointer ${
+                        themeState.radius === r.id
+                          ? 'bg-primary text-primary-foreground border-primary font-bold shadow-xs'
+                          : 'border-border bg-background/50 hover:bg-background text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {r.label.split(' ')[0]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-2">
+                <span className="text-xs font-medium text-foreground">Form Field Radius</span>
+                <div className="grid grid-cols-5 gap-1 pt-1">
+                  {RADIUS_OPTIONS.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setRadiusForm(r.id)}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-medium text-center border transition-all cursor-pointer ${
+                        themeState.radiusForm === r.id
+                          ? 'bg-primary text-primary-foreground border-primary font-bold shadow-xs'
+                          : 'border-border bg-background/50 hover:bg-background text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {r.label.split(' ')[0]}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Accent Colors */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-muted-foreground" />
-              Accent Highlight Color
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-              {ACCENT_COLORS.map((accent) => {
-                const isSelected = settings.accent_color === accent.id;
-                return (
-                  <button
-                    key={accent.id}
-                    type="button"
-                    onClick={() => onChange({ accent_color: accent.id })}
-                    className={`p-2.5 rounded-xl border flex flex-col items-center gap-2 transition-all ${
-                      isSelected
-                        ? `${accent.borderClass} bg-muted/40 ring-1 ring-border`
-                        : 'border-border bg-muted/10 hover:bg-muted/30'
-                    }`}
-                  >
-                    <span className={`w-6 h-6 rounded-full ${accent.colorClass} shadow-xs`} />
-                    <span className="text-[11px] font-medium text-foreground">{accent.label}</span>
-                  </button>
-                );
-              })}
+          {/* 3. Live Component Showcase Test-Drive Canvas */}
+          <div className="pt-4 border-t border-border space-y-3">
+            <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <Eye className="w-3.5 h-3.5 text-primary" />
+              Live HeroUI Component Test-Drive
+            </h4>
+
+            <div className="p-4 rounded-2xl border border-border bg-muted/10 space-y-4">
+              {/* Buttons row */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Button variant="default" size="sm">Primary Action</Button>
+                <Button variant="secondary" size="sm">Secondary</Button>
+                <Button variant="outline" size="sm">Outline</Button>
+                <Button variant="destructive" size="sm">Danger</Button>
+                <Button variant="ghost" size="sm">Ghost</Button>
+              </div>
+
+              {/* Status Chips row */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="default">HeroUI Theme Active</Badge>
+                <Badge variant="success">Online: 4,812 PPPoE</Badge>
+                <Badge variant="warning">Warning: 14 OLT Drops</Badge>
+                <Badge variant="destructive">Critical Alarm</Badge>
+                <Badge variant="secondary">{activePreset.name} Preset</Badge>
+              </div>
+
+              {/* Input test */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+                <Input placeholder="Sample subscriber username..." className="bg-background text-xs" />
+                <Input placeholder="IP Address (192.168.1.1)" className="bg-background text-xs" />
+              </div>
             </div>
           </div>
 
@@ -199,7 +413,7 @@ export function BrandingSettings({
                     onChange({ compact_mode: e.target.checked });
                   }
                 }}
-                className="w-4 h-4 rounded border-border text-indigo-600 focus:ring-indigo-500"
+                className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
               />
             </div>
 
@@ -209,7 +423,7 @@ export function BrandingSettings({
                   <Activity className="w-3.5 h-3.5 text-muted-foreground" />
                   Live Traffic Poll Interval
                 </span>
-                <span className="text-xs font-mono font-bold text-indigo-400">
+                <span className="text-xs font-mono font-bold text-primary">
                   {settings.live_traffic_interval_sec}s
                 </span>
               </div>
@@ -219,7 +433,7 @@ export function BrandingSettings({
                 max="10"
                 value={settings.live_traffic_interval_sec}
                 onChange={(e) => onChange({ live_traffic_interval_sec: Number(e.target.value) })}
-                className="w-full accent-indigo-600 h-1.5 bg-muted rounded-lg cursor-pointer"
+                className="w-full accent-primary h-1.5 bg-muted rounded-lg cursor-pointer"
               />
               <div className="flex justify-between text-[10px] text-muted-foreground">
                 <span>1s (Ultra real-time)</span>

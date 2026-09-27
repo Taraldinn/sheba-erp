@@ -238,7 +238,7 @@ function SettingsPageContent() {
             size="sm"
             onClick={handleSaveAll}
             disabled={isSaving || !settings}
-            className="text-xs h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-xs"
+            className="text-xs h-9 font-semibold shadow-xs"
           >
             {isSaving ? (
               <>
