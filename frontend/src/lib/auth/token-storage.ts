@@ -1,19 +1,73 @@
 /**
  * ShebaFi Persistent Token & Session Storage.
- * Synchronizes localStorage with HTTP cookies for edge proxy/middleware validation.
+ *
+ * Why we namespaced keys (Sept 2026 rewrite)
+ * ------------------------------------------
+ * The previous implementation stored every login — staff, central
+ * admin, reseller — into the SAME three localStorage keys
+ * (``sheba_auth_token``, ``sheba_auth_user``, ``sheba_tenant_id``).
+ * Two browser tabs logging in to different tenants (or the same
+ * user using the SaaS control plane in a second tab) would silently
+ * overwrite each other; whichever tab was rendered last "won", and
+ * the other tab would suddenly see the wrong user's data on the
+ * next API call. Combined with Django REST Framework's global-per-
+ * user ``Token`` (one shared token, no per-session isolation), it
+ * produced the support complaints the tenant-conflict work is
+ * trying to fix: "session distorted", "tenet conflict", "I see
+ * another tenant's data after refreshing".
+ *
+ * The new model
+ * -------------
+ * Each login writes into context-scoped keys:
+ *
+ *   sheba_session_token.<context>          # the opaque session id
+ *   sheba_session_user.<context>           # JSON AuthUser snapshot
+ *   sheba_session_tenant_id.<context>      # tenant id (null for central)
+ *   sheba_session_meta.<context>           # { session_id, expires_at }
+ *   sheba_active_context                   # which context is "current"
+ *
+ * Three contexts are recognised:
+ *
+ *   tenant        — ISP staff login
+ *   central_admin — SaaS control plane (admin.shebafi.xyz)
+ *   reseller      — ISP reseller sub-account (separate from staff)
+ *
+ * Reads remain backward-compatible: if a namespaced key is absent,
+ * the legacy ``sheba_auth_token`` keys are read once and migrated
+ * on the next write.
  */
 
 import { AuthContextType, AuthUser, TenantSummary } from './auth-types';
 
-export const STORAGE_KEYS = {
+const LEGACY_KEYS = {
   TOKEN: 'sheba_auth_token',
+  LEGACY_TOKEN: 'sheba_token',
   USER: 'sheba_auth_user',
   TENANT: 'sheba_auth_tenant',
   TENANT_ID: 'sheba_tenant_id',
   ROLE: 'sheba_user_role',
   CONTEXT: 'sheba_auth_context',
-  LEGACY_TOKEN: 'sheba_token',
-};
+  ACTIVE_CONTEXT: 'sheba_active_context',
+} as const;
+
+export const STORAGE_KEYS = {
+  sessionToken: (ctx: AuthContextType) => `sheba_session_token.${ctx}`,
+  sessionUser: (ctx: AuthContextType) => `sheba_session_user.${ctx}`,
+  sessionTenantId: (ctx: AuthContextType) => `sheba_session_tenant_id.${ctx}`,
+  sessionMeta: (ctx: AuthContextType) => `sheba_session_meta.${ctx}`,
+  sessionCookie: 'sheba_session',
+  activeContext: LEGACY_KEYS.ACTIVE_CONTEXT,
+  legacyToken: LEGACY_KEYS.TOKEN,
+  legacyUser: LEGACY_KEYS.USER,
+  legacyTenantId: LEGACY_KEYS.TENANT_ID,
+  legacyContext: LEGACY_KEYS.CONTEXT,
+} as const;
+
+export interface StoredSessionMeta {
+  session_id: string;
+  expires_at: string | null;
+  context_type: AuthContextType;
+}
 
 export const CONTROL_PLANE_HOSTNAMES = [
   'admin.shebafi.xyz',
@@ -23,25 +77,66 @@ export const CONTROL_PLANE_HOSTNAMES = [
   'admin.localhost',
   'saas.localhost',
   'control.localhost',
-  'admin.localhost.com',
 ];
+
+function getStorage(): Storage | null {
+  // Tests sometimes stub ``localStorage`` as a global but leave
+  // ``window`` undefined; production code in the browser has both.
+  // Pick whichever is real.
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage;
+  }
+  if (typeof globalThis !== 'undefined' && (globalThis as any).localStorage) {
+    return (globalThis as any).localStorage as Storage;
+  }
+  return null;
+}
+
+function safeGet(key: string): string | null {
+  const storage = getStorage();
+  if (!storage) return null;
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSet(key: string, value: string): void {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(key, value);
+  } catch {
+    /* quota / private mode — silently drop. The httpOnly cookie is
+       still the source of truth for the edge proxy. */
+  }
+}
+
+function safeRemove(key: string): void {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    storage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
 
 export class TokenStorage {
   private static memoryToken: string | null = null;
+  private static memoryUser: AuthUser | null = null;
   private static memoryContext: AuthContextType | null = null;
   private static memoryTenantId: string | null = null;
 
-  /**
-   * Determine if the hostname is a central control-plane domain.
-   */
   static isControlPlaneHost(customHost?: string): boolean {
     const host = (
       customHost ||
       (typeof window !== 'undefined' ? window.location.hostname : '')
-    ).toLowerCase().split(':')[0];
-
+    )
+      .toLowerCase()
+      .split(':')[0];
     if (!host) return false;
-
     return (
       CONTROL_PLANE_HOSTNAMES.includes(host) ||
       host.startsWith('admin.') ||
@@ -51,236 +146,249 @@ export class TokenStorage {
   }
 
   static getInitialContextType(): AuthContextType {
-    if (typeof window !== 'undefined') {
-      const stored = this.getStoredContextType();
-      if (stored) return stored;
-      if (this.isControlPlaneHost()) return 'central_admin';
+    if (typeof window === 'undefined') return 'tenant';
+    const stored = this.getActiveContext();
+    if (stored) return stored;
+    return this.isControlPlaneHost() ? 'central_admin' : 'tenant';
+  }
+
+  static getActiveContext(): AuthContextType | null {
+    if (typeof window === 'undefined') return null;
+    const v = safeGet(LEGACY_KEYS.ACTIVE_CONTEXT);
+    if (v === 'tenant' || v === 'central_admin' || v === 'reseller') return v;
+    return null;
+  }
+
+  static setActiveContext(ctx: AuthContextType): void {
+    safeSet(LEGACY_KEYS.ACTIVE_CONTEXT, ctx);
+    this.memoryContext = ctx;
+  }
+
+  static getStoredTokenFor(context: AuthContextType): string | null {
+    const namespaced = safeGet(STORAGE_KEYS.sessionToken(context));
+    if (namespaced) return namespaced;
+    if (this.getActiveContext() === context) {
+      const legacy =
+        safeGet(LEGACY_KEYS.TOKEN) || safeGet(LEGACY_KEYS.LEGACY_TOKEN);
+      if (legacy) return legacy;
     }
-    return 'tenant';
+    return null;
   }
 
   static getStoredToken(): string | null {
-    if (this.memoryToken) return this.memoryToken;
-    if (typeof window === 'undefined') return null;
-
-    try {
-      const token =
-        localStorage.getItem(STORAGE_KEYS.TOKEN) ||
-        localStorage.getItem(STORAGE_KEYS.LEGACY_TOKEN);
-      this.memoryToken = token;
-      return token;
-    } catch {
-      return null;
-    }
-  }
-
-  static setStoredToken(
-    token: string,
-    context: AuthContextType = 'tenant',
-    tenantId?: string
-  ): void {
-    this.memoryToken = token;
-    this.memoryContext = context;
-    if (tenantId) this.memoryTenantId = tenantId;
-
-    if (typeof window === 'undefined') return;
-
-    try {
-      localStorage.setItem(STORAGE_KEYS.TOKEN, token);
-      localStorage.setItem(STORAGE_KEYS.LEGACY_TOKEN, token);
-      localStorage.setItem(STORAGE_KEYS.CONTEXT, context);
-      if (tenantId) {
-        localStorage.setItem(STORAGE_KEYS.TENANT_ID, tenantId);
-      }
-
-      // Sync cookies for edge middleware (30 days)
-      const maxAge = 60 * 60 * 24 * 30;
-      if (typeof document !== 'undefined') {
-        const isHttps = typeof window !== 'undefined' && window.location?.protocol === 'https:';
-        const secureAttr = isHttps ? '; Secure' : '';
-        document.cookie = `${STORAGE_KEYS.TOKEN}=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; SameSite=Lax${secureAttr}`;
-        document.cookie = `${STORAGE_KEYS.CONTEXT}=${context}; path=/; max-age=${maxAge}; SameSite=Lax${secureAttr}`;
-        if (tenantId) {
-          document.cookie = `${STORAGE_KEYS.TENANT_ID}=${encodeURIComponent(tenantId)}; path=/; max-age=${maxAge}; SameSite=Lax${secureAttr}`;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to set stored token', e);
-    }
+    const active = this.getActiveContext();
+    if (active) return this.getStoredTokenFor(active);
+    return null;
   }
 
   static getStoredContext(): AuthContextType {
     return this.getStoredContextType();
   }
 
-  /**
-   * Returns explicitly persisted context type from localStorage, or null if absent.
-   * Unlike getStoredContextType(), does not fall back to isControlPlaneHost().
-   */
   static getExplicitStoredContextType(): AuthContextType | null {
-    if (this.memoryContext) return this.memoryContext;
-    if (typeof window === 'undefined') return null;
-
-    try {
-      const ctx = localStorage.getItem(STORAGE_KEYS.CONTEXT) as AuthContextType;
-      if (ctx === 'central_admin' || ctx === 'tenant') {
-        this.memoryContext = ctx;
-        return ctx;
-      }
-    } catch {}
-
-    return null;
+    return this.getActiveContext();
   }
 
   static getStoredContextType(): AuthContextType {
-    if (this.memoryContext) return this.memoryContext;
-    if (typeof window === 'undefined') return 'tenant';
-
-    try {
-      const ctx = localStorage.getItem(STORAGE_KEYS.CONTEXT) as AuthContextType;
-      if (ctx === 'central_admin' || ctx === 'tenant') {
-        this.memoryContext = ctx;
-        return ctx;
-      }
-    } catch {}
-
-    const fallback = this.isControlPlaneHost() ? 'central_admin' : 'tenant';
-    this.memoryContext = fallback;
-    return fallback;
+    const explicit = this.getActiveContext();
+    if (explicit) return explicit;
+    return this.isControlPlaneHost() ? 'central_admin' : 'tenant';
   }
 
   static setStoredContextType(context: AuthContextType): void {
-    this.memoryContext = context;
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(STORAGE_KEYS.CONTEXT, context);
-      if (typeof document !== 'undefined') {
-        const maxAge = 60 * 60 * 24 * 30;
-        const isHttps = typeof window !== 'undefined' && window.location?.protocol === 'https:';
-        const secureAttr = isHttps ? '; Secure' : '';
-        document.cookie = `${STORAGE_KEYS.CONTEXT}=${context}; path=/; max-age=${maxAge}; SameSite=Lax${secureAttr}`;
-      }
-    } catch (e) {
-      console.error('Failed to set stored context type', e);
-    }
+    this.setActiveContext(context);
   }
 
   static getStoredTenantId(): string | null {
-    if (this.memoryTenantId) return this.memoryTenantId;
-    if (typeof window === 'undefined') return null;
-    try {
-      const id = localStorage.getItem(STORAGE_KEYS.TENANT_ID);
-      this.memoryTenantId = id;
-      return id;
-    } catch {
-      return null;
+    const active = this.getActiveContext();
+    if (active) {
+      const namespaced = safeGet(STORAGE_KEYS.sessionTenantId(active));
+      if (namespaced) return namespaced;
     }
+    return safeGet(LEGACY_KEYS.TENANT_ID);
   }
 
   static getStoredUser(): AuthUser | null {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.USER);
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
+    const active = this.getActiveContext();
+    if (active) {
+      const raw = safeGet(STORAGE_KEYS.sessionUser(active));
+      if (raw) {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return null;
+        }
+      }
     }
+    const legacy = safeGet(LEGACY_KEYS.USER);
+    if (legacy) {
+      try {
+        return JSON.parse(legacy);
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 
   static getStoredTenant(): TenantSummary | null {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.TENANT);
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
+    const active = this.getActiveContext();
+    if (!active) return null;
+    const raw = safeGet(`sheba_session_tenant.${active}`);
+    if (raw) {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
     }
+    return null;
   }
 
   static setStoredAuth(
     token: string,
     user: AuthUser,
     tenant?: TenantSummary | null,
-    context: AuthContextType = 'tenant'
+    context: AuthContextType = 'tenant',
+    meta?: Partial<StoredSessionMeta>,
   ): void {
-    const tenantId = tenant?.id || user.tenant_id || user.tenant?.id || undefined;
-    this.setStoredToken(token, context, tenantId);
+    const tenantId =
+      tenant?.id || user.tenant_id || user.tenant?.id || null;
+    this.memoryToken = token;
+    this.memoryUser = user;
+    this.memoryTenantId = tenantId || null;
+    this.setActiveContext(context);
 
-    if (typeof window === 'undefined') return;
+    safeSet(STORAGE_KEYS.sessionToken(context), token);
+    safeSet(STORAGE_KEYS.sessionUser(context), JSON.stringify(user));
+    if (tenantId) {
+      safeSet(STORAGE_KEYS.sessionTenantId(context), tenantId);
+    } else {
+      safeRemove(STORAGE_KEYS.sessionTenantId(context));
+    }
+    if (tenant) {
+      safeSet(`sheba_session_tenant.${context}`, JSON.stringify(tenant));
+    }
+    if (meta) {
+      const fullMeta: StoredSessionMeta = {
+        session_id: meta.session_id || '',
+        expires_at: meta.expires_at || null,
+        context_type: context,
+      };
+      safeSet(STORAGE_KEYS.sessionMeta(context), JSON.stringify(fullMeta));
+    }
 
-    try {
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
-      if (user.role) {
-        localStorage.setItem(STORAGE_KEYS.ROLE, user.role.toLowerCase());
-      }
-      if (tenant) {
-        localStorage.setItem(STORAGE_KEYS.TENANT, JSON.stringify(tenant));
-      } else {
-        localStorage.removeItem(STORAGE_KEYS.TENANT);
-      }
-    } catch (e) {
-      console.error('Failed to persist authentication to storage', e);
+    const isHttps =
+      typeof window !== 'undefined' &&
+      window.location?.protocol === 'https:';
+    const secureAttr = isHttps ? '; Secure' : '';
+    if (typeof document !== 'undefined') {
+      document.cookie = `${STORAGE_KEYS.sessionCookie}=${encodeURIComponent(token)}; path=/; max-age=2592000; SameSite=Lax${secureAttr}`;
+    }
+
+    safeSet(LEGACY_KEYS.TOKEN, token);
+    safeSet(LEGACY_KEYS.LEGACY_TOKEN, token);
+    safeSet(LEGACY_KEYS.CONTEXT, context);
+    if (tenantId) safeSet(LEGACY_KEYS.TENANT_ID, tenantId);
+  }
+
+  static setStoredToken(
+    token: string,
+    context: AuthContextType = 'tenant',
+    tenantId?: string,
+  ): void {
+    const user = this.getStoredUser() || this._fallbackUser(context);
+    this.setStoredAuth(token, user, undefined, context);
+    if (tenantId) {
+      safeSet(STORAGE_KEYS.sessionTenantId(context), tenantId);
     }
   }
 
+  private static _fallbackUser(context: AuthContextType): AuthUser {
+    return {
+      id: 0,
+      username: '',
+      email: '',
+      role: context === 'central_admin' ? 'PLATFORM_SUPER_ADMIN' : 'STAFF',
+      is_control_plane_admin: context === 'central_admin',
+      tenant_id: null,
+      tenant: null,
+    };
+  }
+
+  /**
+   * Wipe EVERYTHING auth-related — every context slot, every legacy
+   * key, every cookie variant.
+   */
   static clearStoredAuth(): void {
     this.memoryToken = null;
+    this.memoryUser = null;
     this.memoryContext = null;
     this.memoryTenantId = null;
-
     if (typeof window === 'undefined') return;
 
+    const contexts: AuthContextType[] = ['tenant', 'central_admin', 'reseller'];
+    for (const ctx of contexts) {
+      safeRemove(STORAGE_KEYS.sessionToken(ctx));
+      safeRemove(STORAGE_KEYS.sessionUser(ctx));
+      safeRemove(STORAGE_KEYS.sessionTenantId(ctx));
+      safeRemove(STORAGE_KEYS.sessionMeta(ctx));
+      safeRemove(`sheba_session_tenant.${ctx}`);
+    }
+
+    const legacyKeys = [
+      LEGACY_KEYS.TOKEN,
+      LEGACY_KEYS.LEGACY_TOKEN,
+      LEGACY_KEYS.USER,
+      LEGACY_KEYS.TENANT,
+      LEGACY_KEYS.TENANT_ID,
+      LEGACY_KEYS.ROLE,
+      LEGACY_KEYS.CONTEXT,
+      LEGACY_KEYS.ACTIVE_CONTEXT,
+      'sheba_access_token',
+      'sheba_refresh_token',
+      'sheba_user_role',
+      'sheba_user_name',
+      'sheba_role',
+      'token',
+      'authToken',
+      'sheba_api_key',
+    ];
+    for (const k of legacyKeys) safeRemove(k);
+
     try {
-      const keysToRemove = [
-        STORAGE_KEYS.TOKEN,
-        STORAGE_KEYS.LEGACY_TOKEN,
-        STORAGE_KEYS.USER,
-        STORAGE_KEYS.TENANT,
-        STORAGE_KEYS.TENANT_ID,
-        STORAGE_KEYS.ROLE,
-        STORAGE_KEYS.CONTEXT,
+      const ss =
+        (typeof window !== 'undefined' && window.sessionStorage) ||
+        ((globalThis as any).sessionStorage as Storage | undefined);
+      ss?.clear();
+    } catch {
+      /* ignore */
+    }
+
+    if (typeof document !== 'undefined') {
+      const cookieNames = [
+        LEGACY_KEYS.TOKEN,
+        LEGACY_KEYS.LEGACY_TOKEN,
+        LEGACY_KEYS.CONTEXT,
+        LEGACY_KEYS.TENANT_ID,
         'sheba_access_token',
         'sheba_refresh_token',
-        'sheba_user_role',
-        'sheba_user_name',
-        'sheba_role',
-        'token',
-        'authToken',
+        STORAGE_KEYS.sessionCookie,
       ];
-      for (const k of keysToRemove) {
-        localStorage.removeItem(k);
-      }
-      try {
-        sessionStorage.clear();
-      } catch {}
-
-      if (typeof document !== 'undefined') {
-        const cookieNames = [
-          STORAGE_KEYS.TOKEN,
-          STORAGE_KEYS.LEGACY_TOKEN,
-          STORAGE_KEYS.CONTEXT,
-          STORAGE_KEYS.TENANT_ID,
-          'sheba_access_token',
-          'sheba_refresh_token',
-        ];
-        const hostname = window.location.hostname;
-        const domainsToClear = [''];
-        if (hostname.includes('.')) {
-          const parts = hostname.split('.');
-          if (parts.length >= 2) {
-            domainsToClear.push(`; domain=.${parts.slice(-2).join('.')}`);
-          }
-          domainsToClear.push(`; domain=${hostname}`);
+      const hostname = window.location.hostname;
+      const domainsToClear = [''];
+      if (hostname.includes('.')) {
+        const parts = hostname.split('.');
+        if (parts.length >= 2) {
+          domainsToClear.push(`; domain=.${parts.slice(-2).join('.')}`);
         }
-
-        for (const name of cookieNames) {
-          for (const d of domainsToClear) {
-            document.cookie = `${name}=; path=/${d}; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-          }
+        domainsToClear.push(`; domain=${hostname}`);
+      }
+      for (const name of cookieNames) {
+        for (const d of domainsToClear) {
+          document.cookie = `${name}=; path=/${d}; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
         }
       }
-    } catch (e) {
-      console.error('Failed to clear storage credentials', e);
     }
   }
 
@@ -289,24 +397,27 @@ export class TokenStorage {
   }
 
   static onStorageChange(
-    callback: (token: string | null, context?: AuthContextType, tenantId?: string | null) => void
+    callback: (
+      token: string | null,
+      context?: AuthContextType,
+      tenantId?: string | null,
+    ) => void,
   ): () => void {
     if (typeof window === 'undefined') return () => {};
-
-    const handler = (event: StorageEvent) => {
-      if (
-        event.key === STORAGE_KEYS.TOKEN ||
-        event.key === STORAGE_KEYS.CONTEXT ||
-        event.key === STORAGE_KEYS.TENANT_ID
-      ) {
-        this.memoryToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
-        this.memoryContext = localStorage.getItem(STORAGE_KEYS.CONTEXT) as AuthContextType;
-        this.memoryTenantId = localStorage.getItem(STORAGE_KEYS.TENANT_ID);
-        callback(this.memoryToken, this.memoryContext, this.memoryTenantId);
-      }
+    const handler = () => {
+      const active = this.getActiveContext();
+      callback(
+        active ? this.getStoredTokenFor(active) : null,
+        active || undefined,
+        this.getStoredTenantId(),
+      );
     };
-
     window.addEventListener('storage', handler);
     return () => window.removeEventListener('storage', handler);
+  }
+
+  static peekActiveToken(): string | null {
+    const ctx = this.getActiveContext();
+    return ctx ? this.getStoredTokenFor(ctx) : null;
   }
 }

@@ -4,6 +4,31 @@ import { SettingsClient } from '../settings-api';
 import { TokenStorage } from '../../auth/token-storage';
 import { CompanySetting } from '../settings-types';
 
+// Browser-globals shim — settings-api runs against the same
+// token-storage layer that auth.test.ts already mocks.
+class LocalStorageMock {
+  private store: Record<string, string> = {};
+  getItem(key: string): string | null { return this.store[key] || null; }
+  setItem(key: string, value: string): void { this.store[key] = String(value); }
+  removeItem(key: string): void { delete this.store[key]; }
+  clear(): void { this.store = {}; }
+  key(): string | null { return null; }
+  length: number = 0;
+}
+const localStorageMock = new LocalStorageMock();
+(global as any).localStorage = localStorageMock;
+(global as any).window = {
+  localStorage: localStorageMock,
+  location: { hostname: 'localhost', protocol: 'http:' },
+  sessionStorage: localStorageMock,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+};
+(global as any).document = {
+  get cookie() { return ''; },
+  set cookie(_v: string) { /* no-op */ },
+};
+
 describe('SHEBAFI TENANT SETTINGS API SUITE — PHASE 3', () => {
   const originalFetch = global.fetch;
   const mockTenantId = 'c0a80101-0000-0000-0000-000000000001';
@@ -96,7 +121,7 @@ describe('SHEBAFI TENANT SETTINGS API SUITE — PHASE 3', () => {
       assert.equal(result.id, 1);
       assert.equal(result.company_name, 'Metro Fiber ISP');
       assert.ok(capturedUrl.includes('/api/v1/settings/'));
-      assert.equal(capturedHeaders['Authorization'], `Token ${mockToken}`);
+      assert.equal(capturedHeaders['Authorization'], `Session ${mockToken}`);
       assert.equal(capturedHeaders['X-Tenant-ID'], mockTenantId);
     });
 

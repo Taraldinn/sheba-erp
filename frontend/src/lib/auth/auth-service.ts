@@ -24,6 +24,7 @@ export class AuthService {
     let errorMsg = `Authentication request failed with status ${response.status}`;
     let errorCode: AuthErrorCode = 'UNKNOWN';
 
+    let availableTenants: TenantSummary[] | undefined;
     try {
       const data = await response.json();
       if (data) {
@@ -34,6 +35,9 @@ export class AuthService {
 
         if (data.code && typeof data.code === 'string') {
           errorCode = data.code as AuthErrorCode;
+        }
+        if (Array.isArray(data.available_tenants)) {
+          availableTenants = data.available_tenants;
         }
       }
     } catch {
@@ -46,9 +50,10 @@ export class AuthService {
     if (errorCode === 'UNKNOWN') {
       if (response.status === 401) errorCode = 'INVALID_CREDENTIALS';
       else if (response.status === 403) errorCode = 'FORBIDDEN';
+      else if (response.status === 404) errorCode = 'TENANT_NOT_FOUND';
     }
 
-    return new AuthError(errorMsg, errorCode, response.status);
+    return new AuthError(errorMsg, errorCode, response.status, availableTenants);
   }
 
   /**
@@ -65,6 +70,9 @@ export class AuthService {
   }> {
     if (context === 'central_admin') {
       return this.loginCentralAdmin(credentials);
+    }
+    if (context === 'reseller') {
+      return this.loginReseller(credentials);
     }
     return this.loginTenant({
       ...credentials,
@@ -95,6 +103,7 @@ export class AuthService {
         body: JSON.stringify({
           username: credentials.username,
           password: credentials.password,
+          tenant: credentials.tenantId,
         }),
       });
     } catch {
@@ -109,7 +118,15 @@ export class AuthService {
       throw await this.parseError(response);
     }
 
-    const data: TenantLoginResponse = await response.json();
+    const data: any = await response.json();
+    if (data.requires_tenant_selection) {
+      throw new AuthError(
+        data.message || 'Multiple ISP tenants found. Please select which tenant to log into.',
+        'TENANT_SELECTION_REQUIRED',
+        200,
+        data.available_tenants
+      );
+    }
     if (!data.token) {
       throw new AuthError('Authentication response missing session token.', 'UNKNOWN', 500);
     }
@@ -204,6 +221,63 @@ export class AuthService {
     return {
       token: data.token,
       user: authUser,
+    };
+  }
+
+  /**
+   * Reseller login — separate endpoint, separate context slot.
+   * Returns `{token, user, tenant}` so the caller can stash the
+   * tenant reference alongside the session.
+   */
+  static async loginReseller(credentials: LoginCredentials): Promise<{
+    token: string;
+    user: AuthUser;
+    tenant?: TenantSummary | null;
+  }> {
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}/auth/reseller/login/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          username: credentials.username,
+          password: credentials.password,
+        }),
+      });
+    } catch {
+      throw new AuthError(
+        'Unable to connect to reseller auth service.',
+        'NETWORK_ERROR',
+        503
+      );
+    }
+    if (!response.ok) {
+      throw await this.parseError(response);
+    }
+    const data = await response.json();
+    if (!data.token) {
+      throw new AuthError('Reseller authentication response missing token.', 'UNKNOWN', 500);
+    }
+    const authUser: AuthUser = {
+      id: data.user.id,
+      username: data.user.username,
+      email: data.user.email,
+      isStaff: true,
+      is_staff: true,
+      isSuperuser: false,
+      is_superuser: false,
+      is_control_plane_admin: false,
+      role: 'RESELLER',
+      tenant: data.tenant ?? null,
+      tenant_id: data.tenant?.id ?? null,
+      dashboardUrl: data.dashboard_url || '/dashboards/reseller-l1',
+      dashboard_url: data.dashboard_url || '/dashboards/reseller-l1',
+    };
+    return {
+      token: data.token,
+      user: authUser,
+      tenant: data.tenant ?? null,
     };
   }
 

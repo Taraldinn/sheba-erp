@@ -92,9 +92,13 @@ class TenantApiKeyAuthentication(authentication.BaseAuthentication):
                 break
 
         if not matched_token:
-            raise exceptions.AuthenticationFailed(
-                detail={"error": "Invalid API key provided.", "code": "INVALID_API_KEY"}
-            )
+            # Don't 401 here — let the next auth class try. An invalid
+            # X-API-Key shouldn't lock out a user who also has a valid
+            # session token. The fetch interceptor in the frontend
+            # clears bogus keys client-side anyway; if the caller
+            # insists on API-key-only auth they'll get a 401 from the
+            # endpoint's permission check.
+            return None
 
         # Check token lifecycle status
         status = matched_token.effective_status
@@ -241,3 +245,67 @@ try:
             ]
 except ImportError:
     pass
+
+class SessionAuthentication(authentication.BaseAuthentication):
+    """
+    DRF Authentication Backend for ``AuthSession`` tokens.
+
+    Recognises both ``Authorization: Session <opaque>`` and the
+    ``sheba_session`` cookie (the latter is set by the login views and
+    used by edge proxies that strip the ``Authorization`` header).
+
+    The session row carries the tenant + context_type it was issued
+    for, so we can refuse cross-context tokens at the auth boundary:
+    a tenant-staff session presented to a central-admin endpoint, or
+    a reseller session hitting a staff endpoint, both 401 immediately
+    rather than silently doing the wrong thing.
+    """
+
+    keyword = 'Session'
+
+    def authenticate(self, request):
+        from apps.authentication.sessions import (
+            CONTEXT_CENTRAL_ADMIN,
+            CONTEXT_RESELLER,
+            CONTEXT_TENANT,
+            extract_session_token,
+            resolve_session,
+        )
+        raw = extract_session_token(request)
+        if not raw:
+            return None
+
+        session = resolve_session(raw)
+        if session is None:
+            raise exceptions.AuthenticationFailed(
+                detail={
+                    'error': 'Session token is invalid or has expired.',
+                    'code': 'SESSION_EXPIRED',
+                }
+            )
+
+        ctx = session.context_type
+        # Tenant-scoped session must land on the matching tenant host;
+        # if it doesn't, reject so we never leak data to a different ISP.
+        if ctx == CONTEXT_TENANT:
+            req_tenant = getattr(request, 'tenant', None)
+            if session.tenant_id and req_tenant and str(session.tenant_id) != str(req_tenant.id):
+                raise exceptions.AuthenticationFailed(
+                    detail={
+                        'error': 'Session tenant does not match request host.',
+                        'code': 'CROSS_TENANT_SESSION',
+                    }
+                )
+        # Lazy ``touch`` keeps the row warm; cheap compare inside.
+        session.touch()
+        # Stash the session + context on the request so permission
+        # classes can introspect without re-resolving.
+        request.auth_session = session
+        request.auth_context_type = ctx
+        request.auth_tenant_id = (
+            str(session.tenant_id) if session.tenant_id else None
+        )
+        return (session.user, session)
+
+    def authenticate_header(self, request):
+        return 'Session'

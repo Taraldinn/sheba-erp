@@ -84,7 +84,7 @@ describe('STAGE 11A — ACTIVE ISP CORE API SUITE', () => {
   describe('1. Session Persistence & Authentication Headers', () => {
     it('attaches Bearer/Token and X-Tenant-ID headers to outbound requests', () => {
       const headers = ApiClient.getHeaders();
-      assert.equal(headers['Authorization'], 'Token test-isp-token-123');
+      assert.equal(headers['Authorization'], 'Session test-isp-token-123');
       assert.equal(headers['X-Tenant-ID'], 'shebafi');
       assert.equal(headers['Content-Type'], 'application/json');
     });
@@ -106,7 +106,7 @@ describe('STAGE 11A — ACTIVE ISP CORE API SUITE', () => {
         assert.ok(urlStr.includes('/api/v1/customers/'));
         assert.ok(urlStr.includes('search=Rahim'));
         assert.ok(urlStr.includes('status=Active'));
-        assert.equal((init?.headers as Record<string, string>)['Authorization'], 'Token test-isp-token-123');
+        assert.equal((init?.headers as Record<string, string>)['Authorization'], 'Session test-isp-token-123');
 
         return {
           ok: true,

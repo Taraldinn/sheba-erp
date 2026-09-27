@@ -44,7 +44,9 @@ export class SettingsClient {
       headers['X-API-Key'] = apiKey;
     }
     if (token) {
-      headers['Authorization'] = `Token ${token}`;
+      // Per-session opaque token (``Session`` keyword resolves
+      // server-side before the legacy ``Token`` keyword).
+      headers['Authorization'] = `Session ${token}`;
     }
     // Tenant scoping: strictly bound to the active tenant domain context
     if (activeTenant) {

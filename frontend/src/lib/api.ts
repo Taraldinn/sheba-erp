@@ -59,6 +59,7 @@ export function setupFetchInterceptor() {
             const data = await cloned.json().catch(() => null);
             const apiKeyCodes = ['INVALID_API_KEY', 'CREDENTIAL_REVOKED', 'CREDENTIAL_EXPIRED', 'CREDENTIAL_SUSPENDED', 'TENANT_MISMATCH'];
             if (data && (apiKeyCodes.includes(data.code) || (typeof data.detail === 'string' && data.detail.toLowerCase().includes('api key')))) {
+              ApiClient.markApiKeyInvalid();
               // Only warn + clear once per session — the 30s
               // polling useNotifications() loop would otherwise dump
               // the same message into the console every interval.
@@ -96,10 +97,19 @@ setupFetchInterceptor();
 export class ApiClient {
   private static token: string | null = null;
   private static apiKey: string | null = null;
-  private static tenantId: string = process.env.NEXT_PUBLIC_DEFAULT_TENANT_ID || 'shebafi';
+  private static apiKeyInvalid = false;
+  private static tenantId: string = process.env.NEXT_PUBLIC_DEFAULT_TENANT_ID || 'exportnet';
+
+  static markApiKeyInvalid() {
+    this.apiKeyInvalid = true;
+    this.apiKey = null;
+  }
 
   static setApiKey(key: string | null) {
     this.apiKey = key;
+    if (key) {
+      this.apiKeyInvalid = false;
+    }
     if (typeof window !== 'undefined') {
       if (key) {
         localStorage.setItem('sheba_api_key', key);
@@ -110,6 +120,7 @@ export class ApiClient {
   }
 
   static getApiKey(): string | null {
+    if (this.apiKeyInvalid) return null;
     if (this.apiKey) return this.apiKey;
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('sheba_api_key');
@@ -120,16 +131,21 @@ export class ApiClient {
     return null;
   }
 
-  static setToken(token: string) {
+  static setToken(token: string, context?: 'tenant' | 'central_admin' | 'reseller') {
     this.token = token;
     if (typeof window !== 'undefined') {
-      TokenStorage.setStoredToken(token);
+      // Pass the resolved context if known; otherwise write to the
+      // currently-active context slot (set by AuthProvider.login()).
+      const ctx = context ?? TokenStorage.getStoredContextType();
+      TokenStorage.setStoredToken(token, ctx);
     }
   }
 
   static getToken(): string | null {
+    // Read the namespaced session token for the *active* context.
+    // ``peekActiveToken()`` falls back to legacy keys for migration.
     if (typeof window !== 'undefined') {
-      const stored = TokenStorage.getStoredToken();
+      const stored = TokenStorage.peekActiveToken();
       if (stored) return stored;
     }
     return this.token;
@@ -144,11 +160,18 @@ export class ApiClient {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    if (apiKey) {
+    // Primary identity rule: If a staff user is logged in, use their session token.
+    // Never send an API key simultaneously, which would override user authentication
+    // or trigger spurious 401s from invalid machine keys.
+    if (!token && apiKey) {
       headers['X-API-Key'] = apiKey;
     }
     if (token) {
-      headers['Authorization'] = `Token ${token}`;
+      // Per-session opaque token. ``Session`` keyword resolves
+      // through ``apps.core.authentication.SessionAuthentication``
+      // first, then falls through to the legacy ``Token <key>`` if
+      // the server hasn't been updated yet.
+      headers['Authorization'] = `Session ${token}`;
     }
     if (activeTenant) {
       headers['X-Tenant-ID'] = activeTenant;

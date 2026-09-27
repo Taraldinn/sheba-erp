@@ -23,6 +23,7 @@ from apps.core.saas_views import (
 )
 from apps.authentication.views import (
     LoginView, CurrentUserView, LogoutView, StaffProfileViewSet, RoleViewSet, PermissionViewSet,
+    ResellerLoginView,
     TenantPasswordResetView, TenantPasswordResetConfirmView
 )
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView
@@ -171,6 +172,7 @@ urlpatterns = [
 
     # Auth endpoints
     path('api/v1/auth/login/', LoginView.as_view(), name='auth-login'),
+    path('api/v1/auth/reseller/login/', ResellerLoginView.as_view(), name='auth-reseller-login'),
     path('api/v1/auth/me/', CurrentUserView.as_view(), name='auth-me'),
     path('api/v1/auth/logout/', LogoutView.as_view(), name='auth-logout'),
     path('api/v1/auth/password-reset/', TenantPasswordResetView.as_view(), name='auth-password-reset'),

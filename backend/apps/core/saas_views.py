@@ -22,7 +22,7 @@ from rest_framework.authtoken.models import Token
 from .models import (
     Tenant, TenantDomain, CompanySetting, AuditLog,
     TenantOnboardingRequest, SaaSPackage, TenantSubscription, SaaSPayment, DatabaseBackup,
-    TenantApiToken, ApiApplication
+    TenantApiToken, ApiApplication, TenantFeatureFlag
 )
 from .permissions import IsCentralAdmin
 from .redis_service import RedisService
@@ -31,6 +31,8 @@ from .cache_invalidation import (
     invalidate_saas_tenant_cache,
     invalidate_saas_package_cache,
 )
+from .renderers import CSVRenderer, NDJSONRenderer, RawJSONRenderer
+from .audit_export import build_audit_queryset, stream_export
 from apps.authentication.models import StaffProfile, StaffMembership, UserRole, Role
 
 
@@ -1062,6 +1064,81 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
             'tenant_name': tenant.name,
             'message': f'ISP Admin "{username}" successfully created for {tenant.name}.'
         }, status=status.HTTP_201_CREATED)
+
+    # ── Bulk operations (Tier 3B) ──────────────────────────────────────────
+
+    def _bulk_apply(self, tenant_ids, mutate_fn):
+        from django.db import transaction
+        succeeded, failed = [], []
+        for tid in tenant_ids:
+            try:
+                tenant = Tenant.objects.get(id=tid)
+                if tenant.slug in ('shebafi', 'master', 'default'):
+                    failed.append({'id': str(tid), 'reason': 'platform_tenant'})
+                    continue
+                mutate_fn(tenant)
+                invalidate_saas_tenant_cache(tenant_id=str(tid))
+                from apps.core.features import invalidate_cache
+                invalidate_cache(tenant)
+                succeeded.append({
+                    'id': str(tid),
+                    'name': tenant.name,
+                })
+            except Tenant.DoesNotExist:
+                failed.append({'id': str(tid), 'reason': 'not_found'})
+            except Exception as exc:
+                failed.append({'id': str(tid), 'reason': str(exc)})
+        return succeeded, failed
+
+    @action(detail=False, methods=['post'], url_path='bulk-suspend')
+    def bulk_suspend(self, request):
+        tenant_ids = request.data.get('tenant_ids') or []
+        if not isinstance(tenant_ids, list) or not tenant_ids:
+            return Response({'error': 'tenant_ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+        from django.db import transaction
+        with transaction.atomic():
+            succeeded, failed = self._bulk_apply(
+                tenant_ids,
+                mutate_fn=lambda t: Tenant.objects.filter(pk=t.pk).update(
+                    is_active=False, subscription_status='suspended'),
+            )
+        return Response({'succeeded': succeeded, 'failed': failed, 'count': len(succeeded)})
+
+    @action(detail=False, methods=['post'], url_path='bulk-activate')
+    def bulk_activate(self, request):
+        tenant_ids = request.data.get('tenant_ids') or []
+        if not isinstance(tenant_ids, list) or not tenant_ids:
+            return Response({'error': 'tenant_ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+        from django.db import transaction
+        with transaction.atomic():
+            succeeded, failed = self._bulk_apply(
+                tenant_ids,
+                mutate_fn=lambda t: Tenant.objects.filter(pk=t.pk).update(
+                    is_active=True, subscription_status='active'),
+            )
+        return Response({'succeeded': succeeded, 'failed': failed, 'count': len(succeeded)})
+
+    @action(detail=False, methods=['post'], url_path='bulk-delete')
+    def bulk_delete(self, request):
+        tenant_ids = request.data.get('tenant_ids') or []
+        if not isinstance(tenant_ids, list) or not tenant_ids:
+            return Response({'error': 'tenant_ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        AuditLog.objects.create(
+            tenant=None, actor_username=request.user.username,
+            action='bulk_delete_tenant', module='saas_control_plane',
+            resource_type='Tenant',
+            resource_id='bulk',
+            details={'requested_ids': [str(t) for t in tenant_ids], 'count': len(tenant_ids)},
+        )
+
+        from django.db import transaction
+        with transaction.atomic():
+            succeeded, failed = self._bulk_apply(
+                tenant_ids,
+                mutate_fn=lambda t: t.delete(),
+            )
+        return Response({'succeeded': succeeded, 'failed': failed, 'count': len(succeeded)})
 
     def destroy(self, request, *args, **kwargs):
         tenant = self.get_object()
@@ -2121,6 +2198,80 @@ class SaaSAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AuditLog.objects.select_related('tenant').all().order_by('-timestamp')
     serializer_class = SaaSAuditLogSerializer
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        tenant_slug = self.request.query_params.get('tenant_slug')
+        if tenant_slug:
+            qs = qs.filter(tenant__slug=tenant_slug)
+        return qs
+
+    # ── Tier 3C: compliance export across tenants ───────────────────────
+
+    @extend_schema(
+        parameters=[
+            {'name': 'format', 'in': 'query',
+             'description': 'csv | json | ndjson (default csv)'},
+            {'name': 'tenant_slug', 'in': 'query',
+             'description': 'Restrict to a single tenant'},
+            {'name': 'from', 'in': 'query',
+             'description': 'ISO-8601 lower-bound timestamp (inclusive)'},
+            {'name': 'to', 'in': 'query',
+             'description': 'ISO-8601 upper-bound timestamp (exclusive)'},
+            {'name': 'action', 'in': 'query', 'description': 'Substring match'},
+            {'name': 'module', 'in': 'query', 'description': 'Exact match'},
+            {'name': 'actor_username', 'in': 'query', 'description': 'Exact match'},
+            {'name': 'resource_type', 'in': 'query', 'description': 'Exact match'},
+            {'name': 'resource_id', 'in': 'query', 'description': 'Exact match'},
+        ],
+        responses={200: 'application/csv'},
+    )
+    @action(detail=False, methods=['get'], url_path='export',
+            renderer_classes=[CSVRenderer, NDJSONRenderer, RawJSONRenderer])
+    def export(self, request, *args, **kwargs):
+        """Stream the global audit log (optionally scoped to one tenant).
+
+        Used by SaaS admins to produce regulator / BTRC-style reports.
+        The export is read-only and audit-logs the export action itself.
+        """
+        params = request.query_params
+        # Single-tenant scope: record an audit row so it's traceable.
+        if params.get('tenant_slug'):
+            try:
+                from apps.core.models import Tenant as TenantModel
+                from .audit_export import build_audit_queryset as _build
+                t = TenantModel.objects.get(slug=params['tenant_slug'])
+                AuditLog.objects.create(
+                    tenant=None,  # control-plane event
+                    actor_username=request.user.username,
+                    action='compliance_export',
+                    module='saas_control_plane',
+                    resource_type='Tenant',
+                    resource_id=str(t.id),
+                    details={
+                        'format': params.get('format', 'csv'),
+                        'filters': {
+                            k: params.get(k)
+                            for k in ('from', 'to', 'action', 'module',
+                                      'actor_username', 'resource_type',
+                                      'resource_id')
+                            if params.get(k)
+                        },
+                    },
+                )
+            except Exception:
+                # Don't abort the export on audit-write failures; just log.
+                logger.warning('compliance_export: audit row failed', exc_info=True)
+
+        from .audit_export import build_audit_queryset as _build
+        qs = _build(params=dict(params))
+        # Prefer ``?format=`` query param, fall back to URL format suffix.
+        fmt = (
+            params.get('format')
+            or kwargs.get('format')
+            or 'csv'
+        )
+        return stream_export(qs, fmt)
+
 
 @extend_schema(
     tags=['16. Multi-Tenant SaaS & Control Plane'],
@@ -2159,9 +2310,36 @@ class SaaSLoginView(views.APIView):
             }, status=status.HTTP_403_FORBIDDEN)
 
 
-        token, _ = Token.objects.get_or_create(user=user)
-        return Response({
-            'token': token.key,
+        # Per-session AuthSession (tenant=None, context=central_admin).
+        # Also keep a legacy DRF Token in sync so older clients that
+        # still send ``Authorization: Token <key>`` continue to work
+        # through the migration window.
+        from apps.authentication.sessions import (
+            issue_session,
+            SESSION_COOKIE_NAME,
+            CONTEXT_CENTRAL_ADMIN,
+        )
+        from rest_framework.authtoken.models import Token
+        from datetime import timedelta
+        ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or \
+             request.META.get('REMOTE_ADDR')
+        issued = issue_session(
+            user=user,
+            tenant_id=None,
+            context_type=CONTEXT_CENTRAL_ADMIN,
+            ip_address=ip,
+            user_agent=(request.META.get('HTTP_USER_AGENT') or '')[:512],
+        )
+        legacy_token, _ = Token.objects.get_or_create(user=user)
+        max_age = int(timedelta(days=30).total_seconds())
+        resp = Response({
+            # `session_token` is the new opaque per-session id; `token`
+            # is the legacy DRF Token kept for backward compatibility.
+            'session_token': issued.token,
+            'token': legacy_token.key,
+            'session_id': str(issued.session.id),
+            'session_expires_at': issued.session.expires_at.isoformat(),
+            'session_context': issued.session.context_type,
             'user': {
                 'id': user.id,
                 'username': user.username,
@@ -2171,6 +2349,11 @@ class SaaSLoginView(views.APIView):
             },
             'message': 'Welcome to ShebaFi SaaS Multi-Tenant Global Control Plane.'
         })
+        resp['Set-Cookie'] = (
+            f'{SESSION_COOKIE_NAME}={issued.token}; Path=/; Max-Age={max_age}; '
+            'HttpOnly; SameSite=Lax'
+        )
+        return resp
 
 
 @extend_schema(
@@ -2203,13 +2386,38 @@ class SaaSMeView(views.APIView):
     responses={200: dict}
 )
 class SaaSLogoutView(views.APIView):
-    """Terminates session for the authenticated Central SaaS Administrator."""
+    """Terminates session for the authenticated Central SaaS Administrator.
+
+    Only the current AuthSession is revoked — does NOT delete the
+    user's DRF Token (which would lock out other devices / sessions).
+    """
     permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
 
     def post(self, request):
-        if hasattr(request.user, 'auth_token'):
-            request.user.auth_token.delete()
-        return Response({'message': 'Logged out successfully.'}, status=status.HTTP_200_OK)
+        from apps.authentication.sessions import (
+            SESSION_COOKIE_NAME,
+            extract_session_token,
+            revoke_session,
+        )
+        from rest_framework.authtoken.models import Token
+        revoked = 0
+        current_token = extract_session_token(request)
+        if current_token and revoke_session(current_token):
+            revoked += 1
+        # If the caller authenticated via the legacy ``Token`` keyword,
+        # invalidate that token too so legacy clients can fully log out
+        # without leaving the DRF Token usable.
+        auth = request.META.get('HTTP_AUTHORIZATION', '')
+        if auth.startswith('Token '):
+            Token.objects.filter(user=request.user).delete()
+        resp = Response(
+            {'message': 'Logged out successfully.', 'revoked_sessions': revoked},
+            status=status.HTTP_200_OK,
+        )
+        resp['Set-Cookie'] = (
+            f'{SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax'
+        )
+        return resp
 
 
 class SaaSPasswordResetRequestSerializer(serializers.Serializer):
@@ -2865,3 +3073,247 @@ class SaaSApplicationViewSet(viewsets.ModelViewSet):
         return Response(SaaSApplicationSerializer(app_obj).data)
 
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 25: SaaS Feature Flag Dashboard endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+# Routes (mounted by URL router):
+#   /api/v1/saas/feature-flags/                  GET   list overrides
+#   /api/v1/saas/feature-flags/{id}/             DEL   delete override (clears)
+#   /api/v1/saas/feature-flags/set/              POST  set single flag
+#   /api/v1/saas/feature-flags/bulk-set/         POST  batch set
+#   /api/v1/saas/features/                       GET   feature catalog
+#   /api/v1/saas/feature-matrix/                 GET   tenants × features matrix
+
+
+class TenantFeatureFlagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TenantFeatureFlag
+        fields = [
+            'id', 'tenant', 'feature_key', 'enabled', 'config',
+            'enabled_at', 'updated_at', 'enabled_by',
+        ]
+        read_only_fields = ['id', 'enabled_at', 'updated_at', 'enabled_by']
+
+
+class TenantFeatureFlagViewSet(viewsets.ModelViewSet):
+    """Central control-plane endpoint for per-tenant feature overrides."""
+
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    queryset = TenantFeatureFlag.objects.select_related('tenant', 'enabled_by')
+    serializer_class = TenantFeatureFlagSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        tenant_slug = self.request.query_params.get('tenant')
+        if tenant_slug:
+            qs = qs.filter(tenant__slug=tenant_slug)
+        feature_key = self.request.query_params.get('feature_key')
+        if feature_key:
+            qs = qs.filter(feature_key=feature_key)
+        return qs
+
+    def perform_create(self, serializer):
+        from .features import invalidate_cache
+        flag = serializer.save()
+        invalidate_cache(flag.tenant)
+
+    def perform_destroy(self, instance):
+        from .features import invalidate_cache
+        tenant = instance.tenant
+        instance.delete()
+        invalidate_cache(tenant)
+
+    @extend_schema(
+        request={'type': 'object', 'properties': {
+            'tenant': {'type': 'string'},
+            'feature_key': {'type': 'string'},
+            'enabled': {'type': 'boolean'},
+            'config': {'type': 'object'},
+        }},
+        responses={200: TenantFeatureFlagSerializer},
+    )
+    @action(detail=False, methods=['post'], url_path='set')
+    def set_flag(self, request):
+        from .features import FEATURE_REGISTRY, invalidate_cache
+        tenant_id = request.data.get('tenant')
+        feature_key = request.data.get('feature_key')
+        enabled = bool(request.data.get('enabled', True))
+        config = request.data.get('config') or {}
+        if feature_key not in FEATURE_REGISTRY:
+            return Response(
+                {'error': f'Unknown feature_key: {feature_key}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            tenant = Tenant.objects.get(id=tenant_id)
+        except (Tenant.DoesNotExist, ValueError):
+            return Response(
+                {'error': 'Unknown tenant.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        flag, created = TenantFeatureFlag.objects.update_or_create(
+            tenant=tenant,
+            feature_key=feature_key,
+            defaults={
+                'enabled': enabled,
+                'config': config,
+                'enabled_by': request.user if request.user.is_authenticated else None,
+            },
+        )
+        invalidate_cache(tenant)
+        return Response(
+            TenantFeatureFlagSerializer(flag).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        request={'type': 'object', 'properties': {
+            'tenant': {'type': 'string'},
+            'flags': {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'feature_key': {'type': 'string'},
+                        'enabled': {'type': 'boolean'},
+                        'config': {'type': 'object'},
+                    },
+                },
+            },
+        }},
+        responses={200: 'application/json'},
+    )
+    @action(detail=False, methods=['post'], url_path='bulk-set')
+    def bulk_set(self, request):
+        from django.db import transaction
+        from .features import FEATURE_REGISTRY, invalidate_cache
+        tenant_id = request.data.get('tenant')
+        flags = request.data.get('flags') or []
+        if not isinstance(flags, list):
+            return Response(
+                {'error': 'flags must be a list.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            tenant = Tenant.objects.get(id=tenant_id)
+        except (Tenant.DoesNotExist, ValueError):
+            return Response(
+                {'error': 'Unknown tenant.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # Phase 1: validate every entry — reject the whole batch on any
+        # malformed payload (caller can fix + retry, no partial apply).
+        for entry in flags:
+            if not isinstance(entry, dict):
+                return Response(
+                    {'error': 'Each flag must be an object.', 'entry': entry},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            key = entry.get('feature_key')
+            if key not in FEATURE_REGISTRY:
+                return Response(
+                    {'error': f'Unknown feature_key: {key}'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            cfg = entry.get('config') or {}
+            if not isinstance(cfg, dict):
+                return Response(
+                    {'error': f'config for {key} must be an object, got {type(cfg).__name__}.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        # Phase 2: apply.
+        applied = []
+        with transaction.atomic():
+            for entry in flags:
+                key = entry['feature_key']
+                TenantFeatureFlag.objects.update_or_create(
+                    tenant=tenant,
+                    feature_key=key,
+                    defaults={
+                        'enabled': bool(entry.get('enabled', True)),
+                        'config': entry.get('config') or {},
+                        'enabled_by': (
+                            request.user if request.user.is_authenticated else None
+                        ),
+                    },
+                )
+                applied.append(key)
+        invalidate_cache(tenant)
+        return Response({
+            'applied': applied,
+            'applied_count': len(applied),
+        })
+
+
+class SaaSFeatureCatalogView(views.APIView):
+    """List every feature in :data:`FEATURE_REGISTRY` with metadata."""
+
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+
+    def get(self, request):
+        from .features import FEATURE_REGISTRY
+        features = [
+            {
+                'key': spec.key,
+                'label': spec.label,
+                'category': spec.category,
+                'description': spec.description,
+                'default_enabled': spec.default_enabled,
+                'paid': spec.paid,
+            }
+            for spec in FEATURE_REGISTRY.values()
+        ]
+        return Response({'count': len(features), 'features': features})
+
+
+class SaaSFeatureMatrixView(views.APIView):
+    """Returns tenants × features with the effective enabled state.
+
+    Used by the SaaS dashboard to render the toggle matrix without N²
+    HTTP calls.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+
+    def get(self, request):
+        from .features import FEATURE_REGISTRY, is_feature_enabled
+        tenants = list(Tenant.objects.order_by('name'))
+        rows = []
+        # Pre-load overrides to avoid N+1.
+        overrides = {
+            (f.tenant_id, f.feature_key): f
+            for f in TenantFeatureFlag.objects.filter(
+                tenant__in=tenants,
+            )
+        }
+        for spec in FEATURE_REGISTRY.values():
+            row = {
+                'feature_key': spec.key,
+                'feature_label': spec.label,
+                'label': spec.label,
+                'description': spec.description,
+                'category': spec.category,
+                'paid': spec.paid,
+                'default_enabled': spec.default_enabled,
+                'tenants': [],
+            }
+            for t in tenants:
+                flag = overrides.get((t.id, spec.key))
+                effective = flag.enabled if flag else spec.default_enabled
+                row['tenants'].append({
+                    'tenant_id': str(t.id),
+                    'tenant_slug': t.slug,
+                    'tenant_name': t.name,
+                    'enabled': effective,
+                    'is_override': bool(flag),
+                })
+            rows.append(row)
+        return Response({
+            'tenants': [
+                {'id': str(t.id), 'slug': t.slug, 'name': t.name}
+                for t in tenants
+            ],
+            'rows': rows,
+        })

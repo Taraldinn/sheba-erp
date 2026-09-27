@@ -3,7 +3,7 @@
  * Phase 1: Authentication API.
  */
 
-export type AuthContextType = 'tenant' | 'central_admin';
+export type AuthContextType = 'tenant' | 'central_admin' | 'reseller';
 
 export type AuthStatus = 'idle' | 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -80,6 +80,8 @@ export type AuthErrorCode =
   | 'CROSS_TENANT_LOGIN'
   | 'TENANT_INACTIVE'
   | 'TENANT_DOMAIN_REQUIRED'
+  | 'TENANT_NOT_FOUND'
+  | 'TENANT_SELECTION_REQUIRED'
   | 'MEMBERSHIP_INACTIVE'
   | 'SESSION_EXPIRED'
   | 'UNAUTHORIZED'
@@ -91,13 +93,15 @@ export class AuthError extends Error {
   code: AuthErrorCode;
   status: number;
   statusCode: number;
+  availableTenants?: TenantSummary[];
 
-  constructor(message: string, code: AuthErrorCode = 'UNKNOWN', statusCode: number = 400) {
+  constructor(message: string, code: AuthErrorCode = 'UNKNOWN', statusCode: number = 400, availableTenants?: TenantSummary[]) {
     super(message);
     this.name = 'AuthError';
     this.code = code;
     this.status = statusCode;
     this.statusCode = statusCode;
+    this.availableTenants = availableTenants;
   }
 }
 

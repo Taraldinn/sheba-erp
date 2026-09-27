@@ -309,3 +309,16 @@ def sync_staff_profile_to_membership(sender, instance, created, **kwargs):
                 membership.save(update_fields=updated_fields)
 
 
+
+
+# AuthSession (per-login session token) lives in apps.authentication.sessions
+# to keep the migrations clean. Re-export here so Django's app registry
+# discovers it via ``apps.get_model('authentication', 'AuthSession')``.
+from .sessions import (  # noqa: E402, F401
+    AuthSession,
+    CONTEXT_CENTRAL_ADMIN,
+    CONTEXT_RESELLER,
+    CONTEXT_TENANT,
+    SESSION_AUTH_SCHEME,
+    SESSION_COOKIE_NAME,
+)

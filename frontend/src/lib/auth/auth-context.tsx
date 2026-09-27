@@ -164,8 +164,21 @@ export function AuthProvider({ children, initialContext }: AuthProviderProps) {
       try {
         const response = await AuthService.login(credentials, targetContext, targetTenantId);
 
-        // Store session tokens & context
-        TokenStorage.setStoredToken(response.token, targetContext, response.user.tenant_id || targetTenantId);
+        // Store session tokens & context — namespaced per context so a
+        // concurrent tenant-tab login cannot clobber this slot.
+        TokenStorage.setStoredAuth(
+          response.token,
+          response.user,
+          response.tenant ?? null,
+          targetContext,
+          {
+            // Server returns session_id/expires_at on the reseller +
+            // staff login shapes but not on the legacy SaaS login —
+            // both are optional, so we just stash what we have.
+            session_id: (response as any).session_id || '',
+            expires_at: (response as any).session_expires_at || null,
+          },
+        );
 
         setUser(response.user);
         setToken(response.token);

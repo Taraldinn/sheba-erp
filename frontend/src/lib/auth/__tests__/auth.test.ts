@@ -106,9 +106,23 @@ describe('SHEBAFI AUTHENTICATION SUITE — PHASE 1', () => {
       assert.equal(TokenStorage.getStoredToken(), 'test-token-xyz');
       assert.equal(TokenStorage.getStoredContextType(), 'tenant');
       assert.equal(TokenStorage.getStoredTenantId(), 'shebafi');
+      // Namespaced write — context-aware storage keeps multiple logins
+      // isolated across tabs (cross-tenant "session distorted" fix).
+      assert.equal(
+        localStorageMock.getItem('sheba_session_token.tenant'),
+        'test-token-xyz'
+      );
+      assert.equal(
+        localStorageMock.getItem('sheba_session_tenant_id.tenant'),
+        'shebafi'
+      );
+      assert.equal(
+        localStorageMock.getItem('sheba_active_context'),
+        'tenant'
+      );
+      // Legacy mirror still works (read fallback for migration).
       assert.equal(localStorageMock.getItem('sheba_auth_token'), 'test-token-xyz');
-      assert.ok(document.cookie.includes('sheba_auth_token=test-token-xyz'));
-      assert.ok(document.cookie.includes('sheba_auth_context=tenant'));
+      assert.ok(document.cookie.includes('sheba_session='));
     });
 
     it('clears stored authentication completely across all tiers', () => {
@@ -118,10 +132,15 @@ describe('SHEBAFI AUTHENTICATION SUITE — PHASE 1', () => {
       TokenStorage.clearStoredAuth();
 
       assert.equal(TokenStorage.getStoredToken(), null);
+      // Every namespaced slot should be wiped.
+      assert.equal(localStorageMock.getItem('sheba_session_token.tenant'), null);
+      assert.equal(localStorageMock.getItem('sheba_session_token.central_admin'), null);
+      assert.equal(localStorageMock.getItem('sheba_session_token.reseller'), null);
+      // Legacy keys too.
       assert.equal(localStorageMock.getItem('sheba_auth_token'), null);
       assert.equal(localStorageMock.getItem('sheba_auth_context'), null);
       assert.equal(localStorageMock.getItem('sheba_tenant_id'), null);
-      assert.ok(!document.cookie.includes('sheba_auth_token=active-token'));
+      assert.ok(!document.cookie.includes('sheba_session=active-token'));
     });
 
     it('detects control plane host environment', () => {

@@ -6,6 +6,7 @@ import {
   Radio,
   Lock,
   User,
+  Building2,
   ArrowRight,
   ShieldCheck,
   AlertCircle,
@@ -45,6 +46,15 @@ function LoginForm() {
 
   const returnTo = isValidRelativePath(rawReturnTo) ? rawReturnTo : null;
 
+  // Login context (driven by ?role=... query param so a deep-link
+  // can land the user directly on the right form). ``tenant`` is
+  // the default for the ISP staff portal; ``reseller`` switches the
+  // UI copy + the login endpoint; ``central_admin`` is handled on
+  // admin.shebafi.xyz (different subdomain → different layout).
+  const roleParam = searchParams?.get('role');
+  type LoginRole = 'tenant' | 'reseller';
+  const loginRole: LoginRole = roleParam === 'reseller' ? 'reseller' : 'tenant';
+
   const {
     login,
     logout,
@@ -57,6 +67,8 @@ function LoginForm() {
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [tenant, setTenant] = useState('');
+  const [availableTenants, setAvailableTenants] = useState<Array<{ id: string; name: string; slug?: string }>>([]);
   const [submitting, setSubmitting] = useState(false);
 
   // If already authenticated as tenant user, redirect to destination
@@ -71,15 +83,16 @@ function LoginForm() {
     }
   }, [isAuthenticated, user, contextType, returnTo, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeLogin = async (targetTenant?: string) => {
     clearError();
     setSubmitting(true);
+    const chosenTenant = targetTenant !== undefined ? targetTenant : (tenant.trim() || undefined);
 
     try {
       await login(
-        { username, password },
-        'tenant'
+        { username, password, tenantId: chosenTenant },
+        loginRole,
+        chosenTenant
       );
       const dest = getSafeDestination(returnTo || '/');
       if (typeof window !== 'undefined') {
@@ -87,11 +100,23 @@ function LoginForm() {
       } else {
         router.replace(dest);
       }
-    } catch {
-      // Error is caught and surfaced by AuthContext state
+    } catch (err: any) {
+      if (err?.code === 'TENANT_SELECTION_REQUIRED' && Array.isArray(err.availableTenants) && err.availableTenants.length > 0) {
+        setAvailableTenants(err.availableTenants);
+      }
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    executeLogin();
+  };
+
+  const handleTenantSelect = (tenantIdentifier: string) => {
+    setTenant(tenantIdentifier);
+    executeLogin(tenantIdentifier);
   };
 
   return (
@@ -119,10 +144,12 @@ function LoginForm() {
               </div>
               <div>
                 <CardTitle className="text-base text-foreground">
-                  ISP Operator Sign In
+                  {loginRole === 'reseller' ? 'ISP Reseller Sign In' : 'ISP Operator Sign In'}
                 </CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">
-                  Sign in with your ISP staff credentials to access operations
+                  {loginRole === 'reseller'
+                    ? 'Sign in with your ISP-issued reseller account to manage sub-customers.'
+                    : 'Sign in with your ISP staff credentials to access operations.'}
                 </CardDescription>
               </div>
             </div>
@@ -149,6 +176,27 @@ function LoginForm() {
               </div>
             )}
 
+            {availableTenants.length > 0 && (
+              <div className="mb-4 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-xs space-y-2">
+                <p className="font-semibold text-indigo-400">
+                  Select which ISP tenant to access:
+                </p>
+                <div className="grid gap-1.5">
+                  {availableTenants.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => handleTenantSelect(t.slug || t.id)}
+                      className="w-full text-left p-2 rounded bg-card/80 hover:bg-indigo-600/20 border border-border hover:border-indigo-500/40 text-foreground transition flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="font-medium">{t.name}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground">{t.slug}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {error && (
               <div
                 data-testid="auth-error-banner"
@@ -165,6 +213,31 @@ function LoginForm() {
                 </div>
               </div>
             )}
+
+<div className="flex items-center gap-1 rounded-lg bg-muted/60 border border-border p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  const params = new URLSearchParams(Array.from(searchParams?.entries() || []));
+                  params.delete('role');
+                  router.replace(`/login${params.toString() ? `?${params}` : ''}`);
+                }}
+                className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors ${loginRole === 'tenant' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Staff / Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const params = new URLSearchParams(Array.from(searchParams?.entries() || []));
+                  params.set('role', 'reseller');
+                  router.replace(`/login?${params}`);
+                }}
+                className={`flex-1 rounded-md px-3 py-1.5 font-medium transition-colors ${loginRole === 'reseller' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Reseller
+              </button>
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
@@ -203,6 +276,24 @@ function LoginForm() {
                     className="pl-9 text-xs"
                     placeholder="Enter password"
                     autoComplete="current-password"
+                    disabled={submitting}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-foreground">ISP Tenant / Operator ID</label>
+                  <span className="text-[10px] text-muted-foreground">Optional (auto-detected)</span>
+                </div>
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={tenant}
+                    onChange={(e) => setTenant(e.target.value)}
+                    className="pl-9 text-xs"
+                    placeholder="e.g. exportnet or mula isp (blank to auto-detect)"
+                    autoComplete="organization"
                     disabled={submitting}
                   />
                 </div>
