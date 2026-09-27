@@ -1,26 +1,20 @@
-import { mergeProps } from "@base-ui/react/merge-props"
-import { useRender } from "@base-ui/react/use-render"
+import * as React from "react"
+import { Chip as HeroChip } from "@heroui/react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
-const badgeVariants = cva(
-  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-3xl border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
+export const badgeVariants = cva(
+  "inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
-        secondary:
-          "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
-        destructive:
-          "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
-        success:
-          "border-emerald-500/20 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 [a]:hover:bg-emerald-500/25",
-        warning:
-          "border-amber-500/20 bg-amber-500/15 text-amber-700 dark:text-amber-400 [a]:hover:bg-amber-500/25",
-        outline:
-          "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
-        ghost:
-          "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
+        default: "bg-primary/15 text-primary border border-primary/20",
+        secondary: "bg-muted text-muted-foreground border border-border",
+        destructive: "bg-destructive/15 text-destructive border border-destructive/20",
+        success: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+        warning: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20",
+        outline: "border border-border text-foreground bg-transparent",
+        ghost: "hover:bg-muted text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
     },
@@ -30,33 +24,39 @@ const badgeVariants = cva(
   }
 )
 
-import * as React from "react"
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLSpanElement>,
+    VariantProps<typeof badgeVariants> {}
 
-type BadgeProps = React.ComponentPropsWithoutRef<"span"> &
-  VariantProps<typeof badgeVariants> & {
-    render?: any
+export function Badge({ className, variant = "default", children, ...props }: BadgeProps) {
+  let chipColor: "accent" | "default" | "success" | "warning" | "danger" = "accent";
+  let chipVariant: "solid" | "soft" | "outline" = "soft";
+
+  if (variant === "secondary" || variant === "ghost") {
+    chipColor = "default";
+    chipVariant = "soft";
+  } else if (variant === "success") {
+    chipColor = "success";
+    chipVariant = "soft";
+  } else if (variant === "warning") {
+    chipColor = "warning";
+    chipVariant = "soft";
+  } else if (variant === "destructive") {
+    chipColor = "danger";
+    chipVariant = "soft";
+  } else if (variant === "outline") {
+    chipVariant = "outline";
+    chipColor = "default";
   }
 
-function Badge({
-  className,
-  variant = "default",
-  render,
-  ...props
-}: BadgeProps) {
-  return useRender({
-    defaultTagName: "span",
-    props: mergeProps(
-      {
-        className: cn(badgeVariants({ variant }), className),
-      },
-      props
-    ),
-    render,
-    state: {
-      slot: "badge",
-      variant,
-    },
-  })
+  return (
+    <HeroChip
+      color={chipColor}
+      variant={chipVariant as any}
+      className={cn(badgeVariants({ variant }), className)}
+      {...props}
+    >
+      {children}
+    </HeroChip>
+  );
 }
-
-export { Badge, badgeVariants }
