@@ -10,35 +10,35 @@ export const siteConfig = {
   navSections: [
     {
       title: "Overview",
-      items: [{ label: "Dashboard", href: "/overview" }],
+      items: [{ label: "Dashboard", href: "/overview", icon: "dashboard" }],
     },
     {
       title: "Tenants",
       items: [
-        { label: "Tenants", href: "/tenants" },
-        { label: "Domains", href: "/domains" },
-        { label: "Users", href: "/users" },
+        { label: "Tenants", href: "/tenants", icon: "tenants", badge: "2" },
+        { label: "Domains", href: "/domains", icon: "domains" },
+        { label: "Users", href: "/users", icon: "users" },
       ],
     },
     {
       title: "Catalog",
       items: [
-        { label: "Packages", href: "/packages" },
-        { label: "Subscriptions", href: "/subscriptions" },
+        { label: "Packages", href: "/packages", icon: "packages" },
+        { label: "Subscriptions", href: "/subscriptions", icon: "subscriptions" },
       ],
     },
     {
       title: "Operations",
       items: [
-        { label: "Payments", href: "/payments" },
-        { label: "Backups", href: "/backups" },
-        { label: "Applications", href: "/applications" },
-        { label: "API Credentials", href: "/api-credentials" },
+        { label: "Payments", href: "/payments", icon: "payments" },
+        { label: "Backups", href: "/backups", icon: "backups" },
+        { label: "Applications", href: "/applications", icon: "applications", badge: "New" },
+        { label: "API Credentials", href: "/api-credentials", icon: "credentials" },
       ],
     },
     {
       title: "Compliance",
-      items: [{ label: "Audit Logs", href: "/audit-logs" }],
+      items: [{ label: "Audit Logs", href: "/audit-logs", icon: "audit-logs" }],
     },
   ],
   // Backwards-compat fallback for the existing navbar code.
