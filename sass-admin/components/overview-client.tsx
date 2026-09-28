@@ -17,10 +17,7 @@ import {
   SearchIcon,
   EyeIcon,
   ExternalLinkIcon,
-  BuildingIcon,
-  UsersIcon,
-  ActivityIcon,
-} from "@/components/icons";
+} from "@/components/nav-icons";
 
 type OverviewData = {
   platform?: {
