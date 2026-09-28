@@ -1,7 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
-
 import { Card } from "@heroui/react";
-
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -14,19 +14,19 @@ type Props = {
 
 export function AdminCard({ title, description, actions, children, className }: Props) {
   return (
-    <Card className={cn("border border-separator bg-surface", className)}>
+    <Card className={cn("rounded-2xl border border-separator/80 bg-surface shadow-xs overflow-hidden", className)}>
       {(title || description || actions) && (
-        <Card.Header className="flex flex-col gap-1 border-b border-separator sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-1">
-            {title ? <h2 className="text-base font-semibold">{title}</h2> : null}
+        <Card.Header className="flex flex-col gap-2 border-b border-separator/70 p-5 sm:flex-row sm:items-center sm:justify-between bg-surface">
+          <div className="flex flex-col gap-0.5">
+            {title ? <h2 className="text-base font-bold text-foreground">{title}</h2> : null}
             {description ? (
-              <p className="text-xs text-muted">{description}</p>
+              <p className="text-xs text-muted font-medium">{description}</p>
             ) : null}
           </div>
-          {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+          {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
         </Card.Header>
       )}
-      <Card.Content className="p-4">{children}</Card.Content>
+      <Card.Content className="p-5">{children}</Card.Content>
     </Card>
   );
 }
