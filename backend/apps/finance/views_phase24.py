@@ -27,6 +27,10 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiPara
 
 from apps.core.permissions import IsTenantMember, IsBillingStaff
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
+from apps.core.feature_gating import (
+    FeatureDisabledError,
+    assert_feature_enabled,
+)
 from apps.customers.models import Customer
 from apps.billing.models import Invoice, Recharge
 from apps.finance.models import (
@@ -426,18 +430,23 @@ class CustomerBillingPortalView(viewsets.ViewSet):
         tenant_slug = request.query_params.get('tenant')
         if not tenant_slug:
             raise ValidationError({'tenant': 'tenant slug is required.'})
+        # Feature gate: customer billing portal is opt-in per tenant.
         from apps.core.models import Tenant as TenantModel
         try:
-            tenant = TenantModel.objects.get(slug=tenant_slug)
+            portal_tenant = TenantModel.objects.get(slug=tenant_slug)
         except TenantModel.DoesNotExist:
             raise PermissionDenied('Unknown tenant.')
+        try:
+            assert_feature_enabled(portal_tenant, 'customers.portal')
+        except FeatureDisabledError as exc:
+            raise PermissionDenied(str(exc))
         customer = self._resolve_customer(
-            tenant, request.query_params.get('token') or request.headers.get(
+            portal_tenant, request.query_params.get('token') or request.headers.get(
                 'X-Portal-Token', ''
             )
         )
         invoices = Invoice.objects.filter(
-            customer=customer, tenant=tenant,
+            customer=customer, tenant=portal_tenant,
         ).order_by('-created_at')[:50]
         return Response({
             'customer': {

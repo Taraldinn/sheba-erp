@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "heroui-react": {
+      "type": "stdio",
+      "command": "/home/taraldinn/.local/share/fnm/aliases/default/bin/npx",
+      "args": ["-y", "@heroui/react-mcp@latest"],
+      "env": {
+        "PATH": "/home/taraldinn/.local/share/fnm/aliases/default/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}

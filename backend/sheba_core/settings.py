@@ -636,6 +636,18 @@ PASSWORD_RESET_TIMEOUT = env.int('PASSWORD_RESET_TIMEOUT', default=900)  # 15 mi
 if 'test' in sys.argv:
     EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 
+# ─── Customer-portal auto-issuance ──────────────────────────────────────
+# When True, ``CustomerViewSet.perform_create`` mints a portal login
+# and dispatches the credentials via SMS + email. The dispatch is
+# idempotent (tracked by ``Customer.welcome_sent_at``), so re-saves
+# do not double-send. Disable per-tenant by setting the env var to
+# False — useful when migrating an existing ISP that already has
+# portal logins set up another way.
+AUTO_ISSUE_CUSTOMER_LOGIN = env.bool('AUTO_ISSUE_CUSTOMER_LOGIN', default=True)
+CUSTOMER_PORTAL_LOGIN_URL = env(
+    'CUSTOMER_PORTAL_LOGIN_URL', default='https://portal.shebafi.xyz/login'
+)
+
 
 # ─── Network feature flags (Networking migration delta 2) ────────────────────
 # Default OFF to keep the existing single-method (PPPoE only) detection

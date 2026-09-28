@@ -46,6 +46,14 @@ class Customer(models.Model):
     pppoe_username = models.CharField(max_length=100, db_index=True)
     pppoe_password = models.CharField(max_length=100)
     portal_password = models.CharField(max_length=128, blank=True, default='', help_text="Hashed password for self-care portal login")
+    # Idempotency guard for the auto-issued welcome login. Set whenever
+    # the welcome SMS / email has been dispatched for this customer so
+    # retries don't double-send credentials.
+    welcome_sent_at = models.DateTimeField(null=True, blank=True)
+    welcome_sent_via = models.CharField(max_length=32, blank=True, default='', help_text="Comma list: sms,email")
+    welcome_sms_log_id = models.CharField(max_length=64, blank=True, default='')
+    welcome_email_to = models.EmailField(blank=True, default='')
+    welcome_username = models.CharField(max_length=128, blank=True, default='', help_text="Username mailed/SMSed to the customer; usually the pppoe_username but overridable.")
     static_ip = models.GenericIPAddressField(null=True, blank=True)
     mac_address = models.CharField(max_length=50, blank=True)
     onu_mac_or_sn = models.CharField(max_length=100, blank=True)

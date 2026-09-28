@@ -513,3 +513,67 @@ class TenantAwareAuthenticationStage2Tests(TestCase):
         # Token must now be invalidated
         me_after = self.client.get('/api/v1/saas/auth/me/', **headers)
         self.assertEqual(me_after.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 15. Explicit tenant in request body or header
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_login_with_explicit_tenant_in_body(self):
+        """Staff of Tenant B can supply 'tenant': 'beta' and authenticate successfully."""
+        response = self.client.post(
+            '/api/v1/auth/login/',
+            {'username': 'staff_beta', 'password': 'password123', 'tenant': 'beta'},
+            HTTP_HOST='localhost'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['tenant']['slug'], 'beta')
+
+    def test_login_with_explicit_tenant_in_header(self):
+        """Staff of Tenant B can supply X-Tenant-ID header and authenticate successfully."""
+        response = self.client.post(
+            '/api/v1/auth/login/',
+            {'username': 'staff_beta', 'password': 'password123'},
+            HTTP_HOST='localhost',
+            HTTP_X_TENANT_ID='beta'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['tenant']['slug'], 'beta')
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 16. Local fallback unique membership auto-resolution
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_login_local_fallback_unique_membership(self):
+        """On localhost, a user belonging only to Tenant B auto-resolves to Tenant B without 403."""
+        response = self.client.post(
+            '/api/v1/auth/login/',
+            {'username': 'staff_beta', 'password': 'password123'},
+            HTTP_HOST='localhost'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['tenant']['slug'], 'beta')
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 17. Non-existent tenant returns 404 TENANT_NOT_FOUND
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_login_with_non_existent_tenant_returns_404(self):
+        """Providing an unknown or invalid tenant identifier returns 404 TENANT_NOT_FOUND."""
+        response = self.client.post(
+            '/api/v1/auth/login/',
+            {'username': 'staff_beta', 'password': 'password123', 'tenant': 'does_not_exist'},
+            HTTP_HOST='localhost'
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data.get('code'), 'TENANT_NOT_FOUND')
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 18. User session token is not broken by invalid API key
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_user_session_token_not_broken_by_invalid_api_key(self):
+        """A valid user token request must not fail with 401 when carrying an unconfigured X-API-Key."""
+        token_a, _ = Token.objects.get_or_create(user=self.user_a)
+        response = self.client.get(
+            '/api/v1/customers/',
+            HTTP_HOST='alpha.shebafi.com',
+            HTTP_AUTHORIZATION=f'Token {token_a.key}',
+            HTTP_X_API_KEY='invalid-or-revoked-key-sample'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

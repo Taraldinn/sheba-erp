@@ -26,6 +26,7 @@ Tests:
 """
 
 from unittest.mock import patch, MagicMock
+from itertools import cycle
 import requests
 from django.test import TestCase
 from django.contrib.auth.models import User
@@ -603,14 +604,26 @@ class ISPNetworkOperationsStage7Tests(TestCase):
 
     @patch('requests.Session.get')
     def test_sync_router_task_execution(self, mock_get):
+        from itertools import cycle
         mock_resp = MagicMock()
         mock_resp.ok = True
         mock_resp.status_code = 200
-        mock_resp.json.side_effect = [
+        # The sync pipeline issues 4 GETs in order:
+        #   1) /system/identity
+        #   2) /system/resource
+        #   3) /interface      (added by get_full_health telemetry)
+        #   4) /ppp/active     (sync_active_sessions_to_db)
+        # Using cycle() guarantees the iterator never exhausts even if the
+        # implementation adds another defensive probe in the future.
+        mock_resp.json.side_effect = cycle([
             {'name': 'Core-CCR-Alpha'},
-            {'version': '7.15', 'uptime': '5d', 'cpu-load': 10, 'total-memory': 100, 'free-memory': 50, 'board-name': 'CCR'},
-            [{'name': 'rashid_pppoe', 'address': '10.50.100.12', 'caller-id': 'AA:BB:CC:11:22:33', 'uptime': '1h'}],
-        ]
+            {'version': '7.15', 'uptime': '5d', 'cpu-load': 10,
+             'total-memory': 100, 'free-memory': 50, 'board-name': 'CCR',
+             'total-hdd-space': 1000, 'free-hdd-space': 500},
+            [],
+            [{'name': 'rashid_pppoe', 'address': '10.50.100.12',
+              'caller-id': 'AA:BB:CC:11:22:33', 'uptime': '1h'}],
+        ])
         mock_get.return_value = mock_resp
 
         res = sync_router_task(tenant_id=str(self.tenant_a.id), router_id=str(self.router_a.id))

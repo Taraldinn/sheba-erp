@@ -1,0 +1,14 @@
+{
+  "name": "sheba-erp-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sheba ISP ERP & SaaS Monorepo Workspace",
+  "scripts": {
+    "dev": "./dev.sh",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:superadmin": "npm --prefix super-admin run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:superadmin": "npm --prefix super-admin run build",
+    "test:frontend": "npm --prefix frontend test"
+  }
+}

@@ -100,6 +100,17 @@ class CustomerViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Permission denied: customer.create capability required.")
         customer = serializer.save(tenant=tenant)
         sync_customer_to_router(customer)
+        # Auto-issue a portal login + send credentials to the customer
+        # via SMS / email. Idempotent (no-op if already sent) and
+        # opt-out via the ``AUTO_ISSUE_CUSTOMER_LOGIN`` setting.
+        try:
+            from .welcome import issue_and_welcome
+            result = issue_and_welcome(customer)
+        except Exception:  # pragma: no cover — never block the create
+            result = {'enabled': True, 'issued': None, 'dispatch': None}
+        # Stash on the instance so the serializer's ``get_welcome``
+        # returns the just-issued credentials to the operator.
+        customer._welcome_result = result
 
     def perform_update(self, serializer):
         tenant = get_tenant_for_request(self.request)
@@ -419,6 +430,45 @@ class CustomerViewSet(viewsets.ModelViewSet):
             'message': f"Financial balances recalculated authoritatively for customer {customer.pppoe_username}.",
             'summary': summary
         })
+
+    @action(detail=True, methods=['post'], url_path='resend-welcome')
+    def resend_welcome(self, request, pk=None):
+        """Re-issue (and re-send) portal credentials for a customer.
+
+        Used when:
+          * the customer lost the original SMS,
+          * the operator needs a new password (rotate),
+          * they were created via a flow that skipped welcome (e.g.
+            imported in bulk and ``AUTO_ISSUE_CUSTOMER_LOGIN`` was off
+            at the time).
+
+        Body params (all optional):
+          * ``rotate=true`` — mint a NEW password and re-send. Default
+            is to keep the existing password and just re-dispatch.
+
+        Returns the same ``welcome`` shape ``perform_create`` does:
+          {issued: {username, password, regenerated}, dispatch: {...}}
+        """
+        customer = self.get_object()
+        tenant = request.tenant
+        if not can(request.user, tenant, 'customer.update', customer):
+            return Response(
+                {'error': 'Permission denied: customer.update required.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        rotate = bool(request.data.get('rotate'))
+        # Clear the previously dispatched timestamp so the welcome
+        # module will actually re-send instead of short-circuiting.
+        if customer.welcome_sent_at:
+            customer.welcome_sent_at = None
+            customer.save(update_fields=['welcome_sent_at'])
+        from .welcome import issue_and_welcome
+        result = issue_and_welcome(
+            customer,
+            force_resend=True,
+            regenerate=rotate,
+        )
+        return Response(result)
 
     @action(detail=True, methods=['post'], url_path='grant-grace-period')
     def grant_grace_period(self, request, pk=None):

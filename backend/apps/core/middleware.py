@@ -136,6 +136,9 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         from apps.core.authentication import extract_raw_api_key
         raw_key = extract_raw_api_key(request)
         if raw_key:
+            auth_header = request.headers.get('Authorization') or request.META.get('HTTP_AUTHORIZATION') or ''
+            has_user_session = bool(auth_header.startswith('Token ') or auth_header.startswith('Bearer '))
+
             from apps.core.models import TenantApiToken
             prefix = TenantApiToken._make_prefix(raw_key)
             candidates = TenantApiToken.objects.select_related('tenant').filter(key_prefix=prefix)
@@ -146,62 +149,63 @@ class TenantResolutionMiddleware(MiddlewareMixin):
                     break
 
             if not matched_candidate:
-                return JsonResponse({
-                    'detail': 'Invalid API key provided.',
-                    'code': 'INVALID_API_KEY'
-                }, status=401)
+                if not has_user_session:
+                    return JsonResponse({
+                        'detail': 'Invalid API key provided.',
+                        'code': 'INVALID_API_KEY'
+                    }, status=401)
+            else:
+                status_val = matched_candidate.effective_status
+                if status_val == TenantApiToken.CredentialStatus.REVOKED:
+                    if not has_user_session:
+                        return JsonResponse({
+                            'detail': 'API key has been revoked.',
+                            'code': 'CREDENTIAL_REVOKED'
+                        }, status=401)
+                elif status_val == TenantApiToken.CredentialStatus.EXPIRED:
+                    if not has_user_session:
+                        return JsonResponse({
+                            'detail': 'API key has expired.',
+                            'code': 'CREDENTIAL_EXPIRED'
+                        }, status=401)
+                elif status_val == TenantApiToken.CredentialStatus.SUSPENDED:
+                    if not has_user_session:
+                        return JsonResponse({
+                            'detail': 'API key is suspended.',
+                            'code': 'CREDENTIAL_SUSPENDED'
+                        }, status=401)
+                else:
+                    tenant = matched_candidate.tenant
+                    request.tenant = tenant
+                    if not has_user_session:
+                        request.auth_type = 'api_key'
+                        request.api_token = matched_candidate
+                        request.application = matched_candidate
+                        request.api_scopes = set(matched_candidate.permissions or [])
 
-            status_val = matched_candidate.effective_status
-            if status_val == TenantApiToken.CredentialStatus.REVOKED:
-                return JsonResponse({
-                    'detail': 'API key has been revoked.',
-                    'code': 'CREDENTIAL_REVOKED'
-                }, status=401)
-            if status_val == TenantApiToken.CredentialStatus.EXPIRED:
-                return JsonResponse({
-                    'detail': 'API key has expired.',
-                    'code': 'CREDENTIAL_EXPIRED'
-                }, status=401)
-            if status_val == TenantApiToken.CredentialStatus.SUSPENDED:
-                return JsonResponse({
-                    'detail': 'API key is suspended.',
-                    'code': 'CREDENTIAL_SUSPENDED'
-                }, status=401)
-
-            tenant = matched_candidate.tenant
-            request.tenant = tenant
-            request.auth_type = 'api_key'
-            request.api_token = matched_candidate
-            request.application = matched_candidate
-            request.api_scopes = set(matched_candidate.permissions or [])
-
-            # ── Cross-validate: API key tenant must match the request domain tenant ──
-            # Resolve the domain tenant independently for validation
-            domain_tenant = None
-            try:
-                domain_record = (
-                    TenantDomain.objects
-                    .select_related('tenant')
-                    .filter(hostname__iexact=raw_host, is_active=True)
-                    .first()
-                )
-                if domain_record:
-                    domain_tenant = domain_record.tenant
-            except Exception:
-                pass
-            if not domain_tenant:
-                try:
-                    domain_tenant = Tenant.objects.filter(domain__iexact=raw_host).first()
-                except Exception:
-                    pass
-            # Only enforce mismatch when the domain resolves to a known tenant
-            # that differs from the API key's tenant. Unknown/localhost domains
-            # are permitted (API key alone provides context).
-            if domain_tenant and domain_tenant.id != tenant.id:
-                return JsonResponse({
-                    'detail': 'API key tenant does not match the request domain.',
-                    'code': 'TENANT_MISMATCH',
-                }, status=401)
+                    # ── Cross-validate: API key tenant must match the request domain tenant ──
+                    domain_tenant = None
+                    try:
+                        domain_record = (
+                            TenantDomain.objects
+                            .select_related('tenant')
+                            .filter(hostname__iexact=raw_host, is_active=True)
+                            .first()
+                        )
+                        if domain_record:
+                            domain_tenant = domain_record.tenant
+                    except Exception:
+                        pass
+                    if not domain_tenant:
+                        try:
+                            domain_tenant = Tenant.objects.filter(domain__iexact=raw_host).first()
+                        except Exception:
+                            pass
+                    if domain_tenant and domain_tenant.id != tenant.id and not has_user_session:
+                        return JsonResponse({
+                            'detail': 'API key tenant does not match the request domain.',
+                            'code': 'TENANT_MISMATCH',
+                        }, status=401)
 
         # 4. Domain-based resolution (multi-stage)
         # A. TenantDomain table — preferred (Plan Phase 4)
@@ -235,10 +239,27 @@ class TenantResolutionMiddleware(MiddlewareMixin):
                 except Exception:
                     pass
 
-        # D. Localhost / 127.0.0.1 development fallback (active only in local mode)
+        # D. X-Tenant-ID header resolution (for API clients, dev mode, and portal switching)
+        if not tenant:
+            header_tenant = (request.headers.get('X-Tenant-ID') or request.META.get('HTTP_X_TENANT_ID') or '').strip()
+            if header_tenant:
+                from django.db.models import Q
+                try:
+                    tenant = Tenant.objects.filter(
+                        Q(slug__iexact=header_tenant) | Q(name__iexact=header_tenant),
+                        is_active=True
+                    ).first()
+                    if not tenant:
+                        tenant = Tenant.objects.filter(id=header_tenant, is_active=True).first()
+                except Exception:
+                    pass
+
+        # E. Localhost / 127.0.0.1 development fallback (active only in local mode)
         if not tenant and raw_host in ('localhost', '127.0.0.1') and getattr(settings, 'IS_LOCAL', False):
             try:
                 tenant = Tenant.objects.filter(is_active=True).first()
+                if tenant:
+                    request.is_tenant_fallback = True
             except Exception:
                 pass
 

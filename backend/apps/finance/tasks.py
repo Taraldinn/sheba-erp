@@ -17,6 +17,10 @@ from apps.finance.services_phase24 import (
     TaxService,
     money,
 )
+from apps.core.feature_gating import (
+    FeatureDisabledError,
+    is_feature_enabled_fast,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +52,9 @@ def apply_late_fees_daily(self=None):
     today = timezone.localdate()
     processed = 0
     for tenant in Tenant.objects.filter(is_active=True):
+        # Feature gate: only apply late fees to opted-in tenants.
+        if not is_feature_enabled_fast(tenant, 'billing.late_fees'):
+            continue
         late_pct = _late_fee_for(tenant)
         for inv in DunningService.overdue_invoices(tenant, today=today):
             base = money(inv.package_amount) + money(inv.previous_due or 0)
@@ -70,6 +77,9 @@ def cascade_dunning_daily(self=None):
     """Walk every active tenant, fire dunning events for overdue invoices."""
     total = 0
     for tenant in Tenant.objects.filter(is_active=True):
+        # Feature gate: dunning cascade is opt-in per tenant.
+        if not is_feature_enabled_fast(tenant, 'billing.cascade_dunning'):
+            continue
         events = DunningService.cascade(tenant)
         total += len(events)
     logger.info('cascade_dunning_daily: fired=%s', total)
@@ -86,6 +96,9 @@ def auto_throttle_overdue_daily(self=None):
     threshold = 7  # days overdue before throttle
     affected = 0
     for tenant in Tenant.objects.filter(is_active=True):
+        # Feature gate: only auto-throttle opted-in tenants.
+        if not is_feature_enabled_fast(tenant, 'billing.auto_throttle'):
+            continue
         qs = Invoice.objects.filter(
             tenant=tenant,
             status__in=[Invoice.InvoiceStatus.UNPAID, Invoice.InvoiceStatus.PARTIAL],

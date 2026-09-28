@@ -11,6 +11,7 @@ from .services.mikrotik import MikroTikService
 from .services.olt import OLTSystemService
 from .services.audit import log_network_action
 from apps.core.lock import distributed_lock, LockAcquisitionError
+from apps.core.feature_gating import is_feature_enabled_fast
 
 logger = logging.getLogger(__name__)
 
@@ -505,6 +506,9 @@ def poll_wireguard_handshakes(self=None, tenant_id=None):
 
     summary = {'scanned': 0, 'peers': 0, 'failures': 0}
     for config in qs.select_related('router', 'tenant'):
+        # Feature gate: skip tenants that haven't opted into WireGuard.
+        if not is_feature_enabled_fast(config.tenant, 'network.vpn_wireguard'):
+            continue
         summary['scanned'] += 1
         try:
             peers = WireGuardService.record_handshakes(

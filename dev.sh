@@ -17,8 +17,8 @@ RESET='\033[0m'
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
-FRONTEND_DIR="$ROOT_DIR/frontend"
-SUPERADMIN_DIR="$ROOT_DIR/super-admin"
+FRONTEND_DIR="$ROOT_DIR/isp-admin"
+SUPERADMIN_DIR="$ROOT_DIR/sass-admin"
 VENV_PYTHON="$BACKEND_DIR/venv/bin/python"
 
 # Verify virtual environment

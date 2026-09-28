@@ -5,6 +5,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.core.permissions import IsTenantAdminMember, IsTenantMember, IsTechnicalStaff
+from apps.core.feature_gating import (
+    FeatureDisabledError,
+    assert_feature_enabled,
+)
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 from apps.network.models import (
     WireGuardAuditEvent,
@@ -34,11 +38,26 @@ def _actor(request) -> dict:
 
 
 class WireGuardConfigViewSet(viewsets.ModelViewSet):
+    """Per-tenant WireGuard site-to-site VPN config.
+
+    Gated by the ``network.vpn_wireguard`` feature flag — tenants without
+    the add-on can't manage VPN tunnels.
+    """
     permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff]
     serializer_class = WireGuardConfigSerializer
 
     def get_queryset(self):
         return get_scoped_queryset(self.request, WireGuardConfig).select_related('router').prefetch_related('subnets')
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        tenant = getattr(request, 'tenant', None)
+        if tenant is None:
+            raise PermissionError('Tenant context required.')
+        try:
+            assert_feature_enabled(tenant, 'network.vpn_wireguard')
+        except FeatureDisabledError as exc:
+            raise PermissionError(str(exc))
 
     def perform_create(self, serializer):
         meta = _actor(self.request)

@@ -228,4 +228,6 @@ class UserDetailSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
+    tenant = serializers.CharField(required=False, allow_blank=True, default='')
+    tenant_id = serializers.CharField(required=False, allow_blank=True, default='')
 

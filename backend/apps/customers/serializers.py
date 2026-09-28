@@ -64,6 +64,7 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
     router_protocol = serializers.CharField(source='router.api_protocol', read_only=True)
     router_status = serializers.CharField(source='router.status', read_only=True)
     live_session = serializers.SerializerMethodField()
+    welcome = serializers.SerializerMethodField()
 
     class Meta:
         model = Customer
@@ -77,6 +78,39 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         ret.pop('pppoe_password', None)
         return ret
+
+    def get_welcome(self, obj):
+        """Returns the welcome-credential dispatch info stashed on
+        the instance by ``CustomerViewSet.perform_create`` (or None
+        for plain reads). Shape:
+          {
+            'enabled': bool,
+            'issued':  {'username': str, 'password': str, 'regenerated': bool} | None,
+            'dispatch': {'sent_via': [..], 'skipped': [..], 'sms_log_id': str|None,
+                         'email_to': str} | None,
+          }
+        """
+        result = getattr(obj, '_welcome_result', None)
+        if result is not None:
+            return result
+        # Read-only path: surface the persisted dispatch state so the
+        # admin UI can show "Welcome sent at X" without re-sending.
+        return {
+            'enabled': True,
+            'issued': None,
+            'dispatch': {
+                'sent_via': (
+                    obj.welcome_sent_via.split(',')
+                    if obj.welcome_sent_via else []
+                ),
+                'sms_log_id': obj.welcome_sms_log_id or None,
+                'email_to': obj.welcome_email_to or '',
+                'sent_at': (
+                    obj.welcome_sent_at.isoformat()
+                    if obj.welcome_sent_at else None
+                ),
+            },
+        }
 
     def get_live_session(self, obj):
         from apps.network.models import UserSession

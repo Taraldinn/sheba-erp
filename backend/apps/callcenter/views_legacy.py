@@ -47,6 +47,11 @@ from apps.callcenter.services.ip_phone import (
 )
 from apps.core.models import AuditLog
 from apps.core.permissions import IsTenantMember
+from apps.core.feature_gating import (
+    FeatureDisabledError,
+    assert_feature_enabled,
+    require_feature,
+)
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
 from apps.customers.models import Customer, CustomerStatus
 
@@ -69,8 +74,12 @@ class IPPhoneConfigSerializer(serializers.ModelSerializer):
         model = _M
         fields = [
             'id', 'staff', 'driver', 'base_url', 'username', 'caller_id',
-            'extension', 'enabled', 'test_mode', 'has_token',
+            'extension', 'enabled', 'test_mode', 'has_token', 'password_token',
         ]
+        # ``password_token`` is write-only — never echoed back in API responses.
+        extra_kwargs = {
+            'password_token': {'write_only': True, 'required': False, 'allow_blank': True},
+        }
         read_only_fields = ('staff',)
 
     def get_has_token(self, obj) -> bool:
@@ -97,8 +106,11 @@ class IPPhoneNumberSerializer(serializers.ModelSerializer):
         model = _M
         fields = [
             'id', 'staff', 'ip_number', 'sip_server', 'port', 'wss_uri',
-            'is_main', 'has_password', 'created_at',
+            'is_main', 'has_password', 'created_at', 'password',
         ]
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False, 'allow_blank': True},
+        }
         read_only_fields = ('staff', 'created_at')
 
     def get_has_password(self, obj) -> bool:
@@ -221,12 +233,28 @@ class _FakeRequest:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class IPPhoneConfigViewSet(viewsets.ModelViewSet):
-    """Per-staff IP-phone driver config (one row per staff member)."""
+    """Per-staff IP-phone driver config (one row per staff member).
+
+    Gated by the ``ip_phone.epbx`` feature flag — tenants that haven't
+    subscribed get a 403 from every action.
+    """
     permission_classes = [permissions.IsAuthenticated, IsTenantMember]
     serializer_class = IPPhoneConfigSerializer
 
     def get_queryset(self):
         return get_scoped_queryset(self.request, IPPhoneConfig)
+
+    def initial(self, request, *args, **kwargs):
+        # ``initial`` runs after auth+permissions but before the action method.
+        # This is the correct hook to gate ModelViewSets behind a feature flag.
+        super().initial(request, *args, **kwargs)
+        tenant = getattr(request, 'tenant', None)
+        if tenant is None:
+            raise PermissionError('Tenant context required.')
+        try:
+            assert_feature_enabled(tenant, 'ip_phone.epbx')
+        except FeatureDisabledError as exc:
+            raise PermissionError(str(exc))
 
     def perform_create(self, serializer):
         if not _admin_or_manager(self.request):
@@ -240,6 +268,16 @@ class IPPhoneNumberViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return get_scoped_queryset(self.request, IPPhoneNumber)
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        tenant = getattr(request, 'tenant', None)
+        if tenant is None:
+            raise PermissionError('Tenant context required.')
+        try:
+            assert_feature_enabled(tenant, 'ip_phone.epbx')
+        except FeatureDisabledError as exc:
+            raise PermissionError(str(exc))
 
     def perform_create(self, serializer):
         if not _admin_or_manager(self.request):
@@ -407,6 +445,7 @@ def _substitute_voice_placeholders(template: str, customer: Customer) -> str:
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsTenantMember])
+@require_feature('ip_phone.epbx')
 def click_to_call(request):
     """Trigger a click-to-call via the bound IP-phone driver.
 
@@ -414,6 +453,9 @@ def click_to_call(request):
     success with ``is_sip_client=true`` so the browser-side WebSIP softphone
     can take over; otherwise dispatch to the configured external driver.
     Always writes a ``CallLog`` row, mirroring the PHP controller.
+
+    Gated by the ``ip_phone.epbx`` feature flag — tenants that haven't
+    subscribed to the ePBX module get a 403 with code ``FEATURE_DISABLED``.
     """
     tenant = get_tenant_for_request(request)
     user = request.user

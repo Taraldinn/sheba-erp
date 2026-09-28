@@ -1,4 +1,5 @@
 import uuid
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -669,3 +670,38 @@ class DatabaseBackup(models.Model):
     def __str__(self):
         return f"{self.backup_name} ({self.filename}) - {self.status}"
 
+
+
+
+class TenantFeatureFlag(models.Model):
+    """Per-tenant override for a platform feature flag.
+
+    A row only exists if the tenant explicitly opted in or out of the
+    feature; the effective state otherwise comes from
+    :data:`apps.core.features.FEATURE_REGISTRY` ``default_enabled``.
+
+    The ``config`` JSON field lets each tenant tweak sub-settings (e.g.
+    SMS sending rate limit, late-fee percentage cap) without a schema
+    migration.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='feature_flags',
+    )
+    feature_key = models.CharField(max_length=80, db_index=True)
+    enabled = models.BooleanField(default=True)
+    config = models.JSONField(default=dict, blank=True)
+    enabled_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    enabled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='enabled_tenant_features',
+    )
+
+    class Meta:
+        ordering = ['tenant_id', 'feature_key']
+        unique_together = [('tenant', 'feature_key')]
+
+    def __str__(self):
+        return f"{self.tenant.slug}:{self.feature_key}={'on' if self.enabled else 'off'}"
