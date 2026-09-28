@@ -13,7 +13,9 @@ export function LoginCard() {
         <div className="grid h-12 w-12 place-items-center rounded-xl bg-accent text-accent-foreground text-lg font-bold shadow-md">
           S
         </div>
-        <h1 className="text-xl font-semibold tracking-tight">{siteConfig.name}</h1>
+        <h1 className="text-xl font-semibold tracking-tight">
+          {siteConfig.name}
+        </h1>
         <p className="text-xs text-muted">
           Sign in with your platform administrator account.
         </p>
@@ -24,7 +26,8 @@ export function LoginCard() {
         </Suspense>
       </Card.Content>
       <Card.Footer className="border-t border-separator p-4 text-center text-xs text-muted">
-        Restricted to platform administrators. ISP tenant staff should use their own portal.
+        Restricted to platform administrators. ISP tenant staff should use their
+        own portal.
       </Card.Footer>
     </Card>
   );

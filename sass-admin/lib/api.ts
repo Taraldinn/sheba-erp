@@ -34,8 +34,8 @@ function getApiBase(): string {
   // SaaS control plane sits under <api>/saas/. NB: NEXT_PUBLIC_API_URL
   // already includes /api/v1 for the operator frontend, so we strip it off
   // and re-add /api/v1/saas.
-  const raw =
-    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+  const raw = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+
   return raw.replace(/\/api\/v1\/?$/, "") + "/api/v1/saas";
 }
 
@@ -46,11 +46,16 @@ function getStoredToken(): string | null {
   if (typeof window === "undefined") return DEV_SESSION_TOKEN;
   try {
     const fromStorage = window.localStorage.getItem(SESSION_STORAGE_KEY);
+
     if (fromStorage) return fromStorage;
     const match = document.cookie.match(
-      new RegExp(`(?:^|;\\s*)(${SESSION_STORAGE_KEY}|${SESSION_COOKIE_NAME})=([^;]*)`),
+      new RegExp(
+        `(?:^|;\\s*)(${SESSION_STORAGE_KEY}|${SESSION_COOKIE_NAME})=([^;]*)`,
+      ),
     );
+
     if (match && match[2]) return decodeURIComponent(match[2]);
+
     return DEV_SESSION_TOKEN;
   } catch {
     return DEV_SESSION_TOKEN;
@@ -62,7 +67,10 @@ export function storeSessionToken(token: string | null) {
   try {
     if (token) {
       window.localStorage.setItem(SESSION_STORAGE_KEY, token);
-      const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString();
+      const expires = new Date(
+        Date.now() + 30 * 24 * 60 * 60 * 1000,
+      ).toUTCString();
+
       document.cookie = `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}; expires=${expires}; path=/; SameSite=Lax`;
       document.cookie = `${SESSION_STORAGE_KEY}=${encodeURIComponent(token)}; expires=${expires}; path=/; SameSite=Lax`;
     } else {
@@ -97,15 +105,19 @@ function buildUrl(path: string, query?: ApiFetchOptions["query"]): string {
   const base = getApiBase();
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   let url = `${base}${cleanPath}`;
+
   if (query) {
     const params = new URLSearchParams();
+
     for (const [k, v] of Object.entries(query)) {
       if (v === undefined || v === null) continue;
       params.append(k, String(v));
     }
     const qs = params.toString();
+
     if (qs) url += (url.includes("?") ? "&" : "?") + qs;
   }
+
   return url;
 }
 
@@ -114,12 +126,12 @@ export async function apiFetch<T = unknown>(
   options: ApiFetchOptions = {},
 ): Promise<T> {
   const { token, query, headers, ...rest } = options;
-  const authToken =
-    token === undefined ? getStoredToken() : token;
+  const authToken = token === undefined ? getStoredToken() : token;
   const finalHeaders: Record<string, string> = {
     Accept: "application/json",
     ...(headers as Record<string, string> | undefined),
   };
+
   if (rest.body && !finalHeaders["Content-Type"]) {
     finalHeaders["Content-Type"] = "application/json";
   }
@@ -130,6 +142,7 @@ export async function apiFetch<T = unknown>(
   const res = await fetch(url, { ...rest, headers: finalHeaders });
   const contentType = res.headers.get("content-type") ?? "";
   let body: unknown = null;
+
   if (contentType.includes("application/json")) {
     body = await res.json();
   } else {
@@ -140,8 +153,10 @@ export async function apiFetch<T = unknown>(
       typeof body === "object" && body && "error" in body
         ? String((body as { error: unknown }).error)
         : `HTTP ${res.status}`;
+
     throw new ApiError(message, res.status, body);
   }
+
   return body as T;
 }
 
@@ -193,11 +208,13 @@ export async function serverMe(
   tokenFromServer?: string | null,
 ): Promise<SaasAdminUser | null> {
   const token = tokenFromServer || DEV_SESSION_TOKEN;
+
   if (!token) return null;
   try {
     const res = await apiFetch<SaasAdminUser>("/auth/me/", {
       token,
     });
+
     return res;
   } catch (err) {
     if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
@@ -212,6 +229,7 @@ export async function serverMe(
           platform: "ShebaFi Global Control Plane (admin.shebafi.xyz)",
         };
       }
+
       return null;
     }
     if (process.env.NODE_ENV !== "production") {

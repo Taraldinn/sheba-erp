@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Spinner, Chip } from "@heroui/react";
 
 import { api, ApiError } from "@/lib/api";
-import { AdminCard } from "@/components/admin-card";
-import { AdminDataTable, type AdminColumn } from "@/components/admin-data-table";
+import {
+  AdminDataTable,
+  type AdminColumn,
+} from "@/components/admin-data-table";
 
 type Props<T> = {
   title: string;
@@ -20,7 +22,11 @@ type Props<T> = {
 };
 
 function isPaginated(payload: unknown): payload is { results: unknown[] } {
-  return !!payload && typeof payload === "object" && Array.isArray((payload as { results?: unknown }).results);
+  return (
+    !!payload &&
+    typeof payload === "object" &&
+    Array.isArray((payload as { results?: unknown }).results)
+  );
 }
 
 export function AdminResourcePage<T>({
@@ -40,6 +46,7 @@ export function AdminResourcePage<T>({
 
   useEffect(() => {
     let cancelled = false;
+
     setError(null);
     setRows(null);
     api
@@ -49,8 +56,9 @@ export function AdminResourcePage<T>({
         const list = isPaginated(data)
           ? (data.results as T[])
           : Array.isArray(data)
-          ? (data as T[])
-          : [];
+            ? (data as T[])
+            : [];
+
         setRows(list);
       })
       .catch((err: unknown) => {
@@ -61,6 +69,7 @@ export function AdminResourcePage<T>({
           setError(err instanceof Error ? err.message : "Failed to load.");
         }
       });
+
     return () => {
       cancelled = true;
     };
@@ -76,7 +85,12 @@ export function AdminResourcePage<T>({
               {title}
             </h1>
             {rows !== null && (
-              <Chip color="accent" size="sm" variant="soft" className="text-xs font-semibold">
+              <Chip
+                className="text-xs font-semibold"
+                color="accent"
+                size="sm"
+                variant="soft"
+              >
                 {rows.length} {rows.length === 1 ? "Record" : "Records"}
               </Chip>
             )}
@@ -89,10 +103,10 @@ export function AdminResourcePage<T>({
         <div className="flex items-center gap-2">
           {extraHeaderActions}
           <Button
-            isDisabled={rows === null}
-            variant="tertiary"
-            size="sm"
             className="rounded-full text-xs font-semibold"
+            isDisabled={rows === null}
+            size="sm"
+            variant="tertiary"
             onPress={() => setReloadKey((k) => k + 1)}
           >
             Refresh
@@ -114,9 +128,9 @@ export function AdminResourcePage<T>({
       ) : (
         <AdminDataTable
           columns={columns}
-          rows={rows ?? []}
-          getRowId={getRowId}
           empty={empty}
+          getRowId={getRowId}
+          rows={rows ?? []}
           searchPlaceholder={searchPlaceholder}
         />
       )}

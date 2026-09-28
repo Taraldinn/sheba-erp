@@ -1,12 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
 import { logout } from "@/lib/auth";
 
 export function useLogout() {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const handleLogout = () => {
     startTransition(async () => {
@@ -17,5 +15,6 @@ export function useLogout() {
       }
     });
   };
+
   return { handleLogout, isPending };
 }

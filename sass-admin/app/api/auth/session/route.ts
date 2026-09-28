@@ -22,15 +22,20 @@ export async function POST(req: Request) {
         sameSite: "lax",
         httpOnly: false,
       });
+
       return NextResponse.json({ ok: true, authenticated: true });
     } else {
       cookieStore.delete(SESSION_COOKIE_NAME);
       cookieStore.delete(SESSION_STORAGE_KEY);
+
       return NextResponse.json({ ok: true, authenticated: false });
     }
   } catch (err: unknown) {
     return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : "Failed to set session" },
+      {
+        ok: false,
+        error: err instanceof Error ? err.message : "Failed to set session",
+      },
       { status: 500 },
     );
   }
@@ -38,7 +43,9 @@ export async function POST(req: Request) {
 
 export async function DELETE() {
   const cookieStore = await cookies();
+
   cookieStore.delete(SESSION_COOKIE_NAME);
   cookieStore.delete(SESSION_STORAGE_KEY);
+
   return NextResponse.json({ ok: true, authenticated: false });
 }

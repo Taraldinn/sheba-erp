@@ -1,10 +1,11 @@
 "use client";
 
+import type { DatabaseBackup } from "@/lib/types";
+
 import { Chip } from "@heroui/react";
 
 import { AdminResourcePage } from "@/components/admin-resource-page";
 import { formatDate } from "@/lib/utils";
-import type { DatabaseBackup } from "@/lib/types";
 
 const columns = [
   {
@@ -45,11 +46,11 @@ const columns = [
 export default function BackupsPage() {
   return (
     <AdminResourcePage<DatabaseBackup>
-      title="Database backups"
+      columns={columns}
       description="Scheduled and on-demand tenant database backups."
       endpoint="/backups/"
-      columns={columns}
       getRowId={(row) => row.id}
+      title="Database backups"
     />
   );
 }

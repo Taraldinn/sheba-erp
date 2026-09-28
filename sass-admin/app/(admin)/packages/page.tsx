@@ -1,16 +1,19 @@
 "use client";
 
+import type { SaasPackage } from "@/lib/types";
+
 import { Chip } from "@heroui/react";
 
 import { AdminResourcePage } from "@/components/admin-resource-page";
 import { formatCurrency } from "@/lib/utils";
-import type { SaasPackage } from "@/lib/types";
 
 const columns = [
   {
     key: "name",
     header: "Package",
-    render: (row: SaasPackage) => <span className="font-medium">{row.name}</span>,
+    render: (row: SaasPackage) => (
+      <span className="font-medium">{row.name}</span>
+    ),
   },
   {
     key: "price",
@@ -45,11 +48,11 @@ const columns = [
 export default function PackagesPage() {
   return (
     <AdminResourcePage<SaasPackage>
-      title="Packages"
+      columns={columns}
       description="SaaS plans offered to ISP tenants."
       endpoint="/packages/"
-      columns={columns}
       getRowId={(row) => row.id}
+      title="Packages"
     />
   );
 }

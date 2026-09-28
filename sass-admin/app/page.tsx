@@ -15,6 +15,7 @@ export default async function Home() {
     store.get(SESSION_STORAGE_KEY)?.value ??
     null;
   const user = await serverMe(token);
+
   if (user) redirect("/overview");
   redirect("/login");
 }

@@ -14,6 +14,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   let user = null;
+
   try {
     // Pass the current path so the login redirect can return here.
     // (requireSaasAdmin redirects to /login if the guard fails.)

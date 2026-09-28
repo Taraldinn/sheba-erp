@@ -24,7 +24,11 @@ export const siteConfig = {
       title: "Catalog",
       items: [
         { label: "Packages", href: "/packages", icon: "packages" },
-        { label: "Subscriptions", href: "/subscriptions", icon: "subscriptions" },
+        {
+          label: "Subscriptions",
+          href: "/subscriptions",
+          icon: "subscriptions",
+        },
       ],
     },
     {
@@ -32,8 +36,17 @@ export const siteConfig = {
       items: [
         { label: "Payments", href: "/payments", icon: "payments" },
         { label: "Backups", href: "/backups", icon: "backups" },
-        { label: "Applications", href: "/applications", icon: "applications", badge: "New" },
-        { label: "API Credentials", href: "/api-credentials", icon: "credentials" },
+        {
+          label: "Applications",
+          href: "/applications",
+          icon: "applications",
+          badge: "New",
+        },
+        {
+          label: "API Credentials",
+          href: "/api-credentials",
+          icon: "credentials",
+        },
       ],
     },
     {

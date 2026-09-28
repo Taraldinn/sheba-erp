@@ -13,6 +13,7 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
+    // eslint-disable-next-line no-console
     console.error("[admin error boundary]", error);
   }, [error]);
 
@@ -23,9 +24,7 @@ export default function Error({
           <h1 className="text-lg font-semibold">Something went wrong</h1>
         </Card.Header>
         <Card.Content className="space-y-3 p-6 text-sm text-muted">
-          <p>
-            {siteConfig.name} hit an unexpected error rendering this page.
-          </p>
+          <p>{siteConfig.name} hit an unexpected error rendering this page.</p>
           <pre className="overflow-auto rounded-md bg-surface-secondary p-3 text-xs text-foreground">
             {error.message}
           </pre>

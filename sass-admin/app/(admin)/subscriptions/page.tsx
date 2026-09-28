@@ -1,10 +1,11 @@
 "use client";
 
+import type { SaasSubscription } from "@/lib/types";
+
 import { Chip } from "@heroui/react";
 
 import { AdminResourcePage } from "@/components/admin-resource-page";
 import { formatDate } from "@/lib/utils";
-import type { SaasSubscription } from "@/lib/types";
 
 const columns = [
   {
@@ -45,11 +46,11 @@ const columns = [
 export default function SubscriptionsPage() {
   return (
     <AdminResourcePage<SaasSubscription>
-      title="Subscriptions"
+      columns={columns}
       description="Tenants currently subscribed to SaaS packages."
       endpoint="/subscriptions/"
-      columns={columns}
       getRowId={(row) => row.id}
+      title="Subscriptions"
     />
   );
 }

@@ -1,15 +1,18 @@
 "use client";
 
+import type { TenantDomain } from "@/lib/types";
+
 import { Chip } from "@heroui/react";
 
 import { AdminResourcePage } from "@/components/admin-resource-page";
-import type { TenantDomain } from "@/lib/types";
 
 const columns = [
   {
     key: "domain",
     header: "Domain",
-    render: (row: TenantDomain) => <span className="font-medium">{row.domain}</span>,
+    render: (row: TenantDomain) => (
+      <span className="font-medium">{row.domain}</span>
+    ),
   },
   {
     key: "tenant",
@@ -47,11 +50,11 @@ const columns = [
 export default function DomainsPage() {
   return (
     <AdminResourcePage<TenantDomain>
-      title="Domains"
+      columns={columns}
       description="Custom domains mapped to tenants."
       endpoint="/domains/"
-      columns={columns}
       getRowId={(row) => row.id}
+      title="Domains"
     />
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+
 import { cn } from "@/lib/utils";
 
 export type LineSeries = {
@@ -51,7 +52,7 @@ export function ChartLine({
   height = 180,
   className,
   yTicks,
-  unit = "",
+  unit: _unit = "",
 }: Props) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -75,21 +76,43 @@ export function ChartLine({
   const usableWidth = totalWidth - paddingLeft - paddingRight;
 
   return (
-    <div className={cn("relative w-full overflow-hidden select-none", className)}>
+    <div
+      className={cn("relative w-full overflow-hidden select-none", className)}
+    >
       <svg
-        viewBox={`0 0 ${totalWidth} ${chartHeight + 24}`}
         className="w-full overflow-visible"
-        style={{ height: `${height}px` }}
         preserveAspectRatio="none"
+        style={{ height: `${height}px` }}
+        viewBox={`0 0 ${totalWidth} ${chartHeight + 24}`}
       >
         <defs>
-          <linearGradient id="areaGradientPrimary" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" className="text-foreground" stopOpacity="0.12" />
-            <stop offset="100%" stopColor="currentColor" className="text-foreground" stopOpacity="0.0" />
+          <linearGradient id="areaGradientPrimary" x1="0" x2="0" y1="0" y2="1">
+            <stop
+              className="text-foreground"
+              offset="0%"
+              stopColor="currentColor"
+              stopOpacity="0.12"
+            />
+            <stop
+              className="text-foreground"
+              offset="100%"
+              stopColor="currentColor"
+              stopOpacity="0.0"
+            />
           </linearGradient>
-          <linearGradient id="areaGradientAccent" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" className="text-muted" stopOpacity="0.08" />
-            <stop offset="100%" stopColor="currentColor" className="text-muted" stopOpacity="0.0" />
+          <linearGradient id="areaGradientAccent" x1="0" x2="0" y1="0" y2="1">
+            <stop
+              className="text-muted"
+              offset="0%"
+              stopColor="currentColor"
+              stopOpacity="0.08"
+            />
+            <stop
+              className="text-muted"
+              offset="100%"
+              stopColor="currentColor"
+              stopOpacity="0.0"
+            />
           </linearGradient>
         </defs>
 
@@ -97,24 +120,25 @@ export function ChartLine({
         {[0, 0.33, 0.66, 1].map((pct, idx) => {
           const y = chartHeight - pct * (chartHeight - 12);
           const tickLabel = yTicks && yTicks[idx] ? yTicks[idx] : null;
+
           return (
             <g key={pct}>
               <line
-                x1={paddingLeft}
-                y1={y}
-                x2={totalWidth - paddingRight}
-                y2={y}
-                stroke="currentColor"
                 className="text-separator"
+                stroke="currentColor"
                 strokeDasharray="2 3"
                 strokeWidth="1"
+                x1={paddingLeft}
+                x2={totalWidth - paddingRight}
+                y1={y}
+                y2={y}
               />
               {tickLabel && (
                 <text
+                  className="fill-muted text-[9px] font-medium"
+                  textAnchor="end"
                   x={paddingLeft - 6}
                   y={y + 3}
-                  textAnchor="end"
-                  className="fill-muted text-[9px] font-medium"
                 >
                   {tickLabel}
                 </text>
@@ -127,9 +151,11 @@ export function ChartLine({
         {series.map((s, sIdx) => {
           const points = s.data.map((val, idx) => {
             const x =
-              paddingLeft + (idx / Math.max(s.data.length - 1, 1)) * usableWidth;
+              paddingLeft +
+              (idx / Math.max(s.data.length - 1, 1)) * usableWidth;
             const y =
               chartHeight - ((val - minVal) / range) * (chartHeight - 16) - 4;
+
             return { x, y };
           });
 
@@ -146,17 +172,20 @@ export function ChartLine({
               {/* Optional area fill for the first series */}
               {sIdx === 0 && (
                 <path
+                  className="transition-opacity duration-300"
                   d={areaD}
                   fill="url(#areaGradientPrimary)"
-                  className="transition-opacity duration-300"
                 />
               )}
               {/* The smooth line */}
               <path
+                className={cn(
+                  "stroke-2 transition-all duration-300",
+                  strokeClass,
+                )}
                 d={pathD}
                 fill="none"
                 stroke="currentColor"
-                className={cn("stroke-2 transition-all duration-300", strokeClass)}
                 strokeDasharray={s.dashed ? "4 3" : undefined}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -165,16 +194,16 @@ export function ChartLine({
               {points.map((pt, pIdx) => (
                 <circle
                   key={pIdx}
-                  cx={pt.x}
-                  cy={pt.y}
-                  r={hoveredIdx === pIdx ? 4 : 2}
-                  stroke="currentColor"
-                  strokeWidth="1.5"
                   className={cn(
                     "fill-surface transition-all duration-150 cursor-pointer",
                     strokeClass,
                     hoveredIdx === pIdx ? "scale-125 stroke-[2.5]" : "",
                   )}
+                  cx={pt.x}
+                  cy={pt.y}
+                  r={hoveredIdx === pIdx ? 4 : 2}
+                  stroke="currentColor"
+                  strokeWidth="1.5"
                   onMouseEnter={() => setHoveredIdx(pIdx)}
                   onMouseLeave={() => setHoveredIdx(null)}
                 />
@@ -187,17 +216,19 @@ export function ChartLine({
         {labels.map((lbl, idx) => {
           // Show every 2nd or 3rd label if too many
           const step = labels.length > 8 ? Math.ceil(labels.length / 6) : 1;
+
           if (idx % step !== 0 && idx !== labels.length - 1) return null;
 
           const x =
             paddingLeft + (idx / Math.max(labels.length - 1, 1)) * usableWidth;
+
           return (
             <text
               key={lbl + idx}
+              className="fill-muted text-[10px] font-medium"
+              textAnchor="middle"
               x={x}
               y={chartHeight + 16}
-              textAnchor="middle"
-              className="fill-muted text-[10px] font-medium"
             >
               {lbl}
             </text>

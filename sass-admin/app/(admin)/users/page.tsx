@@ -1,15 +1,18 @@
 "use client";
 
+import type { SaasUser } from "@/lib/types";
+
 import { Chip } from "@heroui/react";
 
 import { AdminResourcePage } from "@/components/admin-resource-page";
-import type { SaasUser } from "@/lib/types";
 
 const columns = [
   {
     key: "username",
     header: "Username",
-    render: (row: SaasUser) => <span className="font-medium">{row.username}</span>,
+    render: (row: SaasUser) => (
+      <span className="font-medium">{row.username}</span>
+    ),
   },
   {
     key: "email",
@@ -31,8 +34,7 @@ const columns = [
         size="sm"
         variant="soft"
       >
-        {row.role ??
-          (row.is_superuser ? "PLATFORM_SUPER_ADMIN" : "—")}
+        {row.role ?? (row.is_superuser ? "PLATFORM_SUPER_ADMIN" : "—")}
       </Chip>
     ),
   },
@@ -54,11 +56,11 @@ const columns = [
 export default function UsersPage() {
   return (
     <AdminResourcePage<SaasUser>
-      title="Users"
+      columns={columns}
       description="All users on the platform — staff, resellers, customers."
       endpoint="/users/"
-      columns={columns}
       getRowId={(row) => row.id}
+      title="Users"
     />
   );
 }

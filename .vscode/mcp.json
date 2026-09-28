@@ -3,9 +3,19 @@
     "heroui-react": {
       "type": "stdio",
       "command": "/home/taraldinn/.local/share/fnm/aliases/default/bin/npx",
-      "args": ["-y", "@heroui/react-mcp@latest"],
+      "args": [
+        "-y",
+        "@heroui/react-mcp@latest"
+      ],
       "env": {
         "PATH": "/home/taraldinn/.local/share/fnm/aliases/default/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    },
+    "funchole": {
+      "type": "sse",
+      "url": "https://app.funchole.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer fh_mcp_QJrJ9sVSvkiqMUNYwEdwLtoVezbo7O3fxhgrHXPbwHM"
       }
     }
   }

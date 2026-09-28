@@ -1,16 +1,19 @@
 "use client";
 
+import type { SaasApiCredential } from "@/lib/types";
+
 import { Chip } from "@heroui/react";
 
 import { AdminResourcePage } from "@/components/admin-resource-page";
 import { formatDate } from "@/lib/utils";
-import type { SaasApiCredential } from "@/lib/types";
 
 const columns = [
   {
     key: "name",
     header: "Name",
-    render: (row: SaasApiCredential) => <span className="font-medium">{row.name}</span>,
+    render: (row: SaasApiCredential) => (
+      <span className="font-medium">{row.name}</span>
+    ),
   },
   {
     key: "prefix",
@@ -48,11 +51,11 @@ const columns = [
 export default function ApiCredentialsPage() {
   return (
     <AdminResourcePage<SaasApiCredential>
-      title="API credentials"
+      columns={columns}
       description="Tokens issued for tenant-to-platform API access."
       endpoint="/api-credentials/"
-      columns={columns}
       getRowId={(row) => row.id}
+      title="API credentials"
     />
   );
 }

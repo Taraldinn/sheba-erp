@@ -1,7 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
+
 import { Card } from "@heroui/react";
+
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -28,23 +30,27 @@ export function MetricCard({
   badgeText,
 }: Props) {
   // Generate SVG path for sparkline
-  const sparklinePath = sparklineData && sparklineData.length > 1 ? (() => {
-    const min = Math.min(...sparklineData);
-    const max = Math.max(...sparklineData);
-    const range = max - min || 1;
-    const width = 100;
-    const height = 28;
-    const padding = 2;
-    const usableHeight = height - padding * 2;
+  const sparklinePath =
+    sparklineData && sparklineData.length > 1
+      ? (() => {
+          const min = Math.min(...sparklineData);
+          const max = Math.max(...sparklineData);
+          const range = max - min || 1;
+          const width = 100;
+          const height = 28;
+          const padding = 2;
+          const usableHeight = height - padding * 2;
 
-    const points = sparklineData.map((val, idx) => {
-      const x = (idx / (sparklineData.length - 1)) * width;
-      const y = height - padding - ((val - min) / range) * usableHeight;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    });
+          const points = sparklineData.map((val, idx) => {
+            const x = (idx / (sparklineData.length - 1)) * width;
+            const y = height - padding - ((val - min) / range) * usableHeight;
 
-    return `M ${points.join(" L ")}`;
-  })() : null;
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+          });
+
+          return `M ${points.join(" L ")}`;
+        })()
+      : null;
 
   return (
     <Card
@@ -95,11 +101,11 @@ export function MetricCard({
         {sparklinePath && (
           <div className="ml-auto w-24 h-7 overflow-hidden">
             <svg
-              viewBox="0 0 100 28"
               className={cn(
                 "w-full h-full stroke-2 fill-none overflow-visible",
                 isPositive ? "stroke-success" : "stroke-danger",
               )}
+              viewBox="0 0 100 28"
             >
               <path
                 d={sparklinePath}

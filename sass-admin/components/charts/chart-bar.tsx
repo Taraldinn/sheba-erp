@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+
 import { cn } from "@/lib/utils";
 
 export type BarDataPoint = {
@@ -44,35 +45,37 @@ export function ChartBar({
   const totalWidth = Math.max(data.length * 36, 320);
 
   return (
-    <div className={cn("relative w-full overflow-x-auto select-none", className)}>
+    <div
+      className={cn("relative w-full overflow-x-auto select-none", className)}
+    >
       {hoveredIdx !== null && data[hoveredIdx] && (
-        <div
-          className="absolute -top-7 left-1/2 -translate-x-1/2 z-20 pointer-events-none rounded-md bg-accent px-2 py-1 text-[11px] font-semibold text-accent-foreground shadow-md transition-opacity duration-150"
-        >
-          {data[hoveredIdx].label}: {data[hoveredIdx].formatted || `${unit}${data[hoveredIdx].value}`}
+        <div className="absolute -top-7 left-1/2 -translate-x-1/2 z-20 pointer-events-none rounded-md bg-accent px-2 py-1 text-[11px] font-semibold text-accent-foreground shadow-md transition-opacity duration-150">
+          {data[hoveredIdx].label}:{" "}
+          {data[hoveredIdx].formatted || `${unit}${data[hoveredIdx].value}`}
         </div>
       )}
 
       <svg
-        viewBox={`0 0 ${totalWidth} ${totalSvgHeight}`}
         className="w-full overflow-visible"
-        style={{ height: `${height}px` }}
         preserveAspectRatio="none"
+        style={{ height: `${height}px` }}
+        viewBox={`0 0 ${totalWidth} ${totalSvgHeight}`}
       >
         {/* Horizontal gridlines */}
         {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
           const y = chartHeight - pct * (chartHeight - 10);
+
           return (
             <line
               key={pct}
-              x1="0"
-              y1={y}
-              x2={totalWidth}
-              y2={y}
-              stroke="currentColor"
               className="text-separator"
+              stroke="currentColor"
               strokeDasharray="2 3"
               strokeWidth="1"
+              x1="0"
+              x2={totalWidth}
+              y1={y}
+              y2={y}
             />
           );
         })}
@@ -90,38 +93,40 @@ export function ChartBar({
           return (
             <g
               key={item.label + index}
+              className="cursor-pointer"
               onMouseEnter={() => setHoveredIdx(index)}
               onMouseLeave={() => setHoveredIdx(null)}
-              className="cursor-pointer"
             >
               {/* Invisible wider hit area */}
               <rect
+                fill="transparent"
+                height={chartHeight}
+                width={barWidth + 12}
                 x={x - 6}
                 y={0}
-                width={barWidth + 12}
-                height={chartHeight}
-                fill="transparent"
               />
               {/* The visible bar */}
               <rect
-                x={x}
-                y={y}
-                width={barWidth}
-                height={barHeight}
-                rx={barWidth / 2}
-                ry={barWidth / 2}
                 className={cn(
                   "transition-all duration-200",
                   barColor,
-                  isHovered ? "opacity-100 scale-y-[1.02] origin-bottom filter drop-shadow-sm" : "opacity-85 hover:opacity-100",
+                  isHovered
+                    ? "opacity-100 scale-y-[1.02] origin-bottom filter drop-shadow-sm"
+                    : "opacity-85 hover:opacity-100",
                 )}
+                height={barHeight}
+                rx={barWidth / 2}
+                ry={barWidth / 2}
+                width={barWidth}
+                x={x}
+                y={y}
               />
               {/* X Axis Label */}
               <text
+                className="fill-muted text-[10px] font-medium"
+                textAnchor="middle"
                 x={x + barWidth / 2}
                 y={chartHeight + 16}
-                textAnchor="middle"
-                className="fill-muted text-[10px] font-medium"
               >
                 {item.label}
               </text>

@@ -1,16 +1,30 @@
 "use client";
 
-import { api, storeSessionToken, syncSessionCookie, type SaasAdminUser, type LoginResponse } from "./api";
+import {
+  api,
+  storeSessionToken,
+  syncSessionCookie,
+  type SaasAdminUser,
+  type LoginResponse,
+} from "./api";
 
 export type { SaasAdminUser, LoginResponse };
 
-export async function login(username: string, password: string): Promise<LoginResponse> {
-  const res = await api.post<LoginResponse>("/auth/login/", { username, password });
+export async function login(
+  username: string,
+  password: string,
+): Promise<LoginResponse> {
+  const res = await api.post<LoginResponse>("/auth/login/", {
+    username,
+    password,
+  });
   const token = res?.session_token || res?.token;
+
   if (token) {
     storeSessionToken(token);
     await syncSessionCookie(token);
   }
+
   return res;
 }
 

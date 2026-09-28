@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+
 import { cn } from "@/lib/utils";
 
 const GRADIENTS = [
@@ -37,19 +38,23 @@ export function AvatarGradient({
 }: Props) {
   const gradient = useMemo(() => {
     let hash = 0;
+
     for (let i = 0; i < (name || "").length; i++) {
       hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
     const index = Math.abs(hash) % GRADIENTS.length;
+
     return GRADIENTS[index];
   }, [name]);
 
   const initials = useMemo(() => {
     if (!name) return "?";
     const parts = name.trim().split(/[\s_-]+/);
+
     if (parts.length >= 2) {
       return (parts[0][0] + parts[1][0]).toUpperCase();
     }
+
     return name.slice(0, 2).toUpperCase();
   }, [name]);
 
@@ -64,7 +69,9 @@ export function AvatarGradient({
       )}
     >
       <div className="absolute inset-0 bg-white/10 backdrop-blur-[1px]" />
-      {showInitials && <span className="relative z-10 drop-shadow-sm">{initials}</span>}
+      {showInitials && (
+        <span className="relative z-10 drop-shadow-sm">{initials}</span>
+      )}
     </div>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import type { Tenant } from "@/lib/types";
+
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Alert, Button, Card, Chip, Spinner } from "@heroui/react";
@@ -8,8 +10,6 @@ import { api, ApiError } from "@/lib/api";
 import { AvatarGradient } from "@/components/avatar-gradient";
 import { CreateTenantModal } from "@/components/tenants/create-tenant-modal";
 import { TenantDetailDrawer } from "@/components/tenants/tenant-detail-drawer";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import type { Tenant } from "@/lib/types";
 import {
   CopyIcon,
   CheckIcon,
@@ -18,7 +18,6 @@ import {
   EyeIcon,
   TrashIcon,
   ExternalLinkIcon,
-  FilterIcon,
 } from "@/components/nav-icons";
 
 export function TenantManagerView() {
@@ -47,6 +46,7 @@ export function TenantManagerView() {
 
   useEffect(() => {
     let cancelled = false;
+
     setLoading(true);
     setError(null);
 
@@ -57,8 +57,9 @@ export function TenantManagerView() {
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data?.results)
-          ? data.results
-          : [];
+            ? data.results
+            : [];
+
         setTenants(list);
       })
       .catch((err: unknown) => {
@@ -66,7 +67,9 @@ export function TenantManagerView() {
         if (err instanceof ApiError) {
           setError(`${err.status} ${err.message}`);
         } else {
-          setError(err instanceof Error ? err.message : "Failed to load tenants.");
+          setError(
+            err instanceof Error ? err.message : "Failed to load tenants.",
+          );
         }
       })
       .finally(() => {
@@ -142,24 +145,25 @@ export function TenantManagerView() {
             </Chip>
           </div>
           <p className="text-xs text-muted mt-0.5">
-            Provision, inspect, and manage multi-tenant ISP organizations and network infrastructures.
+            Provision, inspect, and manage multi-tenant ISP organizations and
+            network infrastructures.
           </p>
         </div>
 
         {/* Action Toolbar Buttons */}
         <div className="flex items-center gap-2.5">
           <Button
+            className="rounded-full text-xs font-semibold"
             size="sm"
             variant="tertiary"
-            className="rounded-full text-xs font-semibold"
             onPress={() => setRefreshKey((k) => k + 1)}
           >
             Refresh
           </Button>
 
           <Button
-            size="sm"
             className="rounded-full bg-accent text-accent-foreground px-4 text-xs font-semibold shadow-xs hover:opacity-90 transition-all cursor-pointer"
+            size="sm"
             onPress={() => setIsCreateOpen(true)}
           >
             <PlusIcon size={14} />
@@ -180,7 +184,9 @@ export function TenantManagerView() {
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
             Total Tenants
           </span>
-          <p className="mt-1 text-2xl font-bold text-foreground">{tenants.length}</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            {tenants.length}
+          </p>
         </Card>
         <Card className="p-4 rounded-2xl border border-separator/80 bg-surface">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
@@ -213,19 +219,19 @@ export function TenantManagerView() {
                 <SearchIcon size={14} />
               </span>
               <input
-                type="text"
+                className="h-8 w-56 sm:w-72 rounded-full border border-separator/80 bg-surface-secondary/40 pl-8 pr-3 text-xs placeholder:text-muted focus:border-foreground focus:outline-none transition-all"
                 placeholder="Filter by name, slug, domain..."
+                type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-8 w-56 sm:w-72 rounded-full border border-separator/80 bg-surface-secondary/40 pl-8 pr-3 text-xs placeholder:text-muted focus:border-foreground focus:outline-none transition-all"
               />
             </div>
 
             {/* Plan Filter */}
             <select
+              className="h-8 rounded-full border border-separator/80 bg-surface-secondary/40 px-3 text-xs text-foreground focus:border-foreground focus:outline-none transition-all cursor-pointer"
               value={planFilter}
               onChange={(e) => setPlanFilter(e.target.value)}
-              className="h-8 rounded-full border border-separator/80 bg-surface-secondary/40 px-3 text-xs text-foreground focus:border-foreground focus:outline-none transition-all cursor-pointer"
             >
               <option value="all">All Plans</option>
               <option value="starter">Starter</option>
@@ -235,9 +241,9 @@ export function TenantManagerView() {
 
             {/* Status Filter */}
             <select
+              className="h-8 rounded-full border border-separator/80 bg-surface-secondary/40 px-3 text-xs text-foreground focus:border-foreground focus:outline-none transition-all cursor-pointer"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-8 rounded-full border border-separator/80 bg-surface-secondary/40 px-3 text-xs text-foreground focus:border-foreground focus:outline-none transition-all cursor-pointer"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -246,7 +252,11 @@ export function TenantManagerView() {
           </div>
 
           <span className="text-xs text-muted">
-            Showing <strong className="text-foreground">{filteredTenants.length}</strong> of {tenants.length} tenants
+            Showing{" "}
+            <strong className="text-foreground">
+              {filteredTenants.length}
+            </strong>{" "}
+            of {tenants.length} tenants
           </span>
         </div>
 
@@ -269,7 +279,10 @@ export function TenantManagerView() {
             <tbody className="divide-y divide-separator/40">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-xs text-muted">
+                  <td
+                    className="p-8 text-center text-xs text-muted"
+                    colSpan={9}
+                  >
                     <div className="flex items-center justify-center gap-2">
                       <Spinner size="sm" /> Loading tenants…
                     </div>
@@ -277,7 +290,10 @@ export function TenantManagerView() {
                 </tr>
               ) : filteredTenants.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-xs text-muted">
+                  <td
+                    className="p-8 text-center text-xs text-muted"
+                    colSpan={9}
+                  >
                     No tenants found matching current filters.
                   </td>
                 </tr>
@@ -307,9 +323,9 @@ export function TenantManagerView() {
                         <span className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors">
                           <span>{shortId}</span>
                           {isCopied ? (
-                            <CheckIcon size={12} className="text-success" />
+                            <CheckIcon className="text-success" size={12} />
                           ) : (
-                            <CopyIcon size={12} className="opacity-60" />
+                            <CopyIcon className="opacity-60" size={12} />
                           )}
                         </span>
                       </td>
@@ -335,19 +351,24 @@ export function TenantManagerView() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <a
-                          href={`https://${domainUrl}`}
-                          target="_blank"
-                          rel="noreferrer"
                           className="inline-flex items-center gap-1 text-accent hover:underline"
+                          href={`https://${domainUrl}`}
+                          rel="noreferrer"
+                          target="_blank"
                         >
                           <span>{domainUrl}</span>
-                          <ExternalLinkIcon size={11} className="opacity-60" />
+                          <ExternalLinkIcon className="opacity-60" size={11} />
                         </a>
                       </td>
 
                       {/* Plan */}
                       <td className="px-5 py-3.5">
-                        <Chip size="sm" variant="soft" color="accent" className="text-[10px] font-semibold">
+                        <Chip
+                          className="text-[10px] font-semibold"
+                          color="accent"
+                          size="sm"
+                          variant="soft"
+                        >
                           {t.plan || "Growth"}
                         </Chip>
                       </td>
@@ -373,10 +394,10 @@ export function TenantManagerView() {
                       {/* Status */}
                       <td className="px-5 py-3.5">
                         <Chip
+                          className="text-[10px] font-semibold"
+                          color={t.is_active === false ? "danger" : "success"}
                           size="sm"
                           variant="soft"
-                          color={t.is_active === false ? "danger" : "success"}
-                          className="text-[10px] font-semibold"
                         >
                           {t.is_active === false ? "Inactive" : "Active"}
                         </Chip>
@@ -389,22 +410,22 @@ export function TenantManagerView() {
                       >
                         <div className="flex items-center justify-end gap-1.5">
                           <button
-                            type="button"
+                            className="grid h-7 w-7 place-items-center rounded-lg border border-separator/60 text-muted transition-colors hover:bg-default/50 hover:text-foreground cursor-pointer"
                             title="Inspect telemetry"
+                            type="button"
                             onClick={() => {
                               setSelectedTenant(t);
                               setIsDrawerOpen(true);
                             }}
-                            className="grid h-7 w-7 place-items-center rounded-lg border border-separator/60 text-muted transition-colors hover:bg-default/50 hover:text-foreground cursor-pointer"
                           >
                             <EyeIcon size={14} />
                           </button>
 
                           <button
-                            type="button"
-                            title="Delete tenant"
-                            onClick={() => setTenantToDelete(t)}
                             className="grid h-7 w-7 place-items-center rounded-lg border border-separator/60 text-muted transition-colors hover:bg-danger/10 hover:text-danger hover:border-danger/30 cursor-pointer"
+                            title="Delete tenant"
+                            type="button"
+                            onClick={() => setTenantToDelete(t)}
                           >
                             <TrashIcon size={14} />
                           </button>
@@ -428,8 +449,8 @@ export function TenantManagerView() {
 
       {/* Tenant Telemetry Detail Drawer */}
       <TenantDetailDrawer
-        tenant={selectedTenant}
         isOpen={isDrawerOpen}
+        tenant={selectedTenant}
         onClose={() => setIsDrawerOpen(false)}
         onStatusChanged={() => setRefreshKey((k) => k + 1)}
       />
@@ -437,8 +458,10 @@ export function TenantManagerView() {
       {/* Delete Confirmation Dialog matching Reference Image 1 */}
       {tenantToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+          <button
+            aria-label="Close delete modal backdrop"
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity cursor-default"
+            type="button"
             onClick={() => setTenantToDelete(null)}
           />
           <div className="relative z-10 w-full max-w-sm rounded-2xl border border-separator/80 bg-surface p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
@@ -447,28 +470,32 @@ export function TenantManagerView() {
                 <TrashIcon size={20} />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-foreground">Delete Tenant</h3>
+                <h3 className="text-sm font-bold text-foreground">
+                  Delete Tenant
+                </h3>
                 <p className="text-xs text-muted">Permanent action</p>
               </div>
             </div>
 
             <p className="mt-3 text-xs text-muted leading-relaxed">
-              Are you sure you want to delete <strong className="text-foreground">{tenantToDelete.name}</strong>?
-              This will remove all subscriber tables, routers, and staff access permanently.
+              Are you sure you want to delete{" "}
+              <strong className="text-foreground">{tenantToDelete.name}</strong>
+              ? This will remove all subscriber tables, routers, and staff
+              access permanently.
             </p>
 
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
+                className="rounded-full px-4 py-2 text-xs font-semibold text-foreground hover:bg-default/50 transition-colors cursor-pointer"
                 type="button"
                 onClick={() => setTenantToDelete(null)}
-                className="rounded-full px-4 py-2 text-xs font-semibold text-foreground hover:bg-default/50 transition-colors cursor-pointer"
               >
                 Discard
               </button>
               <Button
+                className="rounded-full bg-danger text-white px-4 py-2 text-xs font-semibold hover:opacity-90 transition-all cursor-pointer"
                 isDisabled={deleting}
                 onPress={handleDeleteTenant}
-                className="rounded-full bg-danger text-white px-4 py-2 text-xs font-semibold hover:opacity-90 transition-all cursor-pointer"
               >
                 {deleting ? "Deleting…" : "Delete Tenant"}
               </Button>

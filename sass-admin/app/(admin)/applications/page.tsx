@@ -1,16 +1,19 @@
 "use client";
 
+import type { SaasApplication } from "@/lib/types";
+
 import { Chip } from "@heroui/react";
 
 import { AdminResourcePage } from "@/components/admin-resource-page";
 import { formatDate } from "@/lib/utils";
-import type { SaasApplication } from "@/lib/types";
 
 const columns = [
   {
     key: "name",
     header: "Name",
-    render: (row: SaasApplication) => <span className="font-medium">{row.name}</span>,
+    render: (row: SaasApplication) => (
+      <span className="font-medium">{row.name}</span>
+    ),
   },
   {
     key: "email",
@@ -43,11 +46,11 @@ const columns = [
 export default function ApplicationsPage() {
   return (
     <AdminResourcePage<SaasApplication>
-      title="Applications"
+      columns={columns}
       description="Tenant onboarding applications awaiting review."
       endpoint="/applications/"
-      columns={columns}
       getRowId={(row) => row.id}
+      title="Applications"
     />
   );
 }

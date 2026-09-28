@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   Alert,
   Button,
@@ -15,7 +15,6 @@ import { login, ApiError } from "@/lib/auth";
 import { storeSessionToken } from "@/lib/api";
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") || "/overview";
 
@@ -29,12 +28,14 @@ export function LoginForm() {
     setError(null);
     if (!username.trim() || !password) {
       setError("Username and password are required.");
+
       return;
     }
     setSubmitting(true);
     try {
       const res = await login(username.trim(), password);
       const token = res?.session_token || res?.token;
+
       if (token) storeSessionToken(token);
       if (res?.token) {
         try {
@@ -66,14 +67,13 @@ export function LoginForm() {
   }
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
+    <form noValidate className="flex flex-col gap-4" onSubmit={handleSubmit}>
       <TextField isRequired>
         <Label>Username</Label>
         <InputGroup>
           <InputGroup.Prefix className="hidden" />
           <Input
             autoComplete="username"
-            autoFocus
             disabled={submitting}
             name="username"
             placeholder="admin"
@@ -103,11 +103,7 @@ export function LoginForm() {
         </Alert>
       ) : null}
 
-      <Button
-        isDisabled={submitting}
-        type="submit"
-        variant="primary"
-      >
+      <Button isDisabled={submitting} type="submit" variant="primary">
         {submitting ? "Signing in…" : "Sign in"}
       </Button>
     </form>

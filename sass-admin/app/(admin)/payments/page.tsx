@@ -1,10 +1,11 @@
 "use client";
 
+import type { SaasPayment } from "@/lib/types";
+
 import { Chip } from "@heroui/react";
 
 import { AdminResourcePage } from "@/components/admin-resource-page";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import type { SaasPayment } from "@/lib/types";
 
 const columns = [
   {
@@ -42,10 +43,16 @@ const columns = [
       const color = s.includes("fail")
         ? "danger"
         : s.includes("pend")
-        ? "warning"
-        : "success";
+          ? "warning"
+          : "success";
+
       return (
-        <Chip color={color} size="sm" variant="soft" className="text-[10px] font-semibold">
+        <Chip
+          className="text-[10px] font-semibold"
+          color={color}
+          size="sm"
+          variant="soft"
+        >
           {row.status ?? "Completed"}
         </Chip>
       );
@@ -55,7 +62,9 @@ const columns = [
     key: "ref",
     header: "Reference",
     render: (row: SaasPayment) => (
-      <span className="font-mono text-muted text-[11px]">{row.reference ?? "—"}</span>
+      <span className="font-mono text-muted text-[11px]">
+        {row.reference ?? "—"}
+      </span>
     ),
   },
   {
@@ -70,12 +79,12 @@ const columns = [
 export default function PaymentsPage() {
   return (
     <AdminResourcePage<SaasPayment>
-      title="Payments Ledger"
+      columns={columns}
       description="Real-time transaction history of all SaaS payments and billings."
       endpoint="/payments/"
-      columns={columns}
       getRowId={(row) => row.id}
       searchPlaceholder="Search payments by tenant, reference, or method..."
+      title="Payments Ledger"
     />
   );
 }

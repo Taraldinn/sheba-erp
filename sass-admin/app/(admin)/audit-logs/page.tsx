@@ -1,10 +1,11 @@
 "use client";
 
+import type { AuditLog } from "@/lib/types";
+
 import { Chip } from "@heroui/react";
 
 import { AdminResourcePage } from "@/components/admin-resource-page";
 import { formatDate } from "@/lib/utils";
-import type { AuditLog } from "@/lib/types";
 
 const columns = [
   {
@@ -29,7 +30,12 @@ const columns = [
     key: "action",
     header: "Action",
     render: (row: AuditLog) => (
-      <Chip size="sm" variant="soft" color="accent" className="text-[10px] font-mono">
+      <Chip
+        className="text-[10px] font-mono"
+        color="accent"
+        size="sm"
+        variant="soft"
+      >
         {row.action ?? "SYSTEM_ACTION"}
       </Chip>
     ),
@@ -57,12 +63,12 @@ const columns = [
 export default function AuditLogsPage() {
   return (
     <AdminResourcePage<AuditLog>
-      title="Audit Trail & Compliance"
+      columns={columns}
       description="Immutable ledger of security actions, tenant modifications, and control plane logins."
       endpoint="/audit-logs/"
-      columns={columns}
       getRowId={(row) => String(row.id ?? `${row.created_at}-${row.action}`)}
       searchPlaceholder="Filter audit trail by actor, action, target..."
+      title="Audit Trail & Compliance"
     />
   );
 }

@@ -3,12 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import {
-  Button,
-  Chip,
-  Drawer,
-  Surface,
-} from "@heroui/react";
+import { Button, Chip, Drawer, Surface } from "@heroui/react";
 
 import { AvatarGradient } from "@/components/avatar-gradient";
 import { ThemeSwitch } from "@/components/theme-switch";
@@ -78,8 +73,12 @@ function getNavIcon(iconName?: string) {
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname() ?? "";
+
   return (
-    <nav aria-label="Admin navigation" className="flex flex-col gap-5 px-3 py-2">
+    <nav
+      aria-label="Admin navigation"
+      className="flex flex-col gap-5 px-3 py-2"
+    >
       {siteConfig.navSections.map((section) => (
         <div key={section.title} className="flex flex-col gap-1">
           <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-muted select-none">
@@ -96,17 +95,21 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
               return (
                 <li key={item.href}>
                   <Link
-                    href={item.href}
-                    onClick={onNavigate}
                     className={cn(
                       "flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150",
                       active
                         ? "bg-default/80 font-semibold text-foreground shadow-xs"
                         : "text-muted hover:text-foreground hover:bg-default/40",
                     )}
+                    href={item.href}
+                    onClick={onNavigate}
                   >
                     <div className="flex items-center gap-3">
-                      <span className={cn(active ? "text-foreground" : "text-muted")}>
+                      <span
+                        className={cn(
+                          active ? "text-foreground" : "text-muted",
+                        )}
+                      >
                         {icon}
                       </span>
                       <span>{item.label}</span>
@@ -151,8 +154,8 @@ function UserMenu({
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Account menu"
-        type="button"
         className="flex items-center gap-3 rounded-full border border-separator/60 p-1 pr-3 transition-colors hover:bg-default/40"
+        type="button"
         onClick={() => setOpen((v) => !v)}
       >
         <AvatarGradient name={displayName} size="sm" />
@@ -166,34 +169,37 @@ function UserMenu({
 
       {open ? (
         <div
-          role="menu"
           className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-separator bg-surface p-1 shadow-xl animate-in fade-in zoom-in-95 duration-100"
+          role="menu"
+          tabIndex={0}
           onMouseLeave={() => setOpen(false)}
         >
           <div className="border-b border-separator/80 px-3 py-2.5">
-            <p className="text-xs font-semibold text-foreground">{displayName}</p>
+            <p className="text-xs font-semibold text-foreground">
+              {displayName}
+            </p>
             <p className="truncate text-[11px] text-muted">{email}</p>
           </div>
           <Link
+            className="flex items-center rounded-xl px-3 py-2 text-xs font-medium text-foreground hover:bg-default/50 transition-colors"
             href="/overview"
             role="menuitem"
-            className="flex items-center rounded-xl px-3 py-2 text-xs font-medium text-foreground hover:bg-default/50 transition-colors"
             onClick={() => setOpen(false)}
           >
             Dashboard
           </Link>
           <Link
+            className="flex items-center rounded-xl px-3 py-2 text-xs font-medium text-foreground hover:bg-default/50 transition-colors"
             href="/tenants"
             role="menuitem"
-            className="flex items-center rounded-xl px-3 py-2 text-xs font-medium text-foreground hover:bg-default/50 transition-colors"
             onClick={() => setOpen(false)}
           >
             Manage Tenants
           </Link>
           <button
-            type="button"
-            role="menuitem"
             className="flex w-full items-center rounded-xl px-3 py-2 text-xs font-medium text-danger hover:bg-danger/10 transition-colors"
+            role="menuitem"
+            type="button"
             onClick={() => {
               setOpen(false);
               onLogout();
@@ -226,12 +232,14 @@ export function AdminShell({ user, children, onLogout }: Props) {
               <span className="truncate text-sm font-bold text-foreground">
                 {username}
               </span>
-              <span className="text-xs text-muted font-medium">Platform Admin</span>
+              <span className="text-xs text-muted font-medium">
+                Platform Admin
+              </span>
             </div>
             <div className="ml-auto">
               <span
-                title="System Operational"
                 className="inline-block h-2 w-2 rounded-full bg-success ring-4 ring-success/20 animate-pulse"
+                title="System Operational"
               />
             </div>
           </div>
@@ -245,16 +253,16 @@ export function AdminShell({ user, children, onLogout }: Props) {
         {/* Sidebar Footer matching Reference Image 2 */}
         <div className="border-t border-separator/80 p-3 flex flex-col gap-1 text-xs">
           <Link
-            href="/overview"
             className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-muted transition-colors hover:text-foreground hover:bg-default/40 font-medium"
+            href="/overview"
           >
             <span className="text-base">ℹ️</span>
             <span>Help & Information</span>
           </Link>
           <button
+            className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-muted transition-colors hover:text-danger hover:bg-danger/10 font-medium text-left"
             type="button"
             onClick={signOut}
-            className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-muted transition-colors hover:text-danger hover:bg-danger/10 font-medium text-left"
           >
             <span className="text-base">🚪</span>
             <span>Log out</span>
@@ -269,7 +277,9 @@ export function AdminShell({ user, children, onLogout }: Props) {
           <div className="flex items-center gap-3 border-b border-separator/80 p-4">
             <AvatarGradient name={username} size="md" />
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-bold text-foreground">{username}</span>
+              <span className="text-sm font-bold text-foreground">
+                {username}
+              </span>
               <span className="text-xs text-muted">Platform Admin</span>
             </div>
           </div>
@@ -308,9 +318,9 @@ export function AdminShell({ user, children, onLogout }: Props) {
                 <SearchIcon size={14} />
               </span>
               <input
-                type="text"
-                placeholder="Search control plane..."
                 className="h-9 w-52 lg:w-64 rounded-full border border-separator/80 bg-surface-secondary/70 pl-8 pr-8 text-xs placeholder:text-muted focus:border-foreground focus:outline-none transition-all"
+                placeholder="Search control plane..."
+                type="text"
               />
               <kbd className="absolute right-2.5 rounded border border-separator/80 bg-surface px-1.5 py-0.5 text-[9px] font-medium text-muted">
                 ⌘K
@@ -328,9 +338,9 @@ export function AdminShell({ user, children, onLogout }: Props) {
 
             {/* SLA Chip */}
             <Chip
+              className="hidden lg:inline-flex text-[11px] font-semibold"
               color="success"
               variant="soft"
-              className="hidden lg:inline-flex text-[11px] font-semibold"
             >
               99.98% SLA
             </Chip>
@@ -339,9 +349,9 @@ export function AdminShell({ user, children, onLogout }: Props) {
 
             {/* Notification Bell */}
             <button
-              type="button"
               aria-label="Notifications"
               className="relative grid h-9 w-9 place-items-center rounded-full border border-separator/60 text-muted transition-colors hover:bg-default/40 hover:text-foreground"
+              type="button"
             >
               <BellIcon size={16} />
               <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-accent ring-2 ring-surface" />
@@ -363,7 +373,9 @@ export function AdminShell({ user, children, onLogout }: Props) {
         {/* Footer */}
         <footer className="border-t border-separator/70 bg-surface/40 px-4 py-3 text-xs text-muted sm:px-6 lg:px-8">
           <div className="mx-auto flex w-full max-w-7xl items-center justify-between">
-            <span>© {new Date().getFullYear()} {siteConfig.name}</span>
+            <span>
+              © {new Date().getFullYear()} {siteConfig.name}
+            </span>
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-success" />

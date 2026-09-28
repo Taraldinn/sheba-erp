@@ -14,7 +14,9 @@ const SESSION_COOKIE_NAME = "sheba_session";
  *
  * Use at the top of any server component page that should be gated.
  */
-export async function requireSaasAdmin(nextPath?: string): Promise<SaasAdminUser> {
+export async function requireSaasAdmin(
+  nextPath?: string,
+): Promise<SaasAdminUser> {
   const cookieStore = await cookies();
   const headerStore = await headers();
 
@@ -26,6 +28,7 @@ export async function requireSaasAdmin(nextPath?: string): Promise<SaasAdminUser
 
   // Try cookie first, then header.
   const user = await serverMe(cookieToken ?? headerToken ?? null);
+
   if (!user) {
     if (process.env.NODE_ENV !== "production") {
       return {
@@ -37,10 +40,10 @@ export async function requireSaasAdmin(nextPath?: string): Promise<SaasAdminUser
         platform: "ShebaFi Global Control Plane (admin.shebafi.xyz)",
       };
     }
-    const next = nextPath
-      ? `?next=${encodeURIComponent(nextPath)}`
-      : "";
+    const next = nextPath ? `?next=${encodeURIComponent(nextPath)}` : "";
+
     redirect(`/login${next}`);
   }
+
   return user;
 }

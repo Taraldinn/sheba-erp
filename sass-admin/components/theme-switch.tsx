@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
+
 import { cn } from "@/lib/utils";
 
 export function ThemeSwitch({ className }: { className?: string }) {
@@ -20,25 +21,25 @@ export function ThemeSwitch({ className }: { className?: string }) {
 
   return (
     <button
-      type="button"
       aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
-      onClick={() => setTheme(isDark ? "light" : "dark")}
       className={cn(
         "grid h-9 w-9 place-items-center rounded-full border border-separator/60 text-muted transition-all hover:bg-default/40 hover:text-foreground cursor-pointer select-none",
         className,
       )}
+      type="button"
+      onClick={() => setTheme(isDark ? "light" : "dark")}
     >
       {isDark ? (
         <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
+          className="text-amber-400"
           fill="none"
+          height="16"
           stroke="currentColor"
-          strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="text-amber-400"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+          width="16"
         >
           <circle cx="12" cy="12" r="4" />
           <path d="M12 2v2" />
@@ -52,14 +53,14 @@ export function ThemeSwitch({ className }: { className?: string }) {
         </svg>
       ) : (
         <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
           fill="none"
+          height="16"
           stroke="currentColor"
-          strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+          width="16"
         >
           <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
         </svg>

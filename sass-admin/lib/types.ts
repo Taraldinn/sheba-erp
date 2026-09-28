@@ -13,23 +13,32 @@ export type Tenant = {
   slug: string;
   schema_name?: string;
   status?: string;
+  plan?: string;
   primary_domain?: string | null;
   domains_count?: number;
   subscriber_count?: number;
   active_subscribers_count?: number;
   router_count?: number;
+  online_router_count?: number;
   active_pop_count?: number;
+  pop_count?: number;
+  olt_count?: number;
+  onu_count?: number;
+  admin_username?: string;
+  monthly_billing_volume?: number | string;
   is_active?: boolean;
   created_at?: ISODate;
   [k: string]: unknown;
 };
 
-export type TenantListResponse = {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: Tenant[];
-} | Tenant[];
+export type TenantListResponse =
+  | {
+      count: number;
+      next: string | null;
+      previous: string | null;
+      results: Tenant[];
+    }
+  | Tenant[];
 
 export type SaasPackage = {
   id: string | number;
