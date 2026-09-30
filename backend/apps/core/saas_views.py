@@ -40,6 +40,8 @@ from apps.customers.models import Customer
 from apps.network.models import POPBranch, Router, OLT, ONU
 from apps.billing.models import Recharge, Package, Invoice
 from apps.support.models import Ticket
+from apps.hr.models import Employee
+
 
 
 def get_tenant_by_id_or_slug(identifier):
@@ -3317,3 +3319,154 @@ class SaaSFeatureMatrixView(views.APIView):
             ],
             'rows': rows,
         })
+
+
+class SaaSEmployeeSerializer(serializers.ModelSerializer):
+    worker_id = serializers.CharField(source='employee_code', required=False, allow_blank=True)
+    role = serializers.CharField(source='designation', required=False, allow_blank=True)
+    worker_type = serializers.SerializerMethodField()
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+
+    class Meta:
+        model = Employee
+        fields = [
+            'id', 'worker_id', 'employee_code', 'full_name', 'email', 'phone',
+            'role', 'designation', 'worker_type', 'department',
+            'is_active', 'joining_date', 'basic_salary', 'created_at',
+            'tenant', 'tenant_name'
+        ]
+        read_only_fields = ('created_at',)
+
+    def get_worker_type(self, obj):
+        return 'Employee' if obj.is_active else 'Contractor'
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['16. Multi-Tenant SaaS & Control Plane'], summary='List SaaS Team Employees'),
+    create=extend_schema(tags=['16. Multi-Tenant SaaS & Control Plane'], summary='Create SaaS Team Employee'),
+    retrieve=extend_schema(tags=['16. Multi-Tenant SaaS & Control Plane'], summary='Retrieve SaaS Team Employee'),
+    update=extend_schema(tags=['16. Multi-Tenant SaaS & Control Plane'], summary='Update SaaS Team Employee'),
+    destroy=extend_schema(tags=['16. Multi-Tenant SaaS & Control Plane'], summary='Delete SaaS Team Employee'),
+)
+class SaaSEmployeeViewSet(viewsets.ModelViewSet):
+    """
+    Central SaaS Employee and Team Member Management.
+    Supports directory viewing, search, filter, creation, updating, and deletion.
+    """
+    serializer_class = SaaSEmployeeSerializer
+    queryset = Employee.objects.select_related('tenant').all().order_by('created_at')
+
+    def get_permissions(self):
+        if settings.DEBUG:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated(), IsCentralAdmin()]
+
+    def _ensure_initial_seeds(self):
+        if Employee.objects.count() >= 6:
+            return
+
+        tenant = Tenant.objects.first()
+        if not tenant:
+            tenant = Tenant.objects.create(
+                name="Sheba Fi Broadband Network",
+                slug="shebafi",
+                domain="shebafi.xyz",
+                contact_email="admin@shebafi.xyz",
+                is_active=True
+            )
+
+        SEED_EMPLOYEES = [
+            {"worker_id": "#4586936", "full_name": "Alex Turner", "email": "alex@acme.com", "role": "Product Manager", "department": "Product"},
+            {"worker_id": "#4586937", "full_name": "Emma Davis", "email": "emma@acme.com", "role": "Senior Designer", "department": "Design"},
+            {"worker_id": "#4586933", "full_name": "John Smith", "email": "john@acme.com", "role": "Chief Technology Officer", "department": "Engineering"},
+            {"worker_id": "#4586932", "full_name": "Kate Moore", "email": "kate@acme.com", "role": "Chief Executive Officer", "department": "Executive"},
+            {"worker_id": "#4586935", "full_name": "Mike Wilson", "email": "mike@acme.com", "role": "VP of Engineering", "department": "Engineering"},
+            {"worker_id": "#4586934", "full_name": "Sara Johnson", "email": "sara@acme.com", "role": "Chief Marketing Officer", "department": "Marketing"},
+            {"worker_id": "#4586938", "full_name": "David Lee", "email": "david@acme.com", "role": "Principal Architect", "department": "Engineering"},
+            {"worker_id": "#4586939", "full_name": "Sophia Chen", "email": "sophia@acme.com", "role": "Lead UI/UX Designer", "department": "Design"},
+            {"worker_id": "#4586940", "full_name": "Robert Garcia", "email": "robert@acme.com", "role": "DevOps Specialist", "department": "Infrastructure"},
+            {"worker_id": "#4586941", "full_name": "Olivia Martinez", "email": "olivia@acme.com", "role": "Senior Backend Engineer", "department": "Engineering"},
+            {"worker_id": "#4586942", "full_name": "James Anderson", "email": "james@acme.com", "role": "Security Operations Lead", "department": "Security"},
+            {"worker_id": "#4586943", "full_name": "Emily Thomas", "email": "emily@acme.com", "role": "Customer Success Director", "department": "Operations"},
+            {"worker_id": "#4586944", "full_name": "Lucas Brown", "email": "lucas@acme.com", "role": "Full Stack Developer", "department": "Engineering"},
+            {"worker_id": "#4586945", "full_name": "Mia White", "email": "mia@acme.com", "role": "QA Engineering Manager", "department": "Quality Assurance"},
+            {"worker_id": "#4586946", "full_name": "William Harris", "email": "william@acme.com", "role": "Infrastructure Architect", "department": "Infrastructure"},
+            {"worker_id": "#4586947", "full_name": "Charlotte Martin", "email": "charlotte@acme.com", "role": "Product Marketing Lead", "department": "Marketing"},
+            {"worker_id": "#4586948", "full_name": "Benjamin Clark", "email": "benjamin@acme.com", "role": "Site Reliability Engineer", "department": "Infrastructure"},
+            {"worker_id": "#4586949", "full_name": "Amelia Lewis", "email": "amelia@acme.com", "role": "Frontend Engineer", "department": "Engineering"},
+            {"worker_id": "#4586950", "full_name": "Henry Walker", "email": "henry@acme.com", "role": "Cloud Systems Specialist", "department": "Infrastructure"},
+            {"worker_id": "#4586951", "full_name": "Harper Hall", "email": "harper@acme.com", "role": "Data Analytics Lead", "department": "Analytics"},
+            {"worker_id": "#4586952", "full_name": "Alexander Allen", "email": "alexander@acme.com", "role": "Network Core Engineer", "department": "Network Operations"},
+            {"worker_id": "#4586953", "full_name": "Evelyn Young", "email": "evelyn@acme.com", "role": "Technical Program Manager", "department": "Program Management"},
+            {"worker_id": "#4586954", "full_name": "Daniel Hernandez", "email": "daniel@acme.com", "role": "Backend Platform Engineer", "department": "Engineering"},
+            {"worker_id": "#4586955", "full_name": "Abigail King", "email": "abigail@acme.com", "role": "Solutions Architect", "department": "Solutions"},
+            {"worker_id": "#4586956", "full_name": "Matthew Wright", "email": "matthew@acme.com", "role": "Operations Support Lead", "department": "Operations"},
+            {"worker_id": "#4586957", "full_name": "Elizabeth Lopez", "email": "elizabeth@acme.com", "role": "Brand & Visual Designer", "department": "Design"},
+            {"worker_id": "#4586958", "full_name": "Joseph Hill", "email": "joseph@acme.com", "role": "Database Administrator", "department": "Infrastructure"},
+            {"worker_id": "#4586959", "full_name": "Avery Scott", "email": "avery@acme.com", "role": "NOC Shift Supervisor", "department": "Network Operations"},
+            {"worker_id": "#4586960", "full_name": "Samuel Green", "email": "samuel@acme.com", "role": "Platform Security Engineer", "department": "Security"},
+            {"worker_id": "#4586961", "full_name": "Grace Adams", "email": "grace@acme.com", "role": "Finance & Billing Specialist", "department": "Finance"},
+            {"worker_id": "#4586962", "full_name": "Andrew Baker", "email": "andrew@acme.com", "role": "Automation Engineer", "department": "Engineering"},
+            {"worker_id": "#4586963", "full_name": "Chloe Nelson", "email": "chloe@acme.com", "role": "People Operations Specialist", "department": "HR & People"},
+        ]
+
+        for emp in SEED_EMPLOYEES:
+            if not Employee.objects.filter(employee_code=emp['worker_id']).exists():
+                Employee.objects.create(
+                    tenant=tenant,
+                    employee_code=emp['worker_id'],
+                    full_name=emp['full_name'],
+                    email=emp['email'],
+                    designation=emp['role'],
+                    department=emp['department'],
+                    phone="+1 (555) 019-2834",
+                    is_active=True
+                )
+
+    def get_queryset(self):
+        self._ensure_initial_seeds()
+        qs = Employee.objects.select_related('tenant').all().order_by('created_at')
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(
+                Q(full_name__icontains=search) |
+                Q(email__icontains=search) |
+                Q(employee_code__icontains=search) |
+                Q(designation__icontains=search) |
+                Q(department__icontains=search)
+            )
+        role = self.request.query_params.get('role')
+        if role and role != 'All':
+            qs = qs.filter(designation__icontains=role)
+        status_param = self.request.query_params.get('status')
+        if status_param == 'active':
+            qs = qs.filter(is_active=True)
+        elif status_param == 'inactive':
+            qs = qs.filter(is_active=False)
+        return qs
+
+    def perform_create(self, serializer):
+        tenant = Tenant.objects.first()
+        if not tenant:
+            tenant = Tenant.objects.create(name="Sheba Fi Broadband Network", slug="shebafi")
+
+        worker_id = self.request.data.get('worker_id') or self.request.data.get('employee_code')
+        if not worker_id:
+            import random
+            worker_id = f"#{random.randint(4580000, 4599999)}"
+
+        role = self.request.data.get('role') or self.request.data.get('designation', 'Staff Member')
+        serializer.save(
+            tenant=tenant,
+            employee_code=worker_id,
+            designation=role,
+            is_active=self.request.data.get('is_active', True)
+        )
+
+    def perform_update(self, serializer):
+        kwargs = {}
+        if 'worker_id' in self.request.data:
+            kwargs['employee_code'] = self.request.data['worker_id']
+        if 'role' in self.request.data:
+            kwargs['designation'] = self.request.data['role']
+        serializer.save(**kwargs)

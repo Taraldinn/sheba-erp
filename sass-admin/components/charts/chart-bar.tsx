@@ -16,6 +16,7 @@ type Props = {
   barColor?: string;
   className?: string;
   unit?: string;
+  yTicks?: string[];
 };
 
 export function ChartBar({
@@ -24,6 +25,7 @@ export function ChartBar({
   barColor = "fill-foreground",
   className,
   unit = "",
+  yTicks,
 }: Props) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -39,10 +41,13 @@ export function ChartBar({
   const maxValue = Math.max(...values, 10);
   const chartHeight = 140;
   const paddingBottom = 24;
+  const paddingLeft = yTicks && yTicks.length > 0 ? 28 : 8;
+  const paddingRight = 8;
   const totalSvgHeight = chartHeight + paddingBottom;
 
   const barWidth = 14;
   const totalWidth = Math.max(data.length * 36, 320);
+  const usableWidth = totalWidth - paddingLeft - paddingRight;
 
   return (
     <div
@@ -61,22 +66,37 @@ export function ChartBar({
         style={{ height: `${height}px` }}
         viewBox={`0 0 ${totalWidth} ${totalSvgHeight}`}
       >
-        {/* Horizontal gridlines */}
-        {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
-          const y = chartHeight - pct * (chartHeight - 10);
+        {/* Horizontal gridlines and optional Y-ticks */}
+        {[0, 0.33, 0.66, 1].map((pct, idx) => {
+          const y = chartHeight - pct * (chartHeight - 12);
+          const tickLabel =
+            yTicks && yTicks[yTicks.length - 1 - idx]
+              ? yTicks[yTicks.length - 1 - idx]
+              : null;
 
           return (
-            <line
-              key={pct}
-              className="text-separator"
-              stroke="currentColor"
-              strokeDasharray="2 3"
-              strokeWidth="1"
-              x1="0"
-              x2={totalWidth}
-              y1={y}
-              y2={y}
-            />
+            <g key={pct}>
+              <line
+                className="text-separator"
+                stroke="currentColor"
+                strokeDasharray="2 3"
+                strokeWidth="1"
+                x1={paddingLeft}
+                x2={totalWidth - paddingRight}
+                y1={y}
+                y2={y}
+              />
+              {tickLabel && (
+                <text
+                  className="fill-muted text-[10px] font-medium"
+                  textAnchor="end"
+                  x={paddingLeft - 6}
+                  y={y + 3}
+                >
+                  {tickLabel}
+                </text>
+              )}
+            </g>
           );
         })}
 
@@ -84,9 +104,12 @@ export function ChartBar({
         {data.map((item, index) => {
           const barHeight = Math.max(
             (item.value / maxValue) * (chartHeight - 16),
-            item.value > 0 ? 4 : 0,
+            item.value > 0 ? 6 : 0,
           );
-          const x = (index + 0.5) * (totalWidth / data.length) - barWidth / 2;
+          const x =
+            paddingLeft +
+            (index + 0.5) * (usableWidth / data.length) -
+            barWidth / 2;
           const y = chartHeight - barHeight;
           const isHovered = hoveredIdx === index;
 

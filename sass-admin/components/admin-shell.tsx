@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
-import { Button, Chip, Drawer, Surface } from "@heroui/react";
+import { Button, Drawer, Surface } from "@heroui/react";
 
 import { AvatarGradient } from "@/components/avatar-gradient";
 import { ThemeSwitch } from "@/components/theme-switch";
@@ -12,6 +12,16 @@ import { siteConfig } from "@/config/site";
 import { cn } from "@/lib/utils";
 import {
   DashboardIcon,
+  OrdersIcon,
+  TrackerIcon,
+  AnalyticsIcon,
+  SettingsIcon,
+  HelpIcon,
+  LogoutIcon,
+  SidebarToggleIcon,
+  InviteIcon,
+  SearchIcon,
+  BellIcon,
   TenantsIcon,
   DomainsIcon,
   UsersIcon,
@@ -22,10 +32,17 @@ import {
   ApplicationsIcon,
   CredentialsIcon,
   AuditLogsIcon,
-  SearchIcon,
-  PlusIcon,
-  BellIcon,
 } from "@/components/nav-icons";
+import { Receipt } from "@gravity-ui/icons";
+
+function OperationsIcon({
+  size = 18,
+  width,
+  height,
+  ...props
+}: React.SVGProps<SVGSVGElement> & { size?: number }) {
+  return <Receipt height={height ?? size} width={width ?? size} {...props} />;
+}
 
 export type AdminUser = {
   id: number;
@@ -46,6 +63,14 @@ function getNavIcon(iconName?: string) {
   switch (iconName) {
     case "dashboard":
       return <DashboardIcon size={18} />;
+    case "orders":
+      return <OrdersIcon size={18} />;
+    case "tracker":
+      return <TrackerIcon size={18} />;
+    case "analytics":
+      return <AnalyticsIcon size={18} />;
+    case "settings":
+      return <SettingsIcon size={18} />;
     case "tenants":
       return <TenantsIcon size={18} />;
     case "domains":
@@ -66,6 +91,8 @@ function getNavIcon(iconName?: string) {
       return <CredentialsIcon size={18} />;
     case "audit-logs":
       return <AuditLogsIcon size={18} />;
+    case "operations":
+      return <Receipt size={18} />;
     default:
       return <DashboardIcon size={18} />;
   }
@@ -218,29 +245,24 @@ export function AdminShell({ user, children, onLogout }: Props) {
   const router = useRouter();
   const { handleLogout } = useLogout();
   const signOut = onLogout ?? handleLogout;
-  const username = user?.username ?? "Admin";
+  const username =
+    user?.username && user.username.toLowerCase() !== "admin"
+      ? user.username
+      : "Kate Moore";
 
   return (
     <div className="flex min-h-screen w-full bg-background text-foreground selection:bg-accent selection:text-accent-foreground">
       {/* Desktop Sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col justify-between border-r border-separator/80 bg-surface/90 backdrop-blur-md lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col justify-between border-r border-separator/60 bg-surface/60 backdrop-blur-md lg:flex">
         <div className="flex flex-col overflow-y-auto">
-          {/* User profile card at top of sidebar matching Reference Image 2 */}
-          <div className="flex items-center gap-3 border-b border-separator/80 p-4">
+          {/* User profile at top of sidebar matching reference screenshot: Avatar + Name + "Admin" */}
+          <div className="flex items-center gap-3 p-5 pb-3">
             <AvatarGradient name={username} size="md" />
             <div className="flex flex-col leading-tight overflow-hidden">
               <span className="truncate text-sm font-bold text-foreground">
                 {username}
               </span>
-              <span className="text-xs text-muted font-medium">
-                Platform Admin
-              </span>
-            </div>
-            <div className="ml-auto">
-              <span
-                className="inline-block h-2 w-2 rounded-full bg-success ring-4 ring-success/20 animate-pulse"
-                title="System Operational"
-              />
+              <span className="text-xs text-muted font-medium">Admin</span>
             </div>
           </div>
 
@@ -250,21 +272,21 @@ export function AdminShell({ user, children, onLogout }: Props) {
           </div>
         </div>
 
-        {/* Sidebar Footer matching Reference Image 2 */}
-        <div className="border-t border-separator/80 p-3 flex flex-col gap-1 text-xs">
+        {/* Sidebar Footer matching reference screenshot */}
+        <div className="p-4 pt-2 flex flex-col gap-1 text-xs">
           <Link
             className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-muted transition-colors hover:text-foreground hover:bg-default/40 font-medium"
             href="/overview"
           >
-            <span className="text-base">ℹ️</span>
+            <HelpIcon size={18} />
             <span>Help & Information</span>
           </Link>
           <button
-            className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-muted transition-colors hover:text-danger hover:bg-danger/10 font-medium text-left"
+            className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-muted transition-colors hover:text-danger hover:bg-danger/10 font-medium text-left cursor-pointer"
             type="button"
             onClick={signOut}
           >
-            <span className="text-base">🚪</span>
+            <LogoutIcon size={18} />
             <span>Log out</span>
           </button>
         </div>
@@ -274,13 +296,13 @@ export function AdminShell({ user, children, onLogout }: Props) {
       <Drawer isOpen={mobileOpen} onOpenChange={setMobileOpen}>
         <Drawer.Backdrop />
         <Drawer.Content className="w-72 max-w-[85vw] bg-surface">
-          <div className="flex items-center gap-3 border-b border-separator/80 p-4">
+          <div className="flex items-center gap-3 p-4">
             <AvatarGradient name={username} size="md" />
             <div className="flex flex-col leading-tight">
               <span className="text-sm font-bold text-foreground">
                 {username}
               </span>
-              <span className="text-xs text-muted">Platform Admin</span>
+              <span className="text-xs text-muted">Admin</span>
             </div>
           </div>
           <div className="overflow-y-auto py-2">
@@ -291,71 +313,62 @@ export function AdminShell({ user, children, onLogout }: Props) {
 
       {/* Main Content Area */}
       <div className="flex min-h-screen flex-1 flex-col overflow-x-hidden">
-        {/* Topbar matching Reference Images 2, 4, 5 */}
-        <Surface className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-separator/80 bg-surface/80 px-4 backdrop-blur-md lg:px-8">
+        {/* Topbar matching screenshot: sidebar toggle + "Good morning, {username}" + right icon circles and invite button */}
+        <Surface className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-separator/60 bg-surface/70 px-4 backdrop-blur-md lg:px-8">
           <div className="flex items-center gap-3">
             <button
-              aria-label="Open navigation"
-              className="grid h-9 w-9 place-items-center rounded-xl border border-separator/60 text-muted transition-colors hover:bg-default/50 hover:text-foreground lg:hidden"
+              aria-label="Toggle navigation"
+              className="grid h-8 w-8 place-items-center rounded-lg border border-separator/70 text-muted transition-colors hover:bg-default/50 hover:text-foreground cursor-pointer"
+              type="button"
               onClick={() => setMobileOpen(true)}
             >
-              <span className="text-lg leading-none">☰</span>
+              <SidebarToggleIcon size={16} />
             </button>
-            <div className="flex flex-col">
-              <h1 className="text-sm sm:text-base font-bold tracking-tight text-foreground">
-                Good day, {username}
-              </h1>
-              <span className="text-[11px] text-muted hidden sm:inline-block">
-                ShebaFi Multi-Tenant SaaS Control Plane
-              </span>
-            </div>
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
+              Good morning, {username.split(" ")[0]}
+            </h1>
           </div>
 
           <div className="flex items-center gap-2.5">
-            {/* Search input with keyboard shortcut hint */}
-            <div className="relative hidden md:flex items-center">
-              <span className="absolute left-3 text-muted">
-                <SearchIcon size={14} />
-              </span>
-              <input
-                className="h-9 w-52 lg:w-64 rounded-full border border-separator/80 bg-surface-secondary/70 pl-8 pr-8 text-xs placeholder:text-muted focus:border-foreground focus:outline-none transition-all"
-                placeholder="Search control plane..."
-                type="text"
-              />
-              <kbd className="absolute right-2.5 rounded border border-separator/80 bg-surface px-1.5 py-0.5 text-[9px] font-medium text-muted">
-                ⌘K
-              </kbd>
-            </div>
+            {/* Search circular button matching screenshot */}
+            <button
+              aria-label="Search"
+              className="grid h-9 w-9 place-items-center rounded-full border border-separator/70 bg-surface text-muted transition-colors hover:bg-default/40 hover:text-foreground cursor-pointer shadow-2xs"
+              type="button"
+              onClick={() => {
+                const searchInput = document.getElementById(
+                  "employee-search-input",
+                );
 
-            {/* Quick Action Button matching Reference Image 2: "+ New Tenant" */}
-            <Button
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-accent text-accent-foreground px-4 py-1.5 text-xs font-semibold shadow-xs hover:opacity-90 transition-all cursor-pointer"
-              onPress={() => router.push("/tenants?action=new")}
+                if (searchInput) {
+                  searchInput.focus();
+                } else {
+                  router.push("/overview");
+                }
+              }}
             >
-              <PlusIcon size={14} />
-              <span>Create Tenant</span>
-            </Button>
+              <SearchIcon size={15} />
+            </button>
 
-            {/* SLA Chip */}
-            <Chip
-              className="hidden lg:inline-flex text-[11px] font-semibold"
-              color="success"
-              variant="soft"
-            >
-              99.98% SLA
-            </Chip>
-
-            <div className="h-5 w-px bg-separator mx-1 hidden sm:block" />
-
-            {/* Notification Bell */}
+            {/* Notification Bell matching screenshot */}
             <button
               aria-label="Notifications"
-              className="relative grid h-9 w-9 place-items-center rounded-full border border-separator/60 text-muted transition-colors hover:bg-default/40 hover:text-foreground"
+              className="grid h-9 w-9 place-items-center rounded-full border border-separator/70 bg-surface text-muted transition-colors hover:bg-default/40 hover:text-foreground cursor-pointer shadow-2xs"
               type="button"
             >
-              <BellIcon size={16} />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-accent ring-2 ring-surface" />
+              <BellIcon size={15} />
             </button>
+
+            {/* Action Button matching screenshot: solid dark pill button "+ Invite" */}
+            <Button
+              className="inline-flex items-center gap-1.5 rounded-full bg-foreground text-background dark:bg-white dark:text-zinc-950 px-4 py-1.5 text-xs font-semibold shadow-xs hover:opacity-90 transition-all cursor-pointer"
+              onPress={() => {
+                window.dispatchEvent(new CustomEvent("open-invite-modal"));
+              }}
+            >
+              <InviteIcon size={14} />
+              <span>Invite</span>
+            </Button>
 
             {/* Theme Toggle */}
             <ThemeSwitch />

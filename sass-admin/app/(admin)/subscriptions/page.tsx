@@ -6,8 +6,71 @@ import { Chip } from "@heroui/react";
 
 import { AdminResourcePage } from "@/components/admin-resource-page";
 import { formatDate } from "@/lib/utils";
+import { type AdminColumn } from "@/components/admin-data-table";
+import type { ResourceFormConfig } from "@/lib/resource-config";
 
-const columns = [
+const subscriptionsForm: ResourceFormConfig = {
+  fields: [
+    {
+      name: "tenant",
+      label: "Tenant ID",
+      type: "number",
+      required: true,
+    },
+    {
+      name: "package",
+      label: "Package ID",
+      type: "number",
+      required: true,
+    },
+    {
+      name: "billing_cycle",
+      label: "Billing cycle",
+      type: "select",
+      options: [
+        { label: "Monthly", value: "monthly" },
+        { label: "Yearly", value: "yearly" },
+      ],
+      defaultValue: "monthly",
+    },
+    { name: "price", label: "Price", type: "number" },
+    {
+      name: "status",
+      label: "Status",
+      type: "select",
+      options: [
+        { label: "Active", value: "active" },
+        { label: "Pending", value: "pending" },
+        { label: "Suspended", value: "suspended" },
+        { label: "Cancelled", value: "cancelled" },
+      ],
+    },
+    {
+      name: "start_date",
+      label: "Start date",
+      placeholder: "2025-01-01",
+    },
+    {
+      name: "end_date",
+      label: "End date",
+      placeholder: "2025-12-31",
+    },
+    {
+      name: "next_billing_date",
+      label: "Next billing",
+      placeholder: "2025-02-01",
+    },
+    {
+      name: "auto_renew",
+      label: "Auto-renew",
+      type: "checkbox",
+    },
+  ],
+  confirmDelete: (row) =>
+    `Cancel subscription for tenant #${String(row.tenant ?? "?")}? They will lose access on the next billing date.`,
+};
+
+const columns: AdminColumn<SaasSubscription>[] = [
   {
     key: "tenant",
     header: "Tenant",
@@ -49,6 +112,7 @@ export default function SubscriptionsPage() {
       columns={columns}
       description="Tenants currently subscribed to SaaS packages."
       endpoint="/subscriptions/"
+      form={subscriptionsForm}
       getRowId={(row) => row.id}
       title="Subscriptions"
     />

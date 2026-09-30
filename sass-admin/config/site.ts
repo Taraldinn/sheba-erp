@@ -9,21 +9,35 @@ export const siteConfig = {
   // Sidebar nav for the admin dashboard. Order matters — overview first.
   navSections: [
     {
-      title: "Overview",
-      items: [{ label: "Dashboard", href: "/overview", icon: "dashboard" }],
+      title: "Workspace",
+      items: [
+        { label: "Dashboard", href: "/overview", icon: "dashboard" },
+        { label: "Operations", href: "/operations", icon: "operations" },
+        { label: "Settings", href: "/settings", icon: "settings" },
+      ],
     },
     {
-      title: "Tenants",
+      title: "Control Plane",
       items: [
-        { label: "Tenants", href: "/tenants", icon: "tenants", badge: "2" },
+        { label: "Tenants", href: "/tenants", icon: "tenants" },
         { label: "Domains", href: "/domains", icon: "domains" },
         { label: "Users", href: "/users", icon: "users" },
+        {
+          label: "Applications",
+          href: "/applications",
+          icon: "applications",
+        },
       ],
     },
     {
       title: "Catalog",
       items: [
-        { label: "Packages", href: "/packages", icon: "packages" },
+        { label: "Catalogs", href: "/catalogs", icon: "packages" },
+        {
+          label: "Packages",
+          href: "/packages",
+          icon: "packages",
+        },
         {
           label: "Subscriptions",
           href: "/subscriptions",
@@ -36,12 +50,6 @@ export const siteConfig = {
       items: [
         { label: "Payments", href: "/payments", icon: "payments" },
         { label: "Backups", href: "/backups", icon: "backups" },
-        {
-          label: "Applications",
-          href: "/applications",
-          icon: "applications",
-          badge: "New",
-        },
         {
           label: "API Credentials",
           href: "/api-credentials",

@@ -12,6 +12,28 @@ export type AdminColumn<T> = {
   className?: string;
 };
 
+/**
+ * Tiny helper to coerce a possibly-`unknown` field from a row that uses an
+ * `[k: string]: unknown` index signature into something safe to render.
+ * Returns the cast value or `fallback` when empty.
+ */
+export function cell(value: unknown, fallback: ReactNode = "—"): ReactNode {
+  if (value === undefined || value === null || value === "") return fallback;
+
+  return value as ReactNode;
+}
+
+/**
+ * Wrap a render fn so callers can pass `(row) => <JSX>{row.foo}</JSX>`
+ * even when `row.foo` is typed `unknown` because of an index signature.
+ * Returns a new render that casts the return to ReactNode.
+ */
+export function safeRender<T>(
+  fn: (row: T) => ReactNode,
+): (row: T) => ReactNode {
+  return (row: T) => fn(row);
+}
+
 type Props<T> = {
   columns: AdminColumn<T>[];
   rows: T[];

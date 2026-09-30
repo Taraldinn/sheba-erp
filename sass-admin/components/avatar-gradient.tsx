@@ -62,15 +62,18 @@ export function AvatarGradient({
     <div
       aria-label={name}
       className={cn(
-        "relative inline-flex items-center justify-center shrink-0 rounded-2xl bg-gradient-to-tr font-semibold text-white shadow-sm overflow-hidden select-none",
+        "relative inline-flex items-center justify-center shrink-0 rounded-full bg-gradient-to-tr font-semibold text-white shadow-xs overflow-hidden select-none",
         gradient,
         SIZE_CLASSES[size],
         className,
       )}
     >
-      <div className="absolute inset-0 bg-white/10 backdrop-blur-[1px]" />
+      <div className="absolute inset-0 bg-white/15 backdrop-blur-[1px] rounded-full" />
+      <div className="absolute inset-0 bg-gradient-to-b from-white/25 to-transparent opacity-60 rounded-full" />
       {showInitials && (
-        <span className="relative z-10 drop-shadow-sm">{initials}</span>
+        <span className="relative z-10 text-[11px] font-bold drop-shadow-xs">
+          {initials}
+        </span>
       )}
     </div>
   );

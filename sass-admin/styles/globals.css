@@ -1,27 +1,5 @@
 @import "tailwindcss";
 @import "@heroui/styles";
-
-@custom-variant dark (&:is(.dark *));
-
-@theme {
-  --font-sans: "font", sans-serif;
-  --font-mono: "monospace", monospace;
-}
-
-
-/*
- * HeroUI Theme Customization
- * Add this to your global.css after importing @heroui/styles
- * Only includes variables users need to customize
- * @see https://heroui.com/docs/react/getting-started/theming
- */
-
-/*
- * HeroUI Theme Customization
- * Add this to your global.css after importing @heroui/styles
- * Only includes variables users need to customize
- * @see https://heroui.com/docs/react/getting-started/theming
- */
 /*
  * HeroUI Theme Customization
  * Add this to your global.css after importing @heroui/styles
@@ -69,12 +47,12 @@
   --accent-soft-foreground: oklch(0 0 0);
 
   /* Border Radius */
-  --radius: 0.5rem;
-  --field-radius: 0.5rem;
+  --radius: 1rem;
+  --field-radius: 0.75rem;
 
   /* Font Family */
-  /* Make sure to load Inter font in your app */
-  --font-sans: var(--font-inter);
+  /* Make sure to load Geist font in your app */
+  --font-sans: var(--font-geist);
 }
 
 .dark,

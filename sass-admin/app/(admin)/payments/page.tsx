@@ -6,8 +6,9 @@ import { Chip } from "@heroui/react";
 
 import { AdminResourcePage } from "@/components/admin-resource-page";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { type AdminColumn } from "@/components/admin-data-table";
 
-const columns = [
+const columns: AdminColumn<SaasPayment>[] = [
   {
     key: "tenant",
     header: "Tenant",

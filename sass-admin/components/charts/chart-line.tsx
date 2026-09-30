@@ -19,6 +19,7 @@ type Props = {
   className?: string;
   yTicks?: string[];
   unit?: string;
+  showArea?: boolean;
 };
 
 // Generates smooth SVG cubic bezier path from discrete points
@@ -53,6 +54,7 @@ export function ChartLine({
   className,
   yTicks,
   unit: _unit = "",
+  showArea = false,
 }: Props) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
@@ -170,7 +172,7 @@ export function ChartLine({
           return (
             <g key={s.name + sIdx}>
               {/* Optional area fill for the first series */}
-              {sIdx === 0 && (
+              {showArea && sIdx === 0 && (
                 <path
                   className="transition-opacity duration-300"
                   d={areaD}
@@ -214,10 +216,11 @@ export function ChartLine({
 
         {/* X Axis Labels */}
         {labels.map((lbl, idx) => {
-          // Show every 2nd or 3rd label if too many
-          const step = labels.length > 8 ? Math.ceil(labels.length / 6) : 1;
+          // Show all labels if <= 12 (standard months), otherwise step
+          const step = labels.length > 12 ? Math.ceil(labels.length / 6) : 1;
 
-          if (idx % step !== 0 && idx !== labels.length - 1) return null;
+          if (step > 1 && idx % step !== 0 && idx !== labels.length - 1)
+            return null;
 
           const x =
             paddingLeft + (idx / Math.max(labels.length - 1, 1)) * usableWidth;
