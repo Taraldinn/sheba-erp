@@ -1,21 +1,24 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+"use client";
 
-import { SESSION_STORAGE_KEY, serverMe } from "@/lib/api";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { getStoredToken } from "@/lib/api";
 
-const SESSION_COOKIE_NAME = "sheba_session";
+export default function Home() {
+  const router = useRouter();
 
-export default async function Home() {
-  if (process.env.NODE_ENV !== "production") {
-    redirect("/overview");
-  }
-  const store = await cookies();
-  const token =
-    store.get(SESSION_COOKIE_NAME)?.value ??
-    store.get(SESSION_STORAGE_KEY)?.value ??
-    null;
-  const user = await serverMe(token);
+  useEffect(() => {
+    const token = getStoredToken();
+    if (token) {
+      router.replace("/overview");
+    } else {
+      router.replace("/login");
+    }
+  }, [router]);
 
-  if (user) redirect("/overview");
-  redirect("/login");
+  return (
+    <div className="min-h-screen grid place-items-center bg-background text-muted">
+      <p className="text-sm font-mono">Redirecting...</p>
+    </div>
+  );
 }

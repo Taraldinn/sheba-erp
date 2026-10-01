@@ -8,11 +8,6 @@ import { AdminResourcePage } from "@/components/admin-resource-page";
 import { cell, type AdminColumn } from "@/components/admin-data-table";
 import type { ResourceFormConfig } from "@/lib/resource-config";
 
-export const metadata = {
-  title: "Tenants Management",
-  description: "Comprehensive multi-tenant control plane management.",
-};
-
 const tenantsForm: ResourceFormConfig = {
   fields: [
     { name: "name", label: "Name", required: true },

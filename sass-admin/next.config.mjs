@@ -1,29 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Standalone output for the Dokploy / Docker runtime — emits a slim
-  // `server.js` with only the files actually used by the app, so the
-  // production image stays under 200 MB.
-  // Ref: sass-admin/task.md T-04.
-  output: "standalone",
+  // Static export output for FuncHole STATIC runtime hosting — emits a
+  // complete static bundle in `out/`.
+  output: "export",
 
   // Surface TS errors as build errors so a broken type never reaches
   // production. Same gate as CI (T-14).
-  //
-  // NB: Next.js 16 removed the `eslint` config key; lint is run via the
-  // `pnpm lint` script in CI separately (T-68).
   typescript: {
-    // T-14: surface TS errors as build errors so a broken type never
-    // reaches production. Currently blocked by 6 pre-existing errors in
-    // components/overview-client.tsx (tracked in task.md §3) — once T-70
-    // splits that file, this becomes an effective gate.
     ignoreBuildErrors: false,
   },
 
   // React 19 strict mode surfaces double-render issues early.
   reactStrictMode: true,
 
-  // Compress images at request time when served from /public.
+  // Unoptimized images for static HTML export
   images: {
+    unoptimized: true,
     remotePatterns: [
       { protocol: "https", hostname: "api.shebafi.xyz" },
       { protocol: "https", hostname: "admin.shebafi.xyz" },
