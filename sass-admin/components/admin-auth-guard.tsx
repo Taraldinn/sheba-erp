@@ -30,16 +30,6 @@ export async function requireSaasAdmin(
   const user = await serverMe(cookieToken ?? headerToken ?? null);
 
   if (!user) {
-    if (process.env.NODE_ENV !== "production") {
-      return {
-        id: 1,
-        username: "aldinn",
-        email: "admin@shebafi.xyz",
-        is_superuser: true,
-        role: "PLATFORM_SUPER_ADMIN",
-        platform: "ShebaFi Global Control Plane (admin.shebafi.xyz)",
-      };
-    }
     const next = nextPath ? `?next=${encodeURIComponent(nextPath)}` : "";
 
     redirect(`/login${next}`);

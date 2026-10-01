@@ -9,18 +9,22 @@
 		"clean": "rm -rf .next",
 		"build": "next build",
 		"start": "next start -p 3001",
-		"lint": "eslint --fix"
+		"lint": "eslint --fix",
+		"test": "vitest run"
 	},
 	"dependencies": {
 		"@gravity-ui/icons": "^2.22.0",
 		"@heroui/react": "3.2.6",
 		"@heroui/styles": "3.2.6",
+		"@react-aria/ssr": "^3.10.1",
+		"@react-aria/utils": "^3.34.1",
 		"clsx": "2.1.1",
 		"geist": "^1.7.2",
 		"intl-messageformat": "10.7.18",
 		"next": "16.3.6",
 		"next-themes": "0.4.6",
 		"react": "19.3.0",
+		"react-aria": "^3.52.1",
 		"react-dom": "19.3.0"
 	},
 	"devDependencies": {
@@ -29,6 +33,9 @@
 		"@eslint/js": "9.39.5",
 		"@next/eslint-plugin-next": "16.3.6",
 		"@tailwindcss/postcss": "4.3.3",
+		"@testing-library/dom": "^10.4.2",
+		"@testing-library/jest-dom": "^7.0.1",
+		"@testing-library/react": "^16.3.3",
 		"@types/node": "20.19.43",
 		"@types/react": "19.3.0",
 		"@types/react-dom": "19.3.0",
@@ -45,10 +52,13 @@
 		"eslint-plugin-react-hooks": "5.2.0",
 		"eslint-plugin-unused-imports": "4.4.1",
 		"globals": "16.5.0",
+		"happy-dom": "^20.14.5",
 		"postcss": "8.5.28",
 		"prettier": "3.9.9",
 		"tailwind-variants": "3.3.1",
 		"tailwindcss": "4.3.3",
-		"typescript": "5.9.3"
+		"typescript": "5.9.3",
+		"vite": "^8.3.1",
+		"vitest": "^5.0.3"
 	}
 }

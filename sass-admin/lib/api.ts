@@ -134,7 +134,7 @@ export async function syncSessionCookie(token: string | null): Promise<void> {
   }
 }
 
-function buildUrl(path: string, query?: ApiFetchOptions["query"]): string {
+export function buildUrl(path: string, query?: ApiFetchOptions["query"]): string {
   const base = getApiBase();
   const cleanPath = path.startsWith("/") ? path : `/${path}`;
   let url = `${base}${cleanPath}`;
