@@ -3099,6 +3099,17 @@ class TenantFeatureFlagSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'enabled_at', 'updated_at', 'enabled_by']
 
 
+class FeatureFlagBulkItemSerializer(serializers.Serializer):
+    feature_key = serializers.CharField()
+    enabled = serializers.BooleanField(default=True)
+    config = serializers.DictField(required=False, default=dict)
+
+
+class TenantFeatureFlagBulkSetSerializer(serializers.Serializer):
+    tenant = serializers.CharField()
+    flags = serializers.ListField(child=FeatureFlagBulkItemSerializer())
+
+
 class TenantFeatureFlagViewSet(viewsets.ModelViewSet):
     """Central control-plane endpoint for per-tenant feature overrides."""
 
@@ -3128,12 +3139,7 @@ class TenantFeatureFlagViewSet(viewsets.ModelViewSet):
         invalidate_cache(tenant)
 
     @extend_schema(
-        request={'type': 'object', 'properties': {
-            'tenant': {'type': 'string'},
-            'feature_key': {'type': 'string'},
-            'enabled': {'type': 'boolean'},
-            'config': {'type': 'object'},
-        }},
+        request=TenantFeatureFlagSerializer,
         responses={200: TenantFeatureFlagSerializer},
     )
     @action(detail=False, methods=['post'], url_path='set')
@@ -3171,21 +3177,8 @@ class TenantFeatureFlagViewSet(viewsets.ModelViewSet):
         )
 
     @extend_schema(
-        request={'type': 'object', 'properties': {
-            'tenant': {'type': 'string'},
-            'flags': {
-                'type': 'array',
-                'items': {
-                    'type': 'object',
-                    'properties': {
-                        'feature_key': {'type': 'string'},
-                        'enabled': {'type': 'boolean'},
-                        'config': {'type': 'object'},
-                    },
-                },
-            },
-        }},
-        responses={200: 'application/json'},
+        request=TenantFeatureFlagBulkSetSerializer,
+        responses={200: serializers.DictField()},
     )
     @action(detail=False, methods=['post'], url_path='bulk-set')
     def bulk_set(self, request):

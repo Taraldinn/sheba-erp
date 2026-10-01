@@ -55,6 +55,16 @@ class AuditLogSerializer(serializers.ModelSerializer):
         read_only_fields = ('tenant',)
 
 
+class BulkTenantActionSerializer(serializers.Serializer):
+    tenant_ids = serializers.ListField(child=serializers.CharField(), help_text="List of tenant UUIDs")
+
+
+class BulkTenantActionResponseSerializer(serializers.Serializer):
+    succeeded = serializers.ListField(child=serializers.CharField())
+    failed = serializers.ListField(child=serializers.DictField())
+    count = serializers.IntegerField()
+
+
 @extend_schema_view(
     list=extend_schema(tags=['14. Core & Tenant Settings']),
     retrieve=extend_schema(tags=['14. Core & Tenant Settings']),
@@ -94,10 +104,8 @@ class TenantViewSet(viewsets.ModelViewSet):
         return succeeded, failed
 
     @extend_schema(
-        request={'type': 'object', 'properties': {
-            'tenant_ids': {'type': 'array', 'items': {'type': 'string'}},
-        }},
-        responses={200: 'application/json'},
+        request=BulkTenantActionSerializer,
+        responses={200: BulkTenantActionResponseSerializer},
     )
     @action(detail=False, methods=['post'], url_path='bulk-suspend')
     def bulk_suspend(self, request):
@@ -134,10 +142,8 @@ class TenantViewSet(viewsets.ModelViewSet):
         })
 
     @extend_schema(
-        request={'type': 'object', 'properties': {
-            'tenant_ids': {'type': 'array', 'items': {'type': 'string'}},
-        }},
-        responses={200: 'application/json'},
+        request=BulkTenantActionSerializer,
+        responses={200: BulkTenantActionResponseSerializer},
     )
     @action(detail=False, methods=['post'], url_path='bulk-activate')
     def bulk_activate(self, request):
@@ -160,10 +166,8 @@ class TenantViewSet(viewsets.ModelViewSet):
         })
 
     @extend_schema(
-        request={'type': 'object', 'properties': {
-            'tenant_ids': {'type': 'array', 'items': {'type': 'string'}},
-        }},
-        responses={200: 'application/json'},
+        request=BulkTenantActionSerializer,
+        responses={200: BulkTenantActionResponseSerializer},
     )
     @action(detail=False, methods=['post'], url_path='bulk-delete')
     def bulk_delete(self, request):
