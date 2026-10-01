@@ -10,12 +10,24 @@ Your administrative credentials:
 - Portal URL: {{ portal_url }}
 - Admin Username: {{ admin_username }}
 - Temporary Password: {{ temporary_password }}
+{% if api_token %}
+- REST API Base URL: {{ api_base_url }}
+- Frontend API Secret: {{ api_token }}
+{% endif %}
 
 Access your portal here:
 {{ portal_url }}
+{% if cname_target %}
+
+CUSTOM DOMAIN / CNAME SETUP:
+To use your own domain (e.g. billing.yourisp.com):
+Point a DNS CNAME record: billing.yourisp.com -> {{ cname_target }}
+Then verify it inside Settings -> Domains.
+{% endif %}
 
 SECURITY NOTICE:
 Please log in immediately and update your administrative password under Settings -> Profile.
+Store your Frontend API Secret securely; it cannot be retrieved again once lost.
 
 --
 ShebaFi Platform

@@ -53,14 +53,33 @@
           <span class="label">Temporary Password:</span>
           <span class="value">{{ temporary_password }}</span>
         </div>
+        {% if api_token %}
+        <div class="row">
+          <span class="label">REST API Base URL:</span>
+          <span class="value">{{ api_base_url }}</span>
+        </div>
+        <div class="row">
+          <span class="label">Frontend API Secret:</span>
+          <span class="value" style="color: #38bdf8; word-break: break-all;">{{ api_token }}</span>
+        </div>
+        {% endif %}
       </div>
 
       <div class="btn-container">
         <a href="{{ portal_url }}" class="btn">Access ISP Admin Portal &rarr;</a>
       </div>
 
+      {% if cname_target %}
+      <div style="background-color: #0f172a; border-radius: 12px; border: 1px solid #334155; padding: 18px; margin: 20px 0; font-size: 13px;">
+        <h4 style="margin: 0 0 8px 0; color: #38bdf8;">Custom Domain / White-Label CNAME Setup:</h4>
+        <p style="margin: 0 0 8px 0; color: #94a3b8;">To use your own domain (e.g. <code>billing.yourisp.com</code>), create this DNS record with your registrar:</p>
+        <code style="display: block; background: #1e293b; padding: 8px 12px; border-radius: 6px; color: #a5f3fc; font-family: monospace;">CNAME billing.yourisp.com &rarr; {{ cname_target }}</code>
+        <p style="margin: 8px 0 0 0; color: #94a3b8;">Then verify your domain directly inside your ISP Dashboard under <em>Settings &rarr; Domains</em>.</p>
+      </div>
+      {% endif %}
+
       <div class="alert">
-        <strong>Security Notice:</strong> This initial password was generated for administrative onboarding. We strongly recommend logging in immediately and changing your password under <em>Settings &rarr; Profile</em>.
+        <strong>Security Notice:</strong> The temporary password and API secret were generated exclusively for initial administrative setup. Store the API secret securely (it will not be shown again) and change your administrator password immediately upon first login.
       </div>
     </div>
     <div class="footer">

@@ -27,20 +27,30 @@ env = environ.Env(
 environ.Env.read_env(BASE_DIR / '.env', overwrite=False)
 
 # ─── Environment switch: 'local' vs 'production' ─────────────────────────────
-ENVIRONMENT = env('ENVIRONMENT').lower()
+ENVIRONMENT = env('ENVIRONMENT', default='local').lower().strip()
 IS_PRODUCTION = ENVIRONMENT in ('production', 'prod')
-IS_LOCAL = not IS_PRODUCTION
+IS_STAGING = ENVIRONMENT in ('staging', 'stage')
+IS_LOCAL = not (IS_PRODUCTION or IS_STAGING)
 
 # ─── Core security ───────────────────────────────────────────────────────────
-SECRET_KEY = env('SECRET_KEY', default='django-insecure-sheba-erp-development-key-change-in-prod-xyz123')
+DEFAULT_DEV_SECRET = 'django-insecure-sheba-erp-development-key-change-in-prod-xyz123'
+SECRET_KEY = env('SECRET_KEY', default=DEFAULT_DEV_SECRET)
 FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY', default=env('ENCRYPTION_KEY', default=''))
+if not FIELD_ENCRYPTION_KEY and (IS_LOCAL or 'test' in sys.argv):
+    FIELD_ENCRYPTION_KEY = 'dev-local-field-encryption-key-32-chars-long!'
 
-if IS_LOCAL:
+if IS_PRODUCTION:
+    DEBUG = env.bool('DEBUG', default=False)
+    ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1', '.shebafi.xyz', 'shebafi.xyz', '.shebafi.com', 'shebafi.com'])
+    if SECRET_KEY == DEFAULT_DEV_SECRET and 'test' not in sys.argv:
+        import warnings
+        warnings.warn(
+            "CRITICAL: Running in PRODUCTION with default insecure SECRET_KEY! Please set SECRET_KEY in your environment.",
+            RuntimeWarning
+        )
+else:
     DEBUG = env.bool('DEBUG', default=True)
     ALLOWED_HOSTS = ['*']
-else:
-    DEBUG = env.bool('DEBUG', default=False)
-    ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1', '.shebafi.xyz', 'shebafi.xyz', '*'])
 
 
 # ─── Installed apps ──────────────────────────────────────────────────────────
@@ -331,8 +341,10 @@ CORS_ALLOWED_ORIGINS = list(dict.fromkeys(
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https:\/\/([a-zA-Z0-9_-]+\.)*vercel\.app$",
     r"^https:\/\/([a-zA-Z0-9_-]+\.)*shebafi\.xyz$",
+    r"^https:\/\/([a-zA-Z0-9_-]+\.)*shebafi\.com$",
     r"^http:\/\/localhost(:[0-9]+)?$",
     r"^http:\/\/127\.0\.0\.1(:[0-9]+)?$",
+    r"^http:\/\/([a-zA-Z0-9_-]+\.)*localhost(:[0-9]+)?$",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -478,7 +490,17 @@ LOGGING = {
 }
 
 # ─── Celery & Redis Configuration (Production Ready) ──────────────────────────
-if 'test' not in sys.argv and REDIS_URL:
+if 'test' in sys.argv:
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+    CELERY_BROKER_URL = 'memory://'
+    CELERY_RESULT_BACKEND = 'cache+memory://'
+elif IS_LOCAL and not REDIS_URL:
+    CELERY_TASK_ALWAYS_EAGER = env.bool('CELERY_TASK_ALWAYS_EAGER', default=True)
+    CELERY_TASK_EAGER_PROPAGATES = True
+    CELERY_BROKER_URL = 'memory://'
+    CELERY_RESULT_BACKEND = 'cache+memory://'
+elif REDIS_URL:
     CELERY_BROKER_URL = REDIS_URL
     CELERY_RESULT_BACKEND = REDIS_URL
     CELERY_BROKER_TRANSPORT_OPTIONS = {
@@ -624,7 +646,14 @@ if 'test' in sys.argv:
         FIELD_ENCRYPTION_KEY = 'test-encryption-key-for-running-tests-cleanly-32chars!'
 
 # ─── Transactional Mailing Configuration ────────────────────────────────────
-EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+if 'test' in sys.argv:
+    default_email_backend = 'django.core.mail.backends.locmem.EmailBackend'
+elif IS_LOCAL and not env('EMAIL_HOST_USER', default=''):
+    default_email_backend = 'django.core.mail.backends.console.EmailBackend'
+else:
+    default_email_backend = 'django.core.mail.backends.smtp.EmailBackend'
+
+EMAIL_BACKEND = env('EMAIL_BACKEND', default=default_email_backend)
 EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = env.int('EMAIL_PORT', default=587)
 EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
@@ -632,9 +661,6 @@ EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='ShebaFi Platform <noreply@shebafi.xyz>')
 PASSWORD_RESET_TIMEOUT = env.int('PASSWORD_RESET_TIMEOUT', default=900)  # 15 minutes
-
-if 'test' in sys.argv:
-    EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 
 # ─── Customer-portal auto-issuance ──────────────────────────────────────
 # When True, ``CustomerViewSet.perform_create`` mints a portal login
@@ -652,5 +678,20 @@ CUSTOMER_PORTAL_LOGIN_URL = env(
 # ─── Network feature flags (Networking migration delta 2) ────────────────────
 # Default OFF to keep the existing single-method (PPPoE only) detection
 # untouched; deployments serving DHCP-only or static-IP subscribers can opt
-# in via the env variable without redeploying.
 NETWORK_ENABLE_MULTIMETHOD_ONLINE = env.bool('NETWORK_ENABLE_MULTIMETHOD_ONLINE', default=False)
+
+# ─── Startup Environment Information ─────────────────────────────────────────
+if 'test' not in sys.argv:
+    mode_str = "PRODUCTION" if IS_PRODUCTION else ("STAGING" if IS_STAGING else "LOCAL DEVELOPMENT")
+    db_engine = DATABASES['default'].get('ENGINE', '').split('.')[-1]
+    cache_backend = CACHES['default'].get('BACKEND', '').split('.')[-1]
+    email_engine = EMAIL_BACKEND.split('.')[-1]
+    print(
+        f"\n[SHEBA-BACKEND] ═══════════════════════════════════════════════════════\n"
+        f"  Active Mode : {mode_str} (ENVIRONMENT={ENVIRONMENT})\n"
+        f"  Debug Status: {'ON (Insecure for production)' if DEBUG else 'OFF (Secure)'}\n"
+        f"  Database    : {db_engine}\n"
+        f"  Cache/State : {cache_backend}\n"
+        f"  Email Engine: {email_engine}\n"
+        f"[SHEBA-BACKEND] ═══════════════════════════════════════════════════════\n"
+    )

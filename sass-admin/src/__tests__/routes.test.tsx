@@ -1,0 +1,106 @@
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router';
+import { describe, it, expect, vi } from 'vitest';
+import { RouteProvider } from '@/providers/router-provider';
+import { AppLayout } from '@/layouts/app-layout';
+import { LoginScreen } from '@/pages/auth/login';
+import { DashboardScreen } from '@/pages/saas/dashboard';
+import { TenantsScreen } from '@/pages/saas/tenants';
+import { DomainsScreen } from '@/pages/saas/domains';
+import { OnboardingScreen } from '@/pages/saas/onboarding';
+import { PackagesScreen } from '@/pages/saas/packages';
+import { SubscriptionsScreen } from '@/pages/saas/subscriptions';
+import { PaymentsScreen } from '@/pages/saas/payments';
+import { BackupsScreen } from '@/pages/saas/backups';
+import { AuditLogsScreen } from '@/pages/saas/audit-logs';
+
+vi.mock('@/api/client', () => ({
+  saasApi: {
+    login: vi.fn(),
+    getDashboardOverview: vi.fn().mockResolvedValue({}),
+    getTenants: vi.fn().mockResolvedValue([]),
+    getDomains: vi.fn().mockResolvedValue([]),
+    getOnboardingRequests: vi.fn().mockResolvedValue([]),
+    getPackages: vi.fn().mockResolvedValue([]),
+    getSubscriptions: vi.fn().mockResolvedValue([]),
+    getPayments: vi.fn().mockResolvedValue([]),
+    getBackups: vi.fn().mockResolvedValue([]),
+    getAuditLogs: vi.fn().mockResolvedValue([]),
+  }
+}));
+
+const renderWithRouter = (initialRoute: string) => {
+  return render(
+    <MemoryRouter initialEntries={[initialRoute]}>
+      <RouteProvider>
+        <Routes>
+          <Route path="/login" element={<LoginScreen />} />
+          <Route path="/" element={<AppLayout />}>
+              <Route index element={<DashboardScreen />} />
+              <Route path="tenants" element={<TenantsScreen />} />
+              <Route path="domains" element={<DomainsScreen />} />
+              <Route path="onboarding" element={<OnboardingScreen />} />
+              <Route path="packages" element={<PackagesScreen />} />
+              <Route path="subscriptions" element={<SubscriptionsScreen />} />
+              <Route path="payments" element={<PaymentsScreen />} />
+              <Route path="backups" element={<BackupsScreen />} />
+              <Route path="audit-logs" element={<AuditLogsScreen />} />
+          </Route>
+        </Routes>
+      </RouteProvider>
+    </MemoryRouter>
+  );
+};
+
+describe('SaaS Admin Routes', () => {
+  it('renders login screen', () => {
+    renderWithRouter('/login');
+    expect(screen.getByText('Sign in to SaaS Admin')).toBeInTheDocument();
+  });
+
+  it('renders dashboard overview screen', () => {
+    renderWithRouter('/');
+    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+  });
+
+  it('renders tenants screen', () => {
+    renderWithRouter('/tenants');
+    expect(screen.getByText('Tenants')).toBeInTheDocument();
+  });
+
+  it('renders domains screen', () => {
+    renderWithRouter('/domains');
+    expect(screen.getByText('Domains')).toBeInTheDocument();
+  });
+
+  it('renders onboarding requests screen', () => {
+    renderWithRouter('/onboarding');
+    expect(screen.getByText('Onboarding Requests')).toBeInTheDocument();
+  });
+
+  it('renders packages screen', () => {
+    renderWithRouter('/packages');
+    expect(screen.getByText('Packages')).toBeInTheDocument();
+  });
+
+  it('renders subscriptions screen', () => {
+    renderWithRouter('/subscriptions');
+    expect(screen.getByText('Subscriptions')).toBeInTheDocument();
+  });
+
+  it('renders payments screen', () => {
+    renderWithRouter('/payments');
+    expect(screen.getByText('Payments')).toBeInTheDocument();
+  });
+
+  it('renders backups screen', () => {
+    renderWithRouter('/backups');
+    expect(screen.getByText('Backups')).toBeInTheDocument();
+  });
+
+  it('renders audit logs screen', () => {
+    renderWithRouter('/audit-logs');
+    expect(screen.getByText('Audit Logs')).toBeInTheDocument();
+  });
+});

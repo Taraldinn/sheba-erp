@@ -32,6 +32,9 @@ if [ ! -f "$VENV_PYTHON" ]; then
   fi
 fi
 
+# Ensure local environment
+export ENVIRONMENT="${ENVIRONMENT:-local}"
+
 # Track child PIDs
 BACKEND_PID=""
 FRONTEND_PID=""

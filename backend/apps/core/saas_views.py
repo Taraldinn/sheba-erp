@@ -820,6 +820,9 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
         return tenant
 
     def create(self, request, *args, **kwargs):
+        import secrets
+        from django.db import transaction
+
         data = request.data
         name = data.get('name')
         slug = data.get('slug')
@@ -835,92 +838,121 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
         max_rtrs = int(data.get('max_routers', 10 if plan == 'Growth' else (3 if plan == 'Starter' else 50)))
         domain = data.get('domain', f"{slug}.shebafi.xyz").strip().lower()
 
-        # 1. Create Tenant
-        tenant = Tenant.objects.create(
-            name=name,
-            slug=slug,
-            domain=domain,
-            contact_email=data.get('contact_email', f'admin@{slug}.net'),
-            contact_phone=data.get('contact_phone', '+880 1700-000000'),
-            address=data.get('address', 'Dhaka, Bangladesh'),
-            plan=plan,
-            max_subscribers=max_subs,
-            max_routers=max_rtrs,
-            subscription_status='active',
-            is_active=True,
-            notes=data.get('notes', 'Provisioned via SaaS Control Plane')
-        )
+        admin_password = data.get('admin_password') or f"Shb@{secrets.token_urlsafe(8)}"
+        admin_username = data.get('admin_username') or f"{slug}_admin"
+        admin_email = data.get('admin_email') or data.get('contact_email') or f"admin@{slug}.net"
 
-        # 2. Create CompanySetting
-        CompanySetting.objects.create(
-            tenant=tenant,
-            company_name=name,
-            tagline=f"High-Speed Fiber Internet by {name}",
-            support_email=tenant.contact_email,
-            support_phone=tenant.contact_phone,
-            address=tenant.address,
-        )
+        with transaction.atomic():
+            # 1. Create Tenant
+            tenant = Tenant.objects.create(
+                name=name,
+                slug=slug,
+                domain=domain,
+                contact_email=data.get('contact_email', admin_email),
+                contact_phone=data.get('contact_phone', '+880 1700-000000'),
+                address=data.get('address', 'Dhaka, Bangladesh'),
+                plan=plan,
+                max_subscribers=max_subs,
+                max_routers=max_rtrs,
+                subscription_status='active',
+                is_active=True,
+                notes=data.get('notes', 'Provisioned via SaaS Control Plane')
+            )
 
-        # 3. Create TenantDomain
-        TenantDomain.objects.create(
-            tenant=tenant,
-            hostname=domain,
-            is_primary=True,
-            is_active=True,
-            verified=True,
-            domain_type=TenantDomain.DomainType.PRIMARY
-        )
+            # 2. Create CompanySetting
+            CompanySetting.objects.create(
+                tenant=tenant,
+                company_name=name,
+                tagline=f"High-Speed Fiber Internet by {name}",
+                support_email=tenant.contact_email,
+                support_phone=tenant.contact_phone,
+                address=tenant.address,
+            )
 
-        local_host = f"{slug}.localhost"
-        if not TenantDomain.objects.filter(hostname=local_host).exists():
+            # 3. Create TenantDomain
             TenantDomain.objects.create(
                 tenant=tenant,
-                hostname=local_host,
-                is_primary=False,
+                hostname=domain,
+                is_primary=True,
                 is_active=True,
                 verified=True,
-                domain_type=TenantDomain.DomainType.ALIAS
+                domain_type=TenantDomain.DomainType.PRIMARY
             )
 
-        # 4. Create Initial Tenant Admin User
-        admin_username = data.get('admin_username') or f"{slug}_admin"
-        admin_password = data.get('admin_password') or "sheba1234"
-        admin_email = data.get('admin_email') or tenant.contact_email
+            local_host = f"{slug}.localhost"
+            if not TenantDomain.objects.filter(hostname=local_host).exists():
+                TenantDomain.objects.create(
+                    tenant=tenant,
+                    hostname=local_host,
+                    is_primary=False,
+                    is_active=True,
+                    verified=True,
+                    domain_type=TenantDomain.DomainType.ALIAS
+                )
 
-        user = provision_tenant_admin(
-            tenant=tenant,
-            username=admin_username,
-            password=admin_password,
-            email=admin_email,
-            phone=tenant.contact_phone
-        )
-        token, _ = Token.objects.get_or_create(user=user)
-
-        # 5. Create SaaS Subscription Link
-        pkg = SaaSPackage.objects.filter(name__iexact=plan).first() or SaaSPackage.objects.filter(code__iexact=plan).first()
-        if pkg:
-            TenantSubscription.objects.create(
+            # 4. Create Initial Tenant Admin User & seed default roles
+            user = provision_tenant_admin(
                 tenant=tenant,
-                package=pkg,
-                billing_cycle='monthly',
-                price=pkg.monthly_price,
-                status='active',
-                start_date=timezone.now().date(),
+                username=admin_username,
+                password=admin_password,
+                email=admin_email,
+                phone=tenant.contact_phone
+            )
+            token, _ = Token.objects.get_or_create(user=user)
+
+            # 5. Generate dedicated TenantApiToken for external frontend integration
+            api_token_instance, raw_api_key = TenantApiToken.generate(
+                tenant=tenant,
+                name="Primary Frontend Integration",
+                permissions=data.get('api_permissions') or ['customers:read', 'customers:write', 'billing:read', 'billing:write', 'network:read'],
+                created_by=request.user if request.user.is_authenticated else None,
+                rate_limit=int(data.get('api_rate_limit', 2000))
             )
 
-        # 6. Log audit
-        AuditLog.objects.create(
-            tenant=None,
-            actor_username=request.user.username,
-            action='onboard_tenant',
-            module='saas_control_plane',
-            resource_type='Tenant',
-            resource_id=str(tenant.id),
-            details={'tenant_name': name, 'slug': slug, 'plan': plan, 'domain': domain}
-        )
+            # 6. Apply initial feature flags (including exclusive features)
+            initial_flags = data.get('feature_flags') or []
+            if isinstance(initial_flags, list):
+                from .features import FEATURE_REGISTRY
+                for flag_spec in initial_flags:
+                    if isinstance(flag_spec, dict):
+                        f_key = flag_spec.get('feature_key')
+                        if f_key in FEATURE_REGISTRY:
+                            TenantFeatureFlag.objects.create(
+                                tenant=tenant,
+                                feature_key=f_key,
+                                enabled=bool(flag_spec.get('enabled', True)),
+                                config=flag_spec.get('config') or {},
+                                enabled_by=request.user if request.user.is_authenticated else None
+                            )
 
-        # 7. Dispatch Onboarding Welcome Email
+            # 7. Create SaaS Subscription Link
+            pkg = SaaSPackage.objects.filter(name__iexact=plan).first() or SaaSPackage.objects.filter(code__iexact=plan).first()
+            if pkg:
+                TenantSubscription.objects.create(
+                    tenant=tenant,
+                    package=pkg,
+                    billing_cycle='monthly',
+                    price=pkg.monthly_price,
+                    status='active',
+                    start_date=timezone.now().date(),
+                )
+
+            # 8. Log audit
+            AuditLog.objects.create(
+                tenant=None,
+                actor_username=request.user.username,
+                action='onboard_tenant',
+                module='saas_control_plane',
+                resource_type='Tenant',
+                resource_id=str(tenant.id),
+                details={'tenant_name': name, 'slug': slug, 'plan': plan, 'domain': domain}
+            )
+
+        # 9. Dispatch Onboarding Welcome Email
         portal_url = f"https://{domain}/login" if 'localhost' not in domain else f"http://{local_host}:3000/login"
+        api_base_url = f"https://{domain}/api/v1/" if 'localhost' not in domain else f"http://{local_host}:8000/api/v1/"
+        cname_target = domain
+
         try:
             from apps.core.email.service import EmailService
             EmailService.send_client_onboarding_email(
@@ -928,7 +960,10 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
                 admin_username=admin_username,
                 temporary_password=admin_password,
                 portal_url=portal_url,
-                recipient_email=tenant.contact_email
+                recipient_email=tenant.contact_email,
+                api_token=raw_api_key,
+                api_base_url=api_base_url,
+                cname_target=cname_target,
             )
         except Exception as mail_exc:
             logger.warning(f"Failed to dispatch onboarding email for tenant {slug}: {mail_exc}")
@@ -936,6 +971,7 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
         self.precompute_tenant_stats([tenant])
         serializer = self.get_serializer(tenant)
         invalidate_saas_tenant_cache(tenant_id=str(tenant.id), slug=tenant.slug)
+        primary_domain_obj = tenant.tenant_domains.filter(is_primary=True).first()
         resp_data = dict(serializer.data)
         resp_data.update({
             'message': f'Tenant "{name}" successfully provisioned and onboarded.',
@@ -945,9 +981,74 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
                 'password': admin_password,
                 'token': token.key,
                 'dashboard_url': f"http://{domain}:3000/" if 'localhost' not in domain else f"http://{local_host}:3000/",
+            },
+            'api_access': {
+                'id': str(api_token_instance.id),
+                'key_prefix': api_token_instance.key_prefix,
+                'secret_key': raw_api_key,
+                'api_base_url': api_base_url,
+                'auth_header': 'X-API-Key',
+            },
+            'cname_instructions': {
+                'cname_target': cname_target,
+                'verification_record': f"_sheba-verify.{domain}",
+                'dns_challenge_token': primary_domain_obj.dns_challenge_token if primary_domain_obj else '',
             }
         })
         return Response(resp_data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get', 'post'], url_path='features')
+    def tenant_features(self, request, pk=None):
+        """
+        SaaS Admin deep customization endpoint:
+        GET: Lists all features (standard + exclusive) for this tenant with their enabled status and custom configs.
+        POST: Allows SaaS Admin to enable/disable any feature or customize JSON sub-settings.
+        """
+        tenant = self.get_object()
+        from .features import all_features, is_feature_enabled, get_feature_config, invalidate_cache, FEATURE_REGISTRY
+
+        if request.method == 'GET':
+            features_list = []
+            for spec in all_features():
+                enabled = is_feature_enabled(tenant, spec.key)
+                cfg = get_feature_config(tenant, spec.key)
+                features_list.append({
+                    'key': spec.key,
+                    'label': spec.label,
+                    'category': spec.category,
+                    'description': spec.description,
+                    'default_enabled': spec.default_enabled,
+                    'paid': spec.paid,
+                    'is_exclusive': getattr(spec, 'is_exclusive', False),
+                    'enabled': enabled,
+                    'config': cfg,
+                })
+            return Response({'tenant': tenant.slug, 'features': features_list})
+
+        elif request.method == 'POST':
+            feature_key = request.data.get('feature_key')
+            enabled = request.data.get('enabled')
+            config = request.data.get('config')
+
+            if feature_key not in FEATURE_REGISTRY:
+                return Response({'error': f'Unknown feature_key: {feature_key}'}, status=status.HTTP_400_BAD_REQUEST)
+
+            flag, _ = TenantFeatureFlag.objects.update_or_create(
+                tenant=tenant,
+                feature_key=feature_key,
+                defaults={
+                    'enabled': bool(enabled) if enabled is not None else True,
+                    'config': config if isinstance(config, dict) else {},
+                    'enabled_by': request.user if request.user.is_authenticated else None,
+                }
+            )
+            invalidate_cache(tenant)
+            return Response({
+                'message': f'Feature "{feature_key}" updated for tenant {tenant.slug}.',
+                'feature_key': feature_key,
+                'enabled': flag.enabled,
+                'config': flag.config,
+            })
 
     @action(detail=True, methods=['post'], url_path='toggle-status')
     def toggle_status(self, request, pk=None):
@@ -3257,6 +3358,7 @@ class SaaSFeatureCatalogView(views.APIView):
                 'description': spec.description,
                 'default_enabled': spec.default_enabled,
                 'paid': spec.paid,
+                'is_exclusive': getattr(spec, 'is_exclusive', False),
             }
             for spec in FEATURE_REGISTRY.values()
         ]

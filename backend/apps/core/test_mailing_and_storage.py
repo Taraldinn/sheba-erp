@@ -78,6 +78,11 @@ class TenantOnboardingEmailTest(TestCase):
         }
         response = self.client.post("/api/v1/saas/tenants/", payload, format="json")
         self.assertEqual(response.status_code, 201)
+        res_json = response.json()
+        self.assertIn("api_access", res_json)
+        self.assertTrue(res_json["api_access"]["secret_key"].startswith("shb_") or len(res_json["api_access"]["secret_key"]) >= 32)
+        self.assertIn("cname_instructions", res_json)
+
         self.assertEqual(len(mail.outbox), 1)
         sent_email = mail.outbox[0]
         self.assertEqual(sent_email.to, ["owner@barisal.net"])
@@ -85,6 +90,22 @@ class TenantOnboardingEmailTest(TestCase):
         self.assertIn("barisal_root", sent_email.body)
         self.assertIn("CustomPassword99!", sent_email.body)
         self.assertIn("barisal.shebafi.xyz", sent_email.body)
+        self.assertIn("Frontend API Secret", sent_email.body)
+
+        # Test SaaS Admin feature inspection and customization endpoint
+        tenant_id = res_json["tenant"]["id"]
+        feat_resp = self.client.get(f"/api/v1/saas/tenants/{tenant_id}/features/")
+        self.assertEqual(feat_resp.status_code, 200)
+        self.assertTrue(len(feat_resp.json()["features"]) > 10)
+
+        # Test toggling an exclusive feature for this tenant
+        toggle_resp = self.client.post(
+            f"/api/v1/saas/tenants/{tenant_id}/features/",
+            {"feature_key": "exclusive.olt_auto_provisioning", "enabled": True},
+            format="json"
+        )
+        self.assertEqual(toggle_resp.status_code, 200)
+        self.assertTrue(toggle_resp.json()["enabled"])
 
 
 class SuperAdminPasswordResetTest(TestCase):

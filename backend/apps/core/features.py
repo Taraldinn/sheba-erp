@@ -25,6 +25,7 @@ class FeatureSpec:
     description: str
     default_enabled: bool = True
     paid: bool = False
+    is_exclusive: bool = False
     config_schema: Dict[str, str] = field(default_factory=dict)
 
 
@@ -149,6 +150,61 @@ FEATURE_REGISTRY: Dict[str, FeatureSpec] = {
         category="Admin",
         description="Tenant admins can register webhook URLs to receive events.",
         paid=True,
+    ),
+    # ───────── Exclusive Enterprise Features (SaaS Admin Controlled) ─────────
+    "exclusive.olt_auto_provisioning": FeatureSpec(
+        key="exclusive.olt_auto_provisioning",
+        label="OLT Automated Auto-Provisioning",
+        category="Exclusive",
+        description="Real-time SNMP/CLI auto-discovery and automatic ONU activation across Huawei, ZTE, and BDCOM OLTs.",
+        default_enabled=False,
+        paid=True,
+        is_exclusive=True,
+    ),
+    "exclusive.reseller_multilevel": FeatureSpec(
+        key="exclusive.reseller_multilevel",
+        label="Multi-tier Reseller Network & Wallets",
+        category="Exclusive",
+        description="Hierarchical Sub-ISP branching (L1 -> L2 -> Local Agent) with isolated ledgers, recharge margins, and sub-reseller portals.",
+        default_enabled=False,
+        paid=True,
+        is_exclusive=True,
+    ),
+    "exclusive.radius_ha_cluster": FeatureSpec(
+        key="exclusive.radius_ha_cluster",
+        label="Enterprise FreeRADIUS HA & CoA",
+        category="Exclusive",
+        description="High-availability clustered RADIUS with real-time CoA disconnect, live session kill, and zero-downtime failover.",
+        default_enabled=False,
+        paid=True,
+        is_exclusive=True,
+    ),
+    "exclusive.mfs_auto_webhook": FeatureSpec(
+        key="exclusive.mfs_auto_webhook",
+        label="Automated bKash & Nagad MFS Paybill",
+        category="Exclusive",
+        description="Direct merchant API webhooks for instant subscriber auto-recharge and unblock upon bKash/Nagad payment.",
+        default_enabled=False,
+        paid=True,
+        is_exclusive=True,
+    ),
+    "exclusive.btrc_regulatory_audit": FeatureSpec(
+        key="exclusive.btrc_regulatory_audit",
+        label="BTRC Telecom Compliance & IP Log Archive",
+        category="Exclusive",
+        description="Automated NAT IP log retention, MAC-to-NID binding, and regulatory audit format exports.",
+        default_enabled=False,
+        paid=True,
+        is_exclusive=True,
+    ),
+    "exclusive.whitelabel_custom_cname": FeatureSpec(
+        key="exclusive.whitelabel_custom_cname",
+        label="Full White-Label & Custom CNAME",
+        category="Exclusive",
+        description="Custom branded domain (e.g. billing.myisp.com) with automated SSL provisioning, custom logos, and custom SMTP.",
+        default_enabled=False,
+        paid=True,
+        is_exclusive=True,
     ),
 }
 

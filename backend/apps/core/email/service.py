@@ -59,10 +59,14 @@ class EmailService:
         admin_username: str,
         temporary_password: str,
         portal_url: str,
-        recipient_email: str
+        recipient_email: str,
+        api_token: str = None,
+        api_base_url: str = None,
+        cname_target: str = None,
     ) -> bool:
         """
-        Dispatches welcome onboarding email containing initial credentials to client administrator.
+        Dispatches welcome onboarding email containing initial credentials,
+        dashboard URL, and REST API access token to client administrator.
         """
         if not recipient_email:
             return False
@@ -73,6 +77,9 @@ class EmailService:
             'portal_url': portal_url,
             'admin_username': admin_username,
             'temporary_password': temporary_password,
+            'api_token': api_token,
+            'api_base_url': api_base_url,
+            'cname_target': cname_target or getattr(tenant, 'domain', f"{tenant.slug}.shebafi.xyz"),
             'current_year': datetime.now().year,
         }
 
