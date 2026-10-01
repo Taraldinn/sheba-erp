@@ -92,7 +92,7 @@ function getNavIcon(iconName?: string) {
     case "audit-logs":
       return <AuditLogsIcon size={18} />;
     case "operations":
-      return <Receipt size={18} />;
+      return <OperationsIcon size={18} />;
     default:
       return <DashboardIcon size={18} />;
   }
