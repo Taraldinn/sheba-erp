@@ -218,3 +218,64 @@ export interface ImpersonateResult {
   redirect_url: string;
 }
 
+export interface FeatureMatrixTenant {
+  id: string;
+  slug: string;
+  name: string;
+  plan?: string;
+  is_active?: boolean;
+  contact_email?: string;
+  domain_url?: string;
+  created_at?: string;
+}
+
+export interface FeatureMatrixRow {
+  feature_key: string;
+  feature_label: string;
+  label: string;
+  description: string;
+  category: string;
+  paid: boolean;
+  default_enabled: boolean;
+  tenants: Array<{
+    tenant_id: string;
+    tenant_slug: string;
+    tenant_name: string;
+    enabled: boolean;
+    is_override: boolean;
+  }>;
+}
+
+export interface FeatureMatrixResponse {
+  tenants: FeatureMatrixTenant[];
+  rows: FeatureMatrixRow[];
+}
+
+export interface SaaSPlatformHealth {
+  status: 'healthy' | 'degraded' | 'down';
+  database: string;
+  redis: string;
+  tenants_total: number;
+  tenants_active: number;
+  timestamp: string;
+}
+
+export interface SaaSEmployee {
+  id: number | string;
+  worker_id: string;
+  employee_code?: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  role: string;
+  designation?: string;
+  worker_type: string;
+  department: string;
+  is_active: boolean;
+  joining_date?: string;
+  basic_salary?: number;
+  created_at?: string;
+  tenant?: string;
+  tenant_name?: string;
+}
+

@@ -15,6 +15,7 @@ import { Badge } from '@/components/base/badges/badges';
 import { Input } from '@/components/base/input/input';
 import { Modal, ModalOverlay, Dialog } from '@/components/application/modals/modal';
 import { CloseButton } from '@/components/base/buttons/close-button';
+import { Select } from '@/components/base/select/select';
 
 export function SubscriptionsScreen() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -273,39 +274,29 @@ export function SubscriptionsScreen() {
                 </div>
 
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-secondary mb-1">
-                      Select Tenant
-                    </label>
-                    <select
-                      value={formData.tenant_id}
-                      onChange={(e) => setFormData({ ...formData, tenant_id: e.target.value })}
-                      className="w-full rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary shadow-xs outline-none focus:ring-2 focus:ring-brand"
-                    >
-                      {tenants.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <Select
+                    label="Select Tenant"
+                    selectedKey={formData.tenant_id}
+                    onSelectionChange={(key) => setFormData({ ...formData, tenant_id: String(key) })}
+                  >
+                    {tenants.map((t) => (
+                      <Select.Item key={t.id} id={t.id} label={t.name}>
+                        {t.name}
+                      </Select.Item>
+                    ))}
+                  </Select>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-secondary mb-1">
-                      Select Subscription Package
-                    </label>
-                    <select
-                      value={formData.package_id}
-                      onChange={(e) => setFormData({ ...formData, package_id: e.target.value })}
-                      className="w-full rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary shadow-xs outline-none focus:ring-2 focus:ring-brand"
-                    >
-                      {packages.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} (${p.price}/mo)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <Select
+                    label="Select Subscription Package"
+                    selectedKey={formData.package_id}
+                    onSelectionChange={(key) => setFormData({ ...formData, package_id: String(key) })}
+                  >
+                    {packages.map((p) => (
+                      <Select.Item key={p.id} id={p.id} label={`${p.name} ($${p.price}/mo)`}>
+                        {p.name} (${p.price}/mo)
+                      </Select.Item>
+                    ))}
+                  </Select>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-secondary">
@@ -346,22 +337,17 @@ export function SubscriptionsScreen() {
                     Current plan: <strong className="text-primary">{selectedSub?.package_name}</strong>
                   </p>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-secondary mb-1">
-                      Choose New Subscription Tier
-                    </label>
-                    <select
-                      value={newPackageId}
-                      onChange={(e) => setNewPackageId(e.target.value)}
-                      className="w-full rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary shadow-xs outline-none focus:ring-2 focus:ring-brand"
-                    >
-                      {packages.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} (${p.price}/mo)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <Select
+                    label="Choose New Subscription Tier"
+                    selectedKey={newPackageId}
+                    onSelectionChange={(key) => setNewPackageId(String(key))}
+                  >
+                    {packages.map((p) => (
+                      <Select.Item key={p.id} id={p.id} label={`${p.name} ($${p.price}/mo)`}>
+                        {p.name} (${p.price}/mo)
+                      </Select.Item>
+                    ))}
+                  </Select>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-secondary">

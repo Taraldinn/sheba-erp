@@ -6,22 +6,32 @@ import { Button } from '@/components/base/buttons/button';
 import { Input } from '@/components/base/input/input';
 import { UntitledLogo } from '@/components/foundations/logo/untitledui-logo';
 import { Badge } from '@/components/base/badges/badges';
+import { ThemeToggle } from '@/components/application/theme/theme-toggle';
 
 export function LoginScreen() {
-  const [email, setEmail] = useState('admin@sheba.app');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('admin@sheba.local');
+  const [password, setPassword] = useState('admin123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (localStorage.getItem('saas_token')) {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
-      const { token } = await saasApi.login({ email, password });
+      const { token, user } = await saasApi.login({ email, password });
       localStorage.setItem('saas_token', token);
-      navigate('/');
+      if (user) {
+        localStorage.setItem('saas_user', JSON.stringify(user));
+      }
+      navigate('/', { replace: true });
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Please verify credentials.');
     } finally {
@@ -30,12 +40,15 @@ export function LoginScreen() {
   };
 
   const handleQuickDemo = () => {
-    setEmail('admin@sheba.app');
-    setPassword('admin_secret_2026');
+    setEmail('admin@sheba.local');
+    setPassword('admin123');
   };
 
   return (
-    <div className="flex min-h-screen flex-col justify-center px-6 py-12 lg:px-8 bg-secondary_alt">
+    <div className="relative flex min-h-screen flex-col justify-center px-6 py-12 lg:px-8 bg-secondary_alt">
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+        <ThemeToggle variant="dropdown" showLabels size="sm" />
+      </div>
       <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
         <UntitledLogo className="h-10 w-auto" />
         <div className="mt-4 flex items-center gap-2">
@@ -98,7 +111,7 @@ export function LoginScreen() {
               onClick={handleQuickDemo}
               className="w-full py-2 text-xs text-center text-brand-solid hover:underline font-medium"
             >
-              Fill Demo Super-Admin Credentials
+              Fill Administrator Credentials
             </button>
           </div>
         </form>

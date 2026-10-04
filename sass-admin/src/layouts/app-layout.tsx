@@ -12,6 +12,8 @@ import {
   Plus,
   CreditCard01,
   ShieldTick,
+  Sliders01,
+  Users01,
 } from "@untitledui/icons";
 import {
   MobileNavigationHeader,
@@ -23,19 +25,52 @@ import { UntitledLogo } from "@/components/foundations/logo/untitledui-logo";
 import { Input } from "@/components/base/input/input";
 import { Button } from "@/components/base/buttons/button";
 import { Badge } from "@/components/base/badges/badges";
+import { ThemeToggle, ThemeToggleSegmented } from "@/components/application/theme/theme-toggle";
 import { saasApi } from "@/api/client";
 
 export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [pendingOnboardingCount, setPendingOnboardingCount] = useState<number>(2);
+  const [currentUser, setCurrentUser] = useState({
+    id: "admin",
+    name: "Caitlyn King",
+    email: "admin@sheba.app",
+    avatar: "https://www.untitledui.com/images/avatars/caitlyn-king?fm=webp&q=80",
+    status: "online" as const,
+  });
+
+  const token = localStorage.getItem('saas_token');
 
   useEffect(() => {
+    if (!token) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    saasApi.me().then((user) => {
+      if (user && user.name) {
+        setCurrentUser((prev) => ({
+          ...prev,
+          name: user.name,
+          email: user.email || prev.email,
+        }));
+      }
+    }).catch(console.error);
+  }, [token, navigate]);
+
+  useEffect(() => {
+    if (!token) return;
     saasApi.getOnboardingRequests().then((requests) => {
-      const pending = requests.filter((r) => r.status === 'pending').length;
+      const pending = requests.filter((r: { status?: string }) => r.status === 'pending').length;
       setPendingOnboardingCount(pending);
     }).catch(console.error);
-  }, [location.pathname]);
+  }, [location.pathname, token]);
+
+  const handleSignOut = async () => {
+    await saasApi.logout();
+    navigate('/login', { replace: true });
+  };
 
   const navItems: (NavItemType | NavItemDividerType)[] = [
     {
@@ -47,6 +82,11 @@ export function AppLayout() {
       label: "Tenants",
       href: "/tenants",
       icon: Rows01,
+    },
+    {
+      label: "Feature Matrix",
+      href: "/feature-matrix",
+      icon: Sliders01,
     },
     {
       label: "Domains",
@@ -86,6 +126,11 @@ export function AppLayout() {
       href: "/audit-logs",
       icon: ShieldTick,
     },
+    {
+      label: "Team & Staff",
+      href: "/employees",
+      icon: Users01,
+    },
   ];
 
   const MAIN_SIDEBAR_WIDTH = 280;
@@ -119,6 +164,13 @@ export function AppLayout() {
 
       {/* Footer / Account / Status Section */}
       <div className="mt-auto flex flex-col gap-3 px-4 py-4 border-t border-secondary">
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-semibold text-tertiary">Theme</span>
+          </div>
+          <ThemeToggleSegmented className="w-full" size="sm" />
+        </div>
+
         <div className="flex items-center justify-between rounded-lg bg-secondary px-3 py-2 text-xs">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
@@ -130,10 +182,22 @@ export function AppLayout() {
           <span className="text-tertiary">v2.4.0</span>
         </div>
 
-        <NavAccountCard selectedAccountId="caitlyn" />
+        <NavAccountCard
+          selectedAccountId={currentUser.id}
+          items={[currentUser]}
+          onSignOut={handleSignOut}
+        />
       </div>
     </aside>
   );
+
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-secondary_alt flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand-solid border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-secondary_alt text-primary flex">
@@ -166,6 +230,7 @@ export function AppLayout() {
           </div>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle variant="dropdown" showLabels size="sm" />
             <Button
               color="secondary"
               size="sm"

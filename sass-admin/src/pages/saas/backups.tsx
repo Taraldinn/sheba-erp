@@ -18,6 +18,8 @@ import { Badge } from '@/components/base/badges/badges';
 import { Input } from '@/components/base/input/input';
 import { Modal, ModalOverlay, Dialog } from '@/components/application/modals/modal';
 import { CloseButton } from '@/components/base/buttons/close-button';
+import { Select } from '@/components/base/select/select';
+import { RadioGroup, RadioButton } from '@/components/base/radio-buttons/radio-buttons';
 
 export function BackupsScreen() {
   const [backups, setBackups] = useState<Backup[]>([]);
@@ -277,37 +279,46 @@ export function BackupsScreen() {
                 </div>
 
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-secondary mb-1">
-                      Target Environment
-                    </label>
-                    <select
-                      value={targetTenantId}
-                      onChange={(e) => setTargetTenantId(e.target.value)}
-                      className="w-full rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary shadow-xs outline-none focus:ring-2 focus:ring-brand"
-                    >
-                      <option value="all">All Tenants (Global Cluster Snapshot)</option>
-                      {tenants.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name} ({t.schema_name})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <Select
+                    label="Target Environment"
+                    selectedKey={targetTenantId}
+                    onSelectionChange={(key) => setTargetTenantId(String(key))}
+                  >
+                    <Select.Item id="all" label="All Tenants (Global Cluster Snapshot)">
+                      All Tenants (Global Cluster Snapshot)
+                    </Select.Item>
+                    {tenants.map((t) => (
+                      <Select.Item key={t.id} id={t.id} label={`${t.name} (${t.schema_name})`}>
+                        {t.name} ({t.schema_name})
+                      </Select.Item>
+                    ))}
+                  </Select>
 
                   <div>
-                    <label className="block text-xs font-semibold text-secondary mb-1">
+                    <label className="block text-xs font-semibold text-secondary mb-2">
                       Snapshot Scope
                     </label>
-                    <select
+                    <RadioGroup
                       value={backupType}
-                      onChange={(e) => setBackupType(e.target.value as any)}
-                      className="w-full rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary shadow-xs outline-none focus:ring-2 focus:ring-brand"
+                      onChange={(val) => setBackupType(val as any)}
+                      className="gap-2.5 rounded-lg border border-secondary p-3 bg-secondary_alt/30"
                     >
-                      <option value="full">Full Archive (Database & Configuration)</option>
-                      <option value="database">PostgreSQL Schema SQL Dump Only</option>
-                      <option value="media">Uploaded Static Media & Assets</option>
-                    </select>
+                      <RadioButton
+                        value="full"
+                        label="Full Cluster Snapshot"
+                        hint="Complete database schemas, configurations, and tenant tables"
+                      />
+                      <RadioButton
+                        value="database"
+                        label="PostgreSQL Database Dump Only"
+                        hint="Raw SQL dump of all schema tables and sequence definitions"
+                      />
+                      <RadioButton
+                        value="media"
+                        label="Uploaded Media & Assets"
+                        hint="S3 / Cloud Storage static files and documents"
+                      />
+                    </RadioGroup>
                   </div>
 
                   <div className="rounded-lg bg-secondary p-3 text-xs text-secondary border border-secondary">

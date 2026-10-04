@@ -14,6 +14,7 @@ import { Badge } from '@/components/base/badges/badges';
 import { Input } from '@/components/base/input/input';
 import { Modal, ModalOverlay, Dialog } from '@/components/application/modals/modal';
 import { CloseButton } from '@/components/base/buttons/close-button';
+import { Select } from '@/components/base/select/select';
 
 export function PackagesScreen() {
   const [packages, setPackages] = useState<Package[]>([]);
@@ -259,20 +260,15 @@ export function PackagesScreen() {
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-secondary mb-1">
-                        Currency
-                      </label>
-                      <select
-                        value={formData.currency}
-                        onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                        className="w-full rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary shadow-xs outline-none focus:ring-2 focus:ring-brand"
-                      >
-                        <option value="USD">USD ($)</option>
-                        <option value="EUR">EUR (€)</option>
-                        <option value="GBP">GBP (£)</option>
-                      </select>
-                    </div>
+                    <Select
+                      label="Currency"
+                      selectedKey={formData.currency}
+                      onSelectionChange={(key) => setFormData({ ...formData, currency: String(key) })}
+                    >
+                      <Select.Item id="USD" label="USD ($)">USD ($)</Select.Item>
+                      <Select.Item id="EUR" label="EUR (€)">EUR (€)</Select.Item>
+                      <Select.Item id="GBP" label="GBP (£)">GBP (£)</Select.Item>
+                    </Select>
                   </div>
 
                   <div>
@@ -344,20 +340,15 @@ export function PackagesScreen() {
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-secondary mb-1">
-                        Currency
-                      </label>
-                      <select
-                        value={formData.currency}
-                        onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                        className="w-full rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary shadow-xs outline-none focus:ring-2 focus:ring-brand"
-                      >
-                        <option value="USD">USD ($)</option>
-                        <option value="EUR">EUR (€)</option>
-                        <option value="GBP">GBP (£)</option>
-                      </select>
-                    </div>
+                    <Select
+                      label="Currency"
+                      selectedKey={formData.currency}
+                      onSelectionChange={(key) => setFormData({ ...formData, currency: String(key) })}
+                    >
+                      <Select.Item id="USD" label="USD ($)">USD ($)</Select.Item>
+                      <Select.Item id="EUR" label="EUR (€)">EUR (€)</Select.Item>
+                      <Select.Item id="GBP" label="GBP (£)">GBP (£)</Select.Item>
+                    </Select>
                   </div>
 
                   <div>

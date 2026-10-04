@@ -14,6 +14,7 @@ import { Badge } from '@/components/base/badges/badges';
 import { Input } from '@/components/base/input/input';
 import { Modal, ModalOverlay, Dialog } from '@/components/application/modals/modal';
 import { CloseButton } from '@/components/base/buttons/close-button';
+import { Select } from '@/components/base/select/select';
 
 export function PaymentsScreen() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -288,22 +289,17 @@ export function PaymentsScreen() {
                 </div>
 
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-secondary mb-1">
-                      Tenant Organization
-                    </label>
-                    <select
-                      value={formData.tenant_name}
-                      onChange={(e) => setFormData({ ...formData, tenant_name: e.target.value })}
-                      className="w-full rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary shadow-xs outline-none focus:ring-2 focus:ring-brand"
-                    >
-                      {tenants.map((t) => (
-                        <option key={t.id} value={t.name}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <Select
+                    label="Tenant Organization"
+                    selectedKey={formData.tenant_name}
+                    onSelectionChange={(key) => setFormData({ ...formData, tenant_name: String(key) })}
+                  >
+                    {tenants.map((t) => (
+                      <Select.Item key={t.id} id={t.name} label={t.name}>
+                        {t.name}
+                      </Select.Item>
+                    ))}
+                  </Select>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -319,21 +315,16 @@ export function PaymentsScreen() {
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-secondary mb-1">
-                        Payment Method
-                      </label>
-                      <select
-                        value={formData.payment_method}
-                        onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
-                        className="w-full rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary shadow-xs outline-none focus:ring-2 focus:ring-brand"
-                      >
-                        <option value="Wire Transfer / ACH">Wire Transfer / ACH</option>
-                        <option value="Stripe (Credit Card)">Stripe (Credit Card)</option>
-                        <option value="Corporate Check">Corporate Check</option>
-                        <option value="Direct Bank Deposit">Direct Bank Deposit</option>
-                      </select>
-                    </div>
+                    <Select
+                      label="Payment Method"
+                      selectedKey={formData.payment_method}
+                      onSelectionChange={(key) => setFormData({ ...formData, payment_method: String(key) })}
+                    >
+                      <Select.Item id="Wire Transfer / ACH" label="Wire Transfer / ACH">Wire Transfer / ACH</Select.Item>
+                      <Select.Item id="Stripe (Credit Card)" label="Stripe (Credit Card)">Stripe (Credit Card)</Select.Item>
+                      <Select.Item id="Corporate Check" label="Corporate Check">Corporate Check</Select.Item>
+                      <Select.Item id="Direct Bank Deposit" label="Direct Bank Deposit">Direct Bank Deposit</Select.Item>
+                    </Select>
                   </div>
                 </div>
 

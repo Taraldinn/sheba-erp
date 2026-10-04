@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { Selection } from 'react-aria-components';
 import {
   Plus,
   SearchLg,
@@ -18,6 +19,7 @@ import {
   CheckCircle,
   RefreshCw01,
   Check,
+  Globe01,
 } from '@untitledui/icons';
 import { saasApi } from '@/api/client';
 import {
@@ -34,6 +36,10 @@ import { Input } from '@/components/base/input/input';
 import { Toggle } from '@/components/base/toggle/toggle';
 import { Modal, ModalOverlay, Dialog } from '@/components/application/modals/modal';
 import { CloseButton } from '@/components/base/buttons/close-button';
+import { Select } from '@/components/base/select/select';
+import { Tabs } from '@/components/application/tabs/tabs';
+import { Avatar } from '@/components/base/avatar/avatar';
+import { Tooltip } from '@/components/base/tooltip/tooltip';
 
 export function TenantsScreen() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -41,8 +47,8 @@ export function TenantsScreen() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all');
 
-  // Multi-Selection State
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // Multi-Selection State (React Aria Selection)
+  const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set());
 
   // Modals state
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -116,29 +122,25 @@ export function TenantsScreen() {
     return true;
   });
 
-  // Checkbox helpers
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedIds(filteredTenants.map((t) => t.id));
-    } else {
-      setSelectedIds([]);
+  // Derive selected IDs array from React Aria Selection
+  const selectedIds = useMemo(() => {
+    if (selectedKeys === 'all') {
+      return filteredTenants.map((t) => t.id);
     }
-  };
+    return Array.from(selectedKeys as Set<string>);
+  }, [selectedKeys, filteredTenants]);
 
-  const handleSelectOne = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedIds((prev) => [...prev, id]);
-    } else {
-      setSelectedIds((prev) => prev.filter((i) => i !== id));
-    }
-  };
+  // Clear selection when filters or search change
+  useEffect(() => {
+    setSelectedKeys(new Set());
+  }, [search, statusFilter]);
 
   // Bulk Operations
   const handleBulkActivate = async () => {
     if (!selectedIds.length) return;
     try {
       await saasApi.bulkActivate(selectedIds);
-      setSelectedIds([]);
+      setSelectedKeys(new Set());
       loadTenants();
     } catch (err) {
       console.error('Bulk activate error:', err);
@@ -149,7 +151,7 @@ export function TenantsScreen() {
     if (!selectedIds.length) return;
     try {
       await saasApi.bulkSuspend(selectedIds);
-      setSelectedIds([]);
+      setSelectedKeys(new Set());
       loadTenants();
     } catch (err) {
       console.error('Bulk suspend error:', err);
@@ -161,7 +163,7 @@ export function TenantsScreen() {
     if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} selected tenants?`)) return;
     try {
       await saasApi.bulkDelete(selectedIds);
-      setSelectedIds([]);
+      setSelectedKeys(new Set());
       loadTenants();
     } catch (err) {
       console.error('Bulk delete error:', err);
@@ -375,8 +377,6 @@ export function TenantsScreen() {
     setIsEditOpen(true);
   };
 
-  const isAllSelected = filteredTenants.length > 0 && selectedIds.length === filteredTenants.length;
-
   return (
     <div className="space-y-6">
       {/* Top Header */}
@@ -437,19 +437,21 @@ export function TenantsScreen() {
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <span className="text-xs font-medium text-tertiary">Status:</span>
-          {(['all', 'active', 'suspended'] as const).map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setStatusFilter(filter)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition ${
-                statusFilter === filter
-                  ? 'bg-brand-primary_alt text-brand-secondary ring-1 ring-brand'
-                  : 'text-tertiary hover:bg-secondary'
-              }`}
-            >
-              {filter}
-            </button>
-          ))}
+          <div className="flex p-1 bg-secondary/60 rounded-xl gap-1 border border-secondary/40">
+            {(['all', 'active', 'suspended'] as const).map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setStatusFilter(filter)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize transition ${
+                  statusFilter === filter
+                    ? 'bg-primary text-primary shadow-xs font-bold'
+                    : 'text-tertiary hover:text-primary hover:bg-secondary/40'
+                }`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -491,7 +493,7 @@ export function TenantsScreen() {
             <Button
               size="sm"
               color="tertiary"
-              onPress={() => setSelectedIds([])}
+              onPress={() => setSelectedKeys(new Set())}
             >
               Clear
             </Button>
@@ -506,82 +508,101 @@ export function TenantsScreen() {
           badge={`${filteredTenants.length} Found`}
           description="Isolated PostgreSQL database schemas, operational routers, and domain routing"
         />
-        <Table aria-label="Tenants Table">
+        <Table
+          size="sm"
+          aria-label="Tenants Table"
+          selectionMode="multiple"
+          selectionBehavior="toggle"
+          selectedKeys={selectedKeys}
+          onSelectionChange={setSelectedKeys}
+        >
           <Table.Header>
-            <Table.Head id="select" className="w-10">
-              <input
-                type="checkbox"
-                aria-label="Select all tenants"
-                checked={isAllSelected}
-                onChange={(e) => handleSelectAll(e.target.checked)}
-                className="size-4 rounded border-secondary text-brand accent-brand cursor-pointer"
-              />
+            <Table.Head id="name" isRowHeader className="px-4">
+              Tenant Organization & Domain
             </Table.Head>
-            <Table.Head id="name" isRowHeader>Tenant Name</Table.Head>
-            <Table.Head id="schema">Postgres Schema</Table.Head>
-            <Table.Head id="domain">Access URL</Table.Head>
-            <Table.Head id="plan">Current Plan</Table.Head>
-            <Table.Head id="status">Status</Table.Head>
-            <Table.Head id="actions">Advanced Management</Table.Head>
+            <Table.Head id="plan" className="w-36 px-4">
+              Plan & Status
+            </Table.Head>
+            <Table.Head id="actions" className="text-right pr-4 pl-2 w-[340px]">
+              Actions
+            </Table.Head>
           </Table.Header>
           <Table.Body items={filteredTenants}>
             {(tenant) => {
-              const isSelected = selectedIds.includes(tenant.id);
+              const initials = tenant.name
+                .split(' ')
+                .slice(0, 2)
+                .map((w) => w[0])
+                .join('')
+                .toUpperCase();
+
               return (
-                <Table.Row id={tenant.id} className={isSelected ? 'bg-brand-primary_alt/20' : ''}>
-                  <Table.Cell>
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${tenant.name}`}
-                      checked={isSelected}
-                      onChange={(e) => handleSelectOne(tenant.id, e.target.checked)}
-                      className="size-4 rounded border-secondary text-brand accent-brand cursor-pointer"
-                    />
-                  </Table.Cell>
-                  <Table.Cell>
+                <Table.Row id={tenant.id} className="selected:bg-brand-primary_alt/20">
+                  {/* Tenant Organization, Access Domain & Schema */}
+                  <Table.Cell className="px-4 py-2.5">
                     <div className="flex items-center gap-3">
-                      <div className="size-9 rounded-lg bg-secondary flex items-center justify-center text-primary font-bold border border-secondary shrink-0">
-                        <Building07 className="size-5 text-brand-solid" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-primary">{tenant.name}</div>
-                        <div className="text-xs text-tertiary">{tenant.contact_email || 'No email provided'}</div>
+                      <Avatar
+                        initials={initials}
+                        size="md"
+                        status={tenant.is_active ? 'online' : 'offline'}
+                        className="shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm text-primary leading-tight">
+                            {tenant.name}
+                          </span>
+                          <a
+                            href={`https://${tenant.domain_url}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-brand-solid hover:underline max-w-[220px] truncate"
+                            title={`Open https://${tenant.domain_url}`}
+                          >
+                            <Globe01 className="size-3 text-tertiary shrink-0" />
+                            <span className="truncate">{tenant.domain_url}</span>
+                            <LinkExternal01 className="size-2.5 text-tertiary shrink-0" />
+                          </a>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-tertiary">
+                          <span className="font-mono text-[11px] bg-secondary/80 px-1.5 py-0.5 rounded border border-secondary text-secondary">
+                            @{tenant.schema_name}
+                          </span>
+                          <span className="truncate max-w-[200px]">{tenant.contact_email || 'No email'}</span>
+                        </div>
                       </div>
                     </div>
                   </Table.Cell>
-                  <Table.Cell>
-                    <span className="font-mono text-xs bg-secondary px-2 py-1 rounded border border-secondary text-secondary">
-                      {tenant.schema_name}
-                    </span>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <a
-                      href={`https://${tenant.domain_url}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-medium text-brand-solid hover:underline"
-                    >
-                      {tenant.domain_url}
-                      <LinkExternal01 className="size-3" />
-                    </a>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Badge color="gray" size="sm">
-                      {tenant.plan || 'Starter Tier'}
-                    </Badge>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Badge
-                      color={tenant.is_active ? 'success' : 'error'}
-                      size="sm"
-                    >
-                      {tenant.is_active ? 'Active' : 'Suspended'}
-                    </Badge>
-                  </Table.Cell>
-                  <Table.Cell>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <Button
+
+                  {/* Plan & Status */}
+                  <Table.Cell className="px-4 py-2.5">
+                    <div className="flex flex-col items-start gap-1">
+                      <Badge
+                        color={
+                          tenant.plan?.includes('Enterprise')
+                            ? 'warning'
+                            : tenant.plan?.includes('Professional')
+                            ? 'blue'
+                            : 'gray'
+                        }
                         size="sm"
+                      >
+                        {tenant.plan || 'Starter Tier'}
+                      </Badge>
+                      <Badge
+                        color={tenant.is_active ? 'success' : 'error'}
+                        size="sm"
+                      >
+                        {tenant.is_active ? 'Active' : 'Suspended'}
+                      </Badge>
+                    </div>
+                  </Table.Cell>
+
+                  {/* All 7 Necessary Functions directly visible without sliding */}
+                  <Table.Cell className="pr-4 pl-2 py-2.5">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <Button
+                        size="xs"
                         color="primary"
                         iconLeading={Sliders01}
                         onPress={() => openManageDrawer(tenant, 'overview')}
@@ -589,55 +610,60 @@ export function TenantsScreen() {
                         Manage
                       </Button>
                       <Button
-                        size="sm"
-                        color="secondary"
-                        iconLeading={Activity}
-                        aria-label="View ISP Telemetry"
-                        onPress={() => openManageDrawer(tenant, 'telemetry')}
-                      >
-                        Telemetry
-                      </Button>
-                      <Button
-                        size="sm"
+                        size="xs"
                         color="secondary"
                         iconLeading={LogIn01}
-                        aria-label="1-Click Impersonate Session"
                         onPress={() => handleImpersonate(tenant)}
                       >
                         Login
                       </Button>
+                      <Tooltip title="Network Telemetry">
+                        <Button
+                          size="xs"
+                          color="secondary"
+                          iconLeading={Activity}
+                          aria-label="View Telemetry"
+                          onPress={() => openManageDrawer(tenant, 'telemetry')}
+                        />
+                      </Tooltip>
+                      <Tooltip title="Edit Details">
+                        <Button
+                          size="xs"
+                          color="secondary"
+                          iconLeading={Edit01}
+                          aria-label="Edit Details"
+                          onPress={() => openEditModal(tenant)}
+                        />
+                      </Tooltip>
+                      <Tooltip title="Instant Backup">
+                        <Button
+                          size="xs"
+                          color="secondary"
+                          iconLeading={Folder}
+                          aria-label="Instant Backup"
+                          onPress={() => handleQuickBackup(tenant)}
+                        />
+                      </Tooltip>
                       <Button
-                        size="sm"
-                        color="secondary"
-                        iconLeading={Edit01}
-                        aria-label="Edit Details"
-                        onPress={() => openEditModal(tenant)}
-                      />
-                      <Button
-                        size="sm"
+                        size="xs"
                         color={tenant.is_active ? 'secondary' : 'primary'}
                         onPress={() => handleToggleStatus(tenant)}
                       >
                         {tenant.is_active ? 'Suspend' : 'Activate'}
                       </Button>
-                      <Button
-                        size="sm"
-                        color="secondary"
-                        iconLeading={Folder}
-                        aria-label="Trigger Instant Backup"
-                        onPress={() => handleQuickBackup(tenant)}
-                      />
-                      <Button
-                        size="sm"
-                        color="secondary"
-                        iconLeading={Trash01}
-                        className="text-error-primary hover:text-error-solid"
-                        aria-label="Delete Tenant"
-                        onPress={() => {
-                          setSelectedTenant(tenant);
-                          setIsDeleteOpen(true);
-                        }}
-                      />
+                      <Tooltip title="Delete Tenant">
+                        <Button
+                          size="xs"
+                          color="secondary"
+                          iconLeading={Trash01}
+                          className="text-error-primary hover:text-error-solid"
+                          aria-label="Delete Tenant"
+                          onPress={() => {
+                            setSelectedTenant(tenant);
+                            setIsDeleteOpen(true);
+                          }}
+                        />
+                      </Tooltip>
                     </div>
                   </Table.Cell>
                 </Table.Row>
@@ -700,51 +726,26 @@ export function TenantsScreen() {
                 </div>
 
                 {/* Drawer Tabs Navigation */}
-                <div className="flex items-center gap-1 border-b border-secondary px-6 pt-3 bg-secondary/10">
-                  <button
-                    onClick={() => handleDrawerTabChange('overview')}
-                    className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b-2 transition ${
-                      drawerTab === 'overview'
-                        ? 'border-brand text-brand-secondary'
-                        : 'border-transparent text-tertiary hover:text-primary'
-                    }`}
+                <div className="border-b border-secondary px-6 pt-2 bg-secondary/10">
+                  <Tabs
+                    selectedKey={drawerTab}
+                    onSelectionChange={(key) => handleDrawerTabChange(key as any)}
                   >
-                    <Building07 className="size-4" />
-                    Overview & Schema
-                  </button>
-                  <button
-                    onClick={() => handleDrawerTabChange('telemetry')}
-                    className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b-2 transition ${
-                      drawerTab === 'telemetry'
-                        ? 'border-brand text-brand-secondary'
-                        : 'border-transparent text-tertiary hover:text-primary'
-                    }`}
-                  >
-                    <Activity className="size-4" />
-                    ISP Telemetry
-                  </button>
-                  <button
-                    onClick={() => handleDrawerTabChange('features')}
-                    className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b-2 transition ${
-                      drawerTab === 'features'
-                        ? 'border-brand text-brand-secondary'
-                        : 'border-transparent text-tertiary hover:text-primary'
-                    }`}
-                  >
-                    <Sliders01 className="size-4" />
-                    Feature Flags
-                  </button>
-                  <button
-                    onClick={() => handleDrawerTabChange('admins')}
-                    className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold border-b-2 transition ${
-                      drawerTab === 'admins'
-                        ? 'border-brand text-brand-secondary'
-                        : 'border-transparent text-tertiary hover:text-primary'
-                    }`}
-                  >
-                    <Users01 className="size-4" />
-                    Tenant Admins
-                  </button>
+                    <Tabs.List type="underline">
+                      <Tabs.Item id="overview" icon={Building07}>
+                        Overview & Schema
+                      </Tabs.Item>
+                      <Tabs.Item id="telemetry" icon={Activity}>
+                        ISP Telemetry
+                      </Tabs.Item>
+                      <Tabs.Item id="features" icon={Sliders01}>
+                        Feature Flags
+                      </Tabs.Item>
+                      <Tabs.Item id="admins" icon={Users01}>
+                        Tenant Admins
+                      </Tabs.Item>
+                    </Tabs.List>
+                  </Tabs>
                 </div>
 
                 {/* Drawer Tab Content */}
@@ -1265,7 +1266,7 @@ export function TenantsScreen() {
                 <div className="space-y-4">
                   <Input
                     label="Organization Name"
-                    placeholder="e.g. Wayne Enterprises"
+                    placeholder="e.g. Carnival Internet Ltd"
                     value={formData.name}
                     onChange={handleNameChange}
                     isRequired
@@ -1273,7 +1274,7 @@ export function TenantsScreen() {
 
                   <Input
                     label="Schema Identifier"
-                    placeholder="e.g. wayne_enterprises"
+                    placeholder="e.g. carnival_isp"
                     value={formData.schema_name}
                     onChange={(val) => setFormData({ ...formData, schema_name: val })}
                     hint="PostgreSQL schema namespace (alphanumeric and underscores)"
@@ -1282,7 +1283,7 @@ export function TenantsScreen() {
 
                   <Input
                     label="Domain URL"
-                    placeholder="e.g. wayne.sheba.app"
+                    placeholder="e.g. carnival.shebafi.xyz"
                     value={formData.domain_url}
                     onChange={(val) => setFormData({ ...formData, domain_url: val })}
                     isRequired
@@ -1296,20 +1297,15 @@ export function TenantsScreen() {
                     onChange={(val) => setFormData({ ...formData, contact_email: val })}
                   />
 
-                  <div>
-                    <label className="block text-xs font-semibold text-secondary mb-1">
-                      Subscription Plan
-                    </label>
-                    <select
-                      value={formData.plan}
-                      onChange={(e) => setFormData({ ...formData, plan: e.target.value })}
-                      className="w-full rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary shadow-xs outline-none focus:ring-2 focus:ring-brand"
-                    >
-                      <option value="Starter Tier">Starter Tier ($49/mo)</option>
-                      <option value="Professional Tier">Professional Tier ($149/mo)</option>
-                      <option value="Enterprise VIP">Enterprise VIP ($399/mo)</option>
-                    </select>
-                  </div>
+                  <Select
+                    label="Subscription Plan"
+                    selectedKey={formData.plan}
+                    onSelectionChange={(key) => setFormData({ ...formData, plan: String(key) })}
+                  >
+                    <Select.Item id="Starter Tier" label="Starter Tier ($49/mo)">Starter Tier ($49/mo)</Select.Item>
+                    <Select.Item id="Professional Tier" label="Professional Tier ($149/mo)">Professional Tier ($149/mo)</Select.Item>
+                    <Select.Item id="Enterprise VIP" label="Enterprise VIP ($399/mo)">Enterprise VIP ($399/mo)</Select.Item>
+                  </Select>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-secondary">
@@ -1366,20 +1362,15 @@ export function TenantsScreen() {
                     onChange={(val) => setFormData({ ...formData, contact_email: val })}
                   />
 
-                  <div>
-                    <label className="block text-xs font-semibold text-secondary mb-1">
-                      Subscription Plan
-                    </label>
-                    <select
-                      value={formData.plan}
-                      onChange={(e) => setFormData({ ...formData, plan: e.target.value })}
-                      className="w-full rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary shadow-xs outline-none focus:ring-2 focus:ring-brand"
-                    >
-                      <option value="Starter Tier">Starter Tier ($49/mo)</option>
-                      <option value="Professional Tier">Professional Tier ($149/mo)</option>
-                      <option value="Enterprise VIP">Enterprise VIP ($399/mo)</option>
-                    </select>
-                  </div>
+                  <Select
+                    label="Subscription Plan"
+                    selectedKey={formData.plan}
+                    onSelectionChange={(key) => setFormData({ ...formData, plan: String(key) })}
+                  >
+                    <Select.Item id="Starter Tier" label="Starter Tier ($49/mo)">Starter Tier ($49/mo)</Select.Item>
+                    <Select.Item id="Professional Tier" label="Professional Tier ($149/mo)">Professional Tier ($149/mo)</Select.Item>
+                    <Select.Item id="Enterprise VIP" label="Enterprise VIP ($399/mo)">Enterprise VIP ($399/mo)</Select.Item>
+                  </Select>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-secondary">

@@ -7,6 +7,7 @@ import { Button as AriaButton, Dialog as AriaDialog, DialogTrigger as AriaDialog
 import { AvatarLabelGroup } from "@/components/base/avatar/avatar-label-group";
 import { Button } from "@/components/base/buttons/button";
 import { RadioButtonBase } from "@/components/base/radio-buttons/radio-buttons";
+import { ThemeToggleSegmented } from "@/components/application/theme/theme-toggle";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
 import { cx } from "@/utils/cx";
 
@@ -43,8 +44,9 @@ const placeholderAccounts: NavAccountType[] = [
 export const NavAccountMenu = ({
     className,
     selectedAccountId = "olivia",
+    onSignOut,
     ...dialogProps
-}: AriaDialogProps & { className?: string; accounts?: NavAccountType[]; selectedAccountId?: string }) => {
+}: AriaDialogProps & { className?: string; accounts?: NavAccountType[]; selectedAccountId?: string; onSignOut?: () => void }) => {
     const focusManager = useFocusManager();
     const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -87,6 +89,10 @@ export const NavAccountMenu = ({
                     <NavAccountCardMenuItem label="Account settings" icon={Settings01} shortcut="⌘S" />
                     <NavAccountCardMenuItem label="Documentation" icon={BookOpen01} />
                 </div>
+                <div className="flex flex-col gap-1.5 border-t border-secondary px-2.5 py-2">
+                    <div className="px-0.5 text-xs font-semibold text-tertiary">Theme appearance</div>
+                    <ThemeToggleSegmented className="w-full" size="sm" />
+                </div>
                 <div className="flex flex-col gap-0.5 border-t border-secondary py-1.5">
                     <div className="px-3 pt-1.5 pb-1 text-xs font-semibold text-tertiary">Switch account</div>
 
@@ -114,7 +120,7 @@ export const NavAccountMenu = ({
             </div>
 
             <div className="pt-1 pb-1.5">
-                <NavAccountCardMenuItem label="Sign out" icon={LogOut01} shortcut="⌥⇧Q" />
+                <NavAccountCardMenuItem label="Sign out" icon={LogOut01} shortcut="⌥⇧Q" onClick={onSignOut} />
             </div>
         </AriaDialog>
     );
@@ -156,11 +162,13 @@ export const NavAccountCard = ({
     selectedAccountId = "caitlyn",
     items = placeholderAccounts,
     avatarRounded,
+    onSignOut,
 }: {
     popoverPlacement?: AriaPlacement;
     selectedAccountId?: string;
     items?: NavAccountType[];
     avatarRounded?: boolean;
+    onSignOut?: () => void;
 }) => {
     const triggerRef = useRef<HTMLDivElement>(null);
     const isDesktop = useBreakpoint("lg");
@@ -201,7 +209,7 @@ export const NavAccountCard = ({
                         )
                     }
                 >
-                    <NavAccountMenu selectedAccountId={selectedAccountId} accounts={items} />
+                    <NavAccountMenu selectedAccountId={selectedAccountId} accounts={items} onSignOut={onSignOut} />
                 </AriaPopover>
             </AriaDialogTrigger>
         </div>

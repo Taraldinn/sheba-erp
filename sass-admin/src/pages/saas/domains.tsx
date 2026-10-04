@@ -18,6 +18,7 @@ import { Badge } from '@/components/base/badges/badges';
 import { Input } from '@/components/base/input/input';
 import { Modal, ModalOverlay, Dialog } from '@/components/application/modals/modal';
 import { CloseButton } from '@/components/base/buttons/close-button';
+import { Select } from '@/components/base/select/select';
 
 export function DomainsScreen() {
   const [domains, setDomains] = useState<Domain[]>([]);
@@ -293,22 +294,17 @@ export function DomainsScreen() {
                     hint="Enter FQDN without https://"
                   />
 
-                  <div>
-                    <label className="block text-xs font-semibold text-secondary mb-1">
-                      Assign to Tenant Organization
-                    </label>
-                    <select
-                      value={formData.tenant_id}
-                      onChange={(e) => setFormData({ ...formData, tenant_id: e.target.value })}
-                      className="w-full rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary shadow-xs outline-none focus:ring-2 focus:ring-brand"
-                    >
-                      {tenants.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name} ({t.schema_name})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <Select
+                    label="Assign to Tenant Organization"
+                    selectedKey={formData.tenant_id}
+                    onSelectionChange={(key) => setFormData({ ...formData, tenant_id: String(key) })}
+                  >
+                    {tenants.map((t) => (
+                      <Select.Item key={t.id} id={t.id} label={`${t.name} (${t.schema_name})`}>
+                        {t.name} ({t.schema_name})
+                      </Select.Item>
+                    ))}
+                  </Select>
 
                   <label className="flex items-center gap-2 cursor-pointer pt-2">
                     <input

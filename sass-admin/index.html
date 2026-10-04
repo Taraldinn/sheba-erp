@@ -19,11 +19,17 @@
         <script type="module" src="/src/main.tsx"></script>
         <script>
             // On page load or when changing themes, best to add inline in `head` to avoid FOUC
-            if (localStorage.theme === "dark" || (!("theme" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-                document.documentElement.classList.add("dark-mode");
-            } else {
-                document.documentElement.classList.remove("dark-mode");
-            }
+            (function() {
+                try {
+                    const theme = localStorage.getItem("ui-theme");
+                    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+                    if (theme === "dark" || ((!theme || theme === "system") && prefersDark)) {
+                        document.documentElement.classList.add("dark-mode");
+                    } else {
+                        document.documentElement.classList.remove("dark-mode");
+                    }
+                } catch (e) {}
+            })();
         </script>
     </body>
 </html>

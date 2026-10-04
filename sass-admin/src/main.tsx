@@ -17,6 +17,8 @@ import { SubscriptionsScreen } from "@/pages/saas/subscriptions";
 import { PaymentsScreen } from "@/pages/saas/payments";
 import { BackupsScreen } from "@/pages/saas/backups";
 import { AuditLogsScreen } from "@/pages/saas/audit-logs";
+import { FeatureMatrixScreen } from "@/pages/saas/feature-matrix";
+import { EmployeesScreen } from "@/pages/saas/employees";
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>
@@ -28,6 +30,7 @@ createRoot(document.getElementById("root")!).render(
                         <Route path="/" element={<AppLayout />}>
                             <Route index element={<DashboardScreen />} />
                             <Route path="tenants" element={<TenantsScreen />} />
+                            <Route path="feature-matrix" element={<FeatureMatrixScreen />} />
                             <Route path="domains" element={<DomainsScreen />} />
                             <Route path="onboarding" element={<OnboardingScreen />} />
                             <Route path="packages" element={<PackagesScreen />} />
@@ -35,6 +38,7 @@ createRoot(document.getElementById("root")!).render(
                             <Route path="payments" element={<PaymentsScreen />} />
                             <Route path="backups" element={<BackupsScreen />} />
                             <Route path="audit-logs" element={<AuditLogsScreen />} />
+                            <Route path="employees" element={<EmployeesScreen />} />
                         </Route>
                         <Route path="*" element={<NotFound />} />
                     </Routes>
