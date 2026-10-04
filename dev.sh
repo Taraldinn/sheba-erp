@@ -32,6 +32,19 @@ if [ ! -f "$VENV_PYTHON" ]; then
   fi
 fi
 
+# Ensure npm / node are in PATH (fallback for nvm environments)
+if ! command -v npm &>/dev/null && [ -d "$HOME/.nvm/versions/node" ]; then
+  NODE_BIN="$(ls -d "$HOME/.nvm/versions/node"/*/bin 2>/dev/null | tail -n 1)"
+  if [ -n "$NODE_BIN" ]; then
+    export PATH="$NODE_BIN:$PATH"
+  fi
+fi
+
+if ! command -v npm &>/dev/null; then
+  echo -e "${RED}[ERROR] npm not found. Please install Node.js/npm or ensure it is in your PATH.${RESET}"
+  exit 1
+fi
+
 # Ensure local environment
 export ENVIRONMENT="${ENVIRONMENT:-local}"
 
@@ -84,16 +97,20 @@ echo -e "${CYAN}----------------------------------------------------------------
 BACKEND_PID=$!
 
 # 2. Start ISP Frontend (port 3000)
-(
-  cd "$FRONTEND_DIR" && npx next dev --webpack -p 3000 2>&1 | while IFS= read -r line; do
-    echo -e "${BLUE}[FRONTEND]${RESET} $line"
-  done
-) &
-FRONTEND_PID=$!
+if [ -f "$FRONTEND_DIR/package.json" ]; then
+  (
+    cd "$FRONTEND_DIR" && npx next dev --webpack -p 3000 2>&1 | while IFS= read -r line; do
+      echo -e "${BLUE}[FRONTEND]${RESET} $line"
+    done
+  ) &
+  FRONTEND_PID=$!
+else
+  echo -e "${YELLOW}[WARN] ISP Frontend ($FRONTEND_DIR/package.json) not found. Skipping.${RESET}"
+fi
 
-# 3. Start Super-Admin (port 3001)
+# 3. Start Super-Admin (Vite React - port 3001)
 (
-  cd "$SUPERADMIN_DIR" && npx next dev --webpack -p 3001 2>&1 | while IFS= read -r line; do
+  cd "$SUPERADMIN_DIR" && npm run dev -- --port 3001 2>&1 | while IFS= read -r line; do
     echo -e "${MAGENTA}[SUPER-ADMIN]${RESET} $line"
   done
 ) &

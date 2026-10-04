@@ -15,8 +15,8 @@ echo   Super-Admin:   http://localhost:3001
 echo ================================================================
 
 start "Sheba Backend API" cmd /k "cd /d %~dp0backend && venv\Scripts\python.exe manage.py runserver 0.0.0.0:8000"
-start "Sheba ISP Frontend" cmd /k "cd /d %~dp0frontend && npm run dev"
-start "Sheba Super-Admin" cmd /k "cd /d %~dp0super-admin && npm run dev"
+start "Sheba ISP Frontend" cmd /k "cd /d %~dp0isp-admin && npm run dev"
+start "Sheba Super-Admin" cmd /k "cd /d %~dp0sass-admin && npm run dev"
 
 echo All 3 services started in their respective windows.
 pause

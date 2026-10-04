@@ -5,10 +5,10 @@
   "description": "Sheba ISP ERP & SaaS Monorepo Workspace",
   "scripts": {
     "dev": "./dev.sh",
-    "dev:frontend": "npm --prefix frontend run dev",
-    "dev:superadmin": "npm --prefix super-admin run dev",
-    "build:frontend": "npm --prefix frontend run build",
-    "build:superadmin": "npm --prefix super-admin run build",
-    "test:frontend": "npm --prefix frontend test"
+    "dev:frontend": "npm --prefix isp-admin run dev",
+    "dev:superadmin": "npm --prefix sass-admin run dev",
+    "build:frontend": "npm --prefix isp-admin run build",
+    "build:superadmin": "npm --prefix sass-admin run build",
+    "test:frontend": "npm --prefix isp-admin test"
   }
 }
