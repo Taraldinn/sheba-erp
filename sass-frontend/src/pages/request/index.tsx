@@ -5,12 +5,10 @@ import {
     ArrowLeft,
     Building07,
     Check,
-    ChevronDown,
-    CircleCheck,
-    CreditCard01,
-    Database,
+    CheckCircle,
+    Database01,
     Globe01,
-    Mail,
+    Mail01,
     Phone,
     User01,
     Users01,
@@ -181,7 +179,7 @@ export const RequestPage = () => {
                     </Link>
                     <div className="mt-4">
                         <span className="inline-flex items-center gap-2 rounded-full border border-border-secondary px-3 py-1 text-xs font-medium text-tertiary">
-                            <CircleCheck className="size-3 text-emerald-500" />
+                            <CheckCircle className="size-3 text-emerald-500" />
                             Free to start · pay only after 500 active subscribers
                         </span>
                         <h1 className="mt-3 text-display-sm font-semibold sm:text-display-md">
@@ -373,7 +371,7 @@ const Step2 = ({ form, set }: { form: FormState; set: <K extends keyof FormState
                 value={form.email}
                 onChange={(v) => set('email', v)}
                 isRequired
-                icon={Mail}
+                icon={Mail01}
             />
             <Input
                 label="Phone"
@@ -490,7 +488,7 @@ const SubmittedView = ({ slug, requestId, onContinue }: { slug: string; requestI
     <main className="mx-auto max-w-2xl px-6 py-20">
         <div className="rounded-2xl border border-border-secondary bg-bg-primary p-8 text-center sm:p-12">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
-                <CircleCheck className="size-7" />
+                <CheckCircle className="size-7" />
             </div>
             <h1 className="mt-4 text-2xl font-semibold">Request received</h1>
             <p className="mt-2 text-sm text-tertiary">
@@ -500,7 +498,7 @@ const SubmittedView = ({ slug, requestId, onContinue }: { slug: string; requestI
             </p>
             <div className="mt-6 rounded-lg border border-border-secondary bg-secondary_alt p-4 text-left text-sm">
                 <div className="flex items-center gap-2 text-tertiary">
-                    <Database className="size-4" />
+                    <Database01 className="size-4" />
                     <span className="font-mono">{slug}.shebafi.xyz</span>
                 </div>
             </div>

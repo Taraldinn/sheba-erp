@@ -27,8 +27,8 @@ import { Button } from "@/components/base/buttons/button";
 import { Badge } from "@/components/base/badges/badges";
 import { ThemeToggle, ThemeToggleSegmented } from "@/components/application/theme/theme-toggle";
 import { saasApi, STORAGE_KEYS, tenantApi } from "@/api/client";
-import { usePlane } from "@/providers/plane-provider";
 import { PlaneSwap } from "@/components/onboarding/plane-swap";
+import { DevPortalSwitcher } from "@/portal/dev-portal-switcher";
 
 export function AppLayout() {
   const location = useLocation();
@@ -42,7 +42,6 @@ export function AppLayout() {
     status: "online" as const,
   });
 
-  const plane = usePlane();
   const token = localStorage.getItem(STORAGE_KEYS.centralToken) || localStorage.getItem(STORAGE_KEYS.tenantToken);
 
   useEffect(() => {
@@ -260,6 +259,8 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      <DevPortalSwitcher />
     </div>
   );
 }

@@ -19,5 +19,10 @@ export default defineConfig({
             },
         },
     },
+    // @ts-expect-error vitest config
+    test: {
+        environment: "jsdom",
+        globals: true,
+    },
 });
 

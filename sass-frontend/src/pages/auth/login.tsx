@@ -9,6 +9,8 @@ import { UntitledLogo } from '@/components/foundations/logo/untitledui-logo';
 import { Badge } from '@/components/base/badges/badges';
 import { ThemeToggle } from '@/components/application/theme/theme-toggle';
 import { cx as clx } from '@/utils/cx';
+import { usePortal } from '@/portal/portal-provider';
+import { DevPortalSwitcher } from '@/portal/dev-portal-switcher';
 
 /**
  * Odoo-style login:
@@ -47,6 +49,7 @@ const EMPTY_DATABASE: DatabaseState = { selected: '', options: [], locked: false
 
 export function LoginScreen() {
     const plane = usePlane();
+    const portal = usePortal();
     const navigate = useNavigate();
     const [params] = useSearchParams();
 
@@ -55,17 +58,19 @@ export function LoginScreen() {
     const bootstrapToken = params.get('token') || '';
     const bootstrapUsername = params.get('username') || '';
 
-    // Plane: tenant if URL ?tenant=, otherwise the active plane.
+    const effectiveTenant = urlTenant || (portal.portal === 'TENANT' ? (portal.tenantSlug || '') : '');
+
+    // Plane: tenant if URL ?tenant=, TENANT portal, or ISP_ADMIN, otherwise central.
     const initialPlane: Plane =
-        urlTenant || plane.plane === 'tenant' ? 'tenant' : 'central';
+        effectiveTenant || portal.portal === 'TENANT' || portal.portal === 'ISP_ADMIN' || plane.plane === 'tenant' ? 'tenant' : 'central';
     const [active, setActive] = useState<Plane>(initialPlane);
 
     const [username, setUsername] = useState(initialPlane === 'central' ? 'admin' : bootstrapUsername);
     const [password, setPassword] = useState(initialPlane === 'central' ? 'admin123' : '');
     const [db, setDb] = useState<DatabaseState>({
-        selected: urlTenant,
-        options: urlTenant ? [{ id: '', name: urlTenant, slug: urlTenant }] : [],
-        locked: Boolean(urlTenant),
+        selected: effectiveTenant,
+        options: effectiveTenant ? [{ id: '', name: effectiveTenant, slug: effectiveTenant }] : [],
+        locked: Boolean(effectiveTenant),
     });
     const [error, setError] = useState('');
     const [hint, setHint] = useState<string>('');
@@ -353,6 +358,8 @@ export function LoginScreen() {
                             : 'Tenant-scoped session · pick a database'}
                 </span>
             </div>
+
+            <DevPortalSwitcher />
         </div>
     );
 }

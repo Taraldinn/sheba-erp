@@ -3,15 +3,15 @@ import {
     ArrowRight,
     Check,
     ChevronDown,
+    CpuChip01,
     CreditCard01,
     Globe01,
-    Plug,
     Receipt,
-    Router,
-    ShieldCheck,
-    Signal,
-    Sparkles,
+    Server01,
+    ShieldTick,
+    Signal01,
     Star06,
+    Stars01,
     Users01,
     Wifi,
     Zap,
@@ -29,15 +29,15 @@ const HERO_STATS = [
 ];
 
 const APPS = [
-    { name: 'PPPoE & Hotspot', tag: 'Network', desc: 'MikroTik-native auth, captive portals, RADIUS.', icon: Router, accent: 'from-emerald-500/20 to-emerald-500/0' },
+    { name: 'PPPoE & Hotspot', tag: 'Network', desc: 'MikroTik-native auth, captive portals, RADIUS.', icon: Server01, accent: 'from-emerald-500/20 to-emerald-500/0' },
     { name: 'Subscriptions', tag: 'Billing', desc: 'Plans, renewals, dunning, late fees.', icon: CreditCard01, accent: 'from-sky-500/20 to-sky-500/0' },
     { name: 'Invoicing', tag: 'Finance', desc: 'BDT-first invoices, MFS reconciliation.', icon: Receipt, accent: 'from-violet-500/20 to-violet-500/0' },
     { name: 'Customer Portal', tag: 'Self-care', desc: 'Subscriber dashboard, payments, support.', icon: Globe01, accent: 'from-amber-500/20 to-amber-500/0' },
     { name: 'Reseller Console', tag: 'Multi-tier', desc: 'Hierarchy, commissions, white-label.', icon: Users01, accent: 'from-pink-500/20 to-pink-500/0' },
-    { name: 'Network Telemetry', tag: 'Operations', desc: 'Live POP / OLT / ONU health & alarms.', icon: Signal, accent: 'from-cyan-500/20 to-cyan-500/0' },
+    { name: 'Network Telemetry', tag: 'Operations', desc: 'Live POP / OLT / ONU health & alarms.', icon: Signal01, accent: 'from-cyan-500/20 to-cyan-500/0' },
     { name: 'SMS & IP Phone', tag: 'Comms', desc: 'DLR-tracked bKash receipts, OTP, EPBX.', icon: Zap, accent: 'from-orange-500/20 to-orange-500/0' },
-    { name: 'BTRC Compliance', tag: 'Regulatory', desc: 'Audit log, lawful intercept, exports.', icon: ShieldCheck, accent: 'from-rose-500/20 to-rose-500/0' },
-    { name: 'Integrations', tag: 'API', desc: 'REST + webhooks for ERP, accounting.', icon: Plug, accent: 'from-indigo-500/20 to-indigo-500/0' },
+    { name: 'BTRC Compliance', tag: 'Regulatory', desc: 'Audit log, lawful intercept, exports.', icon: ShieldTick, accent: 'from-rose-500/20 to-rose-500/0' },
+    { name: 'Integrations', tag: 'API', desc: 'REST + webhooks for ERP, accounting.', icon: CpuChip01, accent: 'from-indigo-500/20 to-indigo-500/0' },
 ];
 
 const FEATURE_GROUPS = [
@@ -54,7 +54,7 @@ const FEATURE_GROUPS = [
     {
         title: 'Customer experience',
         body: 'Branded customer portal, automated SMS receipts, self-service plan changes, and a ticketing workflow that plugs into your inbox.',
-        icon: Sparkles,
+        icon: Stars01,
     },
     {
         title: 'Built for resellers',

@@ -203,6 +203,7 @@ async function refreshDefaultToken(plane: Plane): Promise<string | null> {
 interface FetchOptions extends RequestInit {
   plane?: Plane;
   skipAuth?: boolean;
+  tenantSlug?: string;
 }
 
 async function fetchApi<T>(endpoint: string, opts: FetchOptions = {}): Promise<T> {
@@ -238,6 +239,10 @@ async function fetchApi<T>(endpoint: string, opts: FetchOptions = {}): Promise<T
     const h: Record<string, string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
     if (authToken && !stripAuth) {
       h['Authorization'] = authToken.startsWith('Token ') || authToken.startsWith('Bearer ') ? authToken : `Token ${authToken}`;
+    }
+    const currentTenant = opts.tenantSlug || (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.tenantSlug) : null);
+    if (currentTenant && plane === 'tenant') {
+      h['X-Tenant-ID'] = currentTenant;
     }
     return h;
   };
@@ -364,6 +369,8 @@ export const saasApi = {
   deleteDomain: (id: string) => fetchApi<void>(`/domains/${id}`, { method: 'DELETE', plane: 'central' }),
 
   getOnboardingRequests: () => fetchApi<any>('/requests', { plane: 'central' }).then((r) => extractList(r, normalizeOnboardingRequest)),
+  createOnboardingRequest: (data: Partial<OnboardingRequest> & Record<string, any>) =>
+    fetchApi<any>('/requests', { method: 'POST', body: JSON.stringify(data), plane: 'central' }).then(normalizeOnboardingRequest),
   approveOnboarding: (id: string) => fetchApi<any>(`/requests/${id}/approve`, { method: 'POST', plane: 'central' }).then((res) => normalizeTenant(res?.tenant || res)),
   rejectOnboarding: (id: string, reason?: string) => fetchApi<void>(`/requests/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason: reason || 'Application rejected by platform administrator.' }), plane: 'central' }),
 

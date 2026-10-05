@@ -56,6 +56,8 @@ export interface AccountClaimData {
 }
 
 export interface CompanyProfileData {
+    name?: string;
+    companyName?: string;
     country: string;          // ISO-3166-1 alpha-2
     currency: string;         // ISO-4217
     language: string;         // IETF tag (e.g. en_US)
@@ -93,6 +95,7 @@ export interface WizardState {
     slug: string;
     tenant: Tenant | null;
     tenantId: string;
+    packageId?: string;
     bootstrapUsername: string;
     bootstrapPassword: string;
     bootstrapToken: string;
