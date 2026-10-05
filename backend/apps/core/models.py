@@ -705,3 +705,44 @@ class TenantFeatureFlag(models.Model):
 
     def __str__(self):
         return f"{self.tenant.slug}:{self.feature_key}={'on' if self.enabled else 'off'}"
+
+
+class Notification(models.Model):
+    """
+    In-app notifications for staff and administrators (Plan Phase 13).
+    Scoped to tenant (null for global platform notifications) and user (null for all tenant staff).
+    """
+    class Priority(models.TextChoices):
+        LOW = 'low', 'Low'
+        NORMAL = 'normal', 'Normal'
+        HIGH = 'high', 'High'
+        URGENT = 'urgent', 'Urgent'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='notifications',
+        null=True, blank=True, help_text="Null for global SaaS platform notifications"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='notifications', null=True, blank=True,
+        help_text="Target user, or null if broadcast to all tenant staff"
+    )
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    category = models.CharField(max_length=50, default='system')  # billing, network, customer, ticket, system
+    priority = models.CharField(max_length=20, choices=Priority.choices, default=Priority.NORMAL)
+    action_url = models.CharField(max_length=255, blank=True)
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'user', 'is_read'], name='notif_tenant_user_read_idx'),
+            models.Index(fields=['tenant', '-created_at'], name='notif_tenant_created_idx'),
+        ]
+
+    def __str__(self):
+        return f"[{self.category}] {self.title} ({'read' if self.is_read else 'unread'})"

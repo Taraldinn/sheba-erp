@@ -7,7 +7,8 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, Spec
 from apps.core.views import (
     TenantViewSet, TenantDomainViewSet, CompanySettingViewSet,
     AuditLogViewSet, HealthCheckView, ReadinessView, ApiRootView,
-    FeatureFlagsForTenantView,
+    FeatureFlagsForTenantView, NotificationViewSet, TenantResolveView,
+    GlobalSearchView,
 )
 from apps.core.readiness_views import ProductionReadinessView
 from apps.core.saas_views import (
@@ -90,6 +91,7 @@ router.register(r'saas/wireguard', SaaSWireGuardViewSet, basename='saas-wireguar
 router.register(r'saas/feature-flags', TenantFeatureFlagViewSet, basename='saas-feature-flag')
 router.register(r'settings', CompanySettingViewSet, basename='setting')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
+router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'staff', StaffProfileViewSet, basename='staff')
 router.register(r'roles', RoleViewSet, basename='role')
 router.register(r'permissions', PermissionViewSet, basename='permission')
@@ -179,6 +181,11 @@ urlpatterns = [
     path('api/v1/auth/logout/', LogoutView.as_view(), name='auth-logout'),
     path('api/v1/auth/password-reset/', TenantPasswordResetView.as_view(), name='auth-password-reset'),
     path('api/v1/auth/password-reset-confirm/', TenantPasswordResetConfirmView.as_view(), name='auth-password-reset-confirm'),
+
+    # Tenant Resolution & Global Search (Plan Phase 4 & 14)
+    path('api/v1/tenants/resolve/<str:slug>/', TenantResolveView.as_view(), name='tenant-resolve-slug'),
+    path('api/v1/tenants/resolve/', TenantResolveView.as_view(), name='tenant-resolve'),
+    path('api/v1/search/', GlobalSearchView.as_view(), name='global-search'),
     
     # Public & Customer Query endpoints
     path('health/', ReadinessView.as_view(), name='health'),

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { usePortal } from './portal-provider';
 import type { TenantBranding } from './types';
-import { saasApi } from '@/api/client';
+import { saasApi, tenantApi } from '@/api/client';
 
 export interface TenantInfo {
     slug: string;
@@ -75,45 +75,57 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         setError(null);
 
         try {
-            // Attempt to query existing tenant record from backend
-            const backendTenant = await saasApi.getTenantBySlug(effectiveSlug);
-
-            if (backendTenant) {
-                const isTenantActive = backendTenant.is_active !== false;
-                const statusMap: Record<string, any> = {
-                    active: 'active',
-                    trial: 'trial',
-                    past_due: 'past_due',
-                    suspended: 'suspended',
-                };
-                const rawStatus = (backendTenant as any).subscription_status || 'active';
-                const subStatus = statusMap[rawStatus] || (isTenantActive ? 'active' : 'suspended');
-
+            // 1. Primary path: Call authoritative public tenant resolve endpoint
+            const res = await tenantApi.resolve(effectiveSlug);
+            if (res && res.id) {
                 setTenantData({
-                    id: backendTenant.id,
-                    name: backendTenant.name || `${effectiveSlug.toUpperCase()} Network`,
-                    status: subStatus,
-                    currency: 'BDT',
-                    theme: 'dark',
-                    accentColor: 'indigo',
-                    enabledModules: ['customers', 'billing', 'network', 'tickets'],
+                    id: res.id,
+                    name: res.name || `${effectiveSlug.toUpperCase()} Broadband`,
+                    status: res.status || (res.is_active ? 'active' : 'suspended'),
+                    logo: res.logo,
+                    favicon: res.favicon,
+                    currency: res.branding?.currency_code || 'BDT',
+                    theme: res.branding?.theme_mode || 'dark',
+                    accentColor: res.branding?.accent_color || 'indigo',
+                    enabledModules: res.enabled_modules || ['customers', 'billing', 'network', 'tickets'],
                 });
-            } else {
-                // If on explicit custom domain or known slug but not found in dev, provide graceful fallback
-                const fallbackName = effectiveSlug.charAt(0).toUpperCase() + effectiveSlug.slice(1) + ' Broadband';
+                return;
+            }
+        } catch (resolveErr: any) {
+            // 2. Secondary fallback (e.g. dev/control plane)
+            try {
+                const backendTenant = await saasApi.getTenantBySlug(effectiveSlug);
+                if (backendTenant) {
+                    setTenantData({
+                        id: backendTenant.id,
+                        name: backendTenant.name || `${effectiveSlug.toUpperCase()} Network`,
+                        status: backendTenant.is_active !== false ? 'active' : 'suspended',
+                        currency: 'BDT',
+                        theme: 'dark',
+                        accentColor: 'indigo',
+                        enabledModules: ['customers', 'billing', 'network', 'tickets'],
+                    });
+                    return;
+                }
+            } catch {
+                // Ignore fallback error
+            }
+
+            if (resolveErr?.status === 404) {
+                setError(`Tenant "${effectiveSlug}" not found`);
                 setTenantData({
                     id: undefined,
-                    name: fallbackName,
-                    status: 'active',
+                    name: `${effectiveSlug.toUpperCase()} (Not Found)`,
+                    status: 'not_found',
                     currency: 'BDT',
                     theme: 'dark',
                     accentColor: 'indigo',
-                    enabledModules: ['customers', 'billing', 'network', 'tickets'],
+                    enabledModules: [],
                 });
+                return;
             }
-        } catch (err: any) {
-            console.warn('Could not resolve tenant from backend:', err);
-            // Default active fallback
+
+            // Default fallback for offline dev/storybook
             const fallbackName = effectiveSlug.charAt(0).toUpperCase() + effectiveSlug.slice(1) + ' Broadband';
             setTenantData({
                 id: undefined,
@@ -208,7 +220,16 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 export function useTenant(): TenantInfo {
     const ctx = useContext(TenantContext);
     if (!ctx) {
-        throw new Error('useTenant must be used within a <TenantProvider>');
+        return {
+            slug: '',
+            name: 'ShebaFi Platform',
+            status: 'active',
+            branding: null,
+            enabledModules: [],
+            isLoading: false,
+            error: null,
+            refetch: async () => {},
+        };
     }
     return ctx;
 }

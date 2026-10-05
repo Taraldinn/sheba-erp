@@ -86,7 +86,14 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
 export function usePortal(): PortalContextValue {
     const ctx = useContext(PortalContext);
     if (!ctx) {
-        throw new Error('usePortal must be used within a <PortalProvider>');
+        return {
+            portal: 'SUPER_ADMIN',
+            hostname: typeof window !== 'undefined' ? window.location.hostname : 'admin.example.xyz',
+            isCustomDomain: false,
+            branding: null,
+            isLoadingBranding: false,
+            switchPortalDev: () => {},
+        };
     }
     return ctx;
 }

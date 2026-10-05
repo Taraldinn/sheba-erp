@@ -3,11 +3,12 @@ from django.db import transaction
 from rest_framework import serializers, viewsets, permissions, views, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db import connection
+from django.db import connection, models
 from django.conf import settings
+from django.utils import timezone
 from django.http import HttpResponse
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from .models import Tenant, TenantApiToken, CompanySetting, AuditLog, TenantDomain
+from .models import Tenant, TenantApiToken, CompanySetting, AuditLog, TenantDomain, Notification
 from .permissions import IsCentralAdmin, IsTenantMember, IsAdminOrManager
 from .utils import get_scoped_queryset, get_tenant_for_request
 from .redis_service import RedisService
@@ -53,6 +54,17 @@ class AuditLogSerializer(serializers.ModelSerializer):
         model = AuditLog
         fields = '__all__'
         read_only_fields = ('tenant',)
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'tenant', 'user', 'title', 'message',
+            'category', 'priority', 'action_url',
+            'is_read', 'read_at', 'created_at'
+        ]
+        read_only_fields = ('tenant', 'user', 'read_at', 'created_at')
 
 
 class BulkTenantActionSerializer(serializers.Serializer):
@@ -688,3 +700,304 @@ class ApiRootView(views.APIView):
             return HttpResponse(html_content, content_type='text/html')
 
         return Response(data)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['Notifications']),
+    retrieve=extend_schema(tags=['Notifications']),
+    create=extend_schema(tags=['Notifications']),
+    update=extend_schema(tags=['Notifications']),
+    partial_update=extend_schema(tags=['Notifications']),
+    destroy=extend_schema(tags=['Notifications']),
+)
+class NotificationViewSet(viewsets.ModelViewSet):
+    """
+    In-App Notification Management (Plan Phase 13).
+    Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
+    Strictly isolated by tenant and user.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = NotificationSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        tenant = getattr(self.request, 'tenant', None)
+        is_control_plane = getattr(self.request, 'is_control_plane', False)
+
+        if is_control_plane or (user.is_superuser and not tenant):
+            # Super admins on control plane see platform broadcast notifications or notifications for themselves
+            return Notification.objects.filter(
+                models.Q(tenant__isnull=True) | models.Q(user=user)
+            )
+
+        if not tenant:
+            from apps.authentication.models import StaffMembership
+            membership = StaffMembership.objects.filter(user=user, is_active=True).first()
+            if membership:
+                tenant = membership.tenant
+
+        if not tenant:
+            return Notification.objects.filter(user=user)
+
+        return Notification.objects.filter(
+            tenant=tenant
+        ).filter(
+            models.Q(user=user) | models.Q(user__isnull=True)
+        )
+
+    def perform_create(self, serializer):
+        tenant = getattr(self.request, 'tenant', None)
+        serializer.save(tenant=tenant)
+
+    @action(detail=False, methods=['get'], url_path='unread-count')
+    def unread_count(self, request):
+        count = self.get_queryset().filter(is_read=False).count()
+        return Response({'unread_count': count})
+
+    @action(detail=True, methods=['post', 'patch'], url_path='mark-as-read')
+    def mark_as_read(self, request, pk=None):
+        notification = self.get_object()
+        if not notification.is_read:
+            notification.is_read = True
+            notification.read_at = timezone.now()
+            notification.save(update_fields=['is_read', 'read_at'])
+        return Response({'status': 'marked_as_read', 'id': str(notification.id)})
+
+    @action(detail=False, methods=['post'], url_path='mark-all-read')
+    def mark_all_read(self, request):
+        updated = self.get_queryset().filter(is_read=False).update(
+            is_read=True, read_at=timezone.now()
+        )
+        return Response({'status': 'all_marked_as_read', 'count': updated})
+
+
+@extend_schema(
+    tags=['14. Core & Tenant Settings'],
+    description='Public pre-flight tenant resolution endpoint. Resolves metadata, branding, and enabled modules without exposing secrets.',
+    responses={200: dict, 404: dict}
+)
+class TenantResolveView(views.APIView):
+    """
+    Public Pre-Flight Tenant Resolution Endpoint (Plan Phase 4).
+    Resolves tenant metadata, branding, and enabled modules by slug or domain without exposing
+    secrets or sensitive credentials.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, slug=None):
+        lookup_slug = slug or request.query_params.get('slug')
+        hostname = request.query_params.get('domain') or request.query_params.get('hostname')
+        
+        tenant = None
+        if lookup_slug:
+            tenant = Tenant.objects.filter(slug__iexact=lookup_slug.strip(), is_active=True).first()
+        elif hostname:
+            clean_host = hostname.strip().lower().split(':')[0]
+            domain_rec = TenantDomain.objects.select_related('tenant').filter(hostname__iexact=clean_host, is_active=True).first()
+            if domain_rec:
+                tenant = domain_rec.tenant
+            if not tenant:
+                tenant = Tenant.objects.filter(domain__iexact=clean_host, is_active=True).first()
+            if not tenant:
+                parts = clean_host.split('.')
+                if len(parts) >= 2 and parts[0] not in ('www', 'api', 'localhost', '127', 'testserver', 'admin', 'control', 'saas'):
+                    tenant = Tenant.objects.filter(slug__iexact=parts[0], is_active=True).first()
+        elif getattr(request, 'tenant', None):
+            tenant = request.tenant
+
+        if not tenant:
+            return Response({
+                'error': f'ISP tenant "{lookup_slug or hostname or "unknown"}" not found or inactive.',
+                'code': 'TENANT_NOT_FOUND',
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        settings_obj = CompanySetting.objects.filter(tenant=tenant).first()
+        
+        ACCENT_HEX_MAP = {
+            'indigo': '#6366f1',
+            'emerald': '#10b981',
+            'violet': '#8b5cf6',
+            'cyan': '#06b6d4',
+            'amber': '#f59e0b',
+            'rose': '#f43f5e',
+        }
+        accent = getattr(settings_obj, 'accent_color', 'indigo') or 'indigo'
+        primary_color = ACCENT_HEX_MAP.get(accent, '#6366f1')
+
+        from .features import is_feature_enabled
+        enabled_modules = ['dashboard', 'customers', 'billing', 'network', 'tickets', 'reports', 'settings']
+        if is_feature_enabled(tenant, 'billing.invoices'):
+            enabled_modules.append('invoices')
+        if is_feature_enabled(tenant, 'billing.late_fees'):
+            enabled_modules.append('late_fees')
+        if is_feature_enabled(tenant, 'support.ticketing'):
+            enabled_modules.append('support')
+
+        data = {
+            'id': str(tenant.id),
+            'slug': tenant.slug,
+            'name': tenant.name,
+            'domain': tenant.domain or f"{tenant.slug}.shebafi.xyz",
+            'status': tenant.subscription_status or 'active',
+            'is_active': tenant.is_active,
+            'logo': getattr(settings_obj, 'logo_url', '') or '',
+            'favicon': getattr(settings_obj, 'favicon_url', '') or '',
+            'branding': {
+                'company_name': getattr(settings_obj, 'company_name', tenant.name) or tenant.name,
+                'tagline': getattr(settings_obj, 'tagline', '') or '',
+                'theme_mode': getattr(settings_obj, 'theme_mode', 'dark') or 'dark',
+                'accent_color': accent,
+                'primary_color': primary_color,
+                'secondary_color': '#4f46e5',
+                'currency_symbol': getattr(settings_obj, 'currency_symbol', '৳') or '৳',
+                'currency_code': getattr(settings_obj, 'currency_code', 'BDT') or 'BDT',
+                'support_phone': getattr(settings_obj, 'support_phone', '') or tenant.contact_phone or '',
+                'support_email': getattr(settings_obj, 'support_email', '') or tenant.contact_email or '',
+                'website': getattr(settings_obj, 'website', '') or '',
+            },
+            'enabled_modules': list(set(enabled_modules)),
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=['Search'],
+    description='Extensible global search endpoint for Command Menu (Ctrl/Cmd + K). Tenant-isolated.',
+    responses={200: dict}
+)
+class GlobalSearchView(views.APIView):
+    """
+    Extensible Global Search API Foundation (Plan Phase 14).
+    Powers frontend Command Menu (Ctrl/Cmd + K).
+    Returns categorized, permission-safe, and tenant-scoped search results.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        query = request.query_params.get('q', '').strip()
+        if not query or len(query) < 2:
+            return Response({'query': query, 'count': 0, 'results': []})
+
+        user = request.user
+        tenant = getattr(request, 'tenant', None)
+        is_control_plane = getattr(request, 'is_control_plane', False) or (user.is_superuser and not tenant)
+
+        results = []
+
+        if is_control_plane:
+            from .models import Tenant, SaaSPackage
+            from django.contrib.auth.models import User as AuthUser
+
+            for t in Tenant.objects.filter(
+                models.Q(name__icontains=query) | models.Q(slug__icontains=query) | models.Q(domain__icontains=query)
+            )[:5]:
+                results.append({
+                    'id': str(t.id),
+                    'type': 'tenant',
+                    'title': t.name,
+                    'subtitle': f"Slug: {t.slug} · Plan: {t.plan} · Status: {t.subscription_status}",
+                    'url': f"/tenants?search={t.slug}",
+                    'icon': 'building',
+                })
+
+            for p in SaaSPackage.objects.filter(
+                models.Q(name__icontains=query) | models.Q(code__icontains=query)
+            )[:5]:
+                results.append({
+                    'id': str(p.id),
+                    'type': 'package',
+                    'title': p.name,
+                    'subtitle': f"৳{p.monthly_price}/mo · Code: {p.code}",
+                    'url': f"/subscriptions",
+                    'icon': 'package',
+                })
+
+            for u in AuthUser.objects.filter(
+                models.Q(username__icontains=query) | models.Q(email__icontains=query) | models.Q(first_name__icontains=query)
+            )[:5]:
+                results.append({
+                    'id': str(u.id),
+                    'type': 'user',
+                    'title': u.get_full_name() or u.username,
+                    'subtitle': f"@{u.username} · {u.email}",
+                    'url': f"/users",
+                    'icon': 'user',
+                })
+
+        else:
+            if not tenant:
+                from apps.authentication.models import StaffMembership
+                membership = StaffMembership.objects.filter(user=user, is_active=True).first()
+                if membership:
+                    tenant = membership.tenant
+
+            if tenant:
+                try:
+                    from apps.customers.models import Customer
+                    for c in Customer.objects.filter(tenant=tenant).filter(
+                        models.Q(name__icontains=query) | models.Q(username__icontains=query) | models.Q(phone__icontains=query) | models.Q(ip_address__icontains=query)
+                    )[:5]:
+                        results.append({
+                            'id': str(c.id),
+                            'type': 'customer',
+                            'title': c.name or c.username,
+                            'subtitle': f"ID: {c.username} · {c.phone} · IP: {getattr(c, 'ip_address', 'N/A')}",
+                            'url': f"/customers?search={c.username}",
+                            'icon': 'user',
+                        })
+                except Exception:
+                    pass
+
+                try:
+                    from apps.billing.models import Invoice
+                    for inv in Invoice.objects.filter(tenant=tenant).filter(
+                        models.Q(invoice_number__icontains=query) | models.Q(customer__name__icontains=query)
+                    )[:5]:
+                        results.append({
+                            'id': str(inv.id),
+                            'type': 'invoice',
+                            'title': f"Invoice #{inv.invoice_number}",
+                            'subtitle': f"Customer: {inv.customer.name if inv.customer else 'N/A'} · ৳{inv.total_amount} · {inv.status}",
+                            'url': f"/billing?invoice={inv.invoice_number}",
+                            'icon': 'file-text',
+                        })
+                except Exception:
+                    pass
+
+                try:
+                    from apps.support.models import Ticket
+                    for tk in Ticket.objects.filter(tenant=tenant).filter(
+                        models.Q(ticket_number__icontains=query) | models.Q(title__icontains=query)
+                    )[:5]:
+                        results.append({
+                            'id': str(tk.id),
+                            'type': 'ticket',
+                            'title': f"Ticket #{tk.ticket_number}: {tk.title}",
+                            'subtitle': f"Status: {tk.status} · Priority: {tk.priority}",
+                            'url': f"/tickets?search={tk.ticket_number}",
+                            'icon': 'life-buoy',
+                        })
+                except Exception:
+                    pass
+
+                try:
+                    from apps.network.models import Router
+                    for r in Router.objects.filter(tenant=tenant).filter(
+                        models.Q(name__icontains=query) | models.Q(ip_address__icontains=query)
+                    )[:5]:
+                        results.append({
+                            'id': str(r.id),
+                            'type': 'router',
+                            'title': r.name,
+                            'subtitle': f"IP: {r.ip_address} · Model: {getattr(r, 'model', 'MikroTik')}",
+                            'url': f"/network?router={r.id}",
+                            'icon': 'hard-drive',
+                        })
+                except Exception:
+                    pass
+
+        return Response({
+            'query': query,
+            'count': len(results),
+            'results': results
+        }, status=status.HTTP_200_OK)

@@ -320,14 +320,117 @@ class LoginView(views.APIView):
 
 @extend_schema(
     tags=['1. Authentication & Users'],
-    description='Get currently authenticated user details, roles, and profile settings.',
-    responses={200: UserDetailSerializer}
+    description='Get currently authenticated user details, roles, permissions, and portal eligibility.',
+    responses={200: dict}
 )
 class CurrentUserView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated, IsTenantMember]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        return Response(UserDetailSerializer(request.user, context={'request': request}).data)
+        base_data = UserDetailSerializer(request.user, context={'request': request}).data
+        user = request.user
+        tenant = getattr(request, 'tenant', None)
+        is_control_plane = getattr(request, 'is_control_plane', False)
+
+        membership = None
+        if tenant:
+            membership = StaffMembership.objects.filter(
+                user=user, tenant=tenant, is_active=True
+            ).select_related('role').first()
+        elif not is_control_plane and not user.is_superuser:
+            membership = StaffMembership.objects.filter(
+                user=user, is_active=True
+            ).select_related('role', 'tenant').first()
+            if membership:
+                tenant = membership.tenant
+
+        is_super = user.is_superuser or (
+            hasattr(user, 'profile') and user.profile.role == UserRole.SUPER_ADMIN and not tenant
+        )
+
+        if is_super or is_control_plane:
+            role = 'SUPER_ADMIN'
+            roles = ['SUPER_ADMIN']
+            permissions_list = ['*']
+            portal_access = ['SUPER_ADMIN', 'ISP_ADMIN', 'TENANT']
+            capabilities = {
+                'dashboard': True, 'customers': True, 'billing': True, 'invoices': True,
+                'network': True, 'mikrotik': True, 'olt': True, 'tickets': True, 'reports': True,
+                'users': True, 'settings': True, 'tenants': True, 'saas': True
+            }
+        else:
+            profile_role = getattr(user.profile, 'role', UserRole.STAFF) if hasattr(user, 'profile') else UserRole.STAFF
+            role = membership.role.name if (membership and membership.role) else profile_role
+            roles = [role]
+            if membership and membership.role:
+                permissions_list = list(membership.role.permissions.values_list('codename', flat=True))
+            else:
+                permissions_list = []
+
+            if role in (UserRole.ADMIN, 'Admin', 'ADMIN'):
+                portal_access = ['ISP_ADMIN', 'TENANT']
+            elif role in (UserRole.CUSTOMER, 'Customer', 'CUSTOMER'):
+                portal_access = ['TENANT']
+            else:
+                portal_access = ['ISP_ADMIN']
+
+            capabilities = {
+                'dashboard': True, 'customers': True, 'billing': True, 'network': True,
+                'tickets': True, 'reports': True, 'settings': True
+            }
+            if tenant:
+                try:
+                    from apps.core.features import is_feature_enabled
+                    capabilities['invoices'] = is_feature_enabled(tenant, 'billing.invoices')
+                    capabilities['late_fees'] = is_feature_enabled(tenant, 'billing.late_fees')
+                    capabilities['tickets'] = is_feature_enabled(tenant, 'support.ticketing')
+                except Exception:
+                    pass
+
+        tenant_info = None
+        org_info = None
+        if tenant:
+            tenant_info = {
+                'id': str(tenant.id),
+                'name': tenant.name,
+                'slug': tenant.slug,
+                'domain': tenant.domain or f"{tenant.slug}.shebafi.xyz",
+                'plan': tenant.plan,
+                'is_active': tenant.is_active,
+            }
+            org_info = {
+                'id': str(tenant.id),
+                'name': tenant.name,
+                'slug': tenant.slug,
+            }
+        elif is_control_plane or is_super:
+            org_info = {
+                'id': 'platform',
+                'name': 'ShebaFi Global Platform',
+                'slug': 'shebafi',
+            }
+
+        response_data = {
+            **base_data,
+            'user': {
+                'id': str(user.id),
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'name': user.get_full_name() or user.username,
+                'is_staff': user.is_staff,
+                'is_superuser': user.is_superuser,
+            },
+            'role': role,
+            'roles': roles,
+            'permissions': permissions_list,
+            'tenant': tenant_info,
+            'organization': org_info,
+            'portal_access': portal_access,
+            'capabilities': capabilities,
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 @extend_schema(

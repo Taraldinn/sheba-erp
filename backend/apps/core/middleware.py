@@ -64,6 +64,8 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         '/api/v1/system/',
         '/api/v1/auth/',
         '/api/v1/saas/',
+        '/api/v1/tenants/resolve/',
+        '/api/v1/search/',
         '/api/schema/',
         '/api/docs/',
         '/api/swagger/',

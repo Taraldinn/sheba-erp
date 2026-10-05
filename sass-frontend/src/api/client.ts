@@ -233,6 +233,7 @@ async function fetchApi<T>(endpoint: string, opts: FetchOptions = {}): Promise<T
     normalizedEndpoint.startsWith('/auth/login') ||
     normalizedEndpoint.startsWith('/auth/logout') ||
     normalizedEndpoint.startsWith('/auth/password-reset') ||
+    normalizedEndpoint.startsWith('/tenants/resolve') ||
     opts.skipAuth === true;
 
   const buildHeaders = (authToken: string | null): HeadersInit => {
@@ -469,6 +470,60 @@ export interface TenantLoginResponse {
     available_tenants?: Array<{ id: string; name: string; slug: string }>;
 }
 
+export interface TenantResolveResponse {
+  id: string;
+  slug: string;
+  name: string;
+  domain: string;
+  status: 'active' | 'suspended' | 'trial' | 'past_due';
+  is_active: boolean;
+  logo: string;
+  favicon: string;
+  branding: {
+    company_name: string;
+    tagline: string;
+    theme_mode: 'light' | 'dark' | 'system' | 'midnight' | 'cyberpunk';
+    accent_color: string;
+    primary_color: string;
+    secondary_color: string;
+    currency_symbol: string;
+    currency_code: string;
+    support_phone: string;
+    support_email: string;
+    website: string;
+  };
+  enabled_modules: string[];
+}
+
+export interface NotificationItem {
+  id: string;
+  tenant?: string | null;
+  user?: number | string | null;
+  title: string;
+  message: string;
+  category: 'system' | 'billing' | 'network' | 'customer' | 'ticket';
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  action_url?: string;
+  is_read: boolean;
+  read_at?: string | null;
+  created_at: string;
+}
+
+export interface SearchResultItem {
+  id: string;
+  type: string;
+  title: string;
+  subtitle: string;
+  url: string;
+  icon: string;
+}
+
+export interface GlobalSearchResponse {
+  query: string;
+  count: number;
+  results: SearchResultItem[];
+}
+
 export const tenantApi = {
   login: async (credentials: { username: string; password: string; tenant?: string }): Promise<TenantLoginResponse> => {
     const payload: Record<string, string> = { username: credentials.username, password: credentials.password };
@@ -493,10 +548,24 @@ export const tenantApi = {
     return { success: true };
   },
   me: async () => {
-    if (typeof window === 'undefined') return null;
-    const raw = localStorage.getItem(STORAGE_KEYS.tenantUser);
-    if (!raw) return null;
-    try { return JSON.parse(raw); } catch { return null; }
+    try {
+      const res = await fetchApi<any>('/auth/me', { plane: 'tenant' });
+      if (res && typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.tenantUser, JSON.stringify(res));
+      }
+      return res;
+    } catch (err) {
+      if (typeof window === 'undefined') return null;
+      const raw = localStorage.getItem(STORAGE_KEYS.tenantUser);
+      if (!raw) return null;
+      try { return JSON.parse(raw); } catch { return null; }
+    }
+  },
+  resolve: async (slugOrDomain: string): Promise<TenantResolveResponse> => {
+    return fetchApi<TenantResolveResponse>(`/tenants/resolve/${encodeURIComponent(slugOrDomain)}`, {
+      skipAuth: true,
+      plane: 'tenant',
+    });
   },
   requestPasswordReset: async (email: string, tenant?: string) =>
     fetchApi<{ detail: string }>('/auth/password-reset', {
@@ -504,6 +573,40 @@ export const tenantApi = {
     }),
 };
 
-export const api = { saas: saasApi, tenant: tenantApi, getActivePlane, STORAGE_KEYS };
+export const notificationsApi = {
+  list: async (params?: { page?: number; page_size?: number; is_read?: boolean }): Promise<{ count: number; results: NotificationItem[] } | NotificationItem[]> => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.page_size) query.set('page_size', String(params.page_size));
+    if (params?.is_read !== undefined) query.set('is_read', String(params.is_read));
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return fetchApi(`/notifications${qs}`);
+  },
+  getUnreadCount: async (): Promise<{ unread_count: number }> => {
+    return fetchApi('/notifications/unread-count');
+  },
+  markAsRead: async (id: string): Promise<{ status: string; id: string }> => {
+    return fetchApi(`/notifications/${id}/mark-as-read`, { method: 'POST' });
+  },
+  markAllRead: async (): Promise<{ status: string; count: number }> => {
+    return fetchApi('/notifications/mark-all-read', { method: 'POST' });
+  },
+};
+
+export const searchApi = {
+  global: async (query: string): Promise<GlobalSearchResponse> => {
+    if (!query || query.trim().length < 2) return { query, count: 0, results: [] };
+    return fetchApi<GlobalSearchResponse>(`/search/?q=${encodeURIComponent(query.trim())}`);
+  },
+};
+
+export const api = {
+  saas: saasApi,
+  tenant: tenantApi,
+  notifications: notificationsApi,
+  search: searchApi,
+  getActivePlane,
+  STORAGE_KEYS
+};
 export { detectPlane, effectivePlane };
 export type { PlaneInfo } from '@/lib/plane';
