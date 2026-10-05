@@ -102,6 +102,7 @@ export const WizardPage = () => {
                         tenant,
                         tenantId: tenant.id,
                         profile: {
+                            ...s.profile,
                             name: tenant.name || s.profile.name,
                             contactPhone: tenant.contact_phone || s.profile.contactPhone,
                             contactEmail: tenant.contact_email || s.profile.contactEmail,
@@ -152,7 +153,7 @@ export const WizardPage = () => {
             }
             case 2: {
                 const p = state.profile;
-                return Boolean(p.name.trim() && p.contactEmail.trim());
+                return Boolean((p.name || p.companyName || '').trim() && p.contactEmail.trim());
             }
             case 3: {
                 const b = state.branding;
@@ -188,14 +189,14 @@ export const WizardPage = () => {
         if (state.step === 2) {
             setSubmitting(true);
             try {
-                const updated = await updateProfile({
+                const res = await updateProfile({
                     tenantId: state.tenantId,
-                    name: state.profile.name,
+                    companyName: state.profile.name || state.profile.companyName,
                     contactEmail: state.profile.contactEmail,
                     contactPhone: state.profile.contactPhone,
                     address: state.profile.address,
                 });
-                if (updated) setState((s) => ({ ...s, tenant: updated, tenantId: updated.id }));
+                if (res.tenant) setState((s) => ({ ...s, tenant: res.tenant, tenantId: res.tenant!.id }));
                 setStep(3);
             } finally { setSubmitting(false); }
             return;
@@ -233,7 +234,7 @@ export const WizardPage = () => {
         if (state.step === 5) {
             setSubmitting(true);
             try {
-                await selectDefaultPackage({ tenantId: state.tenantId, packageId: state.packageId });
+                await selectDefaultPackage({ tenantId: state.tenantId, packageId: state.packageId || '' });
                 setStep(6);
             } finally { setSubmitting(false); }
             return;
@@ -348,7 +349,7 @@ export const WizardPage = () => {
                     {state.step === 5 && (
                         <StepPackage
                             packages={packages}
-                            selected={state.packageId}
+                            selected={state.packageId || ''}
                             onSelect={(id) => setState((s) => ({ ...s, packageId: id }))}
                         />
                     )}
@@ -411,7 +412,7 @@ const StepAccountClaim = ({
                 value={confirm}
                 onChange={(v) => onChange({ confirmPassword: v })}
                 placeholder="Type it once more"
-                invalid={confirm.length > 0 && password !== confirm}
+                isInvalid={confirm.length > 0 && password !== confirm}
             />
         </div>
         <label className="flex items-start gap-3 rounded-lg border border-border-secondary p-3 text-sm">

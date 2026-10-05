@@ -1,4 +1,5 @@
-import { saasApi, ApiError, tenantApi, type FeatureMatrixResponse, type Package } from '@/api/client';
+import { saasApi, ApiError, tenantApi } from '@/api/client';
+import type { FeatureMatrixResponse, Package } from '@/api/types';
 
 /**
  * Wizard-side helpers — kept separate from the generic `saasApi` so the
@@ -143,7 +144,7 @@ export async function updateProfile(args: {
 /**
  * Step 5 — Branding.
  */
-export async function setBranding(args: {
+export async function setBranding(_args: {
     tenantId: string;
     logoDataUrl: string | null;
     brandColor: string;
