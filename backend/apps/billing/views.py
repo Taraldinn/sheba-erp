@@ -142,17 +142,37 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     serializer_class = InvoiceSerializer
 
     def get_queryset(self):
-        qs = get_scoped_queryset(self.request, Invoice).select_related('customer__package', 'customer__router')
+        qs = get_scoped_queryset(self.request, Invoice).select_related('customer__package', 'customer__router', 'service', 'subscription')
         status_filter = self.request.query_params.get('status')
         if status_filter:
             qs = qs.filter(status=status_filter)
+        customer_id = self.request.query_params.get('customer')
+        if customer_id:
+            qs = qs.filter(customer_id=customer_id)
+        service_id = self.request.query_params.get('service')
+        if service_id:
+            qs = qs.filter(service_id=service_id)
+        subscription_id = self.request.query_params.get('subscription')
+        if subscription_id:
+            qs = qs.filter(subscription_id=subscription_id)
+        search = self.request.query_params.get('search')
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(invoice_no__icontains=search) |
+                Q(customer__full_name__icontains=search) |
+                Q(customer__pppoe_username__icontains=search)
+            )
         return qs
 
     def perform_create(self, serializer):
         tenant = get_tenant_for_request(self.request)
         if not can(self.request.user, tenant, 'invoice.create'):
             raise PermissionDenied("Permission denied: invoice.create capability required.")
-        serializer.save(tenant=tenant)
+        invoice_no = serializer.validated_data.get('invoice_no')
+        if not invoice_no:
+            invoice_no = f"INV-{timezone.now().strftime('%Y%m')}-{uuid.uuid4().hex[:6].upper()}"
+        serializer.save(tenant=tenant, invoice_no=invoice_no)
 
     def perform_update(self, serializer):
         tenant = get_tenant_for_request(self.request)
@@ -165,6 +185,45 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if not can(self.request.user, tenant, 'invoice.manage', instance):
             raise PermissionDenied("Permission denied: invoice.manage capability required.")
         super().perform_destroy(instance)
+
+    @action(detail=True, methods=['post'])
+    def issue(self, request, pk=None):
+        invoice = self.get_object()
+        if not can(request.user, request.tenant, 'invoice.issue', invoice) and not can(request.user, request.tenant, 'invoice.manage', invoice):
+            return Response({'error': 'Permission denied: invoice.issue capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            invoice.issue()
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        AuditLog.objects.create(
+            tenant=invoice.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='INVOICE_ISSUE',
+            module='BILLING',
+            target_id=str(invoice.id),
+            details={'invoice_no': invoice.invoice_no, 'status': invoice.status}
+        )
+        return Response({'message': f'Invoice #{invoice.invoice_no} issued.', 'invoice': InvoiceSerializer(invoice).data})
+
+    @action(detail=True, methods=['post'])
+    def void(self, request, pk=None):
+        invoice = self.get_object()
+        if not can(request.user, request.tenant, 'invoice.void', invoice) and not can(request.user, request.tenant, 'invoice.manage', invoice):
+            return Response({'error': 'Permission denied: invoice.void capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        reason = request.data.get('reason', '')
+        try:
+            invoice.void(reason=reason)
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        AuditLog.objects.create(
+            tenant=invoice.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='INVOICE_VOID',
+            module='BILLING',
+            target_id=str(invoice.id),
+            details={'invoice_no': invoice.invoice_no, 'status': invoice.status, 'reason': reason}
+        )
+        return Response({'message': f'Invoice #{invoice.invoice_no} voided.', 'invoice': InvoiceSerializer(invoice).data})
 
     @action(detail=True, methods=['post'])
     def pay(self, request, pk=None):

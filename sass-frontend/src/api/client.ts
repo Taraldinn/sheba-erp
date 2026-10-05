@@ -600,9 +600,331 @@ export const searchApi = {
   },
 };
 
+// ── Domain Types for Customer -> Service -> Subscription -> Invoice -> Payment ──
+
+export interface CustomerItem {
+  id: string;
+  customer_code: string;
+  full_name: string;
+  mobile: string;
+  email?: string;
+  address?: string;
+  area_zone?: string;
+  connection_type?: string;
+  pppoe_username: string;
+  package?: string;
+  package_name?: string;
+  package_speed?: number;
+  router?: string;
+  router_name?: string;
+  monthly_bill: number | string;
+  due_amount: number | string;
+  advance_amount: number | string;
+  discount: number | string;
+  bill_date?: string;
+  expiry_date?: string;
+  promise_date?: string;
+  status: string;
+  services_count?: number;
+  live_session?: { is_online: boolean; ip_address?: string; uptime?: string };
+  created_at: string;
+}
+
+export interface CustomerCreatePayload {
+  customer_code?: string;
+  full_name: string;
+  mobile: string;
+  email?: string;
+  address?: string;
+  area_zone?: string;
+  connection_type?: string;
+  pppoe_username: string;
+  pppoe_password?: string;
+  package?: string;
+  router?: string;
+  monthly_bill?: number | string;
+  discount?: number | string;
+  status?: string;
+  remarks?: string;
+}
+
+export interface CustomerServiceItem {
+  id: string;
+  tenant: string;
+  customer: string;
+  customer_name?: string;
+  customer_code?: string;
+  package?: string;
+  package_name?: string;
+  package_speed?: number;
+  service_type: 'BROADBAND' | 'STATIC_IP' | 'IPTV' | 'VOIP' | 'LEASED_LINE' | string;
+  service_identifier: string;
+  status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'TERMINATED' | string;
+  activation_date?: string;
+  termination_date?: string;
+  monthly_price: number | string;
+  router?: string;
+  router_name?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerSubscriptionItem {
+  id: string;
+  tenant: string;
+  customer: string;
+  customer_name?: string;
+  customer_code?: string;
+  service: string;
+  service_identifier?: string;
+  service_type?: string;
+  package?: string;
+  package_name?: string;
+  billing_cycle: 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY' | string;
+  price: number | string;
+  discount: number | string;
+  status: 'PENDING' | 'ACTIVE' | 'PAUSED' | 'SUSPENDED' | 'CANCELLED' | 'EXPIRED' | string;
+  start_date: string;
+  next_billing_date?: string;
+  end_date?: string;
+  auto_renew: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IspPackageItem {
+  id: string;
+  name: string;
+  mikrotik_profile: string;
+  speed_mbps: number;
+  upload_speed_mbps?: number;
+  validity_days: number;
+  regular_price: number | string;
+  min_reseller_price?: number | string;
+  description?: string;
+  is_active: boolean;
+  subscribers_count?: number;
+  created_at?: string;
+}
+
+export interface IspInvoiceItem {
+  id: string;
+  invoice_no: string;
+  customer: string;
+  customer_name?: string;
+  customer_username?: string;
+  service?: string;
+  service_identifier?: string;
+  subscription?: string;
+  billing_month: string;
+  package_name: string;
+  package_amount: number | string;
+  previous_due: number | string;
+  discount: number | string;
+  total_payable: number | string;
+  paid_amount: number | string;
+  due_amount: number | string;
+  status: 'DRAFT' | 'ISSUED' | 'UNPAID' | 'PAID' | 'PARTIAL' | 'CANCELLED' | 'VOID' | string;
+  due_date?: string;
+  created_at: string;
+}
+
+export interface IspPaymentItem {
+  id: string;
+  customer?: string;
+  customer_name?: string;
+  customer_username?: string;
+  invoice?: string;
+  amount: number | string;
+  trx_id: string;
+  payment_method: string;
+  status: string;
+  created_at: string;
+}
+
+// ── Domain API Clients ──
+
+export const customerApi = {
+  list: async (params?: { page?: number; page_size?: number; search?: string; status?: string; package?: string }): Promise<{ items: CustomerItem[]; total: number; page: number; pageSize: number }> => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.page_size) q.set('page_size', String(params.page_size));
+    if (params?.search) q.set('search', params.search);
+    if (params?.status) q.set('status', params.status);
+    if (params?.package) q.set('package', params.package);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetchApi<any>(`/customers/${qs}`, { plane: 'tenant' });
+    const items: CustomerItem[] = Array.isArray(res) ? res : (res?.results || []);
+    const total = Array.isArray(res) ? res.length : (res?.count ?? items.length);
+    return { items, total, page: params?.page || 1, pageSize: params?.page_size || 10 };
+  },
+  get: async (id: string): Promise<CustomerItem> => {
+    return fetchApi<CustomerItem>(`/customers/${id}`, { plane: 'tenant' });
+  },
+  create: async (data: CustomerCreatePayload): Promise<CustomerItem> => {
+    return fetchApi<CustomerItem>('/customers/', { method: 'POST', body: JSON.stringify(data), plane: 'tenant' });
+  },
+  update: async (id: string, data: Partial<CustomerCreatePayload>): Promise<CustomerItem> => {
+    return fetchApi<CustomerItem>(`/customers/${id}/`, { method: 'PATCH', body: JSON.stringify(data), plane: 'tenant' });
+  },
+  archive: async (id: string): Promise<{ message: string; status: string }> => {
+    return fetchApi(`/customers/${id}/archive/`, { method: 'POST', plane: 'tenant' });
+  },
+  changeStatus: async (id: string, status: string, reason?: string): Promise<{ message: string; status: string }> => {
+    return fetchApi(`/customers/${id}/status/`, { method: 'POST', body: JSON.stringify({ status, reason }), plane: 'tenant' });
+  },
+};
+
+export const serviceApi = {
+  list: async (params?: { customer?: string; status?: string; service_type?: string; page?: number }): Promise<{ items: CustomerServiceItem[]; total: number }> => {
+    const q = new URLSearchParams();
+    if (params?.customer) q.set('customer', params.customer);
+    if (params?.status) q.set('status', params.status);
+    if (params?.service_type) q.set('service_type', params.service_type);
+    if (params?.page) q.set('page', String(params.page));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetchApi<any>(`/services/${qs}`, { plane: 'tenant' });
+    const items: CustomerServiceItem[] = Array.isArray(res) ? res : (res?.results || []);
+    const total = Array.isArray(res) ? res.length : (res?.count ?? items.length);
+    return { items, total };
+  },
+  get: async (id: string): Promise<CustomerServiceItem> => {
+    return fetchApi<CustomerServiceItem>(`/services/${id}`, { plane: 'tenant' });
+  },
+  create: async (data: Partial<CustomerServiceItem>): Promise<CustomerServiceItem> => {
+    return fetchApi<CustomerServiceItem>('/services/', { method: 'POST', body: JSON.stringify(data), plane: 'tenant' });
+  },
+  activate: async (id: string): Promise<{ message: string; service: CustomerServiceItem }> => {
+    return fetchApi(`/services/${id}/activate/`, { method: 'POST', plane: 'tenant' });
+  },
+  suspend: async (id: string, reason?: string): Promise<{ message: string; service: CustomerServiceItem }> => {
+    return fetchApi(`/services/${id}/suspend/`, { method: 'POST', body: JSON.stringify({ reason }), plane: 'tenant' });
+  },
+  resume: async (id: string): Promise<{ message: string; service: CustomerServiceItem }> => {
+    return fetchApi(`/services/${id}/resume/`, { method: 'POST', plane: 'tenant' });
+  },
+  terminate: async (id: string, reason?: string): Promise<{ message: string; service: CustomerServiceItem }> => {
+    return fetchApi(`/services/${id}/terminate/`, { method: 'POST', body: JSON.stringify({ reason }), plane: 'tenant' });
+  },
+};
+
+export const subscriptionApi = {
+  list: async (params?: { customer?: string; service?: string; status?: string; page?: number }): Promise<{ items: CustomerSubscriptionItem[]; total: number }> => {
+    const q = new URLSearchParams();
+    if (params?.customer) q.set('customer', params.customer);
+    if (params?.service) q.set('service', params.service);
+    if (params?.status) q.set('status', params.status);
+    if (params?.page) q.set('page', String(params.page));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetchApi<any>(`/subscriptions/${qs}`, { plane: 'tenant' });
+    const items: CustomerSubscriptionItem[] = Array.isArray(res) ? res : (res?.results || []);
+    const total = Array.isArray(res) ? res.length : (res?.count ?? items.length);
+    return { items, total };
+  },
+  get: async (id: string): Promise<CustomerSubscriptionItem> => {
+    return fetchApi<CustomerSubscriptionItem>(`/subscriptions/${id}`, { plane: 'tenant' });
+  },
+  create: async (data: Partial<CustomerSubscriptionItem>): Promise<CustomerSubscriptionItem> => {
+    return fetchApi<CustomerSubscriptionItem>('/subscriptions/', { method: 'POST', body: JSON.stringify(data), plane: 'tenant' });
+  },
+  activate: async (id: string): Promise<{ message: string; subscription: CustomerSubscriptionItem }> => {
+    return fetchApi(`/subscriptions/${id}/activate/`, { method: 'POST', plane: 'tenant' });
+  },
+  suspend: async (id: string): Promise<{ message: string; subscription: CustomerSubscriptionItem }> => {
+    return fetchApi(`/subscriptions/${id}/suspend/`, { method: 'POST', plane: 'tenant' });
+  },
+  resume: async (id: string): Promise<{ message: string; subscription: CustomerSubscriptionItem }> => {
+    return fetchApi(`/subscriptions/${id}/resume/`, { method: 'POST', plane: 'tenant' });
+  },
+  cancel: async (id: string): Promise<{ message: string; subscription: CustomerSubscriptionItem }> => {
+    return fetchApi(`/subscriptions/${id}/cancel/`, { method: 'POST', plane: 'tenant' });
+  },
+  renew: async (id: string, days?: number): Promise<{ message: string; subscription: CustomerSubscriptionItem }> => {
+    return fetchApi(`/subscriptions/${id}/renew/`, { method: 'POST', body: JSON.stringify({ days: days || 30 }), plane: 'tenant' });
+  },
+};
+
+export const ispPackageApi = {
+  list: async (params?: { page?: number; search?: string }): Promise<{ items: IspPackageItem[]; total: number }> => {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.search) q.set('search', params.search);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetchApi<any>(`/packages/${qs}`, { plane: 'tenant' });
+    const items: IspPackageItem[] = Array.isArray(res) ? res : (res?.results || []);
+    const total = Array.isArray(res) ? res.length : (res?.count ?? items.length);
+    return { items, total };
+  },
+  get: async (id: string): Promise<IspPackageItem> => {
+    return fetchApi<IspPackageItem>(`/packages/${id}`, { plane: 'tenant' });
+  },
+  create: async (data: Partial<IspPackageItem>): Promise<IspPackageItem> => {
+    return fetchApi<IspPackageItem>('/packages/', { method: 'POST', body: JSON.stringify(data), plane: 'tenant' });
+  },
+  update: async (id: string, data: Partial<IspPackageItem>): Promise<IspPackageItem> => {
+    return fetchApi<IspPackageItem>(`/packages/${id}/`, { method: 'PATCH', body: JSON.stringify(data), plane: 'tenant' });
+  },
+  syncToRouters: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return fetchApi(`/packages/${id}/sync-to-routers/`, { method: 'POST', plane: 'tenant' });
+  },
+};
+
+export const invoiceApi = {
+  list: async (params?: { customer?: string; status?: string; search?: string; page?: number }): Promise<{ items: IspInvoiceItem[]; total: number }> => {
+    const q = new URLSearchParams();
+    if (params?.customer) q.set('customer', params.customer);
+    if (params?.status) q.set('status', params.status);
+    if (params?.search) q.set('search', params.search);
+    if (params?.page) q.set('page', String(params.page));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetchApi<any>(`/invoices/${qs}`, { plane: 'tenant' });
+    const items: IspInvoiceItem[] = Array.isArray(res) ? res : (res?.results || []);
+    const total = Array.isArray(res) ? res.length : (res?.count ?? items.length);
+    return { items, total };
+  },
+  get: async (id: string): Promise<IspInvoiceItem> => {
+    return fetchApi<IspInvoiceItem>(`/invoices/${id}`, { plane: 'tenant' });
+  },
+  create: async (data: Partial<IspInvoiceItem>): Promise<IspInvoiceItem> => {
+    return fetchApi<IspInvoiceItem>('/invoices/', { method: 'POST', body: JSON.stringify(data), plane: 'tenant' });
+  },
+  issue: async (id: string): Promise<{ message: string; invoice: IspInvoiceItem }> => {
+    return fetchApi(`/invoices/${id}/issue/`, { method: 'POST', plane: 'tenant' });
+  },
+  void: async (id: string, reason?: string): Promise<{ message: string; invoice: IspInvoiceItem }> => {
+    return fetchApi(`/invoices/${id}/void/`, { method: 'POST', body: JSON.stringify({ reason }), plane: 'tenant' });
+  },
+  pay: async (id: string, data: { amount?: number | string; payment_method?: string }): Promise<any> => {
+    return fetchApi(`/invoices/${id}/pay/`, { method: 'POST', body: JSON.stringify(data), plane: 'tenant' });
+  },
+};
+
+export const paymentApi = {
+  list: async (params?: { customer?: string; page?: number }): Promise<{ items: IspPaymentItem[]; total: number }> => {
+    const q = new URLSearchParams();
+    if (params?.customer) q.set('customer', params.customer);
+    if (params?.page) q.set('page', String(params.page));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetchApi<any>(`/payments/transactions/${qs}`, { plane: 'tenant' });
+    const items: IspPaymentItem[] = Array.isArray(res) ? res : (res?.results || []);
+    const total = Array.isArray(res) ? res.length : (res?.count ?? items.length);
+    return { items, total };
+  },
+  create: async (data: { customer_id: string; amount: number; payment_method?: string; trx_id?: string; notes?: string }): Promise<any> => {
+    return fetchApi('/payments/transactions/', { method: 'POST', body: JSON.stringify(data), plane: 'tenant' });
+  },
+};
+
 export const api = {
   saas: saasApi,
   tenant: tenantApi,
+  customer: customerApi,
+  service: serviceApi,
+  subscription: subscriptionApi,
+  package: ispPackageApi,
+  invoice: invoiceApi,
+  payment: paymentApi,
   notifications: notificationsApi,
   search: searchApi,
   getActivePlane,
@@ -610,3 +932,4 @@ export const api = {
 };
 export { detectPlane, effectivePlane };
 export type { PlaneInfo } from '@/lib/plane';
+

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Customer
+from .models import Customer, CustomerService, CustomerSubscription, ServiceStatus, SubscriptionStatus, CustomerStatus
 from apps.billing.models import Package
 from apps.network.models import Router
 
@@ -18,6 +18,7 @@ class CustomerListSerializer(serializers.ModelSerializer):
     router_protocol = serializers.CharField(source='router.api_protocol', read_only=True)
     router_status = serializers.CharField(source='router.status', read_only=True)
     reseller_name = serializers.CharField(source='reseller.user.username', read_only=True)
+    services_count = serializers.IntegerField(source='services.count', read_only=True)
     live_session = serializers.SerializerMethodField()
 
     class Meta:
@@ -28,7 +29,7 @@ class CustomerListSerializer(serializers.ModelSerializer):
             'pppoe_username', 'package', 'package_name', 'package_speed', 'billing_type',
             'monthly_bill', 'due_amount', 'advance_amount', 'discount',
             'bill_date', 'expiry_date', 'promise_date', 'status',
-            'auto_lock_enabled', 'reseller', 'reseller_name', 'live_session', 'created_at'
+            'auto_lock_enabled', 'reseller', 'reseller_name', 'services_count', 'live_session', 'created_at'
         ]
 
     def get_live_session(self, obj):
@@ -197,4 +198,87 @@ class LockCustomerSerializer(serializers.Serializer):
     """
     reason = serializers.CharField(required=False, allow_blank=True, default='Manual administrative lock')
     disconnect_session = serializers.BooleanField(default=True)
+
+
+class CustomerStatusChangeSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=CustomerStatus.choices)
+    reason = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class CustomerServiceSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.full_name', read_only=True)
+    customer_code = serializers.CharField(source='customer.customer_code', read_only=True)
+    package_name = serializers.CharField(source='package.name', read_only=True)
+    package_speed = serializers.IntegerField(source='package.speed_mbps', read_only=True)
+    router_name = serializers.CharField(source='router.name', read_only=True)
+
+    class Meta:
+        model = CustomerService
+        fields = [
+            'id', 'tenant', 'customer', 'customer_name', 'customer_code',
+            'package', 'package_name', 'package_speed', 'service_type',
+            'service_identifier', 'status', 'activation_date', 'termination_date',
+            'monthly_price', 'router', 'router_name', 'network_metadata',
+            'notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ('tenant', 'created_at', 'updated_at')
+
+    def validate_customer(self, customer):
+        tenant = _tenant_from_context(self.context)
+        if tenant and customer.tenant_id != tenant.id:
+            raise serializers.ValidationError("Customer does not belong to your tenant.")
+        return customer
+
+    def validate_package(self, package):
+        if package:
+            tenant = _tenant_from_context(self.context)
+            if tenant and package.tenant_id != tenant.id:
+                raise serializers.ValidationError("Package does not belong to your tenant.")
+        return package
+
+    def validate_router(self, router):
+        if router:
+            tenant = _tenant_from_context(self.context)
+            if tenant and router.tenant_id != tenant.id:
+                raise serializers.ValidationError("Router does not belong to your tenant.")
+        return router
+
+
+class CustomerSubscriptionSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.full_name', read_only=True)
+    customer_code = serializers.CharField(source='customer.customer_code', read_only=True)
+    service_identifier = serializers.CharField(source='service.service_identifier', read_only=True)
+    service_type = serializers.CharField(source='service.service_type', read_only=True)
+    package_name = serializers.CharField(source='package.name', read_only=True)
+
+    class Meta:
+        model = CustomerSubscription
+        fields = [
+            'id', 'tenant', 'customer', 'customer_name', 'customer_code',
+            'service', 'service_identifier', 'service_type',
+            'package', 'package_name', 'billing_cycle', 'price', 'discount',
+            'status', 'start_date', 'next_billing_date', 'end_date', 'auto_renew',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ('tenant', 'created_at', 'updated_at')
+
+    def validate_customer(self, customer):
+        tenant = _tenant_from_context(self.context)
+        if tenant and customer.tenant_id != tenant.id:
+            raise serializers.ValidationError("Customer does not belong to your tenant.")
+        return customer
+
+    def validate_service(self, service):
+        tenant = _tenant_from_context(self.context)
+        if tenant and service.tenant_id != tenant.id:
+            raise serializers.ValidationError("Service does not belong to your tenant.")
+        return service
+
+    def validate_package(self, package):
+        if package:
+            tenant = _tenant_from_context(self.context)
+            if tenant and package.tenant_id != tenant.id:
+                raise serializers.ValidationError("Package does not belong to your tenant.")
+        return package
+
 

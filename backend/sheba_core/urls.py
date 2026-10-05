@@ -28,7 +28,7 @@ from apps.authentication.views import (
     ResellerLoginView,
     TenantPasswordResetView, TenantPasswordResetConfirmView
 )
-from apps.customers.views import CustomerViewSet, CustomerQueryApiView
+from apps.customers.views import CustomerViewSet, CustomerQueryApiView, CustomerServiceViewSet, CustomerSubscriptionViewSet
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
 from apps.finance.views import BillingAccountViewSet, LedgerEntryViewSet, PaymentAllocationViewSet, AdjustmentViewSet, InvoiceLineViewSet
 from apps.finance.views_phase24 import (
@@ -96,6 +96,10 @@ router.register(r'staff', StaffProfileViewSet, basename='staff')
 router.register(r'roles', RoleViewSet, basename='role')
 router.register(r'permissions', PermissionViewSet, basename='permission')
 router.register(r'customers', CustomerViewSet, basename='customer')
+router.register(r'services', CustomerServiceViewSet, basename='service')
+router.register(r'customer-services', CustomerServiceViewSet, basename='customer-service')
+router.register(r'subscriptions', CustomerSubscriptionViewSet, basename='subscription')
+router.register(r'customer-subscriptions', CustomerSubscriptionViewSet, basename='customer-subscription')
 router.register(r'packages', PackageViewSet, basename='package')
 router.register(r'offers', OfferViewSet, basename='offer')
 router.register(r'reseller-rates', ResellerPricingViewSet, basename='reseller-rate')

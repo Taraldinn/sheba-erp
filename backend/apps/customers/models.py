@@ -13,6 +13,7 @@ class CustomerStatus(models.TextChoices):
     EXPIRED = 'Expired', 'Expired'
     SUSPENDED = 'Suspended', 'Suspended / Locked'
     LEFT = 'Left', 'Left / Terminated'
+    ARCHIVED = 'Archived', 'Archived'
 
 
 class ConnectionType(models.TextChoices):
@@ -134,3 +135,196 @@ class PPPoECredentialRescueEvent(models.Model):
 
     def __str__(self):
         return f"{self.action} on {self.customer.pppoe_username}"
+
+
+class ServiceStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending Activation'
+    ACTIVE = 'ACTIVE', 'Active'
+    SUSPENDED = 'SUSPENDED', 'Suspended'
+    TERMINATED = 'TERMINATED', 'Terminated'
+
+
+class ServiceType(models.TextChoices):
+    BROADBAND = 'BROADBAND', 'Broadband Internet'
+    STATIC_IP = 'STATIC_IP', 'Dedicated Static IP'
+    IPTV = 'IPTV', 'IPTV Service'
+    VOIP = 'VOIP', 'VoIP / SIP Trunk'
+    LEASED_LINE = 'LEASED_LINE', 'Corporate Leased Line'
+
+
+class CustomerService(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='customer_services')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='services')
+    package = models.ForeignKey('billing.Package', on_delete=models.SET_NULL, null=True, blank=True, related_name='customer_services')
+    service_type = models.CharField(max_length=30, choices=ServiceType.choices, default=ServiceType.BROADBAND)
+    service_identifier = models.CharField(max_length=150, help_text="e.g. PPPoE username, circuit ID, or IP")
+    status = models.CharField(max_length=30, choices=ServiceStatus.choices, default=ServiceStatus.PENDING, db_index=True)
+    activation_date = models.DateTimeField(null=True, blank=True)
+    termination_date = models.DateTimeField(null=True, blank=True)
+    monthly_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    router = models.ForeignKey('network.Router', on_delete=models.SET_NULL, null=True, blank=True, related_name='customer_services')
+    network_metadata = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.customer_id and self.tenant_id and self.customer.tenant_id != self.tenant_id:
+            raise ValidationError("CustomerService customer must belong to the same tenant.")
+        if self.package_id and self.tenant_id and self.package.tenant_id != self.tenant_id:
+            raise ValidationError("CustomerService package must belong to the same tenant.")
+        if self.router_id and self.tenant_id and self.router.tenant_id != self.tenant_id:
+            raise ValidationError("CustomerService router must belong to the same tenant.")
+
+    def activate(self):
+        from django.core.exceptions import ValidationError
+        if self.status == ServiceStatus.TERMINATED:
+            raise ValidationError("Cannot activate a terminated service.")
+        self.status = ServiceStatus.ACTIVE
+        if not self.activation_date:
+            self.activation_date = timezone.now()
+        self.save(update_fields=['status', 'activation_date', 'updated_at'])
+
+    def suspend(self, reason=''):
+        from django.core.exceptions import ValidationError
+        if self.status != ServiceStatus.ACTIVE:
+            raise ValidationError("Only active services can be suspended.")
+        self.status = ServiceStatus.SUSPENDED
+        if reason:
+            self.notes = f"{self.notes}\n[Suspended: {reason}]".strip()
+            self.save(update_fields=['status', 'notes', 'updated_at'])
+        else:
+            self.save(update_fields=['status', 'updated_at'])
+
+    def resume(self):
+        from django.core.exceptions import ValidationError
+        if self.status != ServiceStatus.SUSPENDED:
+            raise ValidationError("Only suspended services can be resumed.")
+        self.status = ServiceStatus.ACTIVE
+        self.save(update_fields=['status', 'updated_at'])
+
+    def terminate(self, reason=''):
+        from django.core.exceptions import ValidationError
+        if self.status == ServiceStatus.TERMINATED:
+            raise ValidationError("Service is already terminated.")
+        self.status = ServiceStatus.TERMINATED
+        self.termination_date = timezone.now()
+        if reason:
+            self.notes = f"{self.notes}\n[Terminated: {reason}]".strip()
+            self.save(update_fields=['status', 'termination_date', 'notes', 'updated_at'])
+        else:
+            self.save(update_fields=['status', 'termination_date', 'updated_at'])
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status'], name='svc_tenant_status_idx'),
+            models.Index(fields=['customer', 'status'], name='svc_cust_status_idx'),
+            models.Index(fields=['tenant', 'service_identifier'], name='svc_tenant_ident_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.get_service_type_display()} ({self.service_identifier}) - {self.status}"
+
+
+class SubscriptionStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    ACTIVE = 'ACTIVE', 'Active'
+    PAUSED = 'PAUSED', 'Paused'
+    SUSPENDED = 'SUSPENDED', 'Suspended'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+    EXPIRED = 'EXPIRED', 'Expired'
+
+
+class BillingCycle(models.TextChoices):
+    MONTHLY = 'MONTHLY', 'Monthly'
+    QUARTERLY = 'QUARTERLY', 'Quarterly'
+    HALF_YEARLY = 'HALF_YEARLY', 'Half-Yearly'
+    YEARLY = 'YEARLY', 'Yearly'
+
+
+class CustomerSubscription(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='customer_subscriptions')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='subscriptions')
+    service = models.ForeignKey(CustomerService, on_delete=models.CASCADE, related_name='subscriptions')
+    package = models.ForeignKey('billing.Package', on_delete=models.SET_NULL, null=True, related_name='customer_subscriptions')
+    billing_cycle = models.CharField(max_length=30, choices=BillingCycle.choices, default=BillingCycle.MONTHLY)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    status = models.CharField(max_length=30, choices=SubscriptionStatus.choices, default=SubscriptionStatus.PENDING, db_index=True)
+    start_date = models.DateField(default=timezone.localdate)
+    next_billing_date = models.DateField(null=True, blank=True, db_index=True)
+    end_date = models.DateField(null=True, blank=True)
+    auto_renew = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.customer_id and self.tenant_id and self.customer.tenant_id != self.tenant_id:
+            raise ValidationError("CustomerSubscription customer must belong to the same tenant.")
+        if self.service_id and self.tenant_id and self.service.tenant_id != self.tenant_id:
+            raise ValidationError("CustomerSubscription service must belong to the same tenant.")
+        if self.package_id and self.tenant_id and self.package.tenant_id != self.tenant_id:
+            raise ValidationError("CustomerSubscription package must belong to the same tenant.")
+
+    def activate(self):
+        from django.core.exceptions import ValidationError
+        if self.status == SubscriptionStatus.CANCELLED:
+            raise ValidationError("Cannot activate a cancelled subscription.")
+        self.status = SubscriptionStatus.ACTIVE
+        if not self.next_billing_date:
+            import datetime
+            self.next_billing_date = self.start_date + datetime.timedelta(days=30)
+        self.save(update_fields=['status', 'next_billing_date', 'updated_at'])
+
+    def suspend(self):
+        from django.core.exceptions import ValidationError
+        if self.status != SubscriptionStatus.ACTIVE:
+            raise ValidationError("Only active subscriptions can be suspended.")
+        self.status = SubscriptionStatus.SUSPENDED
+        self.save(update_fields=['status', 'updated_at'])
+
+    def resume(self):
+        from django.core.exceptions import ValidationError
+        if self.status not in [SubscriptionStatus.SUSPENDED, SubscriptionStatus.PAUSED]:
+            raise ValidationError("Only suspended or paused subscriptions can be resumed.")
+        self.status = SubscriptionStatus.ACTIVE
+        self.save(update_fields=['status', 'updated_at'])
+
+    def cancel(self):
+        from django.core.exceptions import ValidationError
+        if self.status == SubscriptionStatus.CANCELLED:
+            raise ValidationError("Subscription is already cancelled.")
+        self.status = SubscriptionStatus.CANCELLED
+        self.end_date = timezone.localdate()
+        self.save(update_fields=['status', 'end_date', 'updated_at'])
+
+    def renew(self, days=30):
+        import datetime
+        from django.core.exceptions import ValidationError
+        if self.status == SubscriptionStatus.CANCELLED:
+            raise ValidationError("Cannot renew a cancelled subscription.")
+        base_date = self.next_billing_date or timezone.localdate()
+        if base_date < timezone.localdate():
+            base_date = timezone.localdate()
+        self.next_billing_date = base_date + datetime.timedelta(days=days)
+        self.status = SubscriptionStatus.ACTIVE
+        self.save(update_fields=['status', 'next_billing_date', 'updated_at'])
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status'], name='sub_tenant_status_idx'),
+            models.Index(fields=['customer', 'status'], name='sub_cust_status_idx'),
+            models.Index(fields=['service', 'status'], name='sub_svc_status_idx'),
+        ]
+
+    def __str__(self):
+        return f"Subscription #{self.id} ({self.customer.full_name}) - {self.package.name if self.package else 'No Package'} [{self.status}]"
+

@@ -63,6 +63,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
     """
     customer_name = serializers.CharField(source='customer.full_name', read_only=True)
     customer_username = serializers.CharField(source='customer.pppoe_username', read_only=True)
+    service_identifier = serializers.CharField(source='service.service_identifier', read_only=True)
     lines = serializers.SerializerMethodField(read_only=True)
     invoice_no = serializers.CharField(max_length=50, required=False)
     package_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)

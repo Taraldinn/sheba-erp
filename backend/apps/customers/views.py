@@ -7,10 +7,11 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from .models import Customer, CustomerStatus
+from .models import Customer, CustomerStatus, CustomerService, CustomerSubscription, ServiceStatus, SubscriptionStatus
 from .serializers import (
     CustomerListSerializer, CustomerDetailSerializer, CustomerRechargeSerializer,
-    RechargeRequestSerializer, ToggleInternetSerializer, LockCustomerSerializer
+    RechargeRequestSerializer, ToggleInternetSerializer, LockCustomerSerializer,
+    CustomerServiceSerializer, CustomerSubscriptionSerializer, CustomerStatusChangeSerializer
 )
 from apps.billing.models import Package, Recharge, Invoice
 from apps.core.models import AuditLog
@@ -46,6 +47,8 @@ class CustomerViewSet(viewsets.ModelViewSet):
         'update': 'customer.update',
         'partial_update': 'customer.update',
         'destroy': 'customer.delete',
+        'archive': 'customer.archive',
+        'status': 'customer.update',
         'recharge': 'customer.recharge',
         'toggle_internet': 'customer.update',
         'lock': 'customer.update',
@@ -59,6 +62,8 @@ class CustomerViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'list':
             return CustomerListSerializer
+        elif self.action == 'status':
+            return CustomerStatusChangeSerializer
         elif self.action == 'recharge':
             return RechargeRequestSerializer
         elif self.action == 'toggle_internet':
@@ -110,7 +115,33 @@ class CustomerViewSet(viewsets.ModelViewSet):
             result = {'enabled': True, 'issued': None, 'dispatch': None}
         # Stash on the instance so the serializer's ``get_welcome``
         # returns the just-issued credentials to the operator.
-        customer._welcome_result = result
+        # Auto-create initial service & subscription if customer has package
+        if customer.package:
+            try:
+                service = CustomerService.objects.create(
+                    tenant=tenant,
+                    customer=customer,
+                    package=customer.package,
+                    service_identifier=customer.pppoe_username,
+                    service_type='BROADBAND',
+                    status='ACTIVE' if customer.status == CustomerStatus.ACTIVE else 'PENDING',
+                    monthly_price=customer.monthly_bill or customer.package.regular_price,
+                    router=customer.router,
+                    activation_date=timezone.now() if customer.status == CustomerStatus.ACTIVE else None,
+                )
+                CustomerSubscription.objects.create(
+                    tenant=tenant,
+                    customer=customer,
+                    service=service,
+                    package=customer.package,
+                    price=customer.monthly_bill or customer.package.regular_price,
+                    discount=customer.discount or 0,
+                    status='ACTIVE' if customer.status == CustomerStatus.ACTIVE else 'PENDING',
+                    start_date=customer.bill_date or timezone.localdate(),
+                    next_billing_date=customer.expiry_date,
+                )
+            except Exception:
+                pass
 
     def perform_update(self, serializer):
         tenant = get_tenant_for_request(self.request)
@@ -125,6 +156,45 @@ class CustomerViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Permission denied: customer.delete capability required.")
         sync_customer_to_router(instance, is_delete=True)
         super().perform_destroy(instance)
+
+    @action(detail=True, methods=['post'])
+    def archive(self, request, pk=None):
+        customer = self.get_object()
+        if not can(request.user, request.tenant, 'customer.archive', customer) and not can(request.user, request.tenant, 'customer.update', customer):
+            return Response({'error': 'Permission denied: customer.archive capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        customer.status = CustomerStatus.ARCHIVED
+        customer.save(update_fields=['status', 'updated_at'])
+        AuditLog.objects.create(
+            tenant=customer.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='CUSTOMER_ARCHIVE',
+            module='CUSTOMERS',
+            target_id=str(customer.id),
+            details={'status': customer.status, 'customer_code': customer.customer_code}
+        )
+        return Response({'message': f'Customer {customer.full_name} has been archived.', 'status': customer.status})
+
+    @action(detail=True, methods=['post'])
+    def status(self, request, pk=None):
+        customer = self.get_object()
+        if not can(request.user, request.tenant, 'customer.update', customer):
+            return Response({'error': 'Permission denied: customer.update capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = CustomerStatusChangeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_status = serializer.validated_data['status']
+        reason = serializer.validated_data.get('reason', '')
+        old_status = customer.status
+        customer.status = new_status
+        customer.save(update_fields=['status', 'updated_at'])
+        AuditLog.objects.create(
+            tenant=customer.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='CUSTOMER_STATUS_CHANGE',
+            module='CUSTOMERS',
+            target_id=str(customer.id),
+            details={'old_status': old_status, 'new_status': new_status, 'reason': reason}
+        )
+        return Response({'message': f'Status changed to {new_status}.', 'status': customer.status})
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsBillingStaff])
     def recharge(self, request, pk=None):
@@ -541,3 +611,279 @@ class CustomerQueryApiView(views.APIView):
             'status': customer.status,
             'internet_active': customer.status == CustomerStatus.ACTIVE,
         })
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['2. Customers & Subscribers']),
+    retrieve=extend_schema(tags=['2. Customers & Subscribers']),
+    create=extend_schema(tags=['2. Customers & Subscribers']),
+    update=extend_schema(tags=['2. Customers & Subscribers']),
+    partial_update=extend_schema(tags=['2. Customers & Subscribers']),
+    destroy=extend_schema(tags=['2. Customers & Subscribers']),
+)
+class CustomerServiceViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, HasTenantPermission]
+    serializer_class = CustomerServiceSerializer
+    action_permissions = {
+        'list': 'service.read',
+        'retrieve': 'service.read',
+        'create': 'service.create',
+        'update': 'service.update',
+        'partial_update': 'service.update',
+        'destroy': 'service.update',
+        'activate': 'service.activate',
+        'suspend': 'service.suspend',
+        'resume': 'service.update',
+        'terminate': 'service.terminate',
+    }
+
+    def get_queryset(self):
+        qs = get_scoped_queryset(self.request, CustomerService).select_related('customer', 'package', 'router')
+        customer_id = self.request.query_params.get('customer')
+        if customer_id:
+            qs = qs.filter(customer_id=customer_id)
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        service_type = self.request.query_params.get('service_type')
+        if service_type:
+            qs = qs.filter(service_type=service_type)
+        return qs
+
+    def perform_create(self, serializer):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'service.create'):
+            raise PermissionDenied("Permission denied: service.create capability required.")
+        serializer.save(tenant=tenant)
+
+    def perform_update(self, serializer):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'service.update', serializer.instance):
+            raise PermissionDenied("Permission denied: service.update capability required.")
+        serializer.save()
+
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        svc = self.get_object()
+        if not can(request.user, request.tenant, 'service.activate', svc) and not can(request.user, request.tenant, 'service.update', svc):
+            return Response({'error': 'Permission denied: service.activate capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            svc.activate()
+        except DjangoValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        AuditLog.objects.create(
+            tenant=svc.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='SERVICE_ACTIVATE',
+            module='SERVICES',
+            target_id=str(svc.id),
+            details={'service_identifier': svc.service_identifier, 'status': svc.status}
+        )
+        return Response({'message': f'Service {svc.service_identifier} activated.', 'service': CustomerServiceSerializer(svc).data})
+
+    @action(detail=True, methods=['post'])
+    def suspend(self, request, pk=None):
+        svc = self.get_object()
+        if not can(request.user, request.tenant, 'service.suspend', svc) and not can(request.user, request.tenant, 'service.update', svc):
+            return Response({'error': 'Permission denied: service.suspend capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        reason = request.data.get('reason', '')
+        try:
+            svc.suspend(reason=reason)
+        except DjangoValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        AuditLog.objects.create(
+            tenant=svc.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='SERVICE_SUSPEND',
+            module='SERVICES',
+            target_id=str(svc.id),
+            details={'service_identifier': svc.service_identifier, 'status': svc.status, 'reason': reason}
+        )
+        return Response({'message': f'Service {svc.service_identifier} suspended.', 'service': CustomerServiceSerializer(svc).data})
+
+    @action(detail=True, methods=['post'])
+    def resume(self, request, pk=None):
+        svc = self.get_object()
+        if not can(request.user, request.tenant, 'service.update', svc):
+            return Response({'error': 'Permission denied: service.update capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            svc.resume()
+        except DjangoValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        AuditLog.objects.create(
+            tenant=svc.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='SERVICE_RESUME',
+            module='SERVICES',
+            target_id=str(svc.id),
+            details={'service_identifier': svc.service_identifier, 'status': svc.status}
+        )
+        return Response({'message': f'Service {svc.service_identifier} resumed.', 'service': CustomerServiceSerializer(svc).data})
+
+    @action(detail=True, methods=['post'])
+    def terminate(self, request, pk=None):
+        svc = self.get_object()
+        if not can(request.user, request.tenant, 'service.terminate', svc) and not can(request.user, request.tenant, 'service.update', svc):
+            return Response({'error': 'Permission denied: service.terminate capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        reason = request.data.get('reason', '')
+        try:
+            svc.terminate(reason=reason)
+        except DjangoValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        AuditLog.objects.create(
+            tenant=svc.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='SERVICE_TERMINATE',
+            module='SERVICES',
+            target_id=str(svc.id),
+            details={'service_identifier': svc.service_identifier, 'status': svc.status, 'reason': reason}
+        )
+        return Response({'message': f'Service {svc.service_identifier} terminated.', 'service': CustomerServiceSerializer(svc).data})
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['2. Customers & Subscribers']),
+    retrieve=extend_schema(tags=['2. Customers & Subscribers']),
+    create=extend_schema(tags=['2. Customers & Subscribers']),
+    update=extend_schema(tags=['2. Customers & Subscribers']),
+    partial_update=extend_schema(tags=['2. Customers & Subscribers']),
+    destroy=extend_schema(tags=['2. Customers & Subscribers']),
+)
+class CustomerSubscriptionViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, HasTenantPermission]
+    serializer_class = CustomerSubscriptionSerializer
+    action_permissions = {
+        'list': 'subscription.read',
+        'retrieve': 'subscription.read',
+        'create': 'subscription.create',
+        'update': 'subscription.manage',
+        'partial_update': 'subscription.manage',
+        'destroy': 'subscription.manage',
+        'activate': 'subscription.manage',
+        'suspend': 'subscription.suspend',
+        'resume': 'subscription.manage',
+        'cancel': 'subscription.cancel',
+        'renew': 'subscription.renew',
+    }
+
+    def get_queryset(self):
+        qs = get_scoped_queryset(self.request, CustomerSubscription).select_related('customer', 'service', 'package')
+        customer_id = self.request.query_params.get('customer')
+        if customer_id:
+            qs = qs.filter(customer_id=customer_id)
+        service_id = self.request.query_params.get('service')
+        if service_id:
+            qs = qs.filter(service_id=service_id)
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return qs
+
+    def perform_create(self, serializer):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'subscription.create'):
+            raise PermissionDenied("Permission denied: subscription.create capability required.")
+        serializer.save(tenant=tenant)
+
+    def perform_update(self, serializer):
+        tenant = get_tenant_for_request(self.request)
+        if not can(self.request.user, tenant, 'subscription.manage', serializer.instance):
+            raise PermissionDenied("Permission denied: subscription.manage capability required.")
+        serializer.save()
+
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        sub = self.get_object()
+        if not can(request.user, request.tenant, 'subscription.manage', sub):
+            return Response({'error': 'Permission denied: subscription.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            sub.activate()
+        except DjangoValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        AuditLog.objects.create(
+            tenant=sub.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='SUBSCRIPTION_ACTIVATE',
+            module='SUBSCRIPTIONS',
+            target_id=str(sub.id),
+            details={'status': sub.status, 'customer': sub.customer.full_name}
+        )
+        return Response({'message': 'Subscription activated.', 'subscription': CustomerSubscriptionSerializer(sub).data})
+
+    @action(detail=True, methods=['post'])
+    def suspend(self, request, pk=None):
+        sub = self.get_object()
+        if not can(request.user, request.tenant, 'subscription.suspend', sub) and not can(request.user, request.tenant, 'subscription.manage', sub):
+            return Response({'error': 'Permission denied: subscription.suspend capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            sub.suspend()
+        except DjangoValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        AuditLog.objects.create(
+            tenant=sub.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='SUBSCRIPTION_SUSPEND',
+            module='SUBSCRIPTIONS',
+            target_id=str(sub.id),
+            details={'status': sub.status, 'customer': sub.customer.full_name}
+        )
+        return Response({'message': 'Subscription suspended.', 'subscription': CustomerSubscriptionSerializer(sub).data})
+
+    @action(detail=True, methods=['post'])
+    def resume(self, request, pk=None):
+        sub = self.get_object()
+        if not can(request.user, request.tenant, 'subscription.manage', sub):
+            return Response({'error': 'Permission denied: subscription.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            sub.resume()
+        except DjangoValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        AuditLog.objects.create(
+            tenant=sub.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='SUBSCRIPTION_RESUME',
+            module='SUBSCRIPTIONS',
+            target_id=str(sub.id),
+            details={'status': sub.status, 'customer': sub.customer.full_name}
+        )
+        return Response({'message': 'Subscription resumed.', 'subscription': CustomerSubscriptionSerializer(sub).data})
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        sub = self.get_object()
+        if not can(request.user, request.tenant, 'subscription.cancel', sub) and not can(request.user, request.tenant, 'subscription.manage', sub):
+            return Response({'error': 'Permission denied: subscription.cancel capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            sub.cancel()
+        except DjangoValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        AuditLog.objects.create(
+            tenant=sub.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='SUBSCRIPTION_CANCEL',
+            module='SUBSCRIPTIONS',
+            target_id=str(sub.id),
+            details={'status': sub.status, 'customer': sub.customer.full_name}
+        )
+        return Response({'message': 'Subscription cancelled.', 'subscription': CustomerSubscriptionSerializer(sub).data})
+
+    @action(detail=True, methods=['post'])
+    def renew(self, request, pk=None):
+        sub = self.get_object()
+        if not can(request.user, request.tenant, 'subscription.renew', sub) and not can(request.user, request.tenant, 'subscription.manage', sub):
+            return Response({'error': 'Permission denied: subscription.renew capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        days = int(request.data.get('days', 30))
+        try:
+            sub.renew(days=days)
+        except DjangoValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        AuditLog.objects.create(
+            tenant=sub.tenant,
+            actor_username=request.user.username if request.user.is_authenticated else 'system',
+            action='SUBSCRIPTION_RENEW',
+            module='SUBSCRIPTIONS',
+            target_id=str(sub.id),
+            details={'status': sub.status, 'days': days, 'next_billing_date': str(sub.next_billing_date)}
+        )
+        return Response({'message': f'Subscription renewed for {days} days.', 'subscription': CustomerSubscriptionSerializer(sub).data})
+

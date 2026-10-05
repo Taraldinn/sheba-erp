@@ -115,6 +115,7 @@ class PaymentTransaction(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='transactions')
     entity_type = models.CharField(max_length=20, choices=EntityType.choices, default=EntityType.CUSTOMER)
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
+    invoice = models.ForeignKey('billing.Invoice', on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     reseller = models.ForeignKey('authentication.Reseller', on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
     initiator_user = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True)
     reference_id = models.CharField(max_length=150, blank=True)

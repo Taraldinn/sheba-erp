@@ -14,6 +14,8 @@ export interface ColumnDef<T> {
     render?: (item: T, index: number) => React.ReactNode;
 }
 
+export type Column<T> = ColumnDef<T>;
+
 export interface DataTableProps<T> {
     title?: string;
     description?: string;
@@ -35,6 +37,7 @@ export interface DataTableProps<T> {
     onSortChange?: (field: string, direction: 'asc' | 'desc') => void;
     onSearchChange?: (query: string) => void;
     onRefresh?: () => void;
+    onRetry?: () => void;
     emptyMessage?: string;
 }
 
@@ -144,9 +147,10 @@ export function DataTable<T extends Record<string, any>>({
                 ) : (
                     <Table size="md" className="w-full text-left">
                         <Table.Header>
-                            {columns.map((col) => (
+                            {columns.map((col, idx) => (
                                 <Table.Head
                                     key={col.key}
+                                    isRowHeader={idx === 0}
                                     className={col.sortable ? 'cursor-pointer select-none hover:text-primary' : ''}
                                     onClick={() => handleSort(col.key, col.sortable)}
                                 >

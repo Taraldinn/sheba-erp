@@ -367,7 +367,17 @@ class CurrentUserView(views.APIView):
             else:
                 permissions_list = []
 
-            if role in (UserRole.ADMIN, 'Admin', 'ADMIN'):
+            if not permissions_list and role in (UserRole.ADMIN, 'Admin', 'ADMIN', UserRole.SUPER_ADMIN, 'Super Admin', 'SUPER_ADMIN'):
+                permissions_list = [
+                    'customer.read', 'customer.view', 'customer.create', 'customer.update', 'customer.delete', 'customer.archive', 'customer.recharge',
+                    'package.read', 'package.create', 'package.update', 'package.manage',
+                    'service.read', 'service.create', 'service.update', 'service.activate', 'service.suspend', 'service.terminate',
+                    'subscription.read', 'subscription.create', 'subscription.manage', 'subscription.suspend', 'subscription.cancel', 'subscription.renew',
+                    'invoice.read', 'invoice.create', 'invoice.issue', 'invoice.void', 'invoice.manage',
+                    'payment.read', 'payment.create', 'payment.refund'
+                ]
+
+            if role in (UserRole.ADMIN, 'Admin', 'ADMIN', 'Super Admin', 'SUPER_ADMIN'):
                 portal_access = ['ISP_ADMIN', 'TENANT']
             elif role in (UserRole.CUSTOMER, 'Customer', 'CUSTOMER'):
                 portal_access = ['TENANT']

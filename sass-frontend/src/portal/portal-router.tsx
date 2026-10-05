@@ -25,15 +25,20 @@ import { TenantsScreen } from '@/pages/saas/tenants';
 import { FeatureMatrixScreen } from '@/pages/saas/feature-matrix';
 import { DomainsScreen } from '@/pages/saas/domains';
 import { OnboardingScreen } from '@/pages/saas/onboarding';
-import { PackagesScreen } from '@/pages/saas/packages';
-import { SubscriptionsScreen } from '@/pages/saas/subscriptions';
-import { PaymentsScreen } from '@/pages/saas/payments';
+import { PackagesScreen as SaaSPackagesScreen } from '@/pages/saas/packages';
+import { SubscriptionsScreen as SaaSSubscriptionsScreen } from '@/pages/saas/subscriptions';
+import { PaymentsScreen as SaaSPaymentsScreen } from '@/pages/saas/payments';
 import { BackupsScreen } from '@/pages/saas/backups';
 import { AuditLogsScreen } from '@/pages/saas/audit-logs';
 import { EmployeesScreen } from '@/pages/saas/employees';
 
 // ISP Admin Pages
 import { IspDashboardScreen } from '@/pages/isp/dashboard';
+import { CustomersScreen } from '@/pages/isp/customers';
+import { CustomerDetailScreen } from '@/pages/isp/customers/detail';
+import { PackagesScreen as IspPackagesScreen } from '@/pages/isp/packages';
+import { SubscriptionsScreen as IspSubscriptionsScreen } from '@/pages/isp/subscriptions';
+import { InvoicesScreen as IspInvoicesScreen } from '@/pages/isp/invoices';
 
 // Tenant Subscriber Pages
 import { TenantDashboardScreen } from '@/pages/tenant/dashboard';
@@ -77,11 +82,11 @@ export function PortalRouter() {
                     <Route path="dashboard" element={<DashboardScreen />} />
                     <Route path="tenants" element={<TenantsScreen />} />
                     <Route path="isps" element={<TenantsScreen />} />
-                    <Route path="packages" element={<PackagesScreen />} />
-                    <Route path="plans" element={<PackagesScreen />} />
-                    <Route path="subscriptions" element={<SubscriptionsScreen />} />
-                    <Route path="payments" element={<PaymentsScreen />} />
-                    <Route path="billing" element={<PaymentsScreen />} />
+                    <Route path="packages" element={<SaaSPackagesScreen />} />
+                    <Route path="plans" element={<SaaSPackagesScreen />} />
+                    <Route path="subscriptions" element={<SaaSSubscriptionsScreen />} />
+                    <Route path="payments" element={<SaaSPaymentsScreen />} />
+                    <Route path="billing" element={<SaaSPaymentsScreen />} />
                     <Route path="employees" element={<EmployeesScreen />} />
                     <Route path="users" element={<EmployeesScreen />} />
                     <Route path="domains" element={<DomainsScreen />} />
@@ -104,9 +109,14 @@ export function PortalRouter() {
                 <Route path="/" element={<IspLayout />}>
                     <Route index element={<IspDashboardScreen />} />
                     <Route path="dashboard" element={<IspDashboardScreen />} />
-                    <Route path="customers" element={<IspDashboardScreen />} />
-                    <Route path="billing" element={<IspDashboardScreen />} />
-                    <Route path="subscriptions" element={<IspDashboardScreen />} />
+                    <Route path="customers" element={<CustomersScreen />} />
+                    <Route path="customers/:id" element={<CustomerDetailScreen />} />
+                    <Route path="packages" element={<IspPackagesScreen />} />
+                    <Route path="services/packages" element={<IspPackagesScreen />} />
+                    <Route path="subscriptions" element={<IspSubscriptionsScreen />} />
+                    <Route path="billing" element={<IspInvoicesScreen />} />
+                    <Route path="invoices" element={<IspInvoicesScreen />} />
+                    <Route path="billing/invoices" element={<IspInvoicesScreen />} />
                     <Route path="mikrotik" element={<IspDashboardScreen />} />
                     <Route path="pppoe" element={<IspDashboardScreen />} />
                     <Route path="olt" element={<IspDashboardScreen />} />

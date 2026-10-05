@@ -46,14 +46,19 @@ class ResellerPricing(models.Model):
 
 class Invoice(models.Model):
     class InvoiceStatus(models.TextChoices):
+        DRAFT = 'DRAFT', 'Draft'
+        ISSUED = 'ISSUED', 'Issued'
         PAID = 'PAID', 'Paid'
         UNPAID = 'UNPAID', 'Unpaid / Due'
         PARTIAL = 'PARTIAL', 'Partially Paid'
         CANCELLED = 'CANCELLED', 'Cancelled'
+        VOID = 'VOID', 'Void'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='invoices')
     customer = models.ForeignKey('customers.Customer', on_delete=models.CASCADE, related_name='invoices')
+    service = models.ForeignKey('customers.CustomerService', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
+    subscription = models.ForeignKey('customers.CustomerSubscription', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
     invoice_no = models.CharField(max_length=50, unique=True)
     billing_month = models.CharField(max_length=20, help_text="e.g. September 2026")
     package_name = models.CharField(max_length=150)
@@ -78,6 +83,24 @@ class Invoice(models.Model):
         from django.core.exceptions import ValidationError
         if hasattr(self, 'customer') and self.customer and self.tenant_id and self.customer.tenant_id != self.tenant_id:
             raise ValidationError("Invoice customer must belong to the same tenant.")
+        if hasattr(self, 'service') and self.service and self.tenant_id and self.service.tenant_id != self.tenant_id:
+            raise ValidationError("Invoice service must belong to the same tenant.")
+        if hasattr(self, 'subscription') and self.subscription and self.tenant_id and self.subscription.tenant_id != self.tenant_id:
+            raise ValidationError("Invoice subscription must belong to the same tenant.")
+
+    def issue(self):
+        from django.core.exceptions import ValidationError
+        if self.status not in [self.InvoiceStatus.DRAFT, self.InvoiceStatus.UNPAID]:
+            raise ValidationError(f"Cannot issue invoice with status {self.status}.")
+        self.status = self.InvoiceStatus.ISSUED
+        self.save(update_fields=['status'])
+
+    def void(self, reason=''):
+        from django.core.exceptions import ValidationError
+        if self.status == self.InvoiceStatus.PAID:
+            raise ValidationError("Cannot void an invoice that is already fully paid.")
+        self.status = self.InvoiceStatus.VOID
+        self.save(update_fields=['status'])
 
     class Meta:
         ordering = ['-created_at']
