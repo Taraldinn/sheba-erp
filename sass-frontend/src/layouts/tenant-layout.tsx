@@ -6,6 +6,8 @@ import {
   Zap,
   Signal01,
   Ticket01,
+  Users01,
+  Settings01,
 } from "@untitledui/icons";
 import {
   MobileNavigationHeader,
@@ -64,19 +66,24 @@ export function TenantLayout() {
       icon: Globe01,
     },
     {
+      label: "Profile & KYC",
+      href: "/customers",
+      icon: Users01,
+    },
+    {
       label: "Bills & Invoices",
-      href: "/invoices",
+      href: "/billing",
       icon: Receipt,
       badge: "Due: ৳1,000",
     },
     {
-      label: "Instant Recharge",
-      href: "/recharge",
+      label: "Subscriptions",
+      href: "/subscriptions",
       icon: Zap,
     },
     {
-      label: "Bandwidth Usage",
-      href: "/usage",
+      label: "Usage Analytics",
+      href: "/reports",
       icon: Signal01,
     },
     {
@@ -84,8 +91,13 @@ export function TenantLayout() {
     },
     {
       label: "Helpdesk & Support",
-      href: "/support",
+      href: "/tickets",
       icon: Ticket01,
+    },
+    {
+      label: "Preferences",
+      href: "/settings",
+      icon: Settings01,
     },
   ];
 

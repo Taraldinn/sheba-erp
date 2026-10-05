@@ -10,6 +10,10 @@ import {
   Users01,
   SearchLg,
   Plus,
+  CreditCard01,
+  CpuChip01,
+  Signal01,
+  File06,
 } from "@untitledui/icons";
 import {
   MobileNavigationHeader,
@@ -75,14 +79,35 @@ export function IspLayout() {
       icon: Receipt,
     },
     {
-      label: "Network & MikroTik",
-      href: "/network",
+      label: "Subscriptions",
+      href: "/subscriptions",
+      icon: CreditCard01,
+    },
+    {
+      divider: true,
+    },
+    {
+      label: "MikroTik Routers",
+      href: "/mikrotik",
       icon: Server01,
     },
     {
-      label: "Reseller Hierarchy",
-      href: "/resellers",
+      label: "PPPoE Sessions",
+      href: "/pppoe",
+      icon: CpuChip01,
+    },
+    {
+      label: "OLT Management",
+      href: "/olt",
       icon: LayersThree01,
+    },
+    {
+      label: "ONU Inventory",
+      href: "/onu",
+      icon: Signal01,
+    },
+    {
+      divider: true,
     },
     {
       label: "Support Tickets",
@@ -91,7 +116,9 @@ export function IspLayout() {
       badge: "4",
     },
     {
-      divider: true,
+      label: "Reports & Logs",
+      href: "/reports",
+      icon: File06,
     },
     {
       label: "ISP Settings",

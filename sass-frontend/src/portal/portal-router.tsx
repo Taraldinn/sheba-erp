@@ -74,16 +74,22 @@ export function PortalRouter() {
                 <Route path="/login" element={<LoginScreen />} />
                 <Route path="/" element={<AppLayout />}>
                     <Route index element={<DashboardScreen />} />
+                    <Route path="dashboard" element={<DashboardScreen />} />
                     <Route path="tenants" element={<TenantsScreen />} />
-                    <Route path="feature-matrix" element={<FeatureMatrixScreen />} />
-                    <Route path="domains" element={<DomainsScreen />} />
-                    <Route path="onboarding" element={<OnboardingScreen />} />
+                    <Route path="isps" element={<TenantsScreen />} />
                     <Route path="packages" element={<PackagesScreen />} />
+                    <Route path="plans" element={<PackagesScreen />} />
                     <Route path="subscriptions" element={<SubscriptionsScreen />} />
                     <Route path="payments" element={<PaymentsScreen />} />
+                    <Route path="billing" element={<PaymentsScreen />} />
+                    <Route path="employees" element={<EmployeesScreen />} />
+                    <Route path="users" element={<EmployeesScreen />} />
+                    <Route path="domains" element={<DomainsScreen />} />
+                    <Route path="settings" element={<DomainsScreen />} />
+                    <Route path="feature-matrix" element={<FeatureMatrixScreen />} />
+                    <Route path="onboarding" element={<OnboardingScreen />} />
                     <Route path="backups" element={<BackupsScreen />} />
                     <Route path="audit-logs" element={<AuditLogsScreen />} />
-                    <Route path="employees" element={<EmployeesScreen />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
             </Routes>
@@ -97,11 +103,18 @@ export function PortalRouter() {
                 <Route path="/login" element={<LoginScreen />} />
                 <Route path="/" element={<IspLayout />}>
                     <Route index element={<IspDashboardScreen />} />
+                    <Route path="dashboard" element={<IspDashboardScreen />} />
                     <Route path="customers" element={<IspDashboardScreen />} />
                     <Route path="billing" element={<IspDashboardScreen />} />
+                    <Route path="subscriptions" element={<IspDashboardScreen />} />
+                    <Route path="mikrotik" element={<IspDashboardScreen />} />
+                    <Route path="pppoe" element={<IspDashboardScreen />} />
+                    <Route path="olt" element={<IspDashboardScreen />} />
+                    <Route path="onu" element={<IspDashboardScreen />} />
                     <Route path="network" element={<IspDashboardScreen />} />
                     <Route path="resellers" element={<IspDashboardScreen />} />
                     <Route path="tickets" element={<IspDashboardScreen />} />
+                    <Route path="reports" element={<IspDashboardScreen />} />
                     <Route path="settings" element={<IspDashboardScreen />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
@@ -116,10 +129,17 @@ export function PortalRouter() {
                 <Route path="/login" element={<LoginScreen />} />
                 <Route path="/" element={<TenantLayout />}>
                     <Route index element={<TenantDashboardScreen />} />
+                    <Route path="dashboard" element={<TenantDashboardScreen />} />
+                    <Route path="customers" element={<TenantDashboardScreen />} />
+                    <Route path="billing" element={<TenantDashboardScreen />} />
                     <Route path="invoices" element={<TenantDashboardScreen />} />
+                    <Route path="subscriptions" element={<TenantDashboardScreen />} />
                     <Route path="recharge" element={<TenantDashboardScreen />} />
-                    <Route path="usage" element={<TenantDashboardScreen />} />
+                    <Route path="tickets" element={<TenantDashboardScreen />} />
                     <Route path="support" element={<TenantDashboardScreen />} />
+                    <Route path="reports" element={<TenantDashboardScreen />} />
+                    <Route path="usage" element={<TenantDashboardScreen />} />
+                    <Route path="settings" element={<TenantDashboardScreen />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
             </Routes>

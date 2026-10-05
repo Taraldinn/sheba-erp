@@ -264,3 +264,5 @@ export function AppLayout() {
     </div>
   );
 }
+
+export const SuperAdminLayout = AppLayout;
