@@ -2,7 +2,9 @@ import {
   Tenant, Domain, OnboardingRequest, Package,
   Subscription, Payment, Backup, AuditLog, DashboardOverview,
   TenantTelemetry, TenantFeatureFlag, TenantAdmin, ImpersonateResult,
-  FeatureMatrixResponse, SaaSPlatformHealth, SaaSEmployee
+  FeatureMatrixResponse, SaaSPlatformHealth, SaaSEmployee,
+  RouterItem, RouterHealthInfo, ConnectionTestResult, NetworkProfileItem,
+  PPPoEAccountItem, ReconciliationRunItem, LiveSessionItem
 } from './types';
 import { detectPlane, effectivePlane } from '@/lib/plane';
 
@@ -916,6 +918,163 @@ export const paymentApi = {
   },
 };
 
+export const routerApi = {
+  list: async (params?: { search?: string; status?: string }): Promise<{ items: RouterItem[]; total: number }> => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetchApi<any>(`/network/routers/${qs}`, { plane: 'tenant' });
+    const items: RouterItem[] = Array.isArray(res) ? res : (res?.results || []);
+    const total = Array.isArray(res) ? res.length : (res?.count ?? items.length);
+    return { items, total };
+  },
+  get: async (id: string): Promise<RouterItem> => {
+    return fetchApi<RouterItem>(`/network/routers/${id}/`, { plane: 'tenant' });
+  },
+  create: async (data: Partial<RouterItem> & { password?: string }): Promise<RouterItem> => {
+    return fetchApi<RouterItem>('/network/routers/', { method: 'POST', body: JSON.stringify(data), plane: 'tenant' });
+  },
+  update: async (id: string, data: Partial<RouterItem> & { password?: string }): Promise<RouterItem> => {
+    return fetchApi<RouterItem>(`/network/routers/${id}/`, { method: 'PATCH', body: JSON.stringify(data), plane: 'tenant' });
+  },
+  delete: async (id: string): Promise<void> => {
+    return fetchApi<void>(`/network/routers/${id}/`, { method: 'DELETE', plane: 'tenant' });
+  },
+  enable: async (id: string): Promise<{ message: string; is_active: boolean }> => {
+    return fetchApi(`/network/routers/${id}/enable/`, { method: 'POST', plane: 'tenant' });
+  },
+  disable: async (id: string): Promise<{ message: string; is_active: boolean }> => {
+    return fetchApi(`/network/routers/${id}/disable/`, { method: 'POST', plane: 'tenant' });
+  },
+  testConnection: async (id: string): Promise<ConnectionTestResult> => {
+    return fetchApi<ConnectionTestResult>(`/network/routers/${id}/test-connection/`, { method: 'POST', plane: 'tenant' });
+  },
+  getHealth: async (id: string): Promise<RouterHealthInfo> => {
+    return fetchApi<RouterHealthInfo>(`/network/routers/${id}/health/`, { plane: 'tenant' });
+  },
+  getRadiusScript: async (id: string, serverHost?: string): Promise<{ router_id: string; router_name: string; script: string }> => {
+    const q = serverHost ? `?server_host=${encodeURIComponent(serverHost)}` : '';
+    return fetchApi(`/network/routers/${id}/radius-script/${q}`, { plane: 'tenant' });
+  },
+  getActiveSessions: async (id: string): Promise<{ router_id: string; count: number; sessions: LiveSessionItem[] }> => {
+    return fetchApi(`/network/routers/${id}/active-sessions/`, { plane: 'tenant' });
+  },
+  syncPPPoE: async (id: string): Promise<{ message: string; sessions_synced: number }> => {
+    return fetchApi(`/network/routers/${id}/sync_pppoe/`, { method: 'POST', plane: 'tenant' });
+  },
+};
+
+export const networkProfileApi = {
+  list: async (params?: { search?: string; status?: string }): Promise<{ items: NetworkProfileItem[]; total: number }> => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetchApi<any>(`/network/profiles/${qs}`, { plane: 'tenant' });
+    const items: NetworkProfileItem[] = Array.isArray(res) ? res : (res?.results || []);
+    const total = Array.isArray(res) ? res.length : (res?.count ?? items.length);
+    return { items, total };
+  },
+  get: async (id: string): Promise<NetworkProfileItem> => {
+    return fetchApi<NetworkProfileItem>(`/network/profiles/${id}/`, { plane: 'tenant' });
+  },
+  create: async (data: Partial<NetworkProfileItem>): Promise<NetworkProfileItem> => {
+    return fetchApi<NetworkProfileItem>('/network/profiles/', { method: 'POST', body: JSON.stringify(data), plane: 'tenant' });
+  },
+  update: async (id: string, data: Partial<NetworkProfileItem>): Promise<NetworkProfileItem> => {
+    return fetchApi<NetworkProfileItem>(`/network/profiles/${id}/`, { method: 'PATCH', body: JSON.stringify(data), plane: 'tenant' });
+  },
+};
+
+export const pppoeAccountApi = {
+  list: async (params?: { search?: string; router?: string; status?: string; provisioning_status?: string; service?: string }): Promise<{ items: PPPoEAccountItem[]; total: number }> => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.router) q.set('router', params.router);
+    if (params?.status) q.set('status', params.status);
+    if (params?.provisioning_status) q.set('provisioning_status', params.provisioning_status);
+    if (params?.service) q.set('service', params.service);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetchApi<any>(`/network/pppoe/${qs}`, { plane: 'tenant' });
+    const items: PPPoEAccountItem[] = Array.isArray(res) ? res : (res?.results || []);
+    const total = Array.isArray(res) ? res.length : (res?.count ?? items.length);
+    return { items, total };
+  },
+  get: async (id: string): Promise<PPPoEAccountItem> => {
+    return fetchApi<PPPoEAccountItem>(`/network/pppoe/${id}/`, { plane: 'tenant' });
+  },
+  create: async (data: Partial<PPPoEAccountItem> & { password?: string }): Promise<PPPoEAccountItem> => {
+    return fetchApi<PPPoEAccountItem>('/network/pppoe/', { method: 'POST', body: JSON.stringify(data), plane: 'tenant' });
+  },
+  update: async (id: string, data: Partial<PPPoEAccountItem> & { password?: string }): Promise<PPPoEAccountItem> => {
+    return fetchApi<PPPoEAccountItem>(`/network/pppoe/${id}/`, { method: 'PATCH', body: JSON.stringify(data), plane: 'tenant' });
+  },
+  provision: async (id: string): Promise<{ success: boolean; provisioning_status: string; status: string; last_error?: string }> => {
+    return fetchApi(`/network/pppoe/${id}/provision/`, { method: 'POST', plane: 'tenant' });
+  },
+  suspend: async (id: string): Promise<{ success: boolean; status: string; provisioning_status: string }> => {
+    return fetchApi(`/network/pppoe/${id}/suspend/`, { method: 'POST', plane: 'tenant' });
+  },
+  resume: async (id: string): Promise<{ success: boolean; status: string; provisioning_status: string }> => {
+    return fetchApi(`/network/pppoe/${id}/resume/`, { method: 'POST', plane: 'tenant' });
+  },
+  terminate: async (id: string): Promise<{ success: boolean; status: string; provisioning_status: string }> => {
+    return fetchApi(`/network/pppoe/${id}/terminate/`, { method: 'POST', plane: 'tenant' });
+  },
+  disconnectSession: async (id: string): Promise<{ username: string; router: string; session_dropped_on_device: boolean }> => {
+    return fetchApi(`/network/pppoe/${id}/disconnect-session/`, { method: 'POST', plane: 'tenant' });
+  },
+};
+
+export const reconciliationApi = {
+  listRuns: async (): Promise<ReconciliationRunItem[]> => {
+    const res = await fetchApi<any>('/network/reconciliation/runs/', { plane: 'tenant' });
+    return Array.isArray(res) ? res : (res?.results || []);
+  },
+  trigger: async (routerId: string, asyncMode: boolean = false): Promise<any> => {
+    return fetchApi('/network/reconciliation/trigger/', {
+      method: 'POST',
+      body: JSON.stringify({ router_id: routerId, async: asyncMode }),
+      plane: 'tenant'
+    });
+  },
+  repairItem: async (itemId: string, action: string = 'create_in_router'): Promise<any> => {
+    return fetchApi(`/network/reconciliation/items/${itemId}/sync/`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+      plane: 'tenant'
+    });
+  },
+  listSecrets: async (params?: { router?: string; status?: string; search?: string }): Promise<{ items: PPPoEAccountItem[]; total: number }> => {
+    const q = new URLSearchParams();
+    if (params?.router) q.set('router_id', params.router);
+    if (params?.status) q.set('status', params.status);
+    if (params?.search) q.set('search', params.search);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetchApi<any>(`/network/reconciliation/secrets/${qs}`, { plane: 'tenant' });
+    const items: PPPoEAccountItem[] = Array.isArray(res) ? res : (res?.results || []);
+    const total = Array.isArray(res) ? res.length : (res?.count ?? items.length);
+    return { items, total };
+  },
+};
+
+export const liveSessionApi = {
+  list: async (params?: { router?: string; search?: string }): Promise<{ items: LiveSessionItem[]; total: number }> => {
+    const q = new URLSearchParams();
+    if (params?.router) q.set('router', params.router);
+    if (params?.search) q.set('search', params.search);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetchApi<any>(`/network/live-sessions/${qs}`, { plane: 'tenant' });
+    const items: LiveSessionItem[] = Array.isArray(res) ? res : (res?.results || res?.sessions || []);
+    const total = Array.isArray(res) ? res.length : (res?.count ?? items.length);
+    return { items, total };
+  },
+  terminate: async (username: string): Promise<any> => {
+    return fetchApi(`/network/live-sessions/${encodeURIComponent(username)}/terminate/`, { method: 'POST', plane: 'tenant' });
+  },
+};
+
 export const api = {
   saas: saasApi,
   tenant: tenantApi,
@@ -925,6 +1084,11 @@ export const api = {
   package: ispPackageApi,
   invoice: invoiceApi,
   payment: paymentApi,
+  router: routerApi,
+  networkProfile: networkProfileApi,
+  pppoeAccount: pppoeAccountApi,
+  reconciliation: reconciliationApi,
+  liveSession: liveSessionApi,
   notifications: notificationsApi,
   search: searchApi,
   getActivePlane,

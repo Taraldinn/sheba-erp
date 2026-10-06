@@ -7,15 +7,16 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from .models import Router, OLT, ONU, UserSession, POPBranch, TJBox
+from .models import Router, OLT, ONU, UserSession, POPBranch, TJBox, NetworkProfile, PPPoESecretItem, PPPoEAccount
 from .serializers import (
     RouterSerializer, OLTSerializer, ONUSerializer, UserSessionSerializer,
     POPBranchSerializer, TJBoxSerializer, RouterActionSerializer, ONUActionSerializer,
-    RouterExpirePoolConfigSerializer
+    RouterExpirePoolConfigSerializer, NetworkProfileSerializer, PPPoEAccountSerializer
 )
 from .validators import validate_router_host
 from .services.mikrotik import MikroTikService
 from .services.olt import ONUService, OLTSystemService, OpticalPowerService, OLTMonitorService
+from .services.provisioning import ProvisioningService
 from .services.audit import log_network_action
 from apps.core.permissions import IsTenantMember, IsAdminOrManager, IsTechnicalStaff, IsAdminUserOrReadOnly
 from apps.core.utils import get_scoped_queryset, get_tenant_for_request
@@ -143,6 +144,48 @@ class RouterViewSet(viewsets.ModelViewSet):
             details={'router_name': router_name},
             request=self.request,
         )
+
+    @action(detail=True, methods=['post'], url_path='enable', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsAdminOrManager])
+    def enable(self, request, pk=None):
+        """
+        Enables router polling and operational provisioning.
+        """
+        router = self.get_object()
+        if not can(request.user, request.tenant, 'router.manage', router):
+            return Response({'error': 'Permission denied: router.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        router.is_active = True
+        router.save(update_fields=['is_active'])
+        log_network_action(
+            tenant=router.tenant,
+            actor_username=request.user.username,
+            action='enable_router',
+            resource_type='Router',
+            resource_id=str(router.id),
+            details={'is_active': True},
+            request=request,
+        )
+        return Response({'message': f'Router {router.name} enabled.', 'is_active': True, 'status': router.status})
+
+    @action(detail=True, methods=['post'], url_path='disable', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsAdminOrManager])
+    def disable(self, request, pk=None):
+        """
+        Disables router polling and marks it administratively disabled.
+        """
+        router = self.get_object()
+        if not can(request.user, request.tenant, 'router.manage', router):
+            return Response({'error': 'Permission denied: router.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
+        router.is_active = False
+        router.save(update_fields=['is_active'])
+        log_network_action(
+            tenant=router.tenant,
+            actor_username=request.user.username,
+            action='disable_router',
+            resource_type='Router',
+            resource_id=str(router.id),
+            details={'is_active': False},
+            request=request,
+        )
+        return Response({'message': f'Router {router.name} disabled.', 'is_active': False, 'status': router.status})
 
     @action(detail=True, methods=['post'], url_path='test-connection', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
     def test_connection(self, request, pk=None):
@@ -1090,3 +1133,235 @@ class UserSessionViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
         return Response({'message': f'Session for {username} disconnected from {router_name}.'})
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['4. Network & Core Routers']),
+    retrieve=extend_schema(tags=['4. Network & Core Routers']),
+    create=extend_schema(tags=['4. Network & Core Routers']),
+    update=extend_schema(tags=['4. Network & Core Routers']),
+    partial_update=extend_schema(tags=['4. Network & Core Routers']),
+    destroy=extend_schema(tags=['4. Network & Core Routers']),
+)
+class NetworkProfileViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for network bandwidth profiles and MikroTik/RADIUS mapping.
+    Scoped strictly to request.tenant.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff]
+    serializer_class = NetworkProfileSerializer
+
+    def get_queryset(self):
+        qs = get_scoped_queryset(self.request, NetworkProfile)
+        router_id = self.request.query_params.get('router')
+        if router_id:
+            qs = qs.filter(router_id=router_id)
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param.upper().strip())
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(name__icontains=search.strip())
+        return qs.order_by('name')
+
+    def perform_create(self, serializer):
+        profile = serializer.save(tenant=get_tenant_for_request(self.request))
+        log_network_action(
+            tenant=profile.tenant,
+            actor_username=self.request.user.username,
+            action='create_network_profile',
+            resource_type='NetworkProfile',
+            resource_id=str(profile.id),
+            details={'name': profile.name, 'download_mbps': profile.download_rate_mbps, 'upload_mbps': profile.upload_rate_mbps},
+            request=self.request,
+        )
+
+    def perform_update(self, serializer):
+        profile = serializer.save()
+        log_network_action(
+            tenant=profile.tenant,
+            actor_username=self.request.user.username,
+            action='update_network_profile',
+            resource_type='NetworkProfile',
+            resource_id=str(profile.id),
+            details={'name': profile.name, 'download_mbps': profile.download_rate_mbps, 'upload_mbps': profile.upload_rate_mbps},
+            request=self.request,
+        )
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['4. Network & Core Routers']),
+    retrieve=extend_schema(tags=['4. Network & Core Routers']),
+    create=extend_schema(tags=['4. Network & Core Routers']),
+    update=extend_schema(tags=['4. Network & Core Routers']),
+    partial_update=extend_schema(tags=['4. Network & Core Routers']),
+    destroy=extend_schema(tags=['4. Network & Core Routers']),
+)
+class PPPoEAccountViewSet(viewsets.ModelViewSet):
+    """
+    PPPoE Account identity management.
+    Never exposes stored passwords in response representations.
+    Provides idempotent provisioning, suspension, resumption, and termination.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff]
+    serializer_class = PPPoEAccountSerializer
+
+    def get_queryset(self):
+        qs = get_scoped_queryset(self.request, PPPoEAccount)
+        router_id = self.request.query_params.get('router')
+        if router_id:
+            qs = qs.filter(router_id=router_id)
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param.upper().strip())
+        prov_status = self.request.query_params.get('provisioning_status')
+        if prov_status:
+            qs = qs.filter(provisioning_status=prov_status.upper().strip())
+        service_id = self.request.query_params.get('service')
+        if service_id:
+            qs = qs.filter(service_id=service_id)
+        search = self.request.query_params.get('search')
+        if search:
+            search = search.strip()
+            qs = qs.filter(username__icontains=search)
+        return qs.select_related('router', 'service', 'service__customer', 'network_profile').order_by('-created_at')
+
+    def perform_create(self, serializer):
+        account = serializer.save(tenant=get_tenant_for_request(self.request))
+        log_network_action(
+            tenant=account.tenant,
+            actor_username=self.request.user.username,
+            action='create_pppoe_account',
+            resource_type='PPPoEAccount',
+            resource_id=str(account.id),
+            details={'username': account.username, 'router': str(account.router_id)},
+            request=self.request,
+        )
+
+    def perform_update(self, serializer):
+        account = serializer.save()
+        log_network_action(
+            tenant=account.tenant,
+            actor_username=self.request.user.username,
+            action='update_pppoe_account',
+            resource_type='PPPoEAccount',
+            resource_id=str(account.id),
+            details={'username': account.username, 'status': account.status},
+            request=self.request,
+        )
+
+    @action(detail=True, methods=['post'], url_path='provision')
+    def provision(self, request, pk=None):
+        """
+        Manually triggers provisioning of this PPPoE account to its router.
+        """
+        account = self.get_object()
+        if not can(request.user, request.tenant, 'router.manage', account.router):
+            return Response({'error': 'Permission denied: router.manage required.'}, status=status.HTTP_403_FORBIDDEN)
+        if not account.service:
+            return Response({'error': 'Cannot provision an unlinked PPPoE account without a Service.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        res = ProvisioningService.provision_service(account.service)
+        success = res.get('success', False) if isinstance(res, dict) else bool(res)
+        account.refresh_from_db()
+        return Response({
+            'success': success,
+            'provisioning_status': account.provisioning_status,
+            'status': account.status,
+            'last_error': account.last_error,
+            'last_provisioned_at': account.last_provisioned_at.isoformat() if account.last_provisioned_at else None,
+        }, status=status.HTTP_200_OK if success else status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=True, methods=['post'], url_path='suspend')
+    def suspend(self, request, pk=None):
+        """
+        Suspends the PPPoE account on the router (e.g. routes to expired pool / drops session).
+        """
+        account = self.get_object()
+        if not can(request.user, request.tenant, 'router.manage', account.router):
+            return Response({'error': 'Permission denied: router.manage required.'}, status=status.HTTP_403_FORBIDDEN)
+        if not account.service:
+            account.suspend()
+            return Response({'message': f'PPPoE Account {account.username} suspended locally.'})
+
+        res = ProvisioningService.suspend_service(account.service)
+        success = res.get('success', False) if isinstance(res, dict) else bool(res)
+        account.refresh_from_db()
+        return Response({
+            'success': success,
+            'status': account.status,
+            'provisioning_status': account.provisioning_status,
+            'last_error': account.last_error,
+        })
+
+    @action(detail=True, methods=['post'], url_path='resume')
+    def resume(self, request, pk=None):
+        """
+        Resumes the PPPoE account on the router (restores operational profile and drops expired session).
+        """
+        account = self.get_object()
+        if not can(request.user, request.tenant, 'router.manage', account.router):
+            return Response({'error': 'Permission denied: router.manage required.'}, status=status.HTTP_403_FORBIDDEN)
+        if not account.service:
+            account.resume()
+            return Response({'message': f'PPPoE Account {account.username} resumed locally.'})
+
+        res = ProvisioningService.resume_service(account.service)
+        success = res.get('success', False) if isinstance(res, dict) else bool(res)
+        account.refresh_from_db()
+        return Response({
+            'success': success,
+            'status': account.status,
+            'provisioning_status': account.provisioning_status,
+            'last_error': account.last_error,
+        })
+
+    @action(detail=True, methods=['post'], url_path='terminate')
+    def terminate(self, request, pk=None):
+        """
+        Terminates the PPPoE account on the router (removes credentials and closes sessions).
+        """
+        account = self.get_object()
+        if not can(request.user, request.tenant, 'router.manage', account.router):
+            return Response({'error': 'Permission denied: router.manage required.'}, status=status.HTTP_403_FORBIDDEN)
+        if not account.service:
+            account.terminate()
+            return Response({'message': f'PPPoE Account {account.username} terminated locally.'})
+
+        res = ProvisioningService.terminate_service(account.service)
+        success = res.get('success', False) if isinstance(res, dict) else bool(res)
+        account.refresh_from_db()
+        return Response({
+            'success': success,
+            'status': account.status,
+            'provisioning_status': account.provisioning_status,
+            'last_error': account.last_error,
+        })
+
+    @action(detail=True, methods=['post'], url_path='disconnect-session')
+    def disconnect_session(self, request, pk=None):
+        """
+        Drops any active live session for this PPPoE account on the router.
+        """
+        account = self.get_object()
+        if not can(request.user, request.tenant, 'router.manage', account.router):
+            return Response({'error': 'Permission denied: router.manage required.'}, status=status.HTTP_403_FORBIDDEN)
+        if not account.router:
+            return Response({'error': 'Account has no assigned router.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        dropped = False
+        try:
+            svc = MikroTikService(account.router)
+            dropped = svc.disconnect_session(account.username)
+        except Exception as exc:
+            logger.warning("Failed to disconnect live session for %s: %s", account.username, exc)
+
+        UserSession.objects.filter(router=account.router, username=account.username).delete()
+
+        return Response({
+            'username': account.username,
+            'router': account.router.name,
+            'session_dropped_on_device': dropped,
+            'message': f'Session disconnected for {account.username}.'
+        })
+

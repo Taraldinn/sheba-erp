@@ -164,10 +164,20 @@ class CustomerService(models.Model):
     termination_date = models.DateTimeField(null=True, blank=True)
     monthly_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     router = models.ForeignKey('network.Router', on_delete=models.SET_NULL, null=True, blank=True, related_name='customer_services')
+    provisioning_status = models.CharField(
+        max_length=30,
+        default='NOT_PROVISIONED',
+        db_index=True,
+        help_text="Network hardware provisioning status (NOT_PROVISIONED, PROVISIONING, PROVISIONED, FAILED, DEPROVISIONED)"
+    )
     network_metadata = models.JSONField(default=dict, blank=True)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def pppoe_account(self):
+        return self.pppoe_accounts.first()
 
     def clean(self):
         super().clean()

@@ -49,7 +49,10 @@ from apps.payments.bkash_views import (
     BKashPayBillQueryView, BKashPayBillPayView, BKashPayBillSearchView, ManualSMSForwarderView,
     CheckoutStatusView
 )
-from apps.network.views import RouterViewSet, OLTViewSet, ONUViewSet, UserSessionViewSet, POPBranchViewSet, TJBoxViewSet
+from apps.network.views import (
+    RouterViewSet, OLTViewSet, ONUViewSet, UserSessionViewSet, POPBranchViewSet, TJBoxViewSet,
+    NetworkProfileViewSet, PPPoEAccountViewSet
+)
 from apps.support.views import TicketViewSet
 from apps.hr.views import EmployeeViewSet, AttendanceViewSet, LeaveRequestViewSet, AdvanceSalaryViewSet, PayrollRecordViewSet
 from apps.store.views import StoreItemViewSet, StockTransactionViewSet
@@ -125,6 +128,8 @@ router.register(r'sms-logs', SmsLogViewSet, basename='sms-log')
 router.register(r'payments/events', InboundPaymentEventViewSet, basename='inbound-payment-event')
 router.register(r'payment-events', InboundPaymentEventViewSet, basename='payment-event')
 router.register(r'routers', RouterViewSet, basename='router')
+router.register(r'network/profiles', NetworkProfileViewSet, basename='network-profile')
+router.register(r'network/pppoe', PPPoEAccountViewSet, basename='pppoe-account')
 router.register(r'olts', OLTViewSet, basename='olt')
 router.register(r'onus', ONUViewSet, basename='onu')
 router.register(r'branches', POPBranchViewSet, basename='branch')

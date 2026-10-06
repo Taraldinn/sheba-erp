@@ -334,3 +334,52 @@ class WireGuardAuditEventSerializer(serializers.ModelSerializer):
             return obj.router.name if obj.router else ''
         cfg = obj.config
         return cfg.router.name if cfg and cfg.router_id else (cfg.router_name if cfg else '')
+
+
+class NetworkProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        from .models import NetworkProfile
+        model = NetworkProfile
+        fields = [
+            'id', 'name', 'mikrotik_profile', 'download_rate_mbps', 'upload_rate_mbps',
+            'burst_download_mbps', 'burst_upload_mbps', 'burst_threshold_mbps', 'burst_time_seconds',
+            'priority', 'address_pool', 'dns_servers', 'radius_attributes', 'status',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ('tenant', 'created_at', 'updated_at')
+
+
+class PPPoEAccountSerializer(serializers.ModelSerializer):
+    router_name = serializers.CharField(source='router.name', read_only=True)
+    router_ip = serializers.CharField(source='router.ip_address', read_only=True)
+    customer_code = serializers.CharField(source='customer.customer_code', read_only=True, default='')
+    customer_name = serializers.CharField(source='customer.full_name', read_only=True, default='')
+    service_identifier = serializers.CharField(source='service.service_identifier', read_only=True, default='')
+    package_name = serializers.CharField(source='package.name', read_only=True, default='')
+    network_profile_name = serializers.CharField(source='network_profile.name', read_only=True, default='')
+
+    class Meta:
+        from .models import PPPoESecretItem
+        model = PPPoESecretItem
+        fields = [
+            'id', 'router', 'router_name', 'router_ip', 'customer', 'customer_code', 'customer_name',
+            'service', 'service_identifier', 'package', 'package_name', 'network_profile', 'network_profile_name',
+            'username', 'password', 'status', 'provisioning_status', 'reconciliation_status',
+            'router_profile', 'expected_profile', 'router_disabled', 'expected_disabled',
+            'last_provisioned_at', 'last_error', 'last_reconciled_at', 'last_synced_at',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = (
+            'tenant', 'reconciliation_status', 'router_profile', 'expected_profile',
+            'router_disabled', 'expected_disabled', 'last_provisioned_at', 'last_error',
+            'last_reconciled_at', 'last_synced_at', 'created_at', 'updated_at',
+        )
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False},
+        }
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret.pop('password', None)
+        return ret
+

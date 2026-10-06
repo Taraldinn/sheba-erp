@@ -518,6 +518,42 @@ NetworkAction = NetworkSyncJob
 # Phase 12: MikroTik Reconciliation + PPPoE Models
 # ─────────────────────────────────────────────────────────────────────────────
 
+class NetworkProfileStatus(models.TextChoices):
+    ACTIVE = 'ACTIVE', 'Active'
+    INACTIVE = 'INACTIVE', 'Inactive'
+    ARCHIVED = 'ARCHIVED', 'Archived'
+
+
+class NetworkProfile(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='network_profiles')
+    name = models.CharField(max_length=150)
+    mikrotik_profile = models.CharField(max_length=150, help_text="MikroTik RouterOS / RADIUS Profile name (e.g. 20M, VIP_50M)")
+    download_rate_mbps = models.PositiveIntegerField(default=10)
+    upload_rate_mbps = models.PositiveIntegerField(default=10)
+    burst_download_mbps = models.PositiveIntegerField(null=True, blank=True)
+    burst_upload_mbps = models.PositiveIntegerField(null=True, blank=True)
+    burst_threshold_mbps = models.PositiveIntegerField(null=True, blank=True)
+    burst_time_seconds = models.PositiveIntegerField(null=True, blank=True)
+    priority = models.PositiveIntegerField(default=8)
+    address_pool = models.CharField(max_length=100, blank=True, default='')
+    dns_servers = models.CharField(max_length=200, blank=True, default='')
+    radius_attributes = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=20, choices=NetworkProfileStatus.choices, default=NetworkProfileStatus.ACTIVE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'name'], name='unique_tenant_network_profile_name'),
+            models.UniqueConstraint(fields=['tenant', 'mikrotik_profile'], name='unique_tenant_mikrotik_profile_name'),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.mikrotik_profile})"
+
+
 class ReconciliationStatus(models.TextChoices):
     MATCHED = 'MATCHED', 'Matched'
     MISSING_IN_ROUTER = 'MISSING_IN_ROUTER', 'Missing in Router'
@@ -528,13 +564,35 @@ class ReconciliationStatus(models.TextChoices):
     ERROR = 'ERROR', 'Error'
 
 
+class PPPoEStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    ACTIVE = 'ACTIVE', 'Active'
+    SUSPENDED = 'SUSPENDED', 'Suspended'
+    DISABLED = 'DISABLED', 'Disabled'
+    TERMINATED = 'TERMINATED', 'Terminated'
+
+
+class ProvisioningStatus(models.TextChoices):
+    NOT_PROVISIONED = 'NOT_PROVISIONED', 'Not Provisioned'
+    PROVISIONING = 'PROVISIONING', 'Provisioning'
+    PROVISIONED = 'PROVISIONED', 'Provisioned'
+    FAILED = 'FAILED', 'Failed'
+    DEPROVISIONING = 'DEPROVISIONING', 'Deprovisioning'
+    DEPROVISIONED = 'DEPROVISIONED', 'Deprovisioned'
+
+
 class PPPoESecretItem(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='pppoe_secrets')
     router = models.ForeignKey(Router, on_delete=models.CASCADE, related_name='pppoe_secrets')
     customer = models.ForeignKey('customers.Customer', on_delete=models.SET_NULL, null=True, blank=True, related_name='pppoe_secrets')
+    service = models.ForeignKey('customers.CustomerService', on_delete=models.SET_NULL, null=True, blank=True, related_name='pppoe_accounts')
     package = models.ForeignKey('billing.Package', on_delete=models.SET_NULL, null=True, blank=True, related_name='pppoe_secrets')
+    network_profile = models.ForeignKey(NetworkProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='pppoe_accounts')
     username = models.CharField(max_length=100, db_index=True)
+    password = EncryptedCharField(max_length=255, blank=True, default='')
+    status = models.CharField(max_length=20, choices=PPPoEStatus.choices, default=PPPoEStatus.ACTIVE, db_index=True)
+    provisioning_status = models.CharField(max_length=30, choices=ProvisioningStatus.choices, default=ProvisioningStatus.NOT_PROVISIONED, db_index=True)
     reconciliation_status = models.CharField(
         max_length=30,
         choices=ReconciliationStatus.choices,
@@ -549,6 +607,8 @@ class PPPoESecretItem(models.Model):
     router_caller_id = models.CharField(max_length=100, blank=True, default='')
     router_service = models.CharField(max_length=50, blank=True, default='pppoe')
     discrepancy_details = models.JSONField(default=dict, blank=True)
+    last_provisioned_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True, default='')
     last_reconciled_at = models.DateTimeField(default=timezone.now)
     last_synced_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -560,12 +620,55 @@ class PPPoESecretItem(models.Model):
             models.UniqueConstraint(fields=['tenant', 'router', 'username'], name='unique_tenant_router_secret_username'),
         ]
         indexes = [
+            models.Index(fields=['tenant', 'status'], name='pppoe_tenant_st_idx'),
+            models.Index(fields=['tenant', 'provisioning_status'], name='pppoe_tenant_prov_idx'),
             models.Index(fields=['tenant', 'reconciliation_status'], name='pppoe_tenant_status_idx'),
             models.Index(fields=['tenant', 'router', 'reconciliation_status'], name='pppoe_t_r_status_idx'),
         ]
 
     def __str__(self):
-        return f"{self.username} on {self.router.name} ({self.reconciliation_status})"
+        return f"{self.username} on {self.router.name} ({self.status} / {self.reconciliation_status})"
+
+    def activate(self):
+        if self.status == PPPoEStatus.TERMINATED:
+            raise ValidationError("Terminated PPPoE account cannot be reactivated directly.")
+        self.status = PPPoEStatus.ACTIVE
+        self.router_disabled = False
+        self.expected_disabled = False
+        self.save(update_fields=['status', 'router_disabled', 'expected_disabled', 'updated_at'])
+
+    def suspend(self):
+        if self.status == PPPoEStatus.TERMINATED:
+            raise ValidationError("Cannot suspend a terminated PPPoE account.")
+        self.status = PPPoEStatus.SUSPENDED
+        self.router_disabled = True
+        self.expected_disabled = True
+        self.save(update_fields=['status', 'router_disabled', 'expected_disabled', 'updated_at'])
+
+    def resume(self):
+        if self.status != PPPoEStatus.SUSPENDED:
+            raise ValidationError("Only suspended PPPoE accounts can be resumed.")
+        self.status = PPPoEStatus.ACTIVE
+        self.router_disabled = False
+        self.expected_disabled = False
+        self.save(update_fields=['status', 'router_disabled', 'expected_disabled', 'updated_at'])
+
+    def disable(self):
+        self.status = PPPoEStatus.DISABLED
+        self.router_disabled = True
+        self.expected_disabled = True
+        self.save(update_fields=['status', 'router_disabled', 'expected_disabled', 'updated_at'])
+
+    def terminate(self):
+        self.status = PPPoEStatus.TERMINATED
+        self.router_disabled = True
+        self.expected_disabled = True
+        self.provisioning_status = ProvisioningStatus.DEPROVISIONED
+        self.save(update_fields=['status', 'router_disabled', 'expected_disabled', 'provisioning_status', 'updated_at'])
+
+
+# First-class alias for Phase 4 domain naming
+PPPoEAccount = PPPoESecretItem
 
 
 class ReconciliationRun(models.Model):

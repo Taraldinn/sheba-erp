@@ -520,3 +520,71 @@ def poll_wireguard_handshakes(self=None, tenant_id=None):
             summary['failures'] += 1
             logger.warning('poll_wireguard_handshakes failed for %s: %s', config.id, exc)
     return {'success': True, **summary}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 4: Asynchronous Service & PPPoE Provisioning Tasks
+# ─────────────────────────────────────────────────────────────────────────────
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=15)
+def provision_service_task(self, tenant_id, service_id, password=None, profile_name=None, actor_username='celery-worker'):
+    """
+    Asynchronously provisions a customer service onto MikroTik/RADIUS.
+    """
+    from apps.customers.models import CustomerService
+    from apps.network.services.provisioning import ProvisioningService
+
+    service = CustomerService.objects.filter(id=service_id, tenant_id=tenant_id).select_related('customer', 'package', 'router').first()
+    if not service:
+        logger.warning("provision_service_task: Service %s not found for tenant %s", service_id, tenant_id)
+        return {'success': False, 'error': 'Service not found'}
+
+    try:
+        return ProvisioningService.provision_service(
+            service=service,
+            password=password,
+            profile_name=profile_name,
+            actor=actor_username
+        )
+    except Exception as exc:
+        logger.warning("provision_service_task failed for service %s: %s", service_id, exc)
+        if self and hasattr(self, 'request') and self.request.retries < self.max_retries:
+            raise self.retry(exc=exc)
+        return {'success': False, 'error': str(exc)}
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=15)
+def suspend_service_task(self, tenant_id, service_id, reason='', actor_username='celery-worker'):
+    from apps.customers.models import CustomerService
+    from apps.network.services.provisioning import ProvisioningService
+
+    service = CustomerService.objects.filter(id=service_id, tenant_id=tenant_id).select_related('customer', 'package', 'router').first()
+    if not service:
+        return {'success': False, 'error': 'Service not found'}
+
+    return ProvisioningService.suspend_service(service=service, reason=reason, actor=actor_username)
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=15)
+def resume_service_task(self, tenant_id, service_id, actor_username='celery-worker'):
+    from apps.customers.models import CustomerService
+    from apps.network.services.provisioning import ProvisioningService
+
+    service = CustomerService.objects.filter(id=service_id, tenant_id=tenant_id).select_related('customer', 'package', 'router').first()
+    if not service:
+        return {'success': False, 'error': 'Service not found'}
+
+    return ProvisioningService.resume_service(service=service, actor=actor_username)
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=15)
+def terminate_service_task(self, tenant_id, service_id, actor_username='celery-worker'):
+    from apps.customers.models import CustomerService
+    from apps.network.services.provisioning import ProvisioningService
+
+    service = CustomerService.objects.filter(id=service_id, tenant_id=tenant_id).select_related('customer', 'package', 'router').first()
+    if not service:
+        return {'success': False, 'error': 'Service not found'}
+
+    return ProvisioningService.terminate_service(service=service, actor=actor_username)
+
