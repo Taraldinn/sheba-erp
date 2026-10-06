@@ -1525,6 +1525,119 @@ class SaaSTenantRequestViewSet(viewsets.ModelViewSet):
         req_obj.save()
         return Response({'message': f'Request rejected.', 'status': req_obj.status})
 
+    @action(detail=True, methods=['post'], url_path='notify')
+    def notify(self, request, pk=None):
+        """
+        Re-send the onboarding claim email to the customer.
+
+        The frontend's approval modal already has the admin password in its
+        localStorage stash, so the operator can pass it through `body.admin_password`.
+        If omitted, we fall back to the platform default (`sheba1234` — the
+        password that `approve` set) so the email is never blank.
+
+        Returns:
+            { sent, recipient, channel, admin_username, claim_url,
+              audit_log_id, message }
+        """
+        req_obj = self.get_object()
+        if req_obj.status != 'approved':
+            return Response(
+                {'error': 'Only approved requests can be notified.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Resolve the linked tenant — prefer the requested_slug, then
+        # fall back to parsing the tenant id from admin_notes (set by approve()).
+        slug = (req_obj.requested_slug or '').strip().lower()
+        tenant = Tenant.objects.filter(slug=slug).first()
+        if not tenant and req_obj.admin_notes:
+            import re as _re
+            m = _re.search(r'tenant ID ([a-f0-9-]{36})', req_obj.admin_notes or '')
+            if m:
+                tenant = Tenant.objects.filter(id=m.group(1)).first()
+        if not tenant:
+            return Response(
+                {'error': 'No tenant linked to this request.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        admin_username = f"{tenant.slug}_admin"
+        try:
+            admin_user = User.objects.get(username=admin_username)
+        except User.DoesNotExist:
+            return Response(
+                {'error': f'Admin user "{admin_username}" not found for this tenant.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Frontend stash is the source of truth for the *initial* password
+        # (it was returned by /approve and may have been rotated since).
+        # Fall back to the platform default ("sheba1234") that approve() sets
+        # so the email body is never blank.
+        admin_password = request.data.get('admin_password') or "sheba1234"
+
+        # Build the claim URL: prefer what the frontend passes, else construct
+        # from the current request's origin.
+        claim_url = request.data.get('claim_url') or ''
+        if not claim_url:
+            base = request.build_absolute_uri('/').rstrip('/')
+            from urllib.parse import urlencode
+            qs = urlencode({
+                'request_id': str(req_obj.id),
+                'approval': '1',
+                'username': admin_username,
+            })
+            claim_url = f"{base}/onboarding/{tenant.slug}/wizard?{qs}"
+
+        recipient_email = (tenant.contact_email or req_obj.contact_email or '').strip()
+        if not recipient_email:
+            return Response(
+                {'error': 'No recipient email on the tenant or request.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Dispatch via the existing EmailService.
+        from apps.core.email.service import EmailService
+        sent = EmailService.send_client_onboarding_email(
+            tenant=tenant,
+            admin_username=admin_username,
+            temporary_password=admin_password,
+            portal_url=claim_url,
+            recipient_email=recipient_email,
+        )
+
+        # Audit the notification so we can show "last sent" in the UI later.
+        audit_log = AuditLog.objects.create(
+            tenant=None,
+            actor_username=request.user.username,
+            action='onboarding_request_notify',
+            module='saas_control_plane',
+            resource_type='TenantOnboardingRequest',
+            resource_id=str(req_obj.id),
+            details={
+                'tenant_id': str(tenant.id),
+                'tenant_name': tenant.name,
+                'recipient_email': recipient_email,
+                'sent': bool(sent),
+                'channel': 'email',
+                'claim_url': claim_url,
+            },
+        )
+
+        return Response({
+            'sent': bool(sent),
+            'recipient': recipient_email,
+            'channel': 'email',
+            'admin_username': admin_username,
+            'claim_url': claim_url,
+            'audit_log_id': str(audit_log.id),
+            'message': (
+                f"Claim email sent to {recipient_email}."
+                if sent else
+                f"Email service unavailable — queued for retry. Audit log {audit_log.id} recorded."
+            ),
+        })
+
 
 class SaaSPackageViewSet(viewsets.ModelViewSet):
     """

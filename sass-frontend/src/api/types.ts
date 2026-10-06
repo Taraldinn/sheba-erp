@@ -384,3 +384,45 @@ export interface LiveSessionItem {
   calling_station_id?: string;
   rate_limit?: string;
 }
+
+// ── Onboarding API surface ──────────────────────────────────────────────
+
+export interface CompanySetting {
+  id?: string;
+  tenant?: string;
+  company_name?: string;
+  tagline?: string;
+  logo_url?: string;
+  favicon_url?: string;
+  website?: string;
+  support_phone?: string;
+  support_email?: string;
+  address?: string;
+  tax_number?: string;
+  currency_symbol?: string;
+  currency_code?: string;
+  theme_mode?: 'light' | 'dark' | 'system' | 'midnight' | 'cyberpunk';
+  accent_color?: string;
+  primary_color?: string;
+  secondary_color?: string;
+  sms_enabled?: boolean;
+  sms_provider?: string;
+  updated_at?: string;
+}
+
+export interface POPBranch {
+  id?: string;
+  tenant?: string;
+  name: string;
+  code: string;
+  location?: string;
+  address?: string;
+  status?: 'Active' | 'Inactive' | 'Maintenance';
+  in_charge_name?: string;
+  in_charge_phone?: string;
+  in_charge_email?: string;
+  upstream_router?: string | null;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}

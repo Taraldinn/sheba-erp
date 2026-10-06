@@ -9,11 +9,9 @@ import {
 } from '@untitledui/icons';
 import { NavList, NavAccountCard } from '@/components/application/app-navigation/sidebar-navigation-base';
 import type { NavItemDividerType, NavItemType } from '@/components/application/app-navigation/config';
-import { UntitledLogo } from '@/components/foundations/logo/untitledui-logo';
 import { ThemeToggle } from '@/components/application/theme/theme-toggle';
 import { NotificationCenter } from '@/components/application/notifications/notification-center';
 import { CommandMenu } from '@/components/application/command-menu/command-menu';
-import { DevPortalSwitcher } from '@/portal/dev-portal-switcher';
 import { usePortal } from '@/portal/portal-provider';
 import { useTenant } from '@/portal/tenant-provider';
 import { useAuth } from '@/portal/auth-provider';
@@ -22,10 +20,12 @@ export interface AppShellProps {
     navItems: (NavItemType | NavItemDividerType)[];
     portalName: string;
     portalBadge?: string;
+    /** Optional element to inject to the right of the topbar (e.g. tenant switcher). */
+    headerExtra?: React.ReactNode;
     children: React.ReactNode;
 }
 
-export function AppShell({ navItems, portalName, portalBadge, children }: AppShellProps) {
+export function AppShell({ navItems, portalName, portalBadge, headerExtra, children }: AppShellProps) {
     const location = useLocation();
     const navigate = useNavigate();
     const portal = usePortal();
@@ -83,20 +83,17 @@ export function AppShell({ navItems, portalName, portalBadge, children }: AppShe
             {/* Desktop Sidebar */}
             <aside className="hidden lg:flex lg:w-72 lg:flex-col lg:fixed lg:inset-y-0 border-r border-secondary bg-primary z-30">
                 {/* Branding / Logo */}
-                <div className="flex items-center justify-between gap-3 px-6 py-5 border-b border-secondary">
-                    <div className="flex items-center gap-3">
-                        {tenant?.logo ? (
-                            <img src={tenant.logo} alt={tenant.name} className="h-8 max-w-[120px] object-contain" />
-                        ) : (
-                            <UntitledLogo className="size-8" />
-                        )}
-                        <div>
-                            <h2 className="text-sm font-semibold text-primary leading-tight">
+                <div className="flex items-center gap-3 px-4 py-4 border-b border-secondary min-w-0">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="min-w-0 flex-1">
+                            <h2 className="text-sm font-semibold text-primary leading-tight truncate">
                                 {tenant?.name || portalName}
                             </h2>
-                            <p className="text-[11px] font-medium text-brand-primary">
-                                {portalBadge || portal.portal.replace('_', ' ')}
-                            </p>
+                            {portalBadge && (
+                                <p className="text-[10px] font-medium uppercase tracking-wide text-brand-primary truncate">
+                                    {portalBadge}
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -132,18 +129,18 @@ export function AppShell({ navItems, portalName, portalBadge, children }: AppShe
                         </button>
 
                         {/* Breadcrumbs */}
-                        <nav className="hidden sm:flex items-center gap-1.5 text-xs text-tertiary">
-                            <Link to="/" className="flex items-center gap-1 hover:text-primary transition-colors">
+                        <nav className="hidden sm:flex items-center gap-1.5 text-xs text-tertiary min-w-0 max-w-[40vw] overflow-hidden">
+                            <Link to="/" className="flex items-center gap-1 hover:text-primary transition-colors shrink-0">
                                 <HomeLine className="size-3.5" />
                                 <span>Home</span>
                             </Link>
                             {breadcrumbs.map((bc, idx) => (
                                 <React.Fragment key={bc.url}>
-                                    <ChevronRight className="size-3 text-quaternary" />
+                                    <ChevronRight className="size-3 text-quaternary shrink-0" />
                                     {idx === breadcrumbs.length - 1 ? (
-                                        <span className="font-medium text-primary">{bc.label}</span>
+                                        <span className="font-medium text-primary truncate">{bc.label}</span>
                                     ) : (
-                                        <Link to={bc.url} className="hover:text-primary transition-colors">
+                                        <Link to={bc.url} className="hover:text-primary transition-colors truncate">
                                             {bc.label}
                                         </Link>
                                     )}
@@ -154,6 +151,8 @@ export function AppShell({ navItems, portalName, portalBadge, children }: AppShe
 
                     {/* Right: Search, Notifications, Theme, Switcher */}
                     <div className="flex items-center gap-2 sm:gap-3">
+                        {headerExtra}
+
                         {/* Command Menu Search Trigger Button */}
                         <button
                             type="button"
@@ -169,7 +168,6 @@ export function AppShell({ navItems, portalName, portalBadge, children }: AppShe
 
                         <NotificationCenter />
                         <ThemeToggle />
-                        <DevPortalSwitcher />
                     </div>
                 </header>
 
@@ -189,7 +187,6 @@ export function AppShell({ navItems, portalName, portalBadge, children }: AppShe
                     <div className="fixed inset-y-0 left-0 flex w-72 flex-col bg-primary border-r border-secondary shadow-2xl z-50 animate-in slide-in-from-left duration-200">
                         <div className="flex items-center justify-between border-b border-secondary px-6 py-4">
                             <div className="flex items-center gap-2.5">
-                                <UntitledLogo className="size-7" />
                                 <span className="text-sm font-semibold text-primary">{tenant?.name || portalName}</span>
                             </div>
                             <button

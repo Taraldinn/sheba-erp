@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { Mail01, Lock01, ShieldTick, ArrowRight, Building07, ChevronDown } from '@untitledui/icons';
+import { Mail01, Lock01, ShieldTick, ArrowRight, Building07, ChevronDown, UserCircle01 } from '@untitledui/icons';
 import { saasApi, tenantApi, STORAGE_KEYS, type Plane } from '@/api/client';
 import { usePlane } from '@/providers/plane-provider';
 import { Button } from '@/components/base/buttons/button';
@@ -11,6 +11,7 @@ import { ThemeToggle } from '@/components/application/theme/theme-toggle';
 import { cx as clx } from '@/utils/cx';
 import { usePortal } from '@/portal/portal-provider';
 import { DevPortalSwitcher } from '@/portal/dev-portal-switcher';
+import { USER_ROLES, getRole, type UserRoleKey } from '@/auth/types';
 
 /**
  * Odoo-style login:
@@ -47,6 +48,24 @@ interface DatabaseState {
 
 const EMPTY_DATABASE: DatabaseState = { selected: '', options: [], locked: false };
 
+/**
+ * Resolve the post-login landing route based on the user's role and the
+ * active portal. The backend's `dashboard_url` wins; otherwise we fall
+ * back to the role catalog's `homeRoute`.
+ */
+function computeLandingPath(userOrRaw: any, plane: Plane): string {
+    const u = typeof userOrRaw === 'string' ? safeParse(userOrRaw) : userOrRaw;
+    const explicit = u?.dashboard_url;
+    if (explicit && typeof explicit === 'string') return explicit;
+    const role = (u?.role || (plane === 'central' ? 'SUPER_ADMIN' : 'ADMIN')) as UserRoleKey;
+    const desc = USER_ROLES[role] ?? USER_ROLES.STAFF;
+    return desc.homeRoute || (plane === 'central' ? '/' : '/');
+}
+
+function safeParse(raw: string): any {
+    try { return JSON.parse(raw); } catch { return null; }
+}
+
 export function LoginScreen() {
     const plane = usePlane();
     const portal = usePortal();
@@ -81,7 +100,10 @@ export function LoginScreen() {
         if (typeof window === 'undefined') return;
         const tokenKey = active === 'central' ? STORAGE_KEYS.centralToken : STORAGE_KEYS.tenantToken;
         if (window.localStorage.getItem(tokenKey)) {
-            navigate('/', { replace: true });
+            const userKey = active === 'central' ? STORAGE_KEYS.centralUser : STORAGE_KEYS.tenantUser;
+            const raw = window.localStorage.getItem(userKey);
+            const landing = computeLandingPath(raw, active);
+            navigate(landing, { replace: true });
         }
     }, [active, navigate]);
 
@@ -106,17 +128,27 @@ export function LoginScreen() {
     }, [active, bootstrapUsername, urlTenant]);
 
     const title = useMemo(() => {
-        if (active === 'tenant') return 'Sign in to your ISP';
-        return 'Sign in to Admin Console';
-    }, [active]);
+        if (active === 'central') return 'Sign in to Super Admin Console';
+        if (portal.portal === 'ISP_ADMIN') return 'Sign in to ISP Admin';
+        return 'Sign in to your ISP';
+    }, [active, portal.portal]);
 
     const subtitle = useMemo(() => {
-        if (active === 'central') return 'Central management for enterprise tenants, billing, and domains';
+        if (active === 'central') return 'Platform management for tenants, billing, audit logs, and global feature matrix.';
+        if (portal.portal === 'ISP_ADMIN') return 'Manage your ISP operations: subscribers, billing, MikroTik, support, and staff.';
         if (plane.detection === 'tenant') return 'Hosted on your subdomain — pick the right database to continue.';
         return db.options.length > 0
             ? 'Pick the ISP database that matches your account.'
             : 'Enter your credentials to see the databases your account can access.';
-    }, [active, plane.detection, db.options.length]);
+    }, [active, portal.portal, plane.detection, db.options.length]);
+
+    const badgeLabel = useMemo(() => {
+        if (active === 'central') return 'Super Admin Plane';
+        if (portal.portal === 'ISP_ADMIN') return 'ISP Admin Plane';
+        return 'Tenant Plane';
+    }, [active, portal.portal]);
+
+    const badgeColor = active === 'central' ? 'brand' : portal.portal === 'ISP_ADMIN' ? 'indigo' : 'purple';
 
     // ── Core login handler ─────────────────────────────────────────────────
     const doLogin = useCallback(
@@ -177,7 +209,7 @@ export function LoginScreen() {
                     setHint(`Auto-selected "${only.name}". Confirming…`);
                     const second = await doLogin({ username: username.trim(), password, tenant: only.slug });
                     persistSession(second);
-                    navigate('/', { replace: true });
+                    navigate(computeLandingPath(second?.user, active), { replace: true });
                     return;
                 }
                 setDb({ selected: '', options, locked: false });
@@ -197,7 +229,7 @@ export function LoginScreen() {
                     return;
                 }
             }
-            navigate('/', { replace: true });
+            navigate(computeLandingPath(res?.user, active), { replace: true });
         } catch (err: any) {
             const msg = err?.message || 'Authentication failed. Please verify credentials.';
             setError(msg);
@@ -239,8 +271,8 @@ export function LoginScreen() {
             <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
                 <UntitledLogo className="h-10 w-auto" />
                 <div className="mt-4 flex items-center gap-2">
-                    <Badge color={active === 'central' ? 'brand' : 'purple'} size="sm">
-                        {active === 'central' ? 'SaaS Control Plane' : 'Tenant Plane'}
+                    <Badge color={badgeColor} size="sm">
+                        {badgeLabel}
                     </Badge>
                     <span className="text-xs text-tertiary">v2.4.0</span>
                 </div>
@@ -256,26 +288,31 @@ export function LoginScreen() {
                     <div
                         role="tablist"
                         aria-label="Login plane"
-                        className="grid grid-cols-2 rounded-xl border border-secondary bg-primary_alt p-1 text-sm font-medium"
+                        className="grid grid-cols-3 rounded-xl border border-secondary bg-primary_alt p-1 text-xs font-medium sm:text-sm"
                     >
-                        {(['central', 'tenant'] as const).map((p) => (
-                            <button
-                                key={p}
-                                role="tab"
-                                aria-selected={active === p}
-                                type="button"
-                                onClick={() => setActive(p)}
-                                className={clx(
-                                    'flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 transition-colors',
-                                    active === p
-                                        ? 'bg-primary text-primary shadow-sm'
-                                        : 'text-tertiary hover:text-secondary'
-                                )}
-                            >
-                                {p === 'central' ? <ShieldTick className="size-4" /> : <Building07 className="size-4" />}
-                                {p === 'central' ? 'Central admin' : 'Tenant'}
-                            </button>
-                        ))}
+                        {(['central', 'tenant'] as const).map((p) => {
+                            const label = p === 'central' ? 'Super admin' : (portal.portal === 'ISP_ADMIN' ? 'ISP admin' : 'Tenant');
+                            const Icon = p === 'central' ? ShieldTick : Building07;
+                            return (
+                                <button
+                                    key={p}
+                                    role="tab"
+                                    aria-selected={active === p}
+                                    type="button"
+                                    onClick={() => setActive(p)}
+                                    className={clx(
+                                        'flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 transition-colors',
+                                        active === p
+                                            ? 'bg-primary text-primary shadow-sm'
+                                            : 'text-tertiary hover:text-secondary'
+                                    )}
+                                >
+                                    <Icon className="size-4" />
+                                    {label}
+                                </button>
+                            );
+                        })}
+                        <span aria-hidden="true" />
                     </div>
                 </div>
             )}
@@ -334,16 +371,22 @@ export function LoginScreen() {
                         {active === 'central' ? 'Authenticate & Enter' : 'Sign in'}
                     </Button>
 
-                    <div className="pt-2 border-t border-secondary">
+                    <div className="flex items-center justify-between pt-3 border-t border-secondary">
                         <button
                             type="button"
                             onClick={handleQuickDemo}
-                            className="w-full py-2 text-xs text-center text-brand-solid hover:underline font-medium"
+                            className="text-xs font-medium text-brand-solid hover:underline"
                         >
                             {active === 'central'
-                                ? 'Fill Administrator Credentials'
+                                ? 'Fill administrator credentials'
                                 : 'Reset form'}
                         </button>
+                        <a
+                            href={active === 'central' ? '/forgot-password?role=SUPER' : `/forgot-password?role=${portal.portal === 'ISP_ADMIN' ? 'ISP' : 'TENANT'}`}
+                            className="text-xs font-medium text-tertiary hover:text-secondary"
+                        >
+                            Forgot password?
+                        </a>
                     </div>
                 </form>
             </div>

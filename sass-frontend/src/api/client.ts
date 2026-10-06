@@ -4,7 +4,8 @@ import {
   TenantTelemetry, TenantFeatureFlag, TenantAdmin, ImpersonateResult,
   FeatureMatrixResponse, SaaSPlatformHealth, SaaSEmployee,
   RouterItem, RouterHealthInfo, ConnectionTestResult, NetworkProfileItem,
-  PPPoEAccountItem, ReconciliationRunItem, LiveSessionItem
+  PPPoEAccountItem, ReconciliationRunItem, LiveSessionItem,
+  CompanySetting, POPBranch
 } from './types';
 import { detectPlane, effectivePlane } from '@/lib/plane';
 
@@ -377,6 +378,23 @@ export const saasApi = {
   approveOnboarding: (id: string) => fetchApi<any>(`/requests/${id}/approve`, { method: 'POST', plane: 'central' }).then((res) => normalizeTenant(res?.tenant || res)),
   rejectOnboarding: (id: string, reason?: string) => fetchApi<void>(`/requests/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason: reason || 'Application rejected by platform administrator.' }), plane: 'central' }),
 
+  /**
+   * Re-send the claim email for an approved onboarding request. The backend
+   * calls `EmailService.send_client_onboarding_email` with the supplied
+   * `claim_url` as the portal URL and `admin_password` as the body password.
+   * Falls back to a generic 400 if the request is not in `approved` state.
+   */
+  notifyOnboarding: (id: string, payload?: { claim_url?: string; admin_password?: string }) =>
+    fetchApi<{
+      sent: boolean;
+      recipient: string;
+      channel: 'email' | 'sms' | 'none';
+      admin_username: string;
+      claim_url: string;
+      audit_log_id: string;
+      message: string;
+    }>(`/requests/${id}/notify`, { method: 'POST', body: JSON.stringify(payload || {}), plane: 'central' }),
+
   getPackages: () => fetchApi<any>('/packages', { plane: 'central' }).then((r) => extractList(r, normalizePackage)),
   createPackage: (data: Partial<Package>) => {
     const payload = {
@@ -572,6 +590,14 @@ export const tenantApi = {
   requestPasswordReset: async (email: string, tenant?: string) =>
     fetchApi<{ detail: string }>('/auth/password-reset', {
       method: 'POST', body: JSON.stringify({ email, ...(tenant ? { tenant } : {}) }), plane: 'tenant',
+    }),
+
+  /** Bootstrap password rotation — called after a sass-admin creates a new admin. */
+  setPassword: async (username: string, password: string, tenant?: string) =>
+    fetchApi<{ detail: string }>('/auth/set-password', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, ...(tenant ? { tenant } : {}) }),
+      plane: 'tenant',
     }),
 };
 
@@ -847,6 +873,80 @@ export const subscriptionApi = {
   },
 };
 
+// ── Onboarding API surface (tenant plane) ────────────────────────────────
+
+/**
+ * Tenant-side CompanySetting API.
+ *
+ * The backend auto-creates a CompanySetting row on first GET (per
+ * `CompanySettingViewSet.get_queryset`), so the wizard can always
+ * PATCH by `id` after a single read.
+ */
+export const companySettingApi = {
+  get: async (): Promise<CompanySetting> =>
+    fetchApi<CompanySetting>('/company-settings/', { plane: 'tenant' }),
+
+  partialUpdate: async (id: string, data: Partial<CompanySetting>): Promise<CompanySetting> =>
+    fetchApi<CompanySetting>(`/company-settings/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      plane: 'tenant',
+    }),
+
+  /**
+   * Convenience: PATCH /company-settings/{id}/ with a normalized subset of
+   * branding fields the wizard collects (logo, color, theme, contact, currency).
+   */
+  applyBranding: async (data: Partial<{
+    companyName: string;
+    tagline: string;
+    logoDataUrl: string | null;
+    faviconUrl: string | null;
+    brandColor: string;
+    themeMode: CompanySetting['theme_mode'];
+    currencyCode: string;
+    currencySymbol: string;
+    supportPhone: string;
+    supportEmail: string;
+  }>): Promise<CompanySetting> => {
+    const current = await fetchApi<CompanySetting>('/company-settings/', { plane: 'tenant' });
+    const payload: Partial<CompanySetting> = {};
+    if (data.companyName !== undefined) payload.company_name = data.companyName;
+    if (data.tagline !== undefined) payload.tagline = data.tagline;
+    if (data.logoDataUrl !== undefined) payload.logo_url = data.logoDataUrl || '';
+    if (data.faviconUrl !== undefined) payload.favicon_url = data.faviconUrl || '';
+    if (data.brandColor !== undefined) payload.accent_color = data.brandColor;
+    if (data.themeMode !== undefined) payload.theme_mode = data.themeMode;
+    if (data.currencyCode !== undefined) payload.currency_code = data.currencyCode;
+    if (data.currencySymbol !== undefined) payload.currency_symbol = data.currencySymbol;
+    if (data.supportPhone !== undefined) payload.support_phone = data.supportPhone;
+    if (data.supportEmail !== undefined) payload.support_email = data.supportEmail;
+    return fetchApi<CompanySetting>(`/company-settings/${current.id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+      plane: 'tenant',
+    });
+  },
+};
+
+/**
+ * Tenant-side POPBranch API. POPs require auth, so they're created
+ * after step 6 signs the new admin in.
+ */
+export const branchApi = {
+  list: async (params?: { status?: string; search?: string }): Promise<POPBranch[]> => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.search) q.set('search', params.search);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetchApi<any>(`/branches/${qs}`, { plane: 'tenant' });
+    return Array.isArray(res) ? res : (res?.results || []);
+  },
+
+  create: async (data: Omit<POPBranch, 'id' | 'tenant' | 'created_at' | 'updated_at'>): Promise<POPBranch> =>
+    fetchApi<POPBranch>('/branches/', { method: 'POST', body: JSON.stringify(data), plane: 'tenant' }),
+};
+
 export const ispPackageApi = {
   list: async (params?: { page?: number; search?: string }): Promise<{ items: IspPackageItem[]; total: number }> => {
     const q = new URLSearchParams();
@@ -1091,6 +1191,8 @@ export const api = {
   liveSession: liveSessionApi,
   notifications: notificationsApi,
   search: searchApi,
+  companySetting: companySettingApi,
+  branch: branchApi,
   getActivePlane,
   STORAGE_KEYS
 };

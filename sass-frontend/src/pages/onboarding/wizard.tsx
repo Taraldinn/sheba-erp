@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
+import { CheckCircle } from '@untitledui/icons';
 import { Button } from '@/components/base/buttons/button';
 import { Input } from '@/components/base/input/input';
+import { Checkbox } from '@/components/base/checkbox/checkbox';
 import { WizardShell } from '@/components/onboarding/wizard-shell';
 import {
     EMPTY_WIZARD_STATE,
@@ -50,6 +52,8 @@ export const WizardPage = () => {
     const [packages, setPackages] = useState<Package[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [submitMessage, setSubmitMessage] = useState<string | null>(null);
+    const [isApprovalFlow, setIsApprovalFlow] = useState(false);
     const initialized = useRef(false);
 
     // Pull URL params + tenant record on mount.
@@ -60,6 +64,11 @@ export const WizardPage = () => {
         const urlUsername = params.get('username') || '';
         const urlToken = params.get('token') || '';
         const requestId = params.get('request_id') || '';
+        // ?approval=1 → the wizard was opened from the admin's "claim link".
+        // The admin has already set a bootstrap password; the customer
+        // should NOT be asked to pick a new one.
+        const approvalFlag = params.get('approval') === '1';
+        if (approvalFlag) setIsApprovalFlow(true);
 
         setState((s) => ({
             ...s,
@@ -144,6 +153,11 @@ export const WizardPage = () => {
         switch (state.step) {
             case 1: {
                 const a = state.account;
+                if (isApprovalFlow) {
+                    // Admin already set the password — only require
+                    // a non-empty username + terms ack.
+                    return Boolean(a.username.trim() && a.acceptTerms);
+                }
                 return Boolean(
                     a.username.trim() &&
                     a.newPassword.length >= 8 &&
@@ -166,7 +180,7 @@ export const WizardPage = () => {
             case 5: return Boolean(state.packageId);
             default: return true;
         }
-    }, [state]);
+    }, [state, isApprovalFlow]);
 
     const onContinue = useCallback(async () => {
         setErrorMsg(null);
@@ -175,14 +189,26 @@ export const WizardPage = () => {
         if (state.step === 1) {
             setSubmitting(true);
             try {
-                const res = await claimAccount({
-                    tenantId: state.tenantId,
-                    username: state.account.username,
-                    newPassword: state.account.newPassword,
-                    bootstrapToken: state.bootstrapToken,
-                });
-                if (!res.success) setErrorMsg(res.message);
-                setStep(2);
+                if (isApprovalFlow) {
+                    // Admin already provisioned a bootstrap password; the
+                    // customer is just acknowledging the credentials they were sent.
+                    setSubmitMessage(
+                        `Credentials for ${state.account.username || state.bootstrapUsername} ready — sign-in happens automatically on the final step.`,
+                    );
+                    setStep(2);
+                } else {
+                    const res = await claimAccount({
+                        slug: state.slug,
+                        username: state.account.username,
+                        newPassword: state.account.newPassword,
+                    });
+                    if (!res.success) {
+                        setErrorMsg(res.error.message);
+                    } else {
+                        setSubmitMessage(res.message);
+                    }
+                    setStep(2);
+                }
             } finally { setSubmitting(false); }
             return;
         }
@@ -195,22 +221,43 @@ export const WizardPage = () => {
                     contactEmail: state.profile.contactEmail,
                     contactPhone: state.profile.contactPhone,
                     address: state.profile.address,
+                    city: state.profile.city,
+                    state: state.profile.state,
+                    postalCode: state.profile.postalCode,
+                    country: state.profile.country,
+                    currencyCode: state.profile.currency,
+                    language: state.profile.language,
+                    timezone: state.profile.timezone,
                 });
-                if (res.tenant) setState((s) => ({ ...s, tenant: res.tenant, tenantId: res.tenant!.id }));
-                setStep(3);
+                if (res.success) {
+                    if (res.data.tenant) {
+                        setState((s) => ({ ...s, tenant: res.data.tenant, tenantId: res.data.tenant!.id || s.tenantId }));
+                    }
+                    setSubmitMessage(res.message);
+                    setStep(3);
+                } else {
+                    setErrorMsg(res.error.message);
+                }
             } finally { setSubmitting(false); }
             return;
         }
         if (state.step === 3) {
             setSubmitting(true);
             try {
-                await setBrandingServer({
-                    tenantId: state.tenantId,
+                const res = await setBrandingServer({
+                    slug: state.slug,
                     logoDataUrl: state.branding.logoDataUrl,
                     brandColor: state.branding.brandColor,
                     customDomain: state.branding.customDomain,
+                    themeMode: 'dark',
+                    companyName: state.profile.name || state.profile.companyName,
                 });
-                setStep(4);
+                if (res.success) {
+                    setSubmitMessage(res.message);
+                    setStep(4);
+                } else {
+                    setErrorMsg(res.error.message);
+                }
             } finally { setSubmitting(false); }
             return;
         }
@@ -234,8 +281,16 @@ export const WizardPage = () => {
         if (state.step === 5) {
             setSubmitting(true);
             try {
-                await selectDefaultPackage({ tenantId: state.tenantId, packageId: state.packageId || '' });
-                setStep(6);
+                const res = await selectDefaultPackage({
+                    slug: state.slug,
+                    packageId: state.packageId || '',
+                });
+                if (res.success) {
+                    setSubmitMessage(res.message);
+                    setStep(6);
+                } else {
+                    setErrorMsg(res.error.message);
+                }
             } finally { setSubmitting(false); }
             return;
         }
@@ -307,9 +362,25 @@ export const WizardPage = () => {
                     </div>
                 )}
 
+                {submitMessage && !errorMsg && (
+                    <div className="mb-6 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
+                        {submitMessage}
+                    </div>
+                )}
+
                 {/* Step body */}
                 <div className="space-y-6">
-                    {state.step === 1 && (
+                    {state.step === 1 && isApprovalFlow && (
+                        <StepApprovalAck
+                            username={state.account.username || state.bootstrapUsername}
+                            bootstrapUsername={state.bootstrapUsername}
+                            acceptTerms={state.account.acceptTerms}
+                            onChange={(patch) =>
+                                setState((s) => ({ ...s, account: { ...s.account, ...patch } }))
+                            }
+                        />
+                    )}
+                    {state.step === 1 && !isApprovalFlow && (
                         <StepAccountClaim
                             username={state.account.username}
                             password={state.account.newPassword}
@@ -382,6 +453,51 @@ export const WizardPage = () => {
 };
 
 // ── Step components ───────────────────────────────────────────────────────
+
+/**
+ * Approval-mode step 1. Renders when the wizard is opened from an admin's
+ * claim link (`?approval=1`). No password fields — the admin already set
+ * one. Customer just confirms the username they were given.
+ */
+const StepApprovalAck = ({
+    username, bootstrapUsername, acceptTerms, onChange,
+}: {
+    username: string;
+    bootstrapUsername: string;
+    acceptTerms: boolean;
+    onChange: (patch: Partial<{ username: string; acceptTerms: boolean }>) => void;
+}) => (
+    <div className="space-y-5">
+        <div className="rounded-xl border border-emerald-300/40 bg-emerald-50/40 p-4 text-sm text-emerald-900">
+            <div className="flex items-center gap-2 font-semibold">
+                <CheckCircle className="size-4" />
+                <span>Account already provisioned</span>
+            </div>
+            <p className="mt-1 text-emerald-900/80">
+                ShebaFi has approved your registration. You don't need to set a
+                password — sign-in happens automatically when you finish the wizard.
+            </p>
+        </div>
+        <Input
+            label="Admin username"
+            value={username}
+            onChange={(v) => onChange({ username: v })}
+            placeholder="admin"
+            hint="This is what your staff will use to sign in to the ISP dashboard."
+        />
+        {bootstrapUsername && bootstrapUsername !== username && (
+            <p className="text-xs text-tertiary">
+                The platform sent credentials for <span className="font-mono">{bootstrapUsername}</span>.
+                You can keep that or change it here.
+            </p>
+        )}
+        <Checkbox
+            label="I agree to the ShebaFi platform terms of service."
+            isSelected={acceptTerms}
+            onChange={(v) => onChange({ acceptTerms: v })}
+        />
+    </div>
+);
 
 const StepAccountClaim = ({
     username, password, confirm, acceptTerms, onChange,

@@ -44,6 +44,7 @@ vi.mock('@/api/client', async (importOriginal) => {
 });
 
 import { ThemeProvider } from '@/providers/theme-provider';
+import { AuthProvider } from '@/portal/auth-provider';
 
 const renderWithRouter = (initialRoute: string) => {
   return render(
@@ -51,22 +52,24 @@ const renderWithRouter = (initialRoute: string) => {
       <ThemeProvider>
         <PortalProvider>
           <PlaneProvider>
-            <RouteProvider>
-              <Routes>
-                <Route path="/login" element={<LoginScreen />} />
-                <Route path="/" element={<AppLayout />}>
-                    <Route index element={<DashboardScreen />} />
-                    <Route path="tenants" element={<TenantsScreen />} />
-                    <Route path="domains" element={<DomainsScreen />} />
-                    <Route path="onboarding" element={<OnboardingScreen />} />
-                    <Route path="packages" element={<PackagesScreen />} />
-                    <Route path="subscriptions" element={<SubscriptionsScreen />} />
-                    <Route path="payments" element={<PaymentsScreen />} />
-                    <Route path="backups" element={<BackupsScreen />} />
-                    <Route path="audit-logs" element={<AuditLogsScreen />} />
-                </Route>
-              </Routes>
-            </RouteProvider>
+            <AuthProvider>
+              <RouteProvider>
+                <Routes>
+                  <Route path="/login" element={<LoginScreen />} />
+                  <Route path="/" element={<AppLayout />}>
+                      <Route index element={<DashboardScreen />} />
+                      <Route path="tenants" element={<TenantsScreen />} />
+                      <Route path="domains" element={<DomainsScreen />} />
+                      <Route path="onboarding" element={<OnboardingScreen />} />
+                      <Route path="packages" element={<PackagesScreen />} />
+                      <Route path="subscriptions" element={<SubscriptionsScreen />} />
+                      <Route path="payments" element={<PaymentsScreen />} />
+                      <Route path="backups" element={<BackupsScreen />} />
+                      <Route path="audit-logs" element={<AuditLogsScreen />} />
+                  </Route>
+                </Routes>
+              </RouteProvider>
+            </AuthProvider>
           </PlaneProvider>
         </PortalProvider>
       </ThemeProvider>
@@ -92,7 +95,17 @@ describe('SaaS Admin Routes', () => {
   });
 
   beforeEach(() => {
+    localStorage.setItem('sheba_dev_portal_override', 'SUPER_ADMIN');
     localStorage.setItem('saas_central_token', 'mock_token_for_tests');
+    localStorage.setItem('saas_central_user', JSON.stringify({
+        id: 'admin',
+        username: 'admin',
+        email: 'admin@sheba.app',
+        name: 'Admin User',
+        role: 'SUPER_ADMIN',
+        roles: ['SUPER_ADMIN'],
+        permissions: ['*'],
+    }));
   });
 
   it('renders login screen', () => {

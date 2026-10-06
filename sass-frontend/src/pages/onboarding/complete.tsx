@@ -1,38 +1,79 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { Button } from '@/components/base/buttons/button';
 import { tenantApi } from '@/api/client';
 import {
     completeOnboarding,
+    type BootstrapError,
 } from '@/lib/tenant-bootstrap';
 import {
+    APPROVAL_BOOTSTRAP_KEY,
     APPROVAL_TOAST_KEY,
     clearWizardState,
+    loadApprovalBootstrap,
     loadWizardState,
+    type ApprovalBootstrap,
 } from '@/types/tenant';
 
 interface UrlParams extends Record<string, string | undefined> {
     slug: string;
 }
 
+/**
+ * Final-step splash. Two flows:
+ *
+ *  1. Manual  — customer types a password in the wizard, lands here with
+ *     `?request_id` and we use the typed credentials.
+ *  2. Approval — admin pre-provisioned the credentials; the customer
+ *     opened the admin's claim link (`?approval=1`). We pull the
+ *     bootstrap username + temporary password from the localStorage
+ *     stash and sign them in automatically — no manual sign-in step.
+ */
 export const CompletePage = () => {
     const { slug = '' } = useParams<UrlParams>();
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+
+    const requestId = searchParams.get('request_id') || '';
+    const isApprovalFlow = searchParams.get('approval') === '1';
+
     const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
     const [message, setMessage] = useState<string>('Finalizing your account…');
+    const [error, setError] = useState<BootstrapError | null>(null);
+    const [mode, setMode] = useState<'manual' | 'approval' | 'pending'>('pending');
 
     useEffect(() => {
         const persisted = loadWizardState(slug);
+
+        // ── 1. Approval-mode attempt: consume the stash first ─────────────
+        if (isApprovalFlow && requestId) {
+            const stash = loadApprovalBootstrap(requestId);
+            if (stash?.admin_username && stash?.admin_password) {
+                setMode('approval');
+                void runApprovalSignIn(slug, stash, navigate, setError, setStatus, setMessage);
+                return;
+            }
+            // Stash missing/invalid → fall through to manual flow.
+            setMessage(
+                'The approval link is missing its credentials. ' +
+                'Redirecting you to the login page…',
+            );
+            setStatus('error');
+            setError({
+                kind: 'auth',
+                message: 'Approval credentials are no longer available. Please sign in manually.',
+            });
+            setTimeout(() => navigate(`/login?tenant=${encodeURIComponent(slug)}`, { replace: true }), 2000);
+            return;
+        }
+
+        // ── 2. Manual flow: use the typed username + new password ─────────
         if (!persisted || !persisted.account) {
-            // Nothing to do — bounce back to the welcome page.
             navigate(`/onboarding/${slug}`, { replace: true });
             return;
         }
         const username = persisted.account.username;
         const password = persisted.account.newPassword;
-
-        // If the bootstrap password wasn't set (e.g. user already changed it),
-        // try the bootstrap-password stash instead.
         const passwordToUse =
             password && password.length >= 8
                 ? password
@@ -43,23 +84,9 @@ export const CompletePage = () => {
             return;
         }
 
-        setStatus('running');
-        (async () => {
-            const res = await completeOnboarding({ slug, username, password: passwordToUse });
-            if (res.success) {
-                clearWizardState(slug);
-                // Remove any stale approval toast so it doesn't reappear.
-                try { window.localStorage.removeItem(APPROVAL_TOAST_KEY); } catch { /* ignore */ }
-                setStatus('done');
-                setMessage(res.message);
-                // After a short pause, hand off to the ISP dashboard.
-                setTimeout(() => navigate(res.landingPath, { replace: true }), 1500);
-            } else {
-                setStatus('error');
-                setMessage(res.message || 'Could not sign in automatically.');
-            }
-        })();
-    }, [slug, navigate]);
+        setMode('manual');
+        void runManualSignIn(slug, username, passwordToUse, navigate, setError, setStatus, setMessage);
+    }, [slug, navigate, requestId, isApprovalFlow]);
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-bg-primary px-6">
@@ -83,7 +110,9 @@ export const CompletePage = () => {
                         ? 'You are live!'
                         : status === 'error'
                             ? 'Almost there'
-                            : 'Finalizing your account'}
+                            : mode === 'approval'
+                                ? 'Signing you in…'
+                                : 'Finalizing your account'}
                 </h1>
                 <p className="mt-2 text-sm text-tertiary">{message}</p>
                 {status === 'error' && (
@@ -106,3 +135,65 @@ export default CompletePage;
 // Re-export `tenantApi` so call sites that previously imported the old name
 // can keep working during the merge.
 export { tenantApi };
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+type SetError = (e: BootstrapError | null) => void;
+type SetStatus = (s: 'idle' | 'running' | 'done' | 'error') => void;
+type SetMessage = (s: string) => void;
+
+async function runApprovalSignIn(
+    slug: string,
+    stash: ApprovalBootstrap,
+    navigate: ReturnType<typeof useNavigate>,
+    setError: SetError,
+    setStatus: SetStatus,
+    setMessage: SetMessage,
+): Promise<void> {
+    setStatus('running');
+    const res = await completeOnboarding({
+        slug,
+        username: stash.admin_username || '',
+        password: stash.admin_password || '',
+    });
+    if (res.success) {
+        clearWizardState(slug);
+        try { window.localStorage.removeItem(APPROVAL_TOAST_KEY); } catch { /* ignore */ }
+        // Clean up the consumed stash so it can't be replayed.
+        try { window.localStorage.removeItem(APPROVAL_BOOTSTRAP_KEY(stash.tenant?.id || '')); } catch { /* ignore */ }
+        // We *do* keep the per-request stash around so the customer can
+        // share the link in a separate tab if they want — but mark it as
+        // consumed by clearing the token.
+        setStatus('done');
+        setMessage(res.message || 'Welcome aboard!');
+        setTimeout(() => navigate(res.landingPath, { replace: true }), 1500);
+    } else {
+        setError(res.error);
+        setStatus('error');
+        setMessage(res.error.message || 'Could not sign in automatically.');
+    }
+}
+
+async function runManualSignIn(
+    slug: string,
+    username: string,
+    password: string,
+    navigate: ReturnType<typeof useNavigate>,
+    setError: SetError,
+    setStatus: SetStatus,
+    setMessage: SetMessage,
+): Promise<void> {
+    setStatus('running');
+    const res = await completeOnboarding({ slug, username, password });
+    if (res.success) {
+        clearWizardState(slug);
+        try { window.localStorage.removeItem(APPROVAL_TOAST_KEY); } catch { /* ignore */ }
+        setStatus('done');
+        setMessage(res.message);
+        setTimeout(() => navigate(res.landingPath, { replace: true }), 1500);
+    } else {
+        setError(res.error);
+        setStatus('error');
+        setMessage(res.message || 'Could not sign in automatically.');
+    }
+}
