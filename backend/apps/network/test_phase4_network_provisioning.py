@@ -182,7 +182,13 @@ class Phase4NetworkProvisioningTests(TestCase):
         mock_delete.return_value = True
 
         # 1. Provision
-        res = ProvisioningService.provision_service(self.service_a)
+        # Bugfix: the service must be provisioned with an explicit password
+        # — the previous implementation used a hardcoded ``'123456'`` fallback
+        # when neither ``password`` nor the customer's ``pppoe_password`` was
+        # set, which silently shipped a known default to MikroTik. The
+        # provisioning service now refuses that case, so the test must pass a
+        # real password explicitly.
+        res = ProvisioningService.provision_service(self.service_a, password='secur3-p@ssw0rd')
         self.assertTrue(res['success'])
         self.service_a.refresh_from_db()
         self.assertEqual(self.service_a.provisioning_status, ProvisioningStatus.PROVISIONED)
@@ -219,7 +225,10 @@ class Phase4NetworkProvisioningTests(TestCase):
         """Verify that a network failure marks provisioning FAILED without mutating business status."""
         mock_find.side_effect = Exception("MikroTik socket timeout")
 
-        res = ProvisioningService.provision_service(self.service_a)
+        # Bugfix: the provisioning service now requires an explicit password
+        # to push a PPPoE secret to MikroTik. Pass one so this test can
+        # still exercise the "router call fails" path.
+        res = ProvisioningService.provision_service(self.service_a, password='secur3-p@ssw0rd')
         self.assertFalse(res['success'])
         self.service_a.refresh_from_db()
 
@@ -241,3 +250,80 @@ class Phase4NetworkProvisioningTests(TestCase):
         self.assertNotIn('password', res.data)
         self.assertEqual(res.data['username'], 'john_pppoe')
         self.assertEqual(res.data['customer_name'], 'John Subscriber')
+
+class ProvisioningServicePasswordTests(TestCase):
+    """Bugfix regression: PPPoE provisioning must NEVER silently write a
+    hardcoded default password like ``'123456'`` to MikroTik. If neither the
+    caller-supplied password nor the customer's ``pppoe_password`` is set,
+    provisioning must refuse with an explicit error so the operator is
+    forced to set a real credential.
+    """
+    def setUp(self) -> None:
+        from apps.core.models import Tenant
+        from apps.authentication.models import StaffProfile, UserRole
+        from django.contrib.auth.models import User
+        from apps.network.models import Router
+        from apps.customers.models import Customer, ServiceType, CustomerService
+
+        self.tenant = Tenant.objects.create(name='Tenant Pwd', slug='pwdtest', domain='pwdtest.local')
+        self.staff = User.objects.create_user(username='staff_pwd', password='opensesame')
+        StaffProfile.objects.create(user=self.staff, tenant=self.tenant, role=UserRole.ADMIN)
+
+        self.router = Router.objects.create(
+            tenant=self.tenant, name='R-PWD', ip_address='10.0.0.1', api_protocol='REST', https_port=443, status='Online',
+        )
+        # Customer with NO pppoe_password set.
+        self.customer = Customer.objects.create(
+            tenant=self.tenant,
+            customer_code='C-PWD-1',
+            full_name='Pwd Tester',
+            mobile='+8801700000099',
+            pppoe_username='pwd_user_1',
+            pppoe_password='',  # intentionally empty
+            connection_type='PPPoE',
+            router=self.router,
+        )
+        self.service = CustomerService.objects.create(
+            tenant=self.tenant,
+            customer=self.customer,
+            service_identifier='pwd_user_1',
+            service_type=ServiceType.BROADBAND,
+            status='ACTIVE',
+        )
+
+    def test_provisioning_refuses_when_no_password_set(self):
+        """Without an explicit password and an empty ``pppoe_password`` on
+        the customer, ``ProvisioningService.provision_service`` must refuse
+        rather than silently write ``'123456'`` to MikroTik.
+        """
+        from unittest.mock import patch
+        from apps.network.services.provisioning import ProvisioningService
+
+        with patch('apps.network.services.mikrotik.MikroTikService.create_pppoe_user') as mock_create:
+            res = ProvisioningService.provision_service(self.service)
+
+        self.assertFalse(res.get('success'))
+        # MikroTik must NEVER have been contacted.
+        mock_create.assert_not_called()
+        # The error message must explicitly call out the missing password.
+        self.assertIn('password', (res.get('error') or '').lower())
+
+    def test_provisioning_succeeds_when_password_explicit(self):
+        """When the operator passes an explicit ``password`` argument the
+        provisioning must go through normally.
+        """
+        from unittest.mock import patch
+        from apps.network.services.provisioning import ProvisioningService
+
+        with patch('apps.network.services.mikrotik.MikroTikService.create_pppoe_user') as mock_create, \
+             patch('apps.network.services.mikrotik.MikroTikPPPoEService.find_secret_by_name') as mock_find:
+            mock_create.return_value = True
+            mock_find.return_value = None
+            res = ProvisioningService.provision_service(self.service, password='explic!t-pass-1')
+
+        self.assertTrue(res.get('success'))
+        mock_create.assert_called_once()
+        # And the persisted password on the PPPoE row is the one we gave.
+        from apps.network.models import PPPoESecretItem
+        pppoe = PPPoESecretItem.objects.get(service=self.service)
+        self.assertEqual(pppoe.password, 'explic!t-pass-1')

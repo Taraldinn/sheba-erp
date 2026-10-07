@@ -1,7 +1,7 @@
 @theme {
-    /* FONT FAMILY */
-    --font-body: var(--font-inter, "Inter"), -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    --font-display: var(--font-inter, "Inter"), -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    /* FONT FAMILY — Space Grotesk (per design-plan.md) */
+    --font-body: var(--font-space-grotesk, "Space Grotesk"), ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-display: var(--font-space-grotesk, "Space Grotesk"), ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono: ui-monospace, "Roboto Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
     /* FONT SIZE */
@@ -106,17 +106,18 @@
     --color-alpha-white: rgb(255 255 255);
     --color-alpha-black: rgb(0 0 0);
 
-    --color-brand-50: var(--color-zinc-50);
-    --color-brand-100: var(--color-zinc-100);
-    --color-brand-200: var(--color-zinc-200);
-    --color-brand-300: var(--color-zinc-300);
-    --color-brand-400: var(--color-zinc-400);
-    --color-brand-500: var(--color-zinc-500);
-    --color-brand-600: var(--color-zinc-600);
-    --color-brand-700: var(--color-zinc-700);
-    --color-brand-800: var(--color-zinc-800);
-    --color-brand-900: var(--color-zinc-900);
-    --color-brand-950: var(--color-zinc-950);
+    /* BRAND — Sheba purple palette per design-plan.md */
+    --color-brand-50: #f9f5ff;
+    --color-brand-100: #f4ebff;
+    --color-brand-200: #e9d7fe;
+    --color-brand-300: #d6bbfb;
+    --color-brand-400: #b692f6;
+    --color-brand-500: #9e77ed;
+    --color-brand-600: #7f56d9;
+    --color-brand-700: #6941c6;
+    --color-brand-800: #53389e;
+    --color-brand-900: #42307d;
+    --color-brand-950: #2c1e5b;
 
     /* LIGHT MODE VARIABLES */
 
@@ -657,59 +658,61 @@
         --color-text-error-primary_hover: var(--color-red-300);
         --color-text-brand-secondary_hover: var(--color-neutral-200);
 
-        --color-border-secondary: var(--color-neutral-800);
+        --color-border-secondary: #293548;            /* Border */
         --color-border-error_subtle: var(--color-red-500);
-        --color-border-primary: var(--color-neutral-700);
+        --color-border-primary: #3d4a60;           /* Strong border */
         --color-border-brand: var(--color-brand-400);
         --color-border-error: var(--color-red-400);
-        --color-border-tertiary: var(--color-neutral-800);
+        --color-border-tertiary: #182235;          /* Hover surface (also used as subtle border) */
         --color-border-brand_alt: var(--color-neutral-700);
-        --color-border-secondary_alt: var(--color-neutral-800);
+        --color-border-secondary_alt: #293548;
 
-        --color-fg-secondary: var(--color-neutral-300);
-        --color-fg-warning-primary: var(--color-yellow-500);
-        --color-fg-success-primary: var(--color-green-500);
+        /* Dark mode text colors — Sheba navy palette (design-plan.md) */
+        --color-fg-secondary: #dce3ec;            /* Secondary text */
+        --color-fg-warning-primary: #fec84b;      /* Warning text */
+        --color-fg-success-primary: #6ce9a6;      /* Success text */
         --color-fg-white: var(--color-white);
         --color-fg-success-secondary: var(--color-green-400);
         --color-fg-secondary_hover: var(--color-neutral-200);
-        --color-fg-primary: var(--color-white);
-        --color-fg-brand-secondary: var(--color-brand-500);
-        --color-fg-brand-primary: var(--color-brand-500);
+        --color-fg-primary: #f8fafc;              /* Primary text */
+        --color-fg-brand-secondary: #c3a6f7;      /* Brand text */
+        --color-fg-brand-primary: #9e77ed;        /* Brand accent */
         --color-fg-quaternary: var(--color-neutral-600);
         --color-fg-quaternary_hover: var(--color-neutral-500);
         --color-fg-error-primary: var(--color-red-500);
         --color-fg-warning-secondary: var(--color-yellow-400);
         --color-fg-error-secondary: var(--color-red-400);
-        --color-fg-tertiary: var(--color-neutral-400);
+        --color-fg-tertiary: #9aa7bb;             /* Muted text */
         --color-fg-tertiary_hover: var(--color-neutral-300);
         --color-fg-brand-primary_alt: var(--color-neutral-300);
         --color-fg-brand-secondary_alt: var(--color-neutral-600);
         --color-fg-brand-secondary_hover: var(--color-neutral-500);
 
-        --color-bg-primary: var(--color-neutral-950);
-        --color-bg-tertiary: var(--color-neutral-800);
+        /* Dark mode surfaces — Sheba navy palette (design-plan.md) */
+        --color-bg-primary: #0f172a;            /* app background */
+        --color-bg-tertiary: #182235;           /* hover surface */
         --color-bg-brand-primary: var(--color-brand-500);
         --color-bg-error-secondary: var(--color-red-600);
-        --color-bg-warning-primary: var(--color-yellow-950);
+        --color-bg-warning-primary: #30270f;    /* warning surface */
         --color-bg-warning-secondary: var(--color-yellow-600);
-        --color-bg-success-primary: var(--color-green-950);
+        --color-bg-success-primary: #0d2b22;    /* success surface */
         --color-bg-success-secondary: var(--color-green-600);
         --color-bg-brand-solid: var(--color-brand-600);
-        --color-bg-secondary-solid: var(--color-neutral-600);
+        --color-bg-secondary-solid: #3d4a60;    /* strong border */
         --color-bg-error-solid: var(--color-red-600);
         --color-bg-warning-solid: var(--color-yellow-600);
         --color-bg-success-solid: var(--color-green-600);
-        --color-bg-secondary_hover: var(--color-neutral-800);
-        --color-bg-primary_hover: var(--color-neutral-900);
+        --color-bg-secondary_hover: #182235;
+        --color-bg-primary_hover: #111a29;      /* secondary surface */
         --color-bg-brand-solid_hover: var(--color-brand-500);
         --color-bg-error-primary: var(--color-red-950);
-        --color-bg-brand-secondary: var(--color-brand-600);
-        --color-bg-secondary: var(--color-neutral-900);
-        --color-bg-quaternary: var(--color-neutral-700);
+        --color-bg-brand-secondary: #2d2246;    /* brand surface */
+        --color-bg-secondary: #151e2e;          /* primary surface */
+        --color-bg-quaternary: #293548;         /* border */
         --color-bg-primary_alt: var(--color-bg-secondary);
-        --color-bg-brand-primary_alt: var(--color-bg-secondary);
+        --color-bg-brand-primary_alt: #2d2246;
         --color-bg-secondary_alt: var(--color-bg-primary);
-        --color-bg-overlay: var(--color-neutral-800);
+        --color-bg-overlay: #293548;
         --color-bg-brand-section: var(--color-bg-secondary);
         --color-bg-brand-section_subtle: var(--color-bg-primary);
         --color-bg-primary-solid: var(--color-bg-secondary);

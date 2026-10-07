@@ -577,3 +577,93 @@ class TenantAwareAuthenticationStage2Tests(TestCase):
             HTTP_X_API_KEY='invalid-or-revoked-key-sample'
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 19. Super-admin login rejected outside the control-plane domain
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_superadmin_login_rejected_outside_control_plane(self):
+        """A superuser must NOT be able to sign in through the tenant login
+        endpoint on a non-control-plane domain — that would leak the
+        central-admin identity into a tenant-scoped session and expose
+        every tenant's data. The login must return 403 with the
+        ``SUPERADMIN_REQUIRES_CONTROL_PLANE`` code and point the operator
+        at the central admin URL.
+        """
+        super_admin = User.objects.create_superuser(
+            username='platform_superadmin',
+            password='super-secret-pass',
+            email='admin@example.com',
+        )
+
+        # 1. On a tenant subdomain, super-admin login is denied.
+        response = self.client.post(
+            '/api/v1/auth/login/',
+            {'username': 'platform_superadmin', 'password': 'super-secret-pass'},
+            HTTP_HOST='alpha.shebafi.com',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data.get('code'),
+            'SUPERADMIN_REQUIRES_CONTROL_PLANE',
+        )
+        # The body must tell the operator which URL to use.
+        self.assertIn('control_plane_url', response.data)
+        self.assertIn('admin.example.com', response.data['control_plane_url'])
+
+        # 2. On an unknown (non-tenant, non-control-plane) host, same lockdown.
+        response_unknown = self.client.post(
+            '/api/v1/auth/login/',
+            {'username': 'platform_superadmin', 'password': 'super-secret-pass'},
+            HTTP_HOST='completely-unrelated.example.net',
+        )
+        # Either 403 (login guard fires) or 404 (tenant resolution rejects
+        # first). Both are acceptable — the important thing is that the
+        # superuser is NOT silently issued a tenant token.
+        self.assertIn(
+            response_unknown.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+            f'Super admin leaked through unknown-host login path: '
+            f'{response_unknown.status_code} {response_unknown.content}',
+        )
+
+        # 3. On the control-plane domain, the same super-admin CAN log in via
+        # the dedicated SaaS endpoint.
+        cp_response = self.client.post(
+            '/api/v1/saas/auth/login/',
+            {'username': 'platform_superadmin', 'password': 'super-secret-pass'},
+            HTTP_HOST='admin.shebafi.com',
+        )
+        self.assertEqual(cp_response.status_code, status.HTTP_200_OK)
+        self.assertIn('token', cp_response.data)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 20. ISP admin tenant listing endpoint
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_my_accessible_tenants_endpoint_returns_active_memberships(self):
+        """An authenticated ISP staff user can list the tenants they have an
+        active ``StaffMembership`` in via ``GET /api/v1/auth/my-tenants/``.
+        Inactive memberships are excluded; the API also surfaces the active
+        subscription + plan + the per-tenant dashboard URL the ISP_ADMIN
+        portal renders on its landing dashboard.
+        """
+        token_a, _ = Token.objects.get_or_create(user=self.user_a)
+        headers_a = {'HTTP_AUTHORIZATION': f'Token {token_a.key}'}
+
+        resp = self.client.get(
+            '/api/v1/auth/my-tenants/',
+            HTTP_HOST='alpha.shebafi.com',
+            **headers_a,
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        body = resp.data
+        self.assertIn('items', body)
+        self.assertIn('count', body)
+        self.assertGreaterEqual(body['count'], 1)
+        slugs = [t['slug'] for t in body['items']]
+        self.assertIn('alpha', slugs)
+        alpha_row = next(t for t in body['items'] if t['slug'] == 'alpha')
+        self.assertTrue(alpha_row['is_active'])
+        self.assertEqual(alpha_row['primary_hostname'], 'alpha.shebafi.com')
+        self.assertIn('tenant_url', alpha_row)
+        # user_a is not an ISP super-admin in this test.
+        self.assertTrue(body['is_isp_admin'])

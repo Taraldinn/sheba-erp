@@ -75,6 +75,9 @@ export const ThemeProvider = ({
             const effective = targetTheme === "system" ? (systemIsDark ? "dark" : "light") : targetTheme;
 
             setResolvedTheme(effective);
+            // Per design-plan.md: use data-theme="dark" on the root.
+            root.setAttribute("data-theme", effective);
+            // Keep the legacy class toggle for components that still use it.
             root.classList.toggle(darkModeClass, effective === "dark");
             localStorage.setItem(storageKey, targetTheme);
         },

@@ -52,8 +52,23 @@ const EMPTY_DATABASE: DatabaseState = { selected: '', options: [], locked: false
  * Resolve the post-login landing route based on the user's role and the
  * active portal. The backend's `dashboard_url` wins; otherwise we fall
  * back to the role catalog's `homeRoute`.
+ *
+ * Special-case: when the active portal is the ISP_ADMIN portal
+ * (``app.example.com``), the operator lands on the multi-tenant
+ * workspace at ``/isp/dashboard`` regardless of role. The workspace
+ * shows their tenants + subscriptions; the operator picks which
+ * tenant's ERP software to enter from there.
  */
 function computeLandingPath(userOrRaw: any, plane: Plane): string {
+    if (typeof window !== 'undefined' && plane === 'tenant') {
+        const host = window.location.hostname;
+        const isIspPortalHost =
+            host === 'app.localhost' ||
+            host === 'isp.localhost' ||
+            host.startsWith('app.') ||
+            host.startsWith('isp.');
+        if (isIspPortalHost) return '/isp/dashboard';
+    }
     const u = typeof userOrRaw === 'string' ? safeParse(userOrRaw) : userOrRaw;
     const explicit = u?.dashboard_url;
     if (explicit && typeof explicit === 'string') return explicit;
@@ -95,6 +110,7 @@ export function LoginScreen() {
     const [error, setError] = useState('');
     const [hint, setHint] = useState<string>('');
     const [loading, setLoading] = useState(false);
+    const [controlPlaneUrl, setControlPlaneUrl] = useState<string | null>(null);
 
     // If a token already exists for the active plane, redirect away.
     useEffect(() => {
@@ -233,6 +249,19 @@ export function LoginScreen() {
             navigate(computeLandingPath(res?.user, active), { replace: true });
         } catch (err: any) {
             const msg = err?.message || 'Authentication failed. Please verify credentials.';
+            const code = err?.code as string | undefined;
+            // ── Task 1 — super-admin credentials leaked into the tenant login
+            // screen. Surface a friendly redirect to the central admin URL
+            // instead of leaving the user stranded on the wrong host.
+            if (code === 'SUPERADMIN_REQUIRES_CONTROL_PLANE') {
+                const targetUrl = (err as any)?.control_plane_url
+                    || (typeof window !== 'undefined'
+                        ? `${window.location.protocol}//${import.meta.env.VITE_SUPER_ADMIN_HOST || 'admin.example.com'}/login`
+                        : '');
+                setError(msg);
+                if (targetUrl) setControlPlaneUrl(targetUrl);
+                return;
+            }
             setError(msg);
         } finally {
             setLoading(false);
@@ -364,6 +393,16 @@ export function LoginScreen() {
                         <div className="rounded-lg bg-error-primary_alt p-3 text-xs text-error-primary border border-error-subtle">
                             {error}
                         </div>
+                    )}
+                    {controlPlaneUrl && (
+                        <a
+                            href={controlPlaneUrl}
+                            className="mt-2 flex items-center justify-center gap-2 rounded-lg border border-brand-subtle bg-brand-primary_alt p-3 text-xs font-semibold text-brand-solid hover:bg-brand-primary_alt/80"
+                        >
+                            <ShieldTick className="size-4" />
+                            Open central admin login
+                            <ArrowRight className="size-3.5" />
+                        </a>
                     )}
 
                     <Button

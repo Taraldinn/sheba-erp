@@ -32,9 +32,18 @@ export const STORAGE_KEYS = {
 export type Plane = 'central' | 'tenant';
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  /** HTTP status code returned by the backend (or ``0`` for network failures). */
+  status: number;
+  /** Optional structured failure code from the backend (e.g. ``SUPERADMIN_REQUIRES_CONTROL_PLANE``). */
+  code?: string;
+  /** Optional URL the UI should redirect to (e.g. central admin login). */
+  control_plane_url?: string;
+  constructor(status: number, message: string, extras?: { code?: string; control_plane_url?: string }) {
     super(message);
     this.name = 'ApiError';
+    this.status = status;
+    if (extras?.code) this.code = extras.code;
+    if (extras?.control_plane_url) this.control_plane_url = extras.control_plane_url;
   }
 }
 
@@ -275,10 +284,14 @@ async function fetchApi<T>(endpoint: string, opts: FetchOptions = {}): Promise<T
   const contentType = response.headers.get('content-type') || '';
   if (!response.ok) {
     let errorMsg = `API request failed with status ${response.status}`;
+    let errorCode: string | undefined;
+    let errorControlPlaneUrl: string | undefined;
     try {
       if (contentType.includes('application/json')) {
         const errorData = await response.json();
         errorMsg = errorData.detail || errorData.error || errorData.message || JSON.stringify(errorData);
+        errorCode = errorData.code;
+        errorControlPlaneUrl = errorData.control_plane_url;
       } else if (contentType.includes('text/html')) {
         // The backend returned an HTML page (e.g. Django CSRF 403, proxy error,
         // maintenance page, or a redirect to a login page). Don't dump the
@@ -299,7 +312,7 @@ async function fetchApi<T>(endpoint: string, opts: FetchOptions = {}): Promise<T
         errorMsg = await response.text();
       }
     } catch { /* ignore */ }
-    throw new ApiError(response.status, errorMsg);
+    throw new ApiError(response.status, errorMsg, { code: errorCode, control_plane_url: errorControlPlaneUrl });
   }
 
   if (contentType.includes('text/html')) {
@@ -535,6 +548,29 @@ export interface TenantLoginResponse {
     available_tenants?: Array<{ id: string; name: string; slug: string }>;
 }
 
+/**
+ * Row returned by ``GET /api/v1/auth/my-tenants/`` — the ISP-Admin's
+ * accessible tenants on ``app.example.com``. The dashboard renders
+ * one card per tenant and the operator clicks the "Open" link to
+ * enter the actual ERP software on the tenant subdomain.
+ */
+export interface ISPAdminTenant {
+    id: string;
+    name: string;
+    slug: string;
+    is_active: boolean;
+    primary_hostname: string | null;
+    tenant_url: string;
+    role: string | null;
+    plan: string | null;
+    subscription_active: boolean;
+    contact_email: string;
+    contact_phone: string;
+    logo_url: string;
+    address: string;
+    created_at: string | null;
+}
+
 export interface TenantResolveResponse {
   id: string;
   slug: string;
@@ -626,6 +662,33 @@ export const tenantApi = {
       try { return JSON.parse(raw); } catch { return null; }
     }
   },
+
+  /**
+   * ISP_ADMIN portal: list the tenants this user can manage. Powers the
+   * ``app.example.com`` landing dashboard that lets a multi-tenant ISP
+   * operator see all their tenants + subscriptions at a glance and pick
+   * which tenant subdomain to enter.
+   */
+  myTenants: async (): Promise<{ count: number; items: ISPAdminTenant[]; is_isp_admin: boolean }> => {
+    try {
+      return await fetchApi<{ count: number; items: ISPAdminTenant[]; is_isp_admin: boolean }>(
+        '/auth/my-tenants',
+        { plane: 'tenant' },
+      );
+    } catch {
+      return { count: 0, items: [], is_isp_admin: false };
+    }
+  },
+
+  /**
+   * ISP_ADMIN portal: self-service password change.
+   */
+  changePassword: async (current_password: string, new_password: string) =>
+    fetchApi<{ message: string; token: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password, new_password }),
+      plane: 'tenant',
+    }),
   resolve: async (slugOrDomain: string): Promise<TenantResolveResponse> => {
     return fetchApi<TenantResolveResponse>(`/tenants/resolve/${encodeURIComponent(slugOrDomain)}`, {
       skipAuth: true,

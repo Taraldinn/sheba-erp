@@ -26,7 +26,8 @@ from apps.core.saas_views import (
 from apps.authentication.views import (
     LoginView, CurrentUserView, LogoutView, StaffProfileViewSet, RoleViewSet, PermissionViewSet,
     ResellerLoginView,
-    TenantPasswordResetView, TenantPasswordResetConfirmView
+    TenantPasswordResetView, TenantPasswordResetConfirmView,
+    MyAccessibleTenantsView, ChangePasswordView,
 )
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView, CustomerServiceViewSet, CustomerSubscriptionViewSet
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
@@ -187,6 +188,8 @@ urlpatterns = [
     path('api/v1/auth/login/', LoginView.as_view(), name='auth-login'),
     path('api/v1/auth/reseller/login/', ResellerLoginView.as_view(), name='auth-reseller-login'),
     path('api/v1/auth/me/', CurrentUserView.as_view(), name='auth-me'),
+    path('api/v1/auth/my-tenants/', MyAccessibleTenantsView.as_view(), name='auth-my-tenants'),
+    path('api/v1/auth/change-password/', ChangePasswordView.as_view(), name='auth-change-password'),
     path('api/v1/auth/logout/', LogoutView.as_view(), name='auth-logout'),
     path('api/v1/auth/password-reset/', TenantPasswordResetView.as_view(), name='auth-password-reset'),
     path('api/v1/auth/password-reset-confirm/', TenantPasswordResetConfirmView.as_view(), name='auth-password-reset-confirm'),

@@ -119,7 +119,7 @@ export const HomePage = () => {
                                     Request onboarding
                                 </Button>
                                 <Button
-                                    href="/login"
+                                    href={`https://${import.meta.env.VITE_ISP_HOST || 'app.example.com'}/login`}
                                     color="secondary"
                                     size="lg"
                                 >

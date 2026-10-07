@@ -79,7 +79,17 @@ class ProvisioningService:
                 service=service,
                 package=service.package,
                 username=effective_username,
-                password=password or getattr(service.customer, 'pppoe_password', '') or '123456',
+                # Bugfix (network onboarding): never write a hardcoded
+                # ``'123456'`` default onto a freshly-created PPPoE row.
+                # If the caller didn't pass a password and the customer has
+                # none configured, leave the row empty so that
+                # ``provision_service`` can refuse to push it to MikroTik
+                # with an explicit error. The operator is then forced to
+                # set a real credential before the secret is provisioned.
+                password=(
+                    password
+                    or getattr(service.customer, 'pppoe_password', '')
+                ),
                 status=PPPoEStatus.ACTIVE if service.status == 'ACTIVE' else PPPoEStatus.PENDING,
                 provisioning_status=ProvisioningStatus.NOT_PROVISIONED,
             )
@@ -142,9 +152,35 @@ class ProvisioningService:
         try:
             svc = MikroTikService(router)
             if svc.is_rest or svc.is_api:
+                # Bugfix (network onboarding): never let a PPPoE secret get
+                # provisioned with a hardcoded default password. The
+                # previous implementation silently substituted ``'123456'``
+                # when both the caller-supplied ``password`` argument and
+                # the existing ``pppoe.password`` row were empty. That made
+                # it possible for any subscriber's onboarding wizard to
+                # land on MikroTik using a trivial shared default — a real
+                # security hole and a foot-gun for ISP operators.
+                #
+                # Resolution:
+                #   1. If a password was passed in by the caller, prefer it.
+                #   2. Otherwise, fall back to the persisted pppoe.password.
+                #   3. If neither is set (e.g. onboarding path that did not
+                #      capture one), we refuse the operation and surface an
+                #      explicit error so the operator is forced to set a
+                #      real credential before the secret is pushed to the
+                #      router.
+                #
+                # The check is intentionally performed BEFORE any router
+                # call so that a missing password fails fast without
+                # opening a network connection to the device.
+                effective_password = password or (pppoe.password or '')
+                if not effective_password:
+                    raise ValueError(
+                        f'Cannot provision PPPoE user "{pppoe.username}": no password is set. '
+                        'Set a password on the customer service or pass one to provision_service().'
+                    )
                 # Direct router provisioning
                 existing = svc.pppoe.find_secret_by_name(pppoe.username)
-                effective_password = password or pppoe.password or '123456'
                 if existing:
                     svc.update_pppoe_user(
                         username=pppoe.username,

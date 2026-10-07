@@ -124,9 +124,20 @@ class TenantResolutionMiddleware(MiddlewareMixin):
             settings,
             'CONTROL_PLANE_DOMAINS',
             [
-                'admin.shebafi.com', 'admin.shebafi.xyz', 'control.shebafi.xyz',
-                'admin.localhost', 'saas.localhost', 'admin.localhost.com',
-                'control.localhost.com', 'saas.localhost.com'
+                # Production-grade control-plane domains.
+                # ``admin.example.com`` is the canonical super-admin entry
+                # point; ``admin.shebafi.*`` / ``control.*`` aliases are
+                # kept for backwards compatibility with the original
+                # deployment. New aliases should be added here AND in
+                # ``SUPER_ADMIN_DOMAIN`` (settings.py).
+                'admin.example.com',
+                'admin.shebafi.com', 'admin.shebafi.xyz',
+                'control.shebafi.xyz', 'control.example.com',
+                # Dev/local aliases — only ever active when binding on
+                # ``localhost`` / ``127.0.0.1``.
+                'admin.localhost', 'saas.localhost',
+                'admin.localhost.com', 'control.localhost.com',
+                'saas.localhost.com',
             ]
         )
         if raw_host.startswith(self.CONTROL_PLANE_PREFIXES) or raw_host in control_domains:

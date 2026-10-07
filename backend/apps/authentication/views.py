@@ -60,6 +60,48 @@ class LoginView(views.APIView):
                 if user_obj.check_password(password):
                     user = user_obj
 
+        if user:
+            # ────────────────────────────────────────────────────────────────
+            # Task 1 — Super-admin accounts may ONLY sign in through the
+            # SaaS control-plane domain (admin.example.com). They are
+            # platform operators, not ISP staff — logging them in through
+            # the tenant login endpoint (or from any other domain) would
+            # leak the central admin role into a tenant-scoped session and
+            # expose every tenant's data.
+            #
+            # The proper super-admin login path is
+            # ``POST /api/v1/saas/auth/login/`` and it is only reachable
+            # when ``request.is_control_plane`` is True.
+            # ────────────────────────────────────────────────────────────────
+            from django.conf import settings as _dj_settings
+            if user.is_superuser and not getattr(request, 'is_control_plane', False):
+                logger.warning(
+                    'Superadmin login attempt rejected outside control plane: '
+                    'user=%s host=%s',
+                    user.username, request.get_host(),
+                )
+                return Response({
+                    'error': (
+                        'Super administrator accounts may only sign in through '
+                        'the platform control plane ({}.). Please use the '
+                        'dedicated central admin URL.'
+                    ).format(
+                        getattr(
+                            _dj_settings,
+                            'SUPER_ADMIN_DOMAIN',
+                            'admin.example.com',
+                        )
+                    ),
+                    'code': 'SUPERADMIN_REQUIRES_CONTROL_PLANE',
+                    'control_plane_url': (
+                        'https://' + getattr(
+                            _dj_settings,
+                            'SUPER_ADMIN_DOMAIN',
+                            'admin.example.com',
+                        ) + '/login'
+                    ),
+                }, status=status.HTTP_403_FORBIDDEN)
+
         if not user or not isinstance(user, User):
             return Response({'error': 'Invalid username or password', 'code': 'INVALID_CREDENTIALS'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -483,6 +525,117 @@ class LogoutView(views.APIView):
 
 @extend_schema(
     tags=['1. Authentication & Users'],
+    summary='ISP Admin — list the tenants I have an active membership in',
+    description=(
+        'Returns the ISP-tenant accounts the authenticated user can manage. '
+        'Used by the ISP_ADMIN portal (``app.example.com``) to render the '
+        'multi-tenant dashboard after a user signs in via ``example.com/login`` '
+        'and lands on the central ISP workspace. Each entry includes the '
+        'tenant slug, display name, primary hostname, plan / subscription '
+        'status, and the tenant-specific dashboard URL the operator can open '
+        'to reach the actual ERP software.'
+    ),
+    responses={200: dict},
+)
+class MyAccessibleTenantsView(views.APIView):
+    """
+    Returns the ISP tenants the authenticated user can manage.
+
+    An "ISP Admin" in this context is a ``User`` who holds an active
+    ``StaffMembership`` in one or more tenants (or, for legacy code paths,
+    a ``StaffProfile`` row). This endpoint powers the ISP_ADMIN portal
+    landing dashboard at ``app.example.com`` so the operator sees the
+    tenants they own and can drill into the actual software without
+    having to remember the subdomain.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # 1. Resolve memberships — StaffMembership is the authoritative
+        # source. StaffProfile is the legacy path; we union them so the
+        # dashboard keeps working during migration.
+        accessible_tenants: list[Tenant] = []
+        seen_tenant_ids: set = set()
+
+        for membership in StaffMembership.objects.filter(
+            user=user, is_active=True
+        ).select_related('tenant', 'role'):
+            tenant = membership.tenant
+            if tenant and tenant.is_active and tenant.id not in seen_tenant_ids:
+                accessible_tenants.append(tenant)
+                seen_tenant_ids.add(tenant.id)
+
+        for profile in StaffProfile.objects.filter(
+            user=user, is_active=True
+        ).exclude(tenant__isnull=True).select_related('tenant'):
+            tenant = profile.tenant
+            if tenant and tenant.is_active and tenant.id not in seen_tenant_ids:
+                accessible_tenants.append(tenant)
+                seen_tenant_ids.add(tenant.id)
+
+        items = []
+        for tenant in accessible_tenants:
+            primary_domain = (
+                tenant.tenant_domains.filter(is_primary=True, is_active=True).first()
+                or tenant.tenant_domains.filter(is_active=True).first()
+            )
+            # Find the user's role in this tenant (best-effort).
+            role_label = None
+            membership = next(
+                (m for m in StaffMembership.objects.filter(
+                    user=user, tenant=tenant, is_active=True
+                ).select_related('role')),
+                None,
+            )
+            if membership and membership.role:
+                role_label = membership.role.name
+            else:
+                profile = StaffProfile.objects.filter(
+                    user=user, tenant=tenant, is_active=True
+                ).first()
+                if profile and profile.role:
+                    role_label = profile.role
+
+            # Resolve the active SaaS subscription + plan (best-effort).
+            from apps.core.models import TenantSubscription
+            subscription = (
+                TenantSubscription.objects.filter(tenant=tenant, status='ACTIVE')
+                .select_related('package')
+                .first()
+            )
+            package_name = subscription.package.name if subscription and subscription.package else None
+
+            items.append({
+                'id': str(tenant.id),
+                'name': tenant.name,
+                'slug': tenant.slug,
+                'is_active': tenant.is_active,
+                'primary_hostname': primary_domain.hostname if primary_domain else None,
+                'tenant_url': (
+                    f'https://{primary_domain.hostname}/'
+                    if primary_domain else f'/{tenant.schema_name}/'
+                ),
+                'role': role_label,
+                'plan': package_name,
+                'subscription_active': bool(subscription),
+                'contact_email': tenant.contact_email,
+                'contact_phone': tenant.contact_phone,
+                'logo_url': getattr(tenant, 'logo_url', '') or '',
+                'address': tenant.address or '',
+                'created_at': tenant.created_at.isoformat() if tenant.created_at else None,
+            })
+
+        return Response({
+            'count': len(items),
+            'items': items,
+            'is_isp_admin': len(items) > 0 and not user.is_superuser,
+        }, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=['1. Authentication & Users'],
     summary='Tenant User Password Reset Request',
     description='Requests a password reset email for an ISP staff/admin user. Always returns HTTP 200.',
     responses={200: dict}
@@ -795,3 +948,87 @@ class ResellerLoginView(views.APIView):
             'HttpOnly; SameSite=Lax'
         )
         return resp
+
+
+@extend_schema(
+    tags=['1. Authentication & Users'],
+    summary='ISP Admin — change my own password',
+    description=(
+        'Authenticated self-service password change. Requires the current '
+        'password plus the new password (min 8 chars). On success, all '
+        'DRF tokens for the user are revoked and the response returns the '
+        'newly issued DRF auth token so the client can stay signed in '
+        'without re-logging in.'
+    ),
+    responses={200: dict, 400: dict, 401: dict, 403: dict},
+)
+class ChangePasswordView(views.APIView):
+    """
+    Self-service password change for ISP staff / admin users.
+
+    The ISP_ADMIN portal at ``app.example.com`` calls this when the
+    operator updates their own account. The control-plane mirror lives
+    at ``/api/v1/saas/auth/change-password/`` (sibling view).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        current = (request.data.get('current_password') or '').strip()
+        new_password = (request.data.get('new_password') or '').strip()
+
+        if not current or not new_password:
+            return Response(
+                {'error': 'Both current_password and new_password are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(new_password) < 8:
+            return Response(
+                {'error': 'New password must be at least 8 characters.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not request.user.check_password(current):
+            return Response(
+                {'error': 'Current password is incorrect.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if current == new_password:
+            return Response(
+                {'error': 'New password must be different from the current one.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from django.contrib.auth.password_validation import validate_password
+        try:
+            validate_password(new_password, request.user)
+        except Exception as exc:
+            return Response(
+                {'error': 'New password rejected by policy: ' + '; '.join(exc.messages if hasattr(exc, 'messages') else [str(exc)])},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        request.user.set_password(new_password)
+        request.user.save(update_fields=['password'])
+
+        # Issue a fresh token so the client can keep using the same
+        # session without redirecting back to the login screen. Old tokens
+        # are revoked to invalidate any other devices.
+        Token.objects.filter(user=request.user).delete()
+        new_token, _ = Token.objects.get_or_create(user=request.user)
+
+        AuditLog.objects.create(
+            tenant=getattr(request, 'tenant', None),
+            actor_username=request.user.username,
+            action='change_password',
+            module='authentication',
+            resource_type='User',
+            resource_id=str(request.user.id),
+            details={'self_service': True},
+        )
+
+        return Response(
+            {
+                'message': 'Password updated successfully.',
+                'token': new_token.key,
+            },
+            status=status.HTTP_200_OK,
+        )

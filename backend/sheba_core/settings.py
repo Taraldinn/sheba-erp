@@ -14,6 +14,7 @@ env = environ.Env(
     CORS_ALLOWED_ORIGINS=(list, ['http://localhost:3000', 'http://127.0.0.1:3000']),
     CORS_ALLOW_ALL_ORIGINS=(bool, True),
     CSRF_TRUSTED_ORIGINS=(list, []),
+    SUPER_ADMIN_DOMAIN=(str, 'admin.example.com'),
     DATABASE_URL=(str, f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
     REDIS_URL=(str, ''),
     REDIS_HOST=(str, ''),

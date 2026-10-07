@@ -2549,10 +2549,34 @@ class SaaSLoginView(views.APIView):
     """
     Central SaaS Control Plane authentication endpoint.
     Exclusively accepts Platform Super Administrators.
+
+    Lockdown rule: this endpoint is only reachable from the SaaS
+    control-plane domains (``admin.example.com`` / ``admin.shebafi.xyz`` /
+    etc.). Any other domain hitting ``/api/v1/saas/auth/login/`` is
+    refused with HTTP 403 so the super-admin credentials can never be
+    accepted from a tenant subdomain.
     """
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        # ── Hard guard: tenant / public hosts cannot reach this endpoint ──
+        if not getattr(request, 'is_control_plane', False):
+            from django.conf import settings as _dj_settings
+            cp_domain = getattr(_dj_settings, 'SUPER_ADMIN_DOMAIN', 'admin.example.com')
+            logger.warning(
+                'SaaS login attempted from non-control-plane host=%s',
+                request.get_host(),
+            )
+            return Response({
+                'error': (
+                    'Super administrator login is only available on the platform '
+                    'control plane ({}.). Tenant subdomains must use the regular '
+                    'staff login.'
+                ).format(cp_domain),
+                'code': 'CONTROL_PLANE_REQUIRED',
+                'control_plane_url': f'https://{cp_domain}/login',
+            }, status=status.HTTP_403_FORBIDDEN)
+
         username = request.data.get('username')
         password = request.data.get('password')
 
