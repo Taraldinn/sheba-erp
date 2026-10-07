@@ -76,6 +76,7 @@ export function LoginScreen() {
     const requestId = params.get('request_id') || '';
     const bootstrapToken = params.get('token') || '';
     const bootstrapUsername = params.get('username') || '';
+    const resetOk = params.get('reset') === 'ok';
 
     const effectiveTenant = urlTenant || (portal.portal === 'TENANT' ? (portal.tenantSlug || '') : '');
 
@@ -349,7 +350,12 @@ export function LoginScreen() {
                         isRequired
                     />
 
-                    {hint && !error && (
+                    {resetOk && !error && (
+                        <div className="rounded-lg bg-success-primary_alt p-3 text-xs text-success-primary border border-success-subtle">
+                            Your password was updated. Sign in with your new credentials.
+                        </div>
+                    )}
+                    {hint && !error && !resetOk && (
                         <div className="rounded-lg bg-brand-primary_alt p-3 text-xs text-brand-solid border border-brand-subtle">
                             {hint}
                         </div>

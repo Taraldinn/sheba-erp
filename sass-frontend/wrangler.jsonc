@@ -6,6 +6,11 @@
         "directory": "./dist",
         "not_found_handling": "single-page-application"
     },
+    "vars": {
+        "VITE_API_URL": "https://shebafi-backend-a3cx0v-936855-194-233-80-190.sslip.io/api/v1/",
+        "VITE_API_BASE_URL": "https://shebafi-backend-a3cx0v-936855-194-233-80-190.sslip.io/api/v1/",
+        
+    },
     "observability": {
         "enabled": true
     }

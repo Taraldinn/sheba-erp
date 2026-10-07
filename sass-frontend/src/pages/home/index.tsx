@@ -18,8 +18,6 @@ import {
 } from '@untitledui/icons';
 import { Button } from '@/components/base/buttons/button';
 import { Badge } from '@/components/base/badges/badges';
-import { SiteHeader } from '@/components/marketing/site-header';
-import { SiteFooter } from '@/components/marketing/site-footer';
 
 const HERO_STATS = [
     { label: 'ISPs onboarded', value: '1,200+' },
@@ -79,9 +77,7 @@ const FAQ = [
 
 export const HomePage = () => {
     return (
-        <div className="min-h-screen bg-bg-primary text-primary">
-            <SiteHeader variant="home" />
-
+        <>
             {/* ── Hero ────────────────────────────────────────────────────── */}
             <section className="relative overflow-hidden">
                 <div className="pointer-events-none absolute inset-0 -z-10">
@@ -340,9 +336,7 @@ export const HomePage = () => {
                     </div>
                 </div>
             </section>
-
-            <SiteFooter />
-        </div>
+        </>
     );
 };
 

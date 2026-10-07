@@ -279,7 +279,25 @@ async function fetchApi<T>(endpoint: string, opts: FetchOptions = {}): Promise<T
       if (contentType.includes('application/json')) {
         const errorData = await response.json();
         errorMsg = errorData.detail || errorData.error || errorData.message || JSON.stringify(errorData);
-      } else { errorMsg = await response.text(); }
+      } else if (contentType.includes('text/html')) {
+        // The backend returned an HTML page (e.g. Django CSRF 403, proxy error,
+        // maintenance page, or a redirect to a login page). Don't dump the
+        // raw HTML into the UI — surface a short, human-friendly message
+        // keyed off the status code so callers can still branch on it.
+        await response.text(); // drain the body so the connection can be reused
+        if (response.status === 403) {
+          errorMsg =
+            'The backend rejected the request (HTTP 403). This often means CSRF ' +
+            'protection blocked the cross-origin request, or the API endpoint ' +
+            'requires a different authentication header.';
+        } else if (response.status >= 500) {
+          errorMsg = `Backend server error (HTTP ${response.status}). The endpoint may be down or behind a proxy.`;
+        } else {
+          errorMsg = `Backend returned an HTML response instead of JSON (HTTP ${response.status}). Check the API URL.`;
+        }
+      } else {
+        errorMsg = await response.text();
+      }
     } catch { /* ignore */ }
     throw new ApiError(response.status, errorMsg);
   }
@@ -317,6 +335,33 @@ export const saasApi = {
     }
     return { success: true };
   },
+
+  /**
+   * Step 1 of the central-plane password reset flow. The backend always
+   * returns 200 to prevent user enumeration — even when no super-admin
+   * matches the supplied email.
+   */
+  requestPasswordReset: async (email: string) =>
+    fetchApi<{ detail: string }>('/auth/password-reset', {
+      method: 'POST',
+      body: JSON.stringify({ email: (email || '').trim().toLowerCase() }),
+      plane: 'central',
+      skipAuth: true,
+    }),
+
+  /**
+   * Step 2 of the central-plane password reset flow. Validates the
+   * cryptographic token emailed to the operator and rotates their password.
+   * Backend revokes all existing DRF tokens on success so the next
+   * `/auth/login` uses a fresh auth state.
+   */
+  confirmPasswordReset: async (uid: string, newPassword: string, token: string) =>
+    fetchApi<{ detail: string }>('/auth/password-reset-confirm', {
+      method: 'POST',
+      body: JSON.stringify({ uid, token, new_password: newPassword }),
+      plane: 'central',
+      skipAuth: true,
+    }),
 
   getDashboardOverview: () => fetchApi<any>('/overview', { plane: 'central' }).then(normalizeOverview),
   getTenants: () => fetchApi<any>('/tenants', { plane: 'central' }).then((r) => extractList(r, normalizeTenant)),

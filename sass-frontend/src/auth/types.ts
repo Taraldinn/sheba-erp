@@ -222,7 +222,7 @@ export function asUserRoleKey(value: string | null | undefined): UserRoleKey {
     const upper = value.toUpperCase().trim();
     if (upper in USER_ROLES) return upper as UserRoleKey;
     const lower = value.toLowerCase().trim();
-    if (lower === 'super admin' || lower === 'platform super admin') return 'SUPER_ADMIN';
+    if (lower === 'super admin' || lower === 'platform super admin' || lower === 'platform_super_admin') return 'SUPER_ADMIN';
     if (lower === 'admin' || lower === 'managing director') return 'ADMIN';
     if (lower === 'billing' || lower === 'billing operator') return 'BILLING';
     if (lower === 'sales' || lower === 'sales executive') return 'SALES';

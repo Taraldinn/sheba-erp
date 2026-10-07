@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 import { RouteProvider } from "@/providers/router-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
+import { PlaneProvider } from "@/providers/plane-provider";
 import { PortalProvider } from "@/portal/portal-provider";
 import { AuthProvider } from "@/portal/auth-provider";
 import { TenantProvider } from "@/portal/tenant-provider";
@@ -16,16 +17,18 @@ createRoot(document.getElementById("root")!).render(
         <ThemeProvider>
             <BrowserRouter>
                 <RouteProvider>
-                    <PortalProvider>
-                        <AuthProvider>
-                            <TenantProvider>
-                                <PermissionProvider>
-                                    <TenantBrandingInjector />
-                                    <PortalRouter />
-                                </PermissionProvider>
-                            </TenantProvider>
-                        </AuthProvider>
-                    </PortalProvider>
+                    <PlaneProvider>
+                        <PortalProvider>
+                            <AuthProvider>
+                                <TenantProvider>
+                                    <PermissionProvider>
+                                        <TenantBrandingInjector />
+                                        <PortalRouter />
+                                    </PermissionProvider>
+                                </TenantProvider>
+                            </AuthProvider>
+                        </PortalProvider>
+                    </PlaneProvider>
                 </RouteProvider>
             </BrowserRouter>
         </ThemeProvider>

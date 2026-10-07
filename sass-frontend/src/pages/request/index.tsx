@@ -15,8 +15,6 @@ import {
 } from '@untitledui/icons';
 import { Button } from '@/components/base/buttons/button';
 import { Input } from '@/components/base/input/input';
-import { SiteHeader } from '@/components/marketing/site-header';
-import { SiteFooter } from '@/components/marketing/site-footer';
 import { saasApi, STORAGE_KEYS } from '@/api/client';
 import { saveApprovalBootstrap } from '@/types/tenant';
 
@@ -167,9 +165,7 @@ export const RequestPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-bg-primary text-primary">
-            <SiteHeader variant="inner" />
-
+        <>
             {submitted ? (
                 <SubmittedView slug={submitted.slug} requestId={submitted.requestId} onContinue={() => navigate(`/onboarding/${submitted.slug}`)} />
             ) : (
@@ -261,9 +257,7 @@ export const RequestPage = () => {
                     </form>
                 </main>
             )}
-
-            <SiteFooter />
-        </div>
+        </>
     );
 };
 

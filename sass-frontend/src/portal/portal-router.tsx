@@ -10,6 +10,8 @@ import { TenantLayout } from '@/layouts/tenant-layout';
 
 // Common / Auth Pages
 import { LoginScreen } from '@/pages/auth/login';
+import { SaaSForgotPasswordScreen } from '@/pages/auth/forgot-password';
+import { SaaSResetPasswordScreen } from '@/pages/auth/reset-password';
 import { NotFound } from '@/pages/not-found';
 
 // Public Homepage & Onboarding Pages
@@ -66,6 +68,8 @@ export function PortalRouter() {
                     <Route path="/onboarding/:slug/wizard" element={<WizardPage />} />
                     <Route path="/onboarding/:slug/complete" element={<CompletePage />} />
                     <Route path="/login" element={<LoginScreen />} />
+                            <Route path="/forgot-password" element={<SaaSForgotPasswordScreen />} />
+                            <Route path="/reset-password" element={<SaaSResetPasswordScreen />} />
                     <Route path="*" element={<NotFound />} />
                 </Route>
             </Routes>
@@ -77,6 +81,8 @@ export function PortalRouter() {
         return (
             <Routes>
                 <Route path="/login" element={<LoginScreen />} />
+                <Route path="/forgot-password" element={<SaaSForgotPasswordScreen />} />
+                <Route path="/reset-password" element={<SaaSResetPasswordScreen />} />
                 <Route path="/" element={<AppLayout />}>
                     <Route index element={<DashboardScreen />} />
                     <Route path="dashboard" element={<DashboardScreen />} />

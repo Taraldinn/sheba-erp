@@ -76,6 +76,16 @@ describe('asUserRoleKey (string normalisation)', () => {
         expect(asUserRoleKey('Subscriber')).toBe('CUSTOMER');
     });
 
+    it('recognises backend role identifiers from the SaaS control plane', () => {
+        // Regression: backend returns 'PLATFORM_SUPER_ADMIN' from /saas/auth/me/
+        // and the legacy 'Platform Super Admin' label. Both must coerce to
+        // SUPER_ADMIN, otherwise the AuthGuard shows "Access denied" on
+        // admin.* hosts.
+        expect(asUserRoleKey('PLATFORM_SUPER_ADMIN')).toBe('SUPER_ADMIN');
+        expect(asUserRoleKey('platform_super_admin')).toBe('SUPER_ADMIN');
+        expect(asUserRoleKey('Platform Super Admin')).toBe('SUPER_ADMIN');
+    });
+
     it('falls back to STAFF for unknown values', () => {
         expect(asUserRoleKey('totally not a role')).toBe('STAFF');
         expect(asUserRoleKey(null)).toBe('STAFF');
