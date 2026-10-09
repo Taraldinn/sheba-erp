@@ -40,8 +40,11 @@ describe('homeRoute values are valid bare paths', () => {
         expect(USER_ROLES.SUPER_ADMIN.homeRoute).toBe('/dashboard');
     });
 
-    it('ADMIN homeRoute points at the dashboard', () => {
-        expect(USER_ROLES.ADMIN.homeRoute).toBe('/dashboard');
+    it('ADMIN homeRoute points at the organization dashboard (/admin)', () => {
+        // Tenant owners (Managing Director) land on the parent
+        // SaaS-subscriber overview, not the central ISP operations
+        // cockpit. See src/pages/isp/owner-dashboard.tsx.
+        expect(USER_ROLES.ADMIN.homeRoute).toBe('/admin');
     });
 
     it('BILLING homeRoute points at /billing', () => {

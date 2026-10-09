@@ -191,6 +191,7 @@ export function PortalRouter() {
                     <Route path="app/tickets" element={<Navigate to="tickets" replace />} />
                     <Route path="app/reseller" element={<Navigate to="resellers" replace />} />
                     <Route path="app/resellers" element={<Navigate to="resellers" replace />} />
+                    <Route path="app/admin" element={<Navigate to="admin/overview" replace />} />
 
                     {/* Phase 35 — ISP Owner Dashboard (parent SaaS-subscriber). */}
                     <Route path="admin" element={<OwnerOverviewScreen />} />

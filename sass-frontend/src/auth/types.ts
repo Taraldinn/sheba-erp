@@ -64,7 +64,11 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'TENANT', 'PUBLIC_HOME'],
         group: 'isp',
         multiTenant: true,
-        homeRoute: '/dashboard',
+        // Tenant owners land on the organization dashboard (parent
+        // SaaS-subscriber overview), not the central ISP operations
+        // cockpit. See src/pages/isp/owner-dashboard.tsx and the
+        // `/admin/*` tree in PortalRouter.
+        homeRoute: '/admin',
     },
     BILLING: {
         key: 'BILLING',
