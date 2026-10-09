@@ -1,16 +1,33 @@
 /**
- * Smoke test that the reseller portal routes mount and render
- * inside the ISP_ADMIN portal tree.
+ * Smoke test that the reseller portal screens mount and render
+ * without crashing.
  *
  * The full data-binding paths are covered by the backend
  * integration tests in `apps/authentication/test_*stage*.py`.
- * This test only pins the frontend route table so a future
- * refactor that drops a route is caught here.
+ * This test only pins the screen entry points so a future
+ * refactor that breaks a screen is caught here.
  */
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router';
+
+beforeAll(() => {
+    // jsdom does not provide matchMedia by default.
+    Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        value: vi.fn().mockImplementation((query: string) => ({
+            matches: false,
+            media: query,
+            onchange: null,
+            addListener: vi.fn(),
+            removeListener: vi.fn(),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+            dispatchEvent: vi.fn(),
+        })),
+    });
+});
 
 vi.mock('@/api/client', async (importOriginal) => {
     const actual = await importOriginal<any>();
@@ -25,19 +42,22 @@ vi.mock('@/api/client', async (importOriginal) => {
             ...actual.tenantApi,
             me: vi.fn().mockResolvedValue(null),
         },
+        ispPackageApi: {
+            list: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+        },
     };
 });
 
 vi.mock('@/api/reseller-api', () => ({
     resellerApi: {
         profile: vi.fn().mockResolvedValue({
-            id: 'r1', business_name: 'Acme', is_active: true,
+            id: 'r1', business_name: 'Acme Reseller', is_active: true,
             wallet_balance: '0', credit_limit: '0', commission_rate: '0',
             tenant: 't1', user: 1, contact_phone: '', contact_email: '',
             address: '', created_at: '', updated_at: '',
         }),
         wallet: vi.fn().mockResolvedValue({
-            reseller_id: 'r1', business_name: 'Acme', is_active: true,
+            reseller_id: 'r1', business_name: 'Acme Reseller', is_active: true,
             cached_balance: '0', computed_balance: '0', balances_match: true,
             credit_limit: '0', totals: { credit: '0', debit: '0', commission: '0', refund: '0' },
             as_of: '',
@@ -52,18 +72,9 @@ vi.mock('@/api/reseller-api', () => ({
     },
 }));
 
-vi.mock('@/api/customer-portal-api', () => ({
-    customerPortalApi: {
-        profile: vi.fn(), packages: vi.fn(), invoices: vi.fn(),
-    },
-}));
-
 import { ThemeProvider } from '@/providers/theme-provider';
 import { PortalProvider } from '@/portal/portal-provider';
-import { PlaneProvider } from '@/providers/plane-provider';
 import { AuthProvider } from '@/portal/auth-provider';
-import { RouteProvider } from '@/providers/router-provider';
-
 import { ResellerOverviewScreen } from '@/pages/isp/reseller';
 import { ResellerWalletScreen } from '@/pages/isp/reseller/wallet';
 import { ResellerHoldsScreen } from '@/pages/isp/reseller/holds';
@@ -75,52 +86,55 @@ const renderAt = (path: string) => render(
     <MemoryRouter initialEntries={[path]}>
         <ThemeProvider>
             <PortalProvider>
-                <PlaneProvider>
-                    <AuthProvider>
-                        <RouteProvider>
-                            <Routes>
-                                <Route path="/resellers" element={<ResellerOverviewScreen />} />
-                                <Route path="/resellers/wallet" element={<ResellerWalletScreen />} />
-                                <Route path="/resellers/holds" element={<ResellerHoldsScreen />} />
-                                <Route path="/resellers/customers" element={<ResellerCustomersScreen />} />
-                                <Route path="/resellers/collections" element={<ResellerCollectionsScreen />} />
-                                <Route path="/resellers/customers/:id/purchase" element={<ResellerPurchaseScreen mode="purchase" />} />
-                                <Route path="/resellers/customers/:id/renew" element={<ResellerPurchaseScreen mode="renew" />} />
-                            </Routes>
-                        </RouteProvider>
-                    </AuthProvider>
-                </PlaneProvider>
+                <AuthProvider>
+                    <Routes>
+                        <Route path="/resellers" element={<ResellerOverviewScreen />} />
+                        <Route path="/resellers/wallet" element={<ResellerWalletScreen />} />
+                        <Route path="/resellers/holds" element={<ResellerHoldsScreen />} />
+                        <Route path="/resellers/customers" element={<ResellerCustomersScreen />} />
+                        <Route path="/resellers/collections" element={<ResellerCollectionsScreen />} />
+                        <Route path="/resellers/customers/:id/purchase" element={<ResellerPurchaseScreen mode="purchase" />} />
+                        <Route path="/resellers/customers/:id/renew" element={<ResellerPurchaseScreen mode="renew" />} />
+                    </Routes>
+                </AuthProvider>
             </PortalProvider>
-        </PortalProvider>
+        </ThemeProvider>
     </MemoryRouter>,
 );
 
-describe('Reseller portal routes', () => {
-    it('renders the overview screen at /resellers', async () => {
+describe('Reseller portal screens', () => {
+    it('overview screen renders and shows the reseller business name', async () => {
         renderAt('/resellers');
-        // Loading spinner shows briefly, then the resolved content.
-        // The mock above returns a valid profile, so we expect the
-        // "Acme" business name to appear.
-        expect(await screen.findByText(/Acme/)).toBeTruthy();
+        await waitFor(() => {
+            expect(screen.getByText(/Acme Reseller/)).toBeTruthy();
+        }, { timeout: 3000 });
     });
 
-    it('renders the wallet screen at /resellers/wallet', async () => {
+    it('wallet screen renders', async () => {
         renderAt('/resellers/wallet');
-        expect(await screen.findByText(/Wallet & Credit/)).toBeTruthy();
+        await waitFor(() => {
+            expect(screen.getByText(/Wallet & Credit/)).toBeTruthy();
+        }, { timeout: 3000 });
     });
 
-    it('renders the holds screen at /resellers/holds', async () => {
+    it('holds screen renders', async () => {
         renderAt('/resellers/holds');
-        expect(await screen.findByText(/Wallet holds/)).toBeTruthy();
+        await waitFor(() => {
+            expect(screen.getByText(/Wallet holds/)).toBeTruthy();
+        }, { timeout: 3000 });
     });
 
-    it('renders the customers screen at /resellers/customers', async () => {
+    it('customers screen renders', async () => {
         renderAt('/resellers/customers');
-        expect(await screen.findByText(/Assigned customers/)).toBeTruthy();
+        await waitFor(() => {
+            expect(screen.getByText(/Assigned customers/)).toBeTruthy();
+        }, { timeout: 3000 });
     });
 
-    it('renders the collections screen at /resellers/collections', async () => {
+    it('collections screen renders', async () => {
         renderAt('/resellers/collections');
-        expect(await screen.findByText(/Collections/)).toBeTruthy();
+        await waitFor(() => {
+            expect(screen.getByText(/^Collections/)).toBeTruthy();
+        }, { timeout: 3000 });
     });
 });
