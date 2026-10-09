@@ -42,6 +42,15 @@ import { PackagesScreen as IspPackagesScreen } from '@/pages/isp/packages';
 import { SubscriptionsScreen as IspSubscriptionsScreen } from '@/pages/isp/subscriptions';
 import { InvoicesScreen as IspInvoicesScreen } from '@/pages/isp/invoices';
 
+// Reseller Portal (`/resellers/*`) — used by RESELLER / RESELLER_L1 /
+// RESELLER_L2 / AGENT roles inside the ISP_ADMIN or TENANT portal.
+import { ResellerOverviewScreen } from '@/pages/isp/reseller';
+import { ResellerWalletScreen } from '@/pages/isp/reseller/wallet';
+import { ResellerHoldsScreen } from '@/pages/isp/reseller/holds';
+import { ResellerCustomersScreen } from '@/pages/isp/reseller/customers';
+import { ResellerCollectionsScreen } from '@/pages/isp/reseller/collections';
+import { ResellerPurchaseScreen } from '@/pages/isp/reseller/purchase';
+
 // Phase 35 — ISP Owner Dashboard pages (`/admin/*`)
 import { OwnerOverviewScreen } from '@/pages/isp/owner-dashboard';
 import { OwnerDomainsScreen } from '@/pages/isp/owner-domains';
@@ -137,7 +146,14 @@ export function PortalRouter() {
                     <Route path="olt" element={<IspDashboardScreen />} />
                     <Route path="onu" element={<IspDashboardScreen />} />
                     <Route path="network" element={<IspDashboardScreen />} />
-                    <Route path="resellers" element={<IspDashboardScreen />} />
+                    {/* Reseller portal — see src/pages/isp/reseller/* */}
+                    <Route path="resellers" element={<ResellerOverviewScreen />} />
+                    <Route path="resellers/wallet" element={<ResellerWalletScreen />} />
+                    <Route path="resellers/holds" element={<ResellerHoldsScreen />} />
+                    <Route path="resellers/customers" element={<ResellerCustomersScreen />} />
+                    <Route path="resellers/customers/:id/purchase" element={<ResellerPurchaseScreen mode="purchase" />} />
+                    <Route path="resellers/customers/:id/renew" element={<ResellerPurchaseScreen mode="renew" />} />
+                    <Route path="resellers/collections" element={<ResellerCollectionsScreen />} />
                     <Route path="tickets" element={<IspDashboardScreen />} />
                     <Route path="reports" element={<IspDashboardScreen />} />
                     <Route path="settings" element={<IspDashboardScreen />} />

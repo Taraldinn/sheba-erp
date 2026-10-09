@@ -2,8 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router';
 import {
     BarChart01,
+    Bank,
     Building07,
     CreditCard01,
+    CreditCardRefresh,
     CpuChip01,
     File06,
     Globe01,
@@ -112,8 +114,18 @@ function IspLayoutInner() {
                 icon: Key01,
             });
         }
+
+        // Reseller sidebar — visible only to RESELLER-family roles.
+        const isReseller = auth.role === 'RESELLER' || auth.role === 'RESELLER_L1' || auth.role === 'RESELLER_L2' || auth.role === 'AGENT';
+        if (isReseller) {
+            items.push({ divider: true });
+            items.push({ label: 'Wallet & Credit', href: '/resellers/wallet', icon: Bank });
+            items.push({ label: 'Wallet Holds', href: '/resellers/holds', icon: CreditCardRefresh });
+            items.push({ label: 'My Customers', href: '/resellers/customers', icon: Users01 });
+            items.push({ label: 'Collections', href: '/resellers/collections', icon: Package });
+        }
         return items;
-    }, [canCustomers, canBilling, canSubscriptions, canMikrotik, canOlt, canTickets, canStaff, canReports, canSettings]);
+    }, [canCustomers, canBilling, canSubscriptions, canMikrotik, canOlt, canTickets, canStaff, canReports, canSettings, auth.role]);
 
     return (
         <>
