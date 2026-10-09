@@ -81,7 +81,7 @@ describe('resolvePortal', () => {
         });
 
         it('resolves custom white-label domains as custom domain tenant', () => {
-            const res = resolvePortal('portal.myispdomain.net');
+            const res = resolvePortal('crm.myispdomain.net');
             expect(res.portal).toBe('TENANT');
             expect(res.isCustomDomain).toBe(true);
         });
@@ -111,6 +111,80 @@ describe('resolvePortal', () => {
             });
             expect(res.portal).toBe('TENANT');
             expect(res.tenantSlug).toBe('skyline');
+        });
+
+        it('ignores dev override when isDev=false and host is not local', () => {
+            // Production build serving a public apex must not accept a
+            // ?portal= query parameter from the URL — the hostname is
+            // authoritative.
+            const res = resolvePortal('example.com', {
+                searchParams: new URLSearchParams('portal=super_admin'),
+                isDev: false,
+            });
+            expect(res.portal).toBe('PUBLIC_HOME');
+        });
+    });
+
+    describe('Reserved subdomains and safety', () => {
+        it('refuses to resolve api.localhost as a tenant', () => {
+            const res = resolvePortal('api.localhost');
+            expect(res.portal).toBe('UNKNOWN');
+        });
+
+        it('refuses to resolve www.localhost as a tenant', () => {
+            const res = resolvePortal('www.localhost');
+            expect(res.portal).toBe('UNKNOWN');
+        });
+
+        it('refuses to resolve cdn.localhost as a tenant', () => {
+            const res = resolvePortal('cdn.localhost');
+            expect(res.portal).toBe('UNKNOWN');
+        });
+
+        it('refuses multi-level subdomains as tenants on example.com', () => {
+            // a.b.example.com must NOT be coerced into a tenant slug — the
+            // tenant root is two labels only.
+            const res = resolvePortal('a.b.example.com');
+            // It will fall through to the custom-domain branch because it
+            // still contains a dot, but it must not silently pretend to be
+            // a single-level tenant.
+            expect(res.tenantSlug).toBeUndefined();
+            expect(res.isCustomDomain).toBe(true);
+        });
+
+        it('handles an empty hostname gracefully (UNKNOWN, never throw)', () => {
+            expect(() => resolvePortal('')).not.toThrow();
+            expect(resolvePortal('').portal).toBe('UNKNOWN');
+        });
+
+        it('handles a hostname that is just a port (UNKNOWN)', () => {
+            const res = resolvePortal(':5174');
+            expect(res.portal).toBe('UNKNOWN');
+        });
+
+        it('strips the port and lower-cases the input', () => {
+            const res = resolvePortal('FastNet.Example.COM:5174');
+            expect(res.portal).toBe('TENANT');
+            expect(res.tenantSlug).toBe('fastnet');
+        });
+
+        it('whitespace-trimmed input still resolves correctly', () => {
+            const res = resolvePortal('  admin.example.com  ');
+            expect(res.portal).toBe('SUPER_ADMIN');
+        });
+    });
+
+    describe('UNKNOWN and unknown hosts', () => {
+        it('resolves a single-label unknown host to UNKNOWN', () => {
+            // No dot, no match for any rule → UNKNOWN rather than a tenant.
+            const res = resolvePortal('intranet');
+            expect(res.portal).toBe('UNKNOWN');
+        });
+
+        it('custom white-label domain is flagged as a custom-domain tenant', () => {
+            const res = resolvePortal('crm.acme-isp.com');
+            expect(res.portal).toBe('TENANT');
+            expect(res.isCustomDomain).toBe(true);
         });
     });
 });

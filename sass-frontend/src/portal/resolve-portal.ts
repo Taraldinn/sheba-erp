@@ -155,14 +155,22 @@ export function resolvePortal(
     }
 
     // ── 5. CUSTOM DOMAINS (e.g. portal.myisp.net) ──
-    // Any other domain that is not a reserved or known root domain is treated as a custom tenant domain
+    // Any other domain that is not a reserved or known root domain is treated
+    // as a custom tenant domain. The leftmost label is consulted against
+    // RESERVED_SLUGS so that hostnames like `api.example.com` (a host the
+    // platform reserves for the API plane) are NOT silently coerced into a
+    // tenant. Real authorization is enforced by the backend; this only
+    // prevents obvious mistakes at the resolver level.
     if (hostname.includes('.')) {
-        return {
-            portal: 'TENANT',
-            hostname,
-            isCustomDomain: true,
-            isDevelopment: isLocalDevHost,
-        };
+        const firstLabel = hostname.split('.')[0];
+        if (!RESERVED_SLUGS.has(firstLabel)) {
+            return {
+                portal: 'TENANT',
+                hostname,
+                isCustomDomain: true,
+                isDevelopment: isLocalDevHost,
+            };
+        }
     }
 
     return {

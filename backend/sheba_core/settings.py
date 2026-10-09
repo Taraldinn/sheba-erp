@@ -334,15 +334,31 @@ DEFAULT_CORS_ORIGINS = [
     'http://127.0.0.1:3002',
 ]
 
+def _normalize_origin(value):
+    """Ensure origin has a scheme so Django 4.0 system check passes.
+
+    Accepts bare hosts/patterns like ``*.shebafi.xyz`` or ``app.shebafi.xyz`` and
+    prefixes ``https://`` when missing. Leaves values that already have a scheme
+    untouched.
+    """
+    v = (value or '').strip()
+    if not v or v == '*':
+        return v
+    if '://' in v:
+        return v
+    return f'https://{v}'
+
+
 _env_cors_origins = env.list('CORS_ALLOWED_ORIGINS', default=[])
 CORS_ALLOWED_ORIGINS = list(dict.fromkeys(
-    DEFAULT_CORS_ORIGINS + [o.strip() for o in _env_cors_origins if o.strip() and o.strip() != '*']
+    DEFAULT_CORS_ORIGINS + [_normalize_origin(o) for o in _env_cors_origins if o.strip() and o.strip() != '*']
 ))
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https:\/\/([a-zA-Z0-9_-]+\.)*vercel\.app$",
     r"^https:\/\/([a-zA-Z0-9_-]+\.)*shebafi\.xyz$",
     r"^https:\/\/([a-zA-Z0-9_-]+\.)*shebafi\.com$",
+    r"^https:\/\/([a-zA-Z0-9_-]+\.)*workers\.dev$",
     r"^http:\/\/localhost(:[0-9]+)?$",
     r"^http:\/\/127\.0\.0\.1(:[0-9]+)?$",
     r"^http:\/\/([a-zA-Z0-9_-]+\.)*localhost(:[0-9]+)?$",
@@ -378,7 +394,7 @@ DEFAULT_CSRF_TRUSTED_ORIGINS = [
 ]
 _env_csrf_trusted = env.list('CSRF_TRUSTED_ORIGINS', default=[])
 CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(
-    DEFAULT_CSRF_TRUSTED_ORIGINS + [o.strip() for o in _env_csrf_trusted if o.strip()]
+    DEFAULT_CSRF_TRUSTED_ORIGINS + [_normalize_origin(o) for o in _env_csrf_trusted if o.strip()]
 ))
 
 # ─── Security Headers ────────────────────────────────────────────────────────

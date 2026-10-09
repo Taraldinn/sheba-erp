@@ -45,6 +45,11 @@ export const STORAGE_KEYS = {
   tenantSlug: 'saas_tenant_slug',
   tenantId: 'saas_tenant_id',
   bootstrapPending: 'saas_bootstrap_pending',
+  // Customer self-care portal — separate storage slot so an
+  // owner/staff session and a customer session on the same browser
+  // don't overwrite each other's token.
+  portalToken: 'saas_portal_token',
+  portalUser: 'saas_portal_user',
 } as const;
 
 export type Plane = 'central' | 'tenant';
@@ -234,12 +239,21 @@ interface FetchOptions extends RequestInit {
   plane?: Plane;
   skipAuth?: boolean;
   tenantSlug?: string;
+  /**
+   * Which token storage slot to read from / persist to. Defaults to
+   * the slot implied by `plane` (central → centralToken, tenant →
+   * tenantToken). The customer self-care portal uses a separate slot
+   * so a staff session and a customer session on the same browser
+   * don't overwrite each other.
+   */
+  tokenSlot?: 'centralToken' | 'tenantToken' | 'portalToken';
 }
 
 export async function fetchApi<T>(endpoint: string, opts: FetchOptions = {}): Promise<T> {
   const plane = opts.plane || getActivePlane();
   const baseUrl = getApiBaseUrl(plane);
-  const storageKey = getStorageKey(plane);
+  const slot = opts.tokenSlot || (plane === 'central' ? 'centralToken' : 'tenantToken');
+  const storageKey = STORAGE_KEYS[slot];
 
   let token = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
   if (!token || token.startsWith('mock_') || token.length < 30) {
