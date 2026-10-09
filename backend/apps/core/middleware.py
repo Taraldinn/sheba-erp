@@ -83,6 +83,14 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         '/api/v1/payments/webhook/sms/',
         '/api/v1/payments/bkash/paybill/',
         '/api/v1/network/reconciliation/report/',
+        # Stage 2: ISP Owner SaaS Portal (app.example.com) — these endpoints
+        # work without a single resolved tenant. Authorization is enforced
+        # by the view's own permission class (IsCentralOrOrgAdmin).
+        '/api/v1/organizations/',
+        # Stage 3: Reseller portal endpoints (/me/, /{id}/, /customers/, etc.)
+        # work on either the tenant host or the ISP portal host. The viewset
+        # performs the tenant + ownership checks itself.
+        '/api/v1/resellers/',
     )
 
     CONTROL_PLANE_PREFIXES = (

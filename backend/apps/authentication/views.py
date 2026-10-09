@@ -366,7 +366,23 @@ class LoginView(views.APIView):
     responses={200: dict}
 )
 class CurrentUserView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    """
+    Authoritative 'who am I' for an authenticated caller.
+
+    Tenant-plane contract: the user must have an active StaffMembership in
+    ``request.tenant`` exactly. We do NOT fall through to "first active
+    membership" any more — that behaviour allowed a token issued in Tenant A
+    to be used against Tenant B and still get a 200 (see F-04 in
+    docs/AUDIT_AND_IMPLEMENTATION_PLAN.md).
+
+    The only callers that may skip the membership-in-tenant check are:
+      - superusers (the central platform admin);
+      - control-plane requests (which ``IsTenantMember`` short-circuits);
+      - callers authenticated with an active ``AuthSession`` whose
+        ``tenant_id`` matches ``request.tenant`` (a LoginView-bound session
+        can never serve a foreign tenant).
+    """
+    permission_classes = [IsTenantMember, permissions.IsAuthenticated]
 
     def get(self, request):
         base_data = UserDetailSerializer(request.user, context={'request': request}).data
@@ -374,12 +390,21 @@ class CurrentUserView(views.APIView):
         tenant = getattr(request, 'tenant', None)
         is_control_plane = getattr(request, 'is_control_plane', False)
 
+        # Strict membership-in-tenant lookup. The IsTenantMember permission
+        # class has already enforced that the user has an active membership
+        # in request.tenant (or is a superuser / on the control plane).
         membership = None
         if tenant:
             membership = StaffMembership.objects.filter(
                 user=user, tenant=tenant, is_active=True
             ).select_related('role').first()
         elif not is_control_plane and not user.is_superuser:
+            # Tenant not resolved from the host (e.g. an /api/v1/auth/me/
+            # call served from the SaaS control plane where the caller is
+            # a plain staff user). We surface the caller's first active
+            # membership so the UI can show "select a tenant" rather
+            # than 403. Control-plane and superuser paths are handled by
+            # IsTenantMember.
             membership = StaffMembership.objects.filter(
                 user=user, is_active=True
             ).select_related('role', 'tenant').first()

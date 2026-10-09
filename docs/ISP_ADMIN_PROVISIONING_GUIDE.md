@@ -249,3 +249,120 @@ The **Office Staff** navigation link is visible in the sidebar. In this module, 
 | Creating an ISP Admin returns `400 Bad Request: Username already taken` | A Django `User` with that username already exists across the system | Usernames in Django `auth.User` are globally unique. Choose a tenant-specific username (e.g., `john_speednet`). |
 | Tenant roles missing in database | Tenant was created prior to automated seeding | Execute `seed_default_roles_for_tenant(tenant)` in Django shell. This populates `Admin`, `Manager`, `Accountant`, `Technician`, and `Support` roles. |
 | Super Admin UI doesn't show newly added admin | Cache latency | Invalidation runs automatically on `create-admin`. If using manual SQL updates, call `RedisService.delete_pattern('saas:tenant:*')`. |
+
+---
+
+## 9. ISP Admin Dashboard & Multi-tenant Hierarchy (Phase 35)
+
+This section extends the 3-tier hierarchy (Central Control Plane → ISP Admin → ISP Office Staff) with a **4th dimension** for SaaS subscribers that operate multiple sub-ISPs / branch tenants under the same subscription.
+
+### 9.1 The Hierarchy
+
+```
+Central Control Plane  (admin.shebafi.xyz → /api/v1/saas/*)
+        │
+        │  SaaS subscriber — typically a holding company,
+        │  parent ISP, or ISP consortium with a single
+        │  monthly bill to ShebaFi.
+        │
+        ▼
+Parent Tenant          (parent-isp.shebafi.xyz → /api/v1/admin/*)
+   ├── Child Tenant A  (child-a.shebafi.xyz → /api/v1/*)
+   ├── Child Tenant B  (child-b.shebafi.xyz → /api/v1/*)
+   └── Child Tenant C  (child-c.shebafi.xyz → /api/v1/*)
+```
+
+- **Parent tenant** is a `Tenant` row with `parent_tenant IS NULL` — the SaaS subscriber itself.
+- **Child tenant** is a `Tenant` row with `parent_tenant = <parent>` — a sub-ISP / branch ISP managed under the parent.
+- **Each child tenant has its own admin User + StaffMembership + primary domain + quota**, and operates independently against the existing `/api/v1/*` core app.
+- **The dashboard at `/api/v1/admin/*` is owned by the parent**, never by a child. Child tenants continue using the existing `/api/v1/*` endpoints.
+
+### 9.2 What the dashboard enables
+
+The ISP Admin Dashboard (`/api/v1/admin/*`) is the parent tenant's tool to:
+
+1. **Add custom CNAMEs** for the parent tenant domain.
+2. **Subscribe / unsubscribe** to platform modules and feature flags.
+3. **Provision child tenants** — name, slug, plan, optional primary domain, authoritative admin username / password / email / phone. The provisioning reuses `provision_tenant_admin()` to guarantee role seeding + StaffProfile + StaffMembership wiring.
+4. **Soft-disable child tenants** without losing audit history.
+6. **View per-child KPIs** — domain count, customer count, enabled module count.
+7. **Reset the child admin's password** — direct set + invalidates all DRF tokens, forcing re-authentication.
+8. **Change the child admin's login email** — audited with before/after.
+9. **Impersonate a child admin** — issues (or returns existing) DRF auth token so the parent admin can operate the child tenant's core app on the parent's behalf.
+
+### 9.3 Quota inheritance
+
+Child tenants inherit the parent's `plan`. Quotas are **floored** so a single child cannot exhaust the parent:
+
+| Parent value | Child receives |
+|---|---|
+| `plan` | `parent.plan` (verbatim) |
+| `max_subscribers` | `max(1, parent.max_subscribers // 4)` |
+| `max_routers` | `max(1, parent.max_routers // 4)` |
+
+### 9.4 Permission matrix (`IsIspAdminDashboard`)
+
+| Role on parent tenant | Result on `/api/v1/admin/*` |
+|---|---|
+| Admin / Managing Director | ✅ 200 |
+| Billing Operator / Sales / Demo / NOC Tech / etc. | ❌ 403 |
+| Any role on a **child** tenant | ❌ 403 (parent-only check) |
+| Anonymous / unauthenticated | ❌ 401 |
+
+### 9.5 Impersonation token semantics
+
+`POST /api/v1/admin/child-tenants/{pk}/impersonate.json` returns:
+
+```json
+{
+  "token": "<DRF auth token key>",
+  "tenant_slug": "child-branch",
+  "tenant_id": "530b28da-...",
+  "admin_username": "child-admin"
+}
+```
+
+The token is the child admin's DRF auth token (the same `rest_framework.authtoken.Token` row already used by the core app). It is refreshed on each call, and **a row is written to `AuditLog` with `action='impersonate_child_admin'`** capturing both the parent's tenant id and the child admin's id / username.
+
+**Re-use, do not re-issue**: the parent admin should cache the token returned from impersonation rather than re-issuing on every request, since each call is logged.
+
+### 9.6 Audit actions emitted
+
+The dashboard writes `AuditLog` rows for every mutation:
+
+| Action | When |
+|---|---|
+| `child_tenant_provisioned` | POST `/admin/child-tenants/` |
+| `module_subscribed` / `module_disabled` | POST `/admin/modules/subscribe/` |
+| `module_unsubscribed` | POST `/admin/modules/{key}/unsubscribe/` |
+| `child_admin_password_reset` | POST `/admin/child-tenants/{pk}/admin-user/reset-password/` |
+| `child_admin_email_changed` | POST `/admin/child-tenants/{pk}/admin-user/change-email/` |
+| `child_admin_profile_updated` | PATCH `/admin/child-tenants/{pk}/admin-user/` |
+| `impersonate_child_admin` | POST `/admin/child-tenants/{pk}/impersonate.json` |
+
+### 9.7 Model: `Tenant.parent_tenant`
+
+Phase 35 adds a self-referencing FK on `Tenant`:
+
+```python
+parent_tenant = models.ForeignKey(
+    'self', on_delete=models.CASCADE,
+    null=True, blank=True,
+    related_name='child_tenants',
+    help_text='Parent SaaS subscriber tenant. Null for top-level ISP/tenant.',
+)
+```
+
+with companion `(parent_tenant, is_active)` index and `tenant_not_self_parent` check constraint that prevents a tenant from being its own parent.
+
+Helper APIs on each `Tenant` instance:
+
+| Helper | Description |
+|---|---|
+| `is_child_tenant` (property) | True iff `parent_tenant_id is not None` |
+| `root_tenant` (property) | Walks up the parent chain (max 32 hops to defend against cycles) |
+| `children_count` (property) | Number of direct children under this SaaS subscriber |
+
+### 9.8 Migration
+
+`apps/core/migrations/0017_tenant_parent_tenant.py` adds the FK, the index, and the check constraint in a single migration. No data backfill is required — every existing tenant keeps `parent_tenant = NULL` and is treated as a top-level SaaS subscriber from then on.

@@ -8,6 +8,24 @@ import {
   CompanySetting, POPBranch
 } from './types';
 import { detectPlane, effectivePlane } from '@/lib/plane';
+import { ispAdminApi } from './isp-admin-api';
+
+// Re-export Phase 35 ISP Owner Dashboard API + types so callers can
+// import them from a single location (``@/api/client``).
+export {
+    ispAdminApi,
+} from './isp-admin-api';
+export type {
+    IspAdminOverview,
+    IspAdminDomain,
+    IspAdminModuleRow,
+    IspAdminModuleSubscription,
+    IspAdminChildTenant,
+    IspAdminChildTenantOverview,
+    IspAdminChildAdminUser,
+    IspAdminImpersonateResponse,
+    IspAdminChildTenantCreatePayload,
+} from './isp-admin-api';
 
 // ── Base URL resolution ────────────────────────────────────────────────────
 const RAW_API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
@@ -218,7 +236,7 @@ interface FetchOptions extends RequestInit {
   tenantSlug?: string;
 }
 
-async function fetchApi<T>(endpoint: string, opts: FetchOptions = {}): Promise<T> {
+export async function fetchApi<T>(endpoint: string, opts: FetchOptions = {}): Promise<T> {
   const plane = opts.plane || getActivePlane();
   const baseUrl = getApiBaseUrl(plane);
   const storageKey = getStorageKey(plane);
@@ -1301,6 +1319,7 @@ export const api = {
   search: searchApi,
   companySetting: companySettingApi,
   branch: branchApi,
+  ispAdmin: ispAdminApi,
   getActivePlane,
   STORAGE_KEYS
 };

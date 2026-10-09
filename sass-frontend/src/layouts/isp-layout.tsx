@@ -2,16 +2,19 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router';
 import {
     BarChart01,
+    Building07,
+    CreditCard01,
+    CpuChip01,
+    File06,
+    Globe01,
+    Package,
     Receipt,
     Server01,
     Settings01,
+    Key01,
+    Signal01,
     Ticket01,
     Users01,
-    CreditCard01,
-    CpuChip01,
-    Signal01,
-    File06,
-    Building07,
 } from '@untitledui/icons';
 import type { NavItemDividerType, NavItemType } from '@/components/application/app-navigation/config';
 import { AppShell } from '@/components/application/app-shell/app-shell';
@@ -91,6 +94,24 @@ function IspLayoutInner() {
         if (canStaff) items.push({ label: 'Staff', href: '/staff', icon: Users01 });
         if (canReports) items.push({ label: 'Financial Reports', href: '/reports', icon: File06 });
         if (canSettings) items.push({ label: 'Settings', href: '/settings', icon: Settings01 });
+
+        // Phase 35 — ISP Owner Dashboard (parent SaaS-subscriber only).
+        // The `/api/v1/admin/*` endpoints require an Admin / Managing
+        // Director role on a top-level tenant. We gate the menu entry on
+        // the same "manage staff" capability that already implies
+        // admin-level access — adjust as your permission catalog grows.
+        const canOwner = canStaff;
+        if (canOwner) {
+            items.push({ divider: true });
+            items.push({ label: 'Owner Dashboard', href: '/admin', icon: Building07 });
+            items.push({ label: 'Custom Domains', href: '/admin/domains', icon: Globe01 });
+            items.push({ label: 'Modules', href: '/admin/modules', icon: Package });
+            items.push({
+                label: 'Child Tenants',
+                href: '/admin/child-tenants',
+                icon: Key01,
+            });
+        }
         return items;
     }, [canCustomers, canBilling, canSubscriptions, canMikrotik, canOlt, canTickets, canStaff, canReports, canSettings]);
 

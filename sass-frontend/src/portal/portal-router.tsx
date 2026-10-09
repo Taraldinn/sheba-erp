@@ -42,6 +42,15 @@ import { PackagesScreen as IspPackagesScreen } from '@/pages/isp/packages';
 import { SubscriptionsScreen as IspSubscriptionsScreen } from '@/pages/isp/subscriptions';
 import { InvoicesScreen as IspInvoicesScreen } from '@/pages/isp/invoices';
 
+// Phase 35 — ISP Owner Dashboard pages (`/admin/*`)
+import { OwnerOverviewScreen } from '@/pages/isp/owner-dashboard';
+import { OwnerDomainsScreen } from '@/pages/isp/owner-domains';
+import { OwnerModulesScreen } from '@/pages/isp/owner-modules';
+import { OwnerChildTenantsScreen } from '@/pages/isp/owner-child-tenants';
+import { OwnerChildTenantDetailScreen } from '@/pages/isp/owner-child-tenant-detail';
+import { OwnerChildAdminUserScreen } from '@/pages/isp/owner-child-admin-user';
+import { OwnerChildImpersonateScreen } from '@/pages/isp/owner-child-impersonate';
+
 // Tenant Subscriber Pages
 import { TenantDashboardScreen } from '@/pages/tenant/dashboard';
 
@@ -132,6 +141,28 @@ export function PortalRouter() {
                     <Route path="tickets" element={<IspDashboardScreen />} />
                     <Route path="reports" element={<IspDashboardScreen />} />
                     <Route path="settings" element={<IspDashboardScreen />} />
+
+                    {/* Phase 35 — ISP Owner Dashboard (parent SaaS-subscriber). */}
+                    <Route path="admin" element={<OwnerOverviewScreen />} />
+                    <Route path="admin/overview" element={<OwnerOverviewScreen />} />
+                    <Route path="admin/domains" element={<OwnerDomainsScreen />} />
+                    <Route path="admin/modules" element={<OwnerModulesScreen />} />
+                    <Route
+                        path="admin/child-tenants"
+                        element={<OwnerChildTenantsScreen />}
+                    />
+                    <Route
+                        path="admin/child-tenants/:id"
+                        element={<OwnerChildTenantDetailScreen />}
+                    />
+                    <Route
+                        path="admin/child-tenants/:id/admin-user"
+                        element={<OwnerChildAdminUserScreen />}
+                    />
+                    <Route
+                        path="admin/child-tenants/:id/impersonate"
+                        element={<OwnerChildImpersonateScreen />}
+                    />
                 </Route>
                 <Route path="*" element={<NotFound />} />
             </Routes>

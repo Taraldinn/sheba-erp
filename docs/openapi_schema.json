@@ -244,6 +244,711 @@ paths:
               schema:
                 $ref: '#/components/schemas/Adjustment'
           description: ''
+  /api/v1/admin/child-tenants/:
+    get:
+      operationId: api_v1_admin_child_tenants_list
+      description: Provision + manage child tenants (sub-ISPs) under this parent.
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IspAdminChildTenantList'
+          description: ''
+    post:
+      operationId: api_v1_admin_child_tenants_create
+      description: Provision + manage child tenants (sub-ISPs) under this parent.
+      tags:
+      - 15. ISP Admin Dashboard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IspAdminChildTenantCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IspAdminChildTenantCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IspAdminChildTenantCreate'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IspAdminChildTenantCreate'
+          description: ''
+  /api/v1/admin/child-tenants/{id}/:
+    get:
+      operationId: api_v1_admin_child_tenants_retrieve
+      description: Provision + manage child tenants (sub-ISPs) under this parent.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IspAdminChildTenantList'
+          description: ''
+    patch:
+      operationId: api_v1_admin_child_tenants_partial_update
+      description: Provision + manage child tenants (sub-ISPs) under this parent.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedIspAdminChildTenantUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedIspAdminChildTenantUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedIspAdminChildTenantUpdate'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IspAdminChildTenantUpdate'
+          description: ''
+    delete:
+      operationId: api_v1_admin_child_tenants_destroy
+      description: Provision + manage child tenants (sub-ISPs) under this parent.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/admin/child-tenants/{id}/admin-user/:
+    get:
+      operationId: api_v1_admin_child_tenants_admin_user_retrieve
+      description: Manage the authoritative admin User of a child tenant.
+      summary: View the child tenant admin User + StaffProfile.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IspAdminChildAdminUser'
+          description: ''
+    patch:
+      operationId: api_v1_admin_child_tenants_admin_user_partial_update
+      description: Manage the authoritative admin User of a child tenant.
+      summary: Update the child tenant admin profile fields.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedIspAdminChildAdminUser'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedIspAdminChildAdminUser'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedIspAdminChildAdminUser'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IspAdminChildAdminUser'
+          description: ''
+  /api/v1/admin/child-tenants/{id}/admin-user/change-email/:
+    post:
+      operationId: api_v1_admin_child_tenants_admin_user_change_email_create
+      description: Manage the authoritative admin User of a child tenant.
+      summary: Change the child admin login email.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IspAdminChildAdminChangeEmail'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IspAdminChildAdminChangeEmail'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IspAdminChildAdminChangeEmail'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/admin/child-tenants/{id}/admin-user/reset-password/:
+    post:
+      operationId: api_v1_admin_child_tenants_admin_user_reset_password_create
+      description: Manage the authoritative admin User of a child tenant.
+      summary: Reset the child admin password (direct set).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IspAdminChildAdminResetPassword'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IspAdminChildAdminResetPassword'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IspAdminChildAdminResetPassword'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/admin/child-tenants/{id}/domains/:
+    get:
+      operationId: api_v1_admin_child_tenants_domains_list
+      description: Provision + manage child tenants (sub-ISPs) under this parent.
+      summary: Read-only view of the child tenant domains.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IspAdminDomain'
+          description: ''
+  /api/v1/admin/child-tenants/{id}/impersonate/:
+    post:
+      operationId: api_v1_admin_child_tenants_impersonate_create
+      description: Provision + manage child tenants (sub-ISPs) under this parent.
+      summary: Issue a token to operate the child tenant core app.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IspAdminChildTenantList'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IspAdminChildTenantList'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IspAdminChildTenantList'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/admin/child-tenants/{id}/modules/:
+    get:
+      operationId: api_v1_admin_child_tenants_modules_retrieve
+      description: Provision + manage child tenants (sub-ISPs) under this parent.
+      summary: Read-only view of the child tenant feature flags.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/admin/child-tenants/{id}/overview/:
+    get:
+      operationId: api_v1_admin_child_tenants_overview_retrieve
+      description: Provision + manage child tenants (sub-ISPs) under this parent.
+      summary: Per-child KPI dashboard.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/admin/domains/:
+    get:
+      operationId: api_v1_admin_domains_list
+      description: Manage the parent tenant's custom domains.
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedIspAdminDomainList'
+          description: ''
+    post:
+      operationId: api_v1_admin_domains_create
+      description: Manage the parent tenant's custom domains.
+      tags:
+      - 15. ISP Admin Dashboard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IspAdminDomain'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IspAdminDomain'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IspAdminDomain'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IspAdminDomain'
+          description: ''
+  /api/v1/admin/domains/{id}/:
+    get:
+      operationId: api_v1_admin_domains_retrieve
+      description: Manage the parent tenant's custom domains.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IspAdminDomain'
+          description: ''
+    patch:
+      operationId: api_v1_admin_domains_partial_update
+      description: Manage the parent tenant's custom domains.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedIspAdminDomain'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedIspAdminDomain'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedIspAdminDomain'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IspAdminDomain'
+          description: ''
+    delete:
+      operationId: api_v1_admin_domains_destroy
+      description: Manage the parent tenant's custom domains.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/admin/domains/{id}/verify/:
+    post:
+      operationId: api_v1_admin_domains_verify_create
+      description: Manage the parent tenant's custom domains.
+      summary: Trigger DNS TXT verification for a custom domain.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IspAdminDomain'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IspAdminDomain'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IspAdminDomain'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/admin/modules/:
+    get:
+      operationId: api_v1_admin_modules_list
+      description: Catalog + subscribe/unsubscribe for platform modules.
+      summary: List platform modules + this tenant subscription state.
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedIspAdminModuleCatalogList'
+          description: ''
+  /api/v1/admin/modules/{feature_key}/unsubscribe/:
+    post:
+      operationId: api_v1_admin_modules_unsubscribe_create
+      description: Catalog + subscribe/unsubscribe for platform modules.
+      summary: Unsubscribe from a module (revert to default).
+      parameters:
+      - in: path
+        name: feature_key
+        schema:
+          type: string
+        required: true
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/admin/modules/subscribe/:
+    post:
+      operationId: api_v1_admin_modules_subscribe_create
+      description: Catalog + subscribe/unsubscribe for platform modules.
+      summary: Subscribe (enable/disable) a module for this tenant.
+      tags:
+      - 15. ISP Admin Dashboard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IspAdminModuleSubscribe'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IspAdminModuleSubscribe'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IspAdminModuleSubscribe'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/admin/modules/subscriptions/:
+    get:
+      operationId: api_v1_admin_modules_subscriptions_retrieve
+      description: Catalog + subscribe/unsubscribe for platform modules.
+      summary: Current module subscription matrix for this tenant.
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/admin/overview/:
+    get:
+      operationId: api_v1_admin_overview_retrieve
+      summary: Admin dashboard KPI roll-up for the parent tenant.
+      tags:
+      - 15. ISP Admin Dashboard
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/advance-salaries/:
     get:
       operationId: api_v1_advance_salaries_list
@@ -837,6 +1542,50 @@ paths:
                 additionalProperties: {}
                 description: Unspecified response body
           description: ''
+  /api/v1/auth/change-password/:
+    post:
+      operationId: api_v1_auth_change_password_create
+      description: Authenticated self-service password change. Requires the current
+        password plus the new password (min 8 chars). On success, all DRF tokens for
+        the user are revoked and the response returns the newly issued DRF auth token
+        so the client can stay signed in without re-logging in.
+      summary: ISP Admin — change my own password
+      tags:
+      - 1. Authentication & Users
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/auth/login/:
     post:
       operationId: api_v1_auth_login_create
@@ -898,7 +1647,8 @@ paths:
   /api/v1/auth/me/:
     get:
       operationId: api_v1_auth_me_retrieve
-      description: Get currently authenticated user details, roles, and profile settings.
+      description: Get currently authenticated user details, roles, permissions, and
+        portal eligibility.
       tags:
       - 1. Authentication & Users
       security:
@@ -911,7 +1661,33 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserDetail'
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/auth/my-tenants/:
+    get:
+      operationId: api_v1_auth_my_tenants_retrieve
+      description: Returns the ISP-tenant accounts the authenticated user can manage.
+        Used by the ISP_ADMIN portal (``app.example.com``) to render the multi-tenant
+        dashboard after a user signs in via ``example.com/login`` and lands on the
+        central ISP workspace. Each entry includes the tenant slug, display name,
+        primary hostname, plan / subscription status, and the tenant-specific dashboard
+        URL the operator can open to reach the actual ERP software.
+      summary: ISP Admin — list the tenants I have an active membership in
+      tags:
+      - 1. Authentication & Users
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
           description: ''
   /api/v1/auth/password-reset/:
     post:
@@ -3156,6 +3932,675 @@ paths:
                 type: string
                 format: binary
           description: ''
+  /api/v1/customer-services/:
+    get:
+      operationId: api_v1_customer_services_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCustomerServiceList'
+          description: ''
+    post:
+      operationId: api_v1_customer_services_create
+      tags:
+      - 2. Customers & Subscribers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+  /api/v1/customer-services/{id}/:
+    get:
+      operationId: api_v1_customer_services_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+    put:
+      operationId: api_v1_customer_services_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+    patch:
+      operationId: api_v1_customer_services_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerService'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+    delete:
+      operationId: api_v1_customer_services_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/customer-services/{id}/activate/:
+    post:
+      operationId: api_v1_customer_services_activate_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+  /api/v1/customer-services/{id}/resume/:
+    post:
+      operationId: api_v1_customer_services_resume_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+  /api/v1/customer-services/{id}/suspend/:
+    post:
+      operationId: api_v1_customer_services_suspend_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+  /api/v1/customer-services/{id}/terminate/:
+    post:
+      operationId: api_v1_customer_services_terminate_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+  /api/v1/customer-subscriptions/:
+    get:
+      operationId: api_v1_customer_subscriptions_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCustomerSubscriptionList'
+          description: ''
+    post:
+      operationId: api_v1_customer_subscriptions_create
+      tags:
+      - 2. Customers & Subscribers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+  /api/v1/customer-subscriptions/{id}/:
+    get:
+      operationId: api_v1_customer_subscriptions_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+    put:
+      operationId: api_v1_customer_subscriptions_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+    patch:
+      operationId: api_v1_customer_subscriptions_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerSubscription'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+    delete:
+      operationId: api_v1_customer_subscriptions_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/customer-subscriptions/{id}/activate/:
+    post:
+      operationId: api_v1_customer_subscriptions_activate_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+  /api/v1/customer-subscriptions/{id}/cancel/:
+    post:
+      operationId: api_v1_customer_subscriptions_cancel_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+  /api/v1/customer-subscriptions/{id}/renew/:
+    post:
+      operationId: api_v1_customer_subscriptions_renew_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+  /api/v1/customer-subscriptions/{id}/resume/:
+    post:
+      operationId: api_v1_customer_subscriptions_resume_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+  /api/v1/customer-subscriptions/{id}/suspend/:
+    post:
+      operationId: api_v1_customer_subscriptions_suspend_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
   /api/v1/customer/query/:
     get:
       operationId: api_v1_customer_query_retrieve
@@ -3359,6 +4804,43 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/customers/{id}/archive/:
+    post:
+      operationId: api_v1_customers_archive_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerDetail'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerDetail'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerDetail'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerDetail'
+          description: ''
   /api/v1/customers/{id}/disconnect-session/:
     post:
       operationId: api_v1_customers_disconnect_session_create
@@ -3645,6 +5127,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CustomerDetail'
+          description: ''
+  /api/v1/customers/{id}/status/:
+    post:
+      operationId: api_v1_customers_status_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerStatusChange'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerStatusChange'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerStatusChange'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerStatusChange'
           description: ''
   /api/v1/customers/{id}/sync-router/:
     post:
@@ -5171,9 +6690,83 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/invoices/{id}/issue/:
+    post:
+      operationId: api_v1_invoices_issue_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this invoice.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+          description: ''
   /api/v1/invoices/{id}/pay/:
     post:
       operationId: api_v1_invoices_pay_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this invoice.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+          description: ''
+  /api/v1/invoices/{id}/void/:
+    post:
+      operationId: api_v1_invoices_void_create
       parameters:
       - in: path
         name: id
@@ -7818,6 +9411,577 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/network/pppoe/:
+    get:
+      operationId: api_v1_network_pppoe_list
+      description: |-
+        PPPoE Account identity management.
+        Never exposes stored passwords in response representations.
+        Provides idempotent provisioning, suspension, resumption, and termination.
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - 4. Network & Core Routers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPPPoEAccountList'
+          description: ''
+    post:
+      operationId: api_v1_network_pppoe_create
+      description: |-
+        PPPoE Account identity management.
+        Never exposes stored passwords in response representations.
+        Provides idempotent provisioning, suspension, resumption, and termination.
+      tags:
+      - 4. Network & Core Routers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PPPoEAccount'
+          description: ''
+  /api/v1/network/pppoe/{id}/:
+    get:
+      operationId: api_v1_network_pppoe_retrieve
+      description: |-
+        PPPoE Account identity management.
+        Never exposes stored passwords in response representations.
+        Provides idempotent provisioning, suspension, resumption, and termination.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this pp po e secret item.
+        required: true
+      tags:
+      - 4. Network & Core Routers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PPPoEAccount'
+          description: ''
+    put:
+      operationId: api_v1_network_pppoe_update
+      description: |-
+        PPPoE Account identity management.
+        Never exposes stored passwords in response representations.
+        Provides idempotent provisioning, suspension, resumption, and termination.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this pp po e secret item.
+        required: true
+      tags:
+      - 4. Network & Core Routers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PPPoEAccount'
+          description: ''
+    patch:
+      operationId: api_v1_network_pppoe_partial_update
+      description: |-
+        PPPoE Account identity management.
+        Never exposes stored passwords in response representations.
+        Provides idempotent provisioning, suspension, resumption, and termination.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this pp po e secret item.
+        required: true
+      tags:
+      - 4. Network & Core Routers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPPPoEAccount'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPPPoEAccount'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPPPoEAccount'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PPPoEAccount'
+          description: ''
+    delete:
+      operationId: api_v1_network_pppoe_destroy
+      description: |-
+        PPPoE Account identity management.
+        Never exposes stored passwords in response representations.
+        Provides idempotent provisioning, suspension, resumption, and termination.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this pp po e secret item.
+        required: true
+      tags:
+      - 4. Network & Core Routers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/network/pppoe/{id}/disconnect-session/:
+    post:
+      operationId: api_v1_network_pppoe_disconnect_session_create
+      description: Drops any active live session for this PPPoE account on the router.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this pp po e secret item.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PPPoEAccount'
+          description: ''
+  /api/v1/network/pppoe/{id}/provision/:
+    post:
+      operationId: api_v1_network_pppoe_provision_create
+      description: Manually triggers provisioning of this PPPoE account to its router.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this pp po e secret item.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PPPoEAccount'
+          description: ''
+  /api/v1/network/pppoe/{id}/resume/:
+    post:
+      operationId: api_v1_network_pppoe_resume_create
+      description: Resumes the PPPoE account on the router (restores operational profile
+        and drops expired session).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this pp po e secret item.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PPPoEAccount'
+          description: ''
+  /api/v1/network/pppoe/{id}/suspend/:
+    post:
+      operationId: api_v1_network_pppoe_suspend_create
+      description: Suspends the PPPoE account on the router (e.g. routes to expired
+        pool / drops session).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this pp po e secret item.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PPPoEAccount'
+          description: ''
+  /api/v1/network/pppoe/{id}/terminate/:
+    post:
+      operationId: api_v1_network_pppoe_terminate_create
+      description: Terminates the PPPoE account on the router (removes credentials
+        and closes sessions).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this pp po e secret item.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PPPoEAccount'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PPPoEAccount'
+          description: ''
+  /api/v1/network/profiles/:
+    get:
+      operationId: api_v1_network_profiles_list
+      description: |-
+        CRUD for network bandwidth profiles and MikroTik/RADIUS mapping.
+        Scoped strictly to request.tenant.
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - 4. Network & Core Routers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedNetworkProfileList'
+          description: ''
+    post:
+      operationId: api_v1_network_profiles_create
+      description: |-
+        CRUD for network bandwidth profiles and MikroTik/RADIUS mapping.
+        Scoped strictly to request.tenant.
+      tags:
+      - 4. Network & Core Routers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NetworkProfile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NetworkProfile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NetworkProfile'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkProfile'
+          description: ''
+  /api/v1/network/profiles/{id}/:
+    get:
+      operationId: api_v1_network_profiles_retrieve
+      description: |-
+        CRUD for network bandwidth profiles and MikroTik/RADIUS mapping.
+        Scoped strictly to request.tenant.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this network profile.
+        required: true
+      tags:
+      - 4. Network & Core Routers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkProfile'
+          description: ''
+    put:
+      operationId: api_v1_network_profiles_update
+      description: |-
+        CRUD for network bandwidth profiles and MikroTik/RADIUS mapping.
+        Scoped strictly to request.tenant.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this network profile.
+        required: true
+      tags:
+      - 4. Network & Core Routers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NetworkProfile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NetworkProfile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NetworkProfile'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkProfile'
+          description: ''
+    patch:
+      operationId: api_v1_network_profiles_partial_update
+      description: |-
+        CRUD for network bandwidth profiles and MikroTik/RADIUS mapping.
+        Scoped strictly to request.tenant.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this network profile.
+        required: true
+      tags:
+      - 4. Network & Core Routers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNetworkProfile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNetworkProfile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNetworkProfile'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkProfile'
+          description: ''
+    delete:
+      operationId: api_v1_network_profiles_destroy
+      description: |-
+        CRUD for network bandwidth profiles and MikroTik/RADIUS mapping.
+        Scoped strictly to request.tenant.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this network profile.
+        required: true
+      tags:
+      - 4. Network & Core Routers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/network/reconciliation/customers/{customer_id}/identity/:
     get:
       operationId: api_v1_network_reconciliation_customers_identity_retrieve
@@ -8282,6 +10446,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/Router'
           description: ''
+  /api/v1/network/routers/{id}/disable/:
+    post:
+      operationId: api_v1_network_routers_disable_create
+      description: Disables router polling and marks it administratively disabled.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this router.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Router'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Router'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Router'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Router'
+          description: ''
   /api/v1/network/routers/{id}/disable-pppoe/:
     post:
       operationId: api_v1_network_routers_disable_pppoe_create
@@ -8325,6 +10527,44 @@ paths:
     post:
       operationId: api_v1_network_routers_disconnect_session_create
       description: Force disconnects a subscriber's active PPPoE session on the router.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this router.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Router'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Router'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Router'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Router'
+          description: ''
+  /api/v1/network/routers/{id}/enable/:
+    post:
+      operationId: api_v1_network_routers_enable_create
+      description: Enables router polling and operational provisioning.
       parameters:
       - in: path
         name: id
@@ -9987,6 +12227,320 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/notifications/:
+    get:
+      operationId: api_v1_notifications_list
+      description: |-
+        In-App Notification Management (Plan Phase 13).
+        Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
+        Strictly isolated by tenant and user.
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Notifications
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedNotificationList'
+          description: ''
+    post:
+      operationId: api_v1_notifications_create
+      description: |-
+        In-App Notification Management (Plan Phase 13).
+        Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
+        Strictly isolated by tenant and user.
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Notification'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+  /api/v1/notifications/{id}/:
+    get:
+      operationId: api_v1_notifications_retrieve
+      description: |-
+        In-App Notification Management (Plan Phase 13).
+        Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
+        Strictly isolated by tenant and user.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Notifications
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+    put:
+      operationId: api_v1_notifications_update
+      description: |-
+        In-App Notification Management (Plan Phase 13).
+        Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
+        Strictly isolated by tenant and user.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Notification'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+    patch:
+      operationId: api_v1_notifications_partial_update
+      description: |-
+        In-App Notification Management (Plan Phase 13).
+        Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
+        Strictly isolated by tenant and user.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotification'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+    delete:
+      operationId: api_v1_notifications_destroy
+      description: |-
+        In-App Notification Management (Plan Phase 13).
+        Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
+        Strictly isolated by tenant and user.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - Notifications
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/notifications/{id}/mark-as-read/:
+    post:
+      operationId: api_v1_notifications_mark_as_read_create
+      description: |-
+        In-App Notification Management (Plan Phase 13).
+        Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
+        Strictly isolated by tenant and user.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Notification'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+    patch:
+      operationId: api_v1_notifications_mark_as_read_partial_update
+      description: |-
+        In-App Notification Management (Plan Phase 13).
+        Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
+        Strictly isolated by tenant and user.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotification'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+  /api/v1/notifications/mark-all-read/:
+    post:
+      operationId: api_v1_notifications_mark_all_read_create
+      description: |-
+        In-App Notification Management (Plan Phase 13).
+        Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
+        Strictly isolated by tenant and user.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Notification'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+  /api/v1/notifications/unread-count/:
+    get:
+      operationId: api_v1_notifications_unread_count_retrieve
+      description: |-
+        In-App Notification Management (Plan Phase 13).
+        Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
+        Strictly isolated by tenant and user.
+      tags:
+      - api
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
   /api/v1/offers/:
     get:
       operationId: api_v1_offers_list
@@ -13728,6 +16282,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/Router'
           description: ''
+  /api/v1/routers/{id}/disable/:
+    post:
+      operationId: api_v1_routers_disable_create
+      description: Disables router polling and marks it administratively disabled.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this router.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Router'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Router'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Router'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Router'
+          description: ''
   /api/v1/routers/{id}/disable-pppoe/:
     post:
       operationId: api_v1_routers_disable_pppoe_create
@@ -13771,6 +16363,44 @@ paths:
     post:
       operationId: api_v1_routers_disconnect_session_create
       description: Force disconnects a subscriber's active PPPoE session on the router.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this router.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Router'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Router'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Router'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Router'
+          description: ''
+  /api/v1/routers/{id}/enable/:
+    post:
+      operationId: api_v1_routers_enable_create
+      description: Enables router polling and operational provisioning.
       parameters:
       - in: path
         name: id
@@ -15023,6 +17653,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedSaaSAuditLogList'
           description: ''
+    post:
+      operationId: api_v1_saas_audit_logs_create
+      description: Global SaaS Audit Trail across all tenants and control plane operations.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaaSAuditLog'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SaaSAuditLog'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SaaSAuditLog'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaaSAuditLog'
+          description: ''
   /api/v1/saas/audit-logs/{id}/:
     get:
       operationId: api_v1_saas_audit_logs_retrieve
@@ -15049,6 +17708,100 @@ paths:
               schema:
                 $ref: '#/components/schemas/SaaSAuditLog'
           description: ''
+    put:
+      operationId: api_v1_saas_audit_logs_update
+      description: Global SaaS Audit Trail across all tenants and control plane operations.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this audit log.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaaSAuditLog'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SaaSAuditLog'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SaaSAuditLog'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaaSAuditLog'
+          description: ''
+    patch:
+      operationId: api_v1_saas_audit_logs_partial_update
+      description: Global SaaS Audit Trail across all tenants and control plane operations.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this audit log.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSaaSAuditLog'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSaaSAuditLog'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSaaSAuditLog'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaaSAuditLog'
+          description: ''
+    delete:
+      operationId: api_v1_saas_audit_logs_destroy
+      description: Global SaaS Audit Trail across all tenants and control plane operations.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this audit log.
+        required: true
+      tags:
+      - api
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/saas/audit-logs/export/:
     get:
       operationId: api_v1_saas_audit_logs_export_retrieve
@@ -16222,6 +18975,66 @@ paths:
                 additionalProperties: {}
                 description: Unspecified response body
           description: ''
+  /api/v1/saas/feature-flags/clone/:
+    post:
+      operationId: api_v1_saas_feature_flags_clone_create
+      description: Central control-plane endpoint for per-tenant feature overrides.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantFeatureFlag'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TenantFeatureFlag'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TenantFeatureFlag'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantFeatureFlag'
+          description: ''
+  /api/v1/saas/feature-flags/reset/:
+    post:
+      operationId: api_v1_saas_feature_flags_reset_create
+      description: Central control-plane endpoint for per-tenant feature overrides.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantFeatureFlag'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TenantFeatureFlag'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TenantFeatureFlag'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantFeatureFlag'
+          description: ''
   /api/v1/saas/feature-flags/set/:
     post:
       operationId: api_v1_saas_feature_flags_set_create
@@ -16739,6 +19552,45 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/saas/payments/{id}/refund/:
+    post:
+      operationId: api_v1_saas_payments_refund_create
+      description: Platform revenue transactions collected from tenants for software
+        licenses.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this saa s payment.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaaSPayment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SaaSPayment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SaaSPayment'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaaSPayment'
+          description: ''
   /api/v1/saas/requests/:
     get:
       operationId: api_v1_saas_requests_list
@@ -16931,6 +19783,54 @@ paths:
       description: |-
         Incoming Tenant Onboarding Signup Requests Queue.
         Platform owners review, approve (auto-deploy), or reject requests.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this tenant onboarding request.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantOnboardingRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TenantOnboardingRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TenantOnboardingRequest'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantOnboardingRequest'
+          description: ''
+  /api/v1/saas/requests/{id}/notify/:
+    post:
+      operationId: api_v1_saas_requests_notify_create
+      description: |-
+        Re-send the onboarding claim email to the customer.
+
+        The frontend's approval modal already has the admin password in its
+        localStorage stash, so the operator can pass it through `body.admin_password`.
+        If omitted, we fall back to the platform default (`sheba1234` — the
+        password that `approve` set) so the email is never blank.
+
+        Returns:
+            { sent, recipient, channel, admin_username, claim_url,
+              audit_log_id, message }
       parameters:
       - in: path
         name: id
@@ -17466,6 +20366,75 @@ paths:
       operationId: api_v1_saas_tenants_create_admin_create
       description: Directly provisions an ISP Administrator account for this tenant
         with authoritative RBAC.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this tenant.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaaSTenant'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SaaSTenant'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SaaSTenant'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaaSTenant'
+          description: ''
+  /api/v1/saas/tenants/{id}/features/:
+    get:
+      operationId: api_v1_saas_tenants_features_retrieve
+      description: |-
+        SaaS Admin deep customization endpoint:
+        GET: Lists all features (standard + exclusive) for this tenant with their enabled status and custom configs.
+        POST: Allows SaaS Admin to enable/disable any feature or customize JSON sub-settings.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this tenant.
+        required: true
+      tags:
+      - api
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaaSTenant'
+          description: ''
+    post:
+      operationId: api_v1_saas_tenants_features_create
+      description: |-
+        SaaS Admin deep customization endpoint:
+        GET: Lists all features (standard + exclusive) for this tenant with their enabled status and custom configs.
+        POST: Allows SaaS Admin to enable/disable any feature or customize JSON sub-settings.
       parameters:
       - in: path
         name: id
@@ -18115,6 +21084,342 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WireGuardConfig'
+          description: ''
+  /api/v1/search/:
+    get:
+      operationId: api_v1_search_retrieve
+      description: Extensible global search endpoint for Command Menu (Ctrl/Cmd +
+        K). Tenant-isolated.
+      tags:
+      - Search
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/services/:
+    get:
+      operationId: api_v1_services_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCustomerServiceList'
+          description: ''
+    post:
+      operationId: api_v1_services_create
+      tags:
+      - 2. Customers & Subscribers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+  /api/v1/services/{id}/:
+    get:
+      operationId: api_v1_services_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+    put:
+      operationId: api_v1_services_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+    patch:
+      operationId: api_v1_services_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerService'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+    delete:
+      operationId: api_v1_services_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/services/{id}/activate/:
+    post:
+      operationId: api_v1_services_activate_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+  /api/v1/services/{id}/resume/:
+    post:
+      operationId: api_v1_services_resume_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+  /api/v1/services/{id}/suspend/:
+    post:
+      operationId: api_v1_services_suspend_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
+          description: ''
+  /api/v1/services/{id}/terminate/:
+    post:
+      operationId: api_v1_services_terminate_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer service.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerService'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerService'
           description: ''
   /api/v1/settings/:
     get:
@@ -19062,6 +22367,359 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/subscriptions/:
+    get:
+      operationId: api_v1_subscriptions_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCustomerSubscriptionList'
+          description: ''
+    post:
+      operationId: api_v1_subscriptions_create
+      tags:
+      - 2. Customers & Subscribers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+  /api/v1/subscriptions/{id}/:
+    get:
+      operationId: api_v1_subscriptions_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+    put:
+      operationId: api_v1_subscriptions_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+    patch:
+      operationId: api_v1_subscriptions_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomerSubscription'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+    delete:
+      operationId: api_v1_subscriptions_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/subscriptions/{id}/activate/:
+    post:
+      operationId: api_v1_subscriptions_activate_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+  /api/v1/subscriptions/{id}/cancel/:
+    post:
+      operationId: api_v1_subscriptions_cancel_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+  /api/v1/subscriptions/{id}/renew/:
+    post:
+      operationId: api_v1_subscriptions_renew_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+  /api/v1/subscriptions/{id}/resume/:
+    post:
+      operationId: api_v1_subscriptions_resume_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
+  /api/v1/subscriptions/{id}/suspend/:
+    post:
+      operationId: api_v1_subscriptions_suspend_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this customer subscription.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomerSubscription'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerSubscription'
+          description: ''
   /api/v1/system/readiness/:
     get:
       operationId: api_v1_system_readiness_retrieve
@@ -19983,6 +23641,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BulkTenantActionResponse'
+          description: ''
+  /api/v1/tenants/resolve/:
+    get:
+      operationId: api_v1_tenants_resolve_retrieve
+      description: Public pre-flight tenant resolution endpoint. Resolves metadata,
+        branding, and enabled modules without exposing secrets.
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/tenants/resolve/{slug}/:
+    get:
+      operationId: api_v1_tenants_resolve_retrieve_2
+      description: Public pre-flight tenant resolution endpoint. Resolves metadata,
+        branding, and enabled modules without exposing secrets.
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
           description: ''
   /api/v1/tickets/:
     get:
@@ -22722,7 +26442,7 @@ components:
           format: date
           nullable: true
         status:
-          $ref: '#/components/schemas/Status974Enum'
+          $ref: '#/components/schemas/Status926Enum'
         auto_lock_enabled:
           type: boolean
         latitude:
@@ -22937,7 +26657,7 @@ components:
           format: date
           nullable: true
         status:
-          $ref: '#/components/schemas/Status974Enum'
+          $ref: '#/components/schemas/Status926Enum'
         auto_lock_enabled:
           type: boolean
         reseller:
@@ -22945,6 +26665,9 @@ components:
           nullable: true
         reseller_name:
           type: string
+          readOnly: true
+        services_count:
+          type: integer
           readOnly: true
         live_session:
           type: string
@@ -22967,6 +26690,7 @@ components:
       - router_name
       - router_protocol
       - router_status
+      - services_count
     CustomerNetworkActionInput:
       type: object
       properties:
@@ -23034,7 +26758,7 @@ components:
           readOnly: true
         status:
           allOf:
-          - $ref: '#/components/schemas/StatusFd1Enum'
+          - $ref: '#/components/schemas/StatusF37Enum'
           readOnly: true
         due_date:
           type: string
@@ -23173,7 +26897,7 @@ components:
           nullable: true
         status:
           allOf:
-          - $ref: '#/components/schemas/Status974Enum'
+          - $ref: '#/components/schemas/Status926Enum'
           readOnly: true
         auto_lock_enabled:
           type: boolean
@@ -23332,6 +27056,218 @@ components:
       - is_staff
       - message
       - sender_name
+    CustomerService:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant:
+          type: string
+          format: uuid
+          readOnly: true
+        customer:
+          type: string
+          format: uuid
+        customer_name:
+          type: string
+          readOnly: true
+        customer_code:
+          type: string
+          readOnly: true
+        package:
+          type: string
+          format: uuid
+          nullable: true
+        package_name:
+          type: string
+          readOnly: true
+        package_speed:
+          type: integer
+          readOnly: true
+        service_type:
+          $ref: '#/components/schemas/ServiceTypeEnum'
+        service_identifier:
+          type: string
+          description: e.g. PPPoE username, circuit ID, or IP
+          maxLength: 150
+        status:
+          $ref: '#/components/schemas/CustomerServiceStatusEnum'
+        activation_date:
+          type: string
+          format: date-time
+          nullable: true
+        termination_date:
+          type: string
+          format: date-time
+          nullable: true
+        monthly_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        router:
+          type: string
+          format: uuid
+          nullable: true
+        router_name:
+          type: string
+          readOnly: true
+        network_metadata: {}
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - customer
+      - customer_code
+      - customer_name
+      - id
+      - package_name
+      - package_speed
+      - router_name
+      - service_identifier
+      - tenant
+      - updated_at
+    CustomerServiceStatusEnum:
+      enum:
+      - PENDING
+      - ACTIVE
+      - SUSPENDED
+      - TERMINATED
+      type: string
+      description: |-
+        * `PENDING` - Pending Activation
+        * `ACTIVE` - Active
+        * `SUSPENDED` - Suspended
+        * `TERMINATED` - Terminated
+    CustomerStatusChange:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/Status926Enum'
+        reason:
+          type: string
+          default: ''
+      required:
+      - status
+    CustomerSubscription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant:
+          type: string
+          format: uuid
+          readOnly: true
+        customer:
+          type: string
+          format: uuid
+        customer_name:
+          type: string
+          readOnly: true
+        customer_code:
+          type: string
+          readOnly: true
+        service:
+          type: string
+          format: uuid
+        service_identifier:
+          type: string
+          readOnly: true
+        service_type:
+          type: string
+          readOnly: true
+        package:
+          type: string
+          format: uuid
+          nullable: true
+        package_name:
+          type: string
+          readOnly: true
+        billing_cycle:
+          $ref: '#/components/schemas/CustomerSubscriptionBillingCycleEnum'
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/CustomerSubscriptionStatusEnum'
+        start_date:
+          type: string
+          format: date
+        next_billing_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        auto_renew:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - customer
+      - customer_code
+      - customer_name
+      - id
+      - package_name
+      - price
+      - service
+      - service_identifier
+      - service_type
+      - tenant
+      - updated_at
+    CustomerSubscriptionBillingCycleEnum:
+      enum:
+      - MONTHLY
+      - QUARTERLY
+      - HALF_YEARLY
+      - YEARLY
+      type: string
+      description: |-
+        * `MONTHLY` - Monthly
+        * `QUARTERLY` - Quarterly
+        * `HALF_YEARLY` - Half-Yearly
+        * `YEARLY` - Yearly
+    CustomerSubscriptionStatusEnum:
+      enum:
+      - PENDING
+      - ACTIVE
+      - PAUSED
+      - SUSPENDED
+      - CANCELLED
+      - EXPIRED
+      type: string
+      description: |-
+        * `PENDING` - Pending
+        * `ACTIVE` - Active
+        * `PAUSED` - Paused
+        * `SUSPENDED` - Suspended
+        * `CANCELLED` - Cancelled
+        * `EXPIRED` - Expired
     DatabaseBackup:
       type: object
       properties:
@@ -23896,6 +27832,9 @@ components:
         customer_username:
           type: string
           readOnly: true
+        service_identifier:
+          type: string
+          readOnly: true
         lines:
           type: string
           readOnly: true
@@ -23934,7 +27873,7 @@ components:
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
         status:
-          $ref: '#/components/schemas/StatusFd1Enum'
+          $ref: '#/components/schemas/StatusF37Enum'
         due_date:
           type: string
           format: date
@@ -23969,6 +27908,14 @@ components:
         customer:
           type: string
           format: uuid
+        service:
+          type: string
+          format: uuid
+          nullable: true
+        subscription:
+          type: string
+          format: uuid
+          nullable: true
       required:
       - billing_month
       - created_at
@@ -23978,6 +27925,7 @@ components:
       - id
       - lines
       - package_name
+      - service_identifier
       - tenant
     InvoiceLine:
       type: object
@@ -24024,6 +27972,256 @@ components:
       - invoice
       - total
       - unit_price
+    IspAdminChildAdminChangeEmail:
+      type: object
+      properties:
+        new_email:
+          type: string
+          format: email
+      required:
+      - new_email
+    IspAdminChildAdminResetPassword:
+      type: object
+      properties:
+        new_password:
+          type: string
+          writeOnly: true
+          minLength: 8
+      required:
+      - new_password
+    IspAdminChildAdminUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        email:
+          oneOf:
+          - type: string
+            format: email
+          - type: string
+            maxLength: 0
+        first_name:
+          type: string
+        last_name:
+          type: string
+        is_active:
+          type: boolean
+        phone:
+          type: string
+          maxLength: 30
+      required:
+      - id
+      - username
+    IspAdminChildTenantCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 150
+        slug:
+          type: string
+          maxLength: 100
+          pattern: ^[-a-zA-Z0-9_]+$
+        domain:
+          type: string
+          description: Optional primary custom CNAME for the child tenant.
+          maxLength: 255
+        admin_username:
+          type: string
+          maxLength: 150
+        admin_password:
+          type: string
+          writeOnly: true
+          minLength: 8
+        admin_email:
+          oneOf:
+          - type: string
+            format: email
+          - type: string
+            maxLength: 0
+        admin_phone:
+          type: string
+          maxLength: 30
+        admin_first_name:
+          type: string
+          maxLength: 150
+        admin_last_name:
+          type: string
+          maxLength: 150
+      required:
+      - admin_password
+      - admin_username
+      - name
+      - slug
+    IspAdminChildTenantList:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        slug:
+          type: string
+          maxLength: 100
+          pattern: ^[-a-zA-Z0-9_]+$
+        is_active:
+          type: boolean
+        subscription_status:
+          $ref: '#/components/schemas/SubscriptionStatusEnum'
+        plan:
+          $ref: '#/components/schemas/PlanEnum'
+        max_subscribers:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        max_routers:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        domain_count:
+          type: integer
+          readOnly: true
+        customer_count:
+          type: integer
+          readOnly: true
+        admin_username:
+          type: string
+          readOnly: true
+        admin_email:
+          type: string
+          readOnly: true
+      required:
+      - admin_email
+      - admin_username
+      - created_at
+      - customer_count
+      - domain_count
+      - id
+      - name
+      - slug
+    IspAdminChildTenantUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 150
+        is_active:
+          type: boolean
+        notes:
+          type: string
+        contact_email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        contact_phone:
+          type: string
+          maxLength: 30
+        address:
+          type: string
+        max_subscribers:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        max_routers:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+      required:
+      - name
+    IspAdminDomain:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        hostname:
+          type: string
+          maxLength: 255
+        domain_type:
+          $ref: '#/components/schemas/DomainTypeEnum'
+        is_primary:
+          type: boolean
+        is_active:
+          type: boolean
+        verified:
+          type: boolean
+          readOnly: true
+        verified_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        verification_method:
+          $ref: '#/components/schemas/VerificationMethodEnum'
+        dns_challenge_token:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - dns_challenge_token
+      - hostname
+      - id
+      - updated_at
+      - verified
+      - verified_at
+    IspAdminModuleCatalog:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        category:
+          type: string
+        paid:
+          type: boolean
+        enabled:
+          type: boolean
+        is_override:
+          type: boolean
+        config: {}
+      required:
+      - category
+      - config
+      - enabled
+      - is_override
+      - key
+      - label
+      - paid
+    IspAdminModuleSubscribe:
+      type: object
+      properties:
+        feature_key:
+          type: string
+          maxLength: 80
+        enabled:
+          type: boolean
+          default: true
+        config: {}
+      required:
+      - feature_key
     LeaveRequest:
       type: object
       properties:
@@ -24536,6 +28734,147 @@ components:
       - routers
       - sessions
       - timestamp
+    NetworkProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        mikrotik_profile:
+          type: string
+          description: MikroTik RouterOS / RADIUS Profile name (e.g. 20M, VIP_50M)
+          maxLength: 150
+        download_rate_mbps:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        upload_rate_mbps:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        burst_download_mbps:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        burst_upload_mbps:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        burst_threshold_mbps:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        burst_time_seconds:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        priority:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        address_pool:
+          type: string
+          maxLength: 100
+        dns_servers:
+          type: string
+          maxLength: 200
+        radius_attributes: {}
+        status:
+          $ref: '#/components/schemas/NetworkProfileStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - mikrotik_profile
+      - name
+      - updated_at
+    NetworkProfileStatusEnum:
+      enum:
+      - ACTIVE
+      - INACTIVE
+      - ARCHIVED
+      type: string
+      description: |-
+        * `ACTIVE` - Active
+        * `INACTIVE` - Inactive
+        * `ARCHIVED` - Archived
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: Null for global SaaS platform notifications
+        user:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: Target user, or null if broadcast to all tenant staff
+        title:
+          type: string
+          maxLength: 200
+        message:
+          type: string
+        category:
+          type: string
+          maxLength: 50
+        priority:
+          $ref: '#/components/schemas/NotificationPriorityEnum'
+        action_url:
+          type: string
+          maxLength: 255
+        is_read:
+          type: boolean
+        read_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - message
+      - read_at
+      - tenant
+      - title
+      - user
+    NotificationPriorityEnum:
+      enum:
+      - low
+      - normal
+      - high
+      - urgent
+      type: string
+      description: |-
+        * `low` - Low
+        * `normal` - Normal
+        * `high` - High
+        * `urgent` - Urgent
     OLT:
       type: object
       properties:
@@ -25025,6 +29364,148 @@ components:
       - name
       - status
       - total_capacity
+    PPPoEAccount:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        router:
+          type: string
+          format: uuid
+        router_name:
+          type: string
+          readOnly: true
+        router_ip:
+          type: string
+          readOnly: true
+        customer:
+          type: string
+          format: uuid
+          nullable: true
+        customer_code:
+          type: string
+          readOnly: true
+          default: ''
+        customer_name:
+          type: string
+          readOnly: true
+          default: ''
+        service:
+          type: string
+          format: uuid
+          nullable: true
+        service_identifier:
+          type: string
+          readOnly: true
+          default: ''
+        package:
+          type: string
+          format: uuid
+          nullable: true
+        package_name:
+          type: string
+          readOnly: true
+          default: ''
+        network_profile:
+          type: string
+          format: uuid
+          nullable: true
+        network_profile_name:
+          type: string
+          readOnly: true
+          default: ''
+        username:
+          type: string
+          maxLength: 100
+        password:
+          type: string
+          writeOnly: true
+          maxLength: 255
+        status:
+          $ref: '#/components/schemas/PPPoEAccountStatusEnum'
+        provisioning_status:
+          $ref: '#/components/schemas/ProvisioningStatusEnum'
+        reconciliation_status:
+          allOf:
+          - $ref: '#/components/schemas/ReconciliationStatus650Enum'
+          readOnly: true
+        router_profile:
+          type: string
+          readOnly: true
+        expected_profile:
+          type: string
+          readOnly: true
+        router_disabled:
+          type: boolean
+          readOnly: true
+          nullable: true
+        expected_disabled:
+          type: boolean
+          readOnly: true
+          nullable: true
+        last_provisioned_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        last_error:
+          type: string
+          readOnly: true
+        last_reconciled_at:
+          type: string
+          format: date-time
+          readOnly: true
+        last_synced_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - customer_code
+      - customer_name
+      - expected_disabled
+      - expected_profile
+      - id
+      - last_error
+      - last_provisioned_at
+      - last_reconciled_at
+      - last_synced_at
+      - network_profile_name
+      - package_name
+      - reconciliation_status
+      - router
+      - router_disabled
+      - router_ip
+      - router_name
+      - router_profile
+      - service_identifier
+      - updated_at
+      - username
+    PPPoEAccountStatusEnum:
+      enum:
+      - PENDING
+      - ACTIVE
+      - SUSPENDED
+      - DISABLED
+      - TERMINATED
+      type: string
+      description: |-
+        * `PENDING` - Pending
+        * `ACTIVE` - Active
+        * `SUSPENDED` - Suspended
+        * `DISABLED` - Disabled
+        * `TERMINATED` - Terminated
     PPPoERescueAction:
       type: object
       properties:
@@ -25100,7 +29581,7 @@ components:
           readOnly: true
         reconciliation_status:
           allOf:
-          - $ref: '#/components/schemas/PPPoESecretItemReconciliationStatusEnum'
+          - $ref: '#/components/schemas/ReconciliationStatus650Enum'
           readOnly: true
         router_profile:
           type: string
@@ -25165,24 +29646,6 @@ components:
       - router_profile
       - router_service
       - username
-    PPPoESecretItemReconciliationStatusEnum:
-      enum:
-      - MATCHED
-      - MISSING_IN_ROUTER
-      - UNKNOWN_IN_ERP
-      - PROFILE_MISMATCH
-      - STATUS_MISMATCH
-      - ROUTER_MISMATCH
-      - ERROR
-      type: string
-      description: |-
-        * `MATCHED` - Matched
-        * `MISSING_IN_ROUTER` - Missing in Router
-        * `UNKNOWN_IN_ERP` - Unknown in ERP (Orphan)
-        * `PROFILE_MISMATCH` - Profile Mismatch
-        * `STATUS_MISMATCH` - Status Mismatch
-        * `ROUTER_MISMATCH` - Router Mismatch
-        * `ERROR` - Error
     Package:
       type: object
       properties:
@@ -25719,6 +30182,52 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CustomerPortalTicket'
+    PaginatedCustomerServiceList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerService'
+    PaginatedCustomerSubscriptionList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerSubscription'
     PaginatedDatabaseBackupList:
       type: object
       required:
@@ -25949,6 +30458,52 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Invoice'
+    PaginatedIspAdminDomainList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/IspAdminDomain'
+    PaginatedIspAdminModuleCatalogList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/IspAdminModuleCatalog'
     PaginatedLeaveRequestList:
       type: object
       required:
@@ -26041,6 +30596,52 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/NetworkAction'
+    PaginatedNetworkProfileList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/NetworkProfile'
+    PaginatedNotificationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
     PaginatedOLTList:
       type: object
       required:
@@ -26133,6 +30734,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/POPBranch'
+    PaginatedPPPoEAccountList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PPPoEAccount'
     PaginatedPPPoESecretItemList:
       type: object
       required:
@@ -27969,7 +32593,7 @@ components:
           format: date
           nullable: true
         status:
-          $ref: '#/components/schemas/Status974Enum'
+          $ref: '#/components/schemas/Status926Enum'
         auto_lock_enabled:
           type: boolean
         latitude:
@@ -28039,6 +32663,143 @@ components:
           readOnly: true
           nullable: true
         created_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedCustomerService:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant:
+          type: string
+          format: uuid
+          readOnly: true
+        customer:
+          type: string
+          format: uuid
+        customer_name:
+          type: string
+          readOnly: true
+        customer_code:
+          type: string
+          readOnly: true
+        package:
+          type: string
+          format: uuid
+          nullable: true
+        package_name:
+          type: string
+          readOnly: true
+        package_speed:
+          type: integer
+          readOnly: true
+        service_type:
+          $ref: '#/components/schemas/ServiceTypeEnum'
+        service_identifier:
+          type: string
+          description: e.g. PPPoE username, circuit ID, or IP
+          maxLength: 150
+        status:
+          $ref: '#/components/schemas/CustomerServiceStatusEnum'
+        activation_date:
+          type: string
+          format: date-time
+          nullable: true
+        termination_date:
+          type: string
+          format: date-time
+          nullable: true
+        monthly_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        router:
+          type: string
+          format: uuid
+          nullable: true
+        router_name:
+          type: string
+          readOnly: true
+        network_metadata: {}
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedCustomerSubscription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant:
+          type: string
+          format: uuid
+          readOnly: true
+        customer:
+          type: string
+          format: uuid
+        customer_name:
+          type: string
+          readOnly: true
+        customer_code:
+          type: string
+          readOnly: true
+        service:
+          type: string
+          format: uuid
+        service_identifier:
+          type: string
+          readOnly: true
+        service_type:
+          type: string
+          readOnly: true
+        package:
+          type: string
+          format: uuid
+          nullable: true
+        package_name:
+          type: string
+          readOnly: true
+        billing_cycle:
+          $ref: '#/components/schemas/CustomerSubscriptionBillingCycleEnum'
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        status:
+          $ref: '#/components/schemas/CustomerSubscriptionStatusEnum'
+        start_date:
+          type: string
+          format: date
+        next_billing_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        auto_renew:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
           type: string
           format: date-time
           readOnly: true
@@ -28309,6 +33070,9 @@ components:
         customer_username:
           type: string
           readOnly: true
+        service_identifier:
+          type: string
+          readOnly: true
         lines:
           type: string
           readOnly: true
@@ -28347,7 +33111,7 @@ components:
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
         status:
-          $ref: '#/components/schemas/StatusFd1Enum'
+          $ref: '#/components/schemas/StatusF37Enum'
         due_date:
           type: string
           format: date
@@ -28382,6 +33146,104 @@ components:
         customer:
           type: string
           format: uuid
+        service:
+          type: string
+          format: uuid
+          nullable: true
+        subscription:
+          type: string
+          format: uuid
+          nullable: true
+    PatchedIspAdminChildAdminUser:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        email:
+          oneOf:
+          - type: string
+            format: email
+          - type: string
+            maxLength: 0
+        first_name:
+          type: string
+        last_name:
+          type: string
+        is_active:
+          type: boolean
+        phone:
+          type: string
+          maxLength: 30
+    PatchedIspAdminChildTenantUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 150
+        is_active:
+          type: boolean
+        notes:
+          type: string
+        contact_email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        contact_phone:
+          type: string
+          maxLength: 30
+        address:
+          type: string
+        max_subscribers:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        max_routers:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+    PatchedIspAdminDomain:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        hostname:
+          type: string
+          maxLength: 255
+        domain_type:
+          $ref: '#/components/schemas/DomainTypeEnum'
+        is_primary:
+          type: boolean
+        is_active:
+          type: boolean
+        verified:
+          type: boolean
+          readOnly: true
+        verified_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        verification_method:
+          $ref: '#/components/schemas/VerificationMethodEnum'
+        dns_challenge_token:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
     PatchedLeaveRequest:
       type: object
       properties:
@@ -28455,6 +33317,111 @@ components:
         tenant:
           type: string
           format: uuid
+          readOnly: true
+    PatchedNetworkProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        mikrotik_profile:
+          type: string
+          description: MikroTik RouterOS / RADIUS Profile name (e.g. 20M, VIP_50M)
+          maxLength: 150
+        download_rate_mbps:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        upload_rate_mbps:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        burst_download_mbps:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        burst_upload_mbps:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        burst_threshold_mbps:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        burst_time_seconds:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        priority:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        address_pool:
+          type: string
+          maxLength: 100
+        dns_servers:
+          type: string
+          maxLength: 200
+        radius_attributes: {}
+        status:
+          $ref: '#/components/schemas/NetworkProfileStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedNotification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: Null for global SaaS platform notifications
+        user:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: Target user, or null if broadcast to all tenant staff
+        title:
+          type: string
+          maxLength: 200
+        message:
+          type: string
+        category:
+          type: string
+          maxLength: 50
+        priority:
+          $ref: '#/components/schemas/NotificationPriorityEnum'
+        action_url:
+          type: string
+          maxLength: 255
+        is_read:
+          type: boolean
+        read_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
           readOnly: true
     PatchedOLT:
       type: object
@@ -28759,6 +33726,112 @@ components:
           type: string
           format: uuid
           nullable: true
+    PatchedPPPoEAccount:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        router:
+          type: string
+          format: uuid
+        router_name:
+          type: string
+          readOnly: true
+        router_ip:
+          type: string
+          readOnly: true
+        customer:
+          type: string
+          format: uuid
+          nullable: true
+        customer_code:
+          type: string
+          readOnly: true
+          default: ''
+        customer_name:
+          type: string
+          readOnly: true
+          default: ''
+        service:
+          type: string
+          format: uuid
+          nullable: true
+        service_identifier:
+          type: string
+          readOnly: true
+          default: ''
+        package:
+          type: string
+          format: uuid
+          nullable: true
+        package_name:
+          type: string
+          readOnly: true
+          default: ''
+        network_profile:
+          type: string
+          format: uuid
+          nullable: true
+        network_profile_name:
+          type: string
+          readOnly: true
+          default: ''
+        username:
+          type: string
+          maxLength: 100
+        password:
+          type: string
+          writeOnly: true
+          maxLength: 255
+        status:
+          $ref: '#/components/schemas/PPPoEAccountStatusEnum'
+        provisioning_status:
+          $ref: '#/components/schemas/ProvisioningStatusEnum'
+        reconciliation_status:
+          allOf:
+          - $ref: '#/components/schemas/ReconciliationStatus650Enum'
+          readOnly: true
+        router_profile:
+          type: string
+          readOnly: true
+        expected_profile:
+          type: string
+          readOnly: true
+        router_disabled:
+          type: boolean
+          readOnly: true
+          nullable: true
+        expected_disabled:
+          type: boolean
+          readOnly: true
+          nullable: true
+        last_provisioned_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        last_error:
+          type: string
+          readOnly: true
+        last_reconciled_at:
+          type: string
+          format: date-time
+          readOnly: true
+        last_synced_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
     PatchedPackage:
       type: object
       properties:
@@ -29330,6 +34403,46 @@ components:
           format: date-time
           readOnly: true
         updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedSaaSAuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant:
+          type: string
+          format: uuid
+          nullable: true
+        tenant_name:
+          type: string
+          readOnly: true
+        tenant_slug:
+          type: string
+          readOnly: true
+        actor_username:
+          type: string
+          maxLength: 150
+        action:
+          type: string
+          maxLength: 100
+        module:
+          type: string
+          maxLength: 100
+        resource_type:
+          type: string
+          maxLength: 100
+        resource_id:
+          type: string
+          maxLength: 100
+        ip_address:
+          type: string
+          nullable: true
+        details: {}
+        timestamp:
           type: string
           format: date-time
           readOnly: true
@@ -29989,6 +35102,11 @@ components:
           type: string
           format: date-time
           readOnly: true
+        parent_tenant:
+          type: string
+          format: uuid
+          nullable: true
+          description: Parent SaaS subscriber tenant. Null for top-level ISP/tenant.
     PatchedTenantDomain:
       type: object
       description: Serializer for TenantDomain — proper multi-domain management (Plan
@@ -30689,6 +35807,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        invoice:
+          type: string
+          format: uuid
+          nullable: true
         reseller:
           type: string
           format: uuid
@@ -30845,6 +35967,22 @@ components:
         * `PIPRAPAY` - PipraPay
         * `SMS_WEBHOOK` - SMS Automated Hook
         * `MANUAL` - Cash / Manual Bank
+    ProvisioningStatusEnum:
+      enum:
+      - NOT_PROVISIONED
+      - PROVISIONING
+      - PROVISIONED
+      - FAILED
+      - DEPROVISIONING
+      - DEPROVISIONED
+      type: string
+      description: |-
+        * `NOT_PROVISIONED` - Not Provisioned
+        * `PROVISIONING` - Provisioning
+        * `PROVISIONED` - Provisioned
+        * `FAILED` - Failed
+        * `DEPROVISIONING` - Deprovisioning
+        * `DEPROVISIONED` - Deprovisioned
     ReasonEnum:
       enum:
       - REVERSAL
@@ -31094,6 +36232,24 @@ components:
         * `RUNNING` - Running
         * `COMPLETED` - Completed
         * `FAILED` - Failed
+    ReconciliationStatus650Enum:
+      enum:
+      - MATCHED
+      - MISSING_IN_ROUTER
+      - UNKNOWN_IN_ERP
+      - PROFILE_MISMATCH
+      - STATUS_MISMATCH
+      - ROUTER_MISMATCH
+      - ERROR
+      type: string
+      description: |-
+        * `MATCHED` - Matched
+        * `MISSING_IN_ROUTER` - Missing in Router
+        * `UNKNOWN_IN_ERP` - Unknown in ERP (Orphan)
+        * `PROFILE_MISMATCH` - Profile Mismatch
+        * `STATUS_MISMATCH` - Status Mismatch
+        * `ROUTER_MISMATCH` - Router Mismatch
+        * `ERROR` - Error
     ReminderTemplate:
       type: object
       properties:
@@ -32190,6 +37346,20 @@ components:
         * `AREA` - Geographic Area
         * `SELF` - Own records only
         * `ASSIGNED` - Assigned records only
+    ServiceTypeEnum:
+      enum:
+      - BROADBAND
+      - STATIC_IP
+      - IPTV
+      - VOIP
+      - LEASED_LINE
+      type: string
+      description: |-
+        * `BROADBAND` - Broadband Internet
+        * `STATIC_IP` - Dedicated Static IP
+        * `IPTV` - IPTV Service
+        * `VOIP` - VoIP / SIP Trunk
+        * `LEASED_LINE` - Corporate Leased Line
     SessionSummary:
       type: object
       properties:
@@ -32283,44 +37453,6 @@ components:
         * `WEBHOOK` - Provider webhook
         * `MANUAL` - Manual entry
         * `API` - API push
-    StaffMembership:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-          readOnly: true
-        tenant:
-          type: string
-          format: uuid
-        tenant_name:
-          type: string
-          readOnly: true
-        tenant_slug:
-          type: string
-          readOnly: true
-        role:
-          type: string
-          format: uuid
-          nullable: true
-        role_name:
-          type: string
-          readOnly: true
-        scope:
-          $ref: '#/components/schemas/ScopeEnum'
-        is_active:
-          type: boolean
-        joined_at:
-          type: string
-          format: date-time
-          readOnly: true
-      required:
-      - id
-      - joined_at
-      - role_name
-      - tenant
-      - tenant_name
-      - tenant_slug
     StaffProfile:
       type: object
       properties:
@@ -32402,18 +37534,20 @@ components:
         * `on` - on
         * `off` - off
         * `toggle` - toggle
-    Status974Enum:
+    Status926Enum:
       enum:
       - Active
       - Expired
       - Suspended
       - Left
+      - Archived
       type: string
       description: |-
         * `Active` - Active
         * `Expired` - Expired
         * `Suspended` - Suspended / Locked
         * `Left` - Left / Terminated
+        * `Archived` - Archived
     StatusD06Enum:
       enum:
       - Open
@@ -32426,18 +37560,24 @@ components:
         * `In_Progress` - In Progress
         * `Resolved` - Resolved
         * `Closed` - Closed
-    StatusFd1Enum:
+    StatusF37Enum:
       enum:
+      - DRAFT
+      - ISSUED
       - PAID
       - UNPAID
       - PARTIAL
       - CANCELLED
+      - VOID
       type: string
       description: |-
+        * `DRAFT` - Draft
+        * `ISSUED` - Issued
         * `PAID` - Paid
         * `UNPAID` - Unpaid / Due
         * `PARTIAL` - Partially Paid
         * `CANCELLED` - Cancelled
+        * `VOID` - Void
     StockTransaction:
       type: object
       properties:
@@ -32764,6 +37904,11 @@ components:
           type: string
           format: date-time
           readOnly: true
+        parent_tenant:
+          type: string
+          format: uuid
+          nullable: true
+          description: Parent SaaS subscriber tenant. Null for top-level ISP/tenant.
       required:
       - created_at
       - id
@@ -33161,54 +38306,6 @@ components:
           default: false
       required:
       - router_id
-    UserDetail:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        username:
-          type: string
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
-            only.
-          pattern: ^[\w.@+-]+$
-          maxLength: 150
-        email:
-          title: Email address
-          oneOf:
-          - type: string
-            format: email
-            maxLength: 254
-          - type: string
-            maxLength: 0
-        first_name:
-          type: string
-          maxLength: 150
-        last_name:
-          type: string
-          maxLength: 150
-        is_staff:
-          type: boolean
-          title: Staff status
-          description: Designates whether the user can log into this admin site.
-        is_superuser:
-          type: boolean
-          title: Superuser status
-          description: Designates that this user has all permissions without explicitly
-            assigning them.
-        profile:
-          allOf:
-          - $ref: '#/components/schemas/StaffProfile'
-          readOnly: true
-        membership:
-          allOf:
-          - $ref: '#/components/schemas/StaffMembership'
-          readOnly: true
-      required:
-      - id
-      - membership
-      - profile
-      - username
     UserSession:
       type: object
       properties:

@@ -319,6 +319,56 @@ All endpoints require Central Platform Superadmin credentials (`is_superuser=Tru
 
 ---
 
+### 3.11 ISP Admin Dashboard (`/api/v1/admin/*`)
+
+The ISP Admin Dashboard is the **subscriber-facing** configuration layer for a SaaS-subscriber (parent) tenant. It is NOT a duplicate of the core app — it is the bridge between the central control plane (`/api/v1/saas/*`, hosted at `admin.shebafi.xyz`) and the operational core app (`/api/v1/*`, hosted at `{tenant}.shebafi.xyz`).
+
+From the dashboard a parent tenant can:
+
+- Add / verify / delete **custom CNAMEs** for their tenant domain.
+- Subscribe / unsubscribe to **platform modules & feature flags**.
+- Provision **child tenants** (sub-ISPs) under the parent's SaaS subscription, including their authoritative admin user, custom primary domain, and quota split.
+- Reset the **child tenant admin's password** and **change their login email**.
+- **Impersonate** a child tenant admin to obtain a short-lived token that lets the parent operate the child tenant's core app on the parent's behalf.
+
+**Permission class**: `IsIspAdminDashboard` — combination of `IsTenantMember` + `IsAdminOrManager` + a parent-only check that the request tenant is the SaaS subscriber (i.e. `parent_tenant IS NULL`). Child tenants receive 403.
+
+**Tenant scope**: requests are scoped to `request.tenant` (the parent's primary domain). Cross-parent access is denied.
+
+**Audit trail**: every provisioning / impersonation / subscription / password change is written to `AuditLog` with `actor_username`, `before` / `after` payloads, and a `details` JSON column.
+
+| Path | Method | Auth | Tenant Scope | Permission | Request Schema | Response Schema | Pagination | Filters & Search | Sorting | Errors | Mutation Behavior | Class |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `/api/v1/admin/overview/` | GET | Token | Parent Tenant | `IsIspAdminDashboard` | None | `IspAdminOverview` (KPI roll-up: domain_count, enabled_modules_count, child_tenant_count, aggregate_subscriber_count, …) | None | None | None | 401, 403 | Read-only KPI roll-up | CANONICAL |
+| `/api/v1/admin/domains/` | GET, POST, PATCH, DELETE | Token | Parent Tenant | `IsIspAdminDashboard` | `IspAdminDomainSerializer` | `IspAdminDomainSerializer` (PageNumber) | PageNumber | `is_active, verified, domain_type` | `-created_at` | 400, 401, 403, 404 | DNS-TXT challenge auto-generated; verify via `POST /domains/{id}/verify.json` | CANONICAL |
+| `/api/v1/admin/domains/{id}/verify.json` | POST | Token | Parent Tenant | `IsIspAdminDashboard` | None | `{id, hostname, verified, verified_at, success, message}` | None | None | None | 200, 400, 403, 404 | Triggers DNS-TXT lookup | CANONICAL |
+| `/api/v1/admin/modules/` | GET | Token | Parent Tenant | `IsIspAdminDashboard` | None | `List[IspAdminModuleCatalogRow]` (full FEATURE_REGISTRY with `enabled` / `is_override` per row) | None | None | None | 401, 403 | Read-only catalog | CANONICAL |
+| `/api/v1/admin/modules/subscriptions/` | GET | Token | Parent Tenant | `IsIspAdminDashboard` | None | `{tenant_id, features, overrides}` | None | None | None | 401, 403 | Subscription matrix incl. raw `TenantFeatureFlag` rows | CANONICAL |
+| `/api/v1/admin/modules/subscribe/` | POST | Token | Parent Tenant | `IsIspAdminDashboard` | `IspAdminModuleSubscribeSerializer` (`feature_key`, `enabled`, `config`) | `{feature_key, enabled, config, updated_at}` | None | None | None | 400, 401, 403, 404 | Upsert `TenantFeatureFlag`; invalidate feature cache | CANONICAL |
+| `/api/v1/admin/modules/{feature_key}/unsubscribe/` | POST | Token | Parent Tenant | `IsIspAdminDashboard` | None | `{feature_key, unsubscribed}` | None | None | None | 400, 401, 403, 404 | Delete `TenantFeatureFlag`; invalidate feature cache | CANONICAL |
+| `/api/v1/admin/child-tenants/` | GET, POST, PATCH, DELETE | Token | Parent Tenant | `IsIspAdminDashboard` | `IspAdminChildTenantCreateSerializer` / `IspAdminChildTenantUpdateSerializer` / `IspAdminChildTenantListSerializer` | `IspAdminChildTenantListSerializer` (flat list) | None | `is_active` | `-created_at` | 400, 401, 403, 404 | Provision / soft-disable child ISP; quota split `parent // 4` (floor 1) | CANONICAL |
+| `/api/v1/admin/child-tenants/{pk}/impersonate.json` | POST | Token | Parent Tenant | `IsIspAdminDashboard` | None | `{token, tenant_slug, tenant_id, admin_username}` | None | None | None | 400, 401, 403, 404 | Issue / refresh DRF auth token for child admin | CANONICAL |
+| `/api/v1/admin/child-tenants/{pk}/overview.json` | GET | Token | Parent Tenant | `IsIspAdminDashboard` | None | `{tenant_id, tenant_name, tenant_slug, is_active, subscription_status, domain_count, enabled_modules_count, customer_count}` | None | None | None | 401, 403, 404 | Per-child KPI roll-up | CANONICAL |
+| `/api/v1/admin/child-tenants/{pk}/domains.json` | GET | Token | Parent Tenant | `IsIspAdminDashboard` | None | `List[IspAdminDomainSerializer]` | None | None | None | 401, 403, 404 | Read-only child tenant domains | CANONICAL |
+| `/api/v1/admin/child-tenants/{pk}/modules.json` | GET | Token | Parent Tenant | `IsIspAdminDashboard` | None | `{features: [...]}` | None | None | None | 401, 403, 404 | Read-only child tenant feature flags | CANONICAL |
+| `/api/v1/admin/child-tenants/{pk}/admin-user/` | GET, PATCH | Token | Parent Tenant | `IsIspAdminDashboard` | `IspAdminChildAdminUserSerializer` (partial) | `IspAdminChildAdminUserSerializer` | None | None | None | 400, 401, 403, 404 | View / update authoritative admin User + StaffProfile.phone | CANONICAL |
+| `/api/v1/admin/child-tenants/{pk}/admin-user/reset-password/` | POST | Token | Parent Tenant | `IsIspAdminDashboard` | `IspAdminChildAdminResetPasswordSerializer` (`new_password`) | `{detail, user_id, username}` | None | None | None | 400, 401, 403, 404 | Direct set password; invalidate all tokens | CANONICAL |
+| `/api/v1/admin/child-tenants/{pk}/admin-user/change-email/` | POST | Token | Parent Tenant | `IsIspAdminDashboard` | `IspAdminChildAdminChangeEmailSerializer` (`new_email`) | `{user_id, new_email}` | None | None | None | 400, 401, 403, 404 | Update login email; audit before/after | CANONICAL |
+
+**Child-tenant quota split**: child tenants inherit the parent's `plan` and receive `max(1, parent.max_subscribers // 4)` / `max(1, parent.max_routers // 4)` so a single child cannot exhaust the parent's quota. The split is conservative on purpose and may be tuned in future iterations.
+
+**Audit actions emitted by the dashboard**:
+- `child_tenant_provisioned` — POST `/admin/child-tenants/`
+- `impersonate_child_admin` — POST `/admin/child-tenants/{pk}/impersonate.json`
+- `module_subscribed` / `module_disabled` / `module_unsubscribed` — POST `/admin/modules/subscribe/` / `/unsubscribe/`
+- `child_admin_password_reset` — POST `/admin/child-tenants/{pk}/admin-user/reset-password/`
+- `child_admin_email_changed` — POST `/admin/child-tenants/{pk}/admin-user/change-email/`
+- `child_admin_profile_updated` — PATCH `/admin/child-tenants/{pk}/admin-user/`
+
+**Why `/api/v1/admin/*` is parent-only**: the central control plane at `admin.shebafi.xyz` (`/api/v1/saas/*`) is the SaaS-platform operator surface. The ISP Admin Dashboard at `/api/v1/admin/*` is a downstream surface for SaaS subscribers to manage their own tenant. Both happen to share the `admin.` keyword in their host or prefix; they are NOT the same product.
+
+---
+
 ## 4. API Evolution & Deprecation Policy
 
 1. **URL Stability**: The `/api/v1/` prefix will remain permanent and stable. Breaking path changes will never occur within version 1.

@@ -23,12 +23,17 @@ from apps.core.saas_views import (
     SaaSPasswordResetView, SaaSPasswordResetConfirmView,
     SaaSEmployeeViewSet,
 )
+from apps.core.organization_views import (
+    SaaSOrganizationViewSet,
+    MyOrganizationsView, MyOrganizationDetailView,
+)
 from apps.authentication.views import (
     LoginView, CurrentUserView, LogoutView, StaffProfileViewSet, RoleViewSet, PermissionViewSet,
     ResellerLoginView,
     TenantPasswordResetView, TenantPasswordResetConfirmView,
     MyAccessibleTenantsView, ChangePasswordView,
 )
+from apps.authentication.reseller_api import ResellerViewSet
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView, CustomerServiceViewSet, CustomerSubscriptionViewSet
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
 from apps.finance.views import BillingAccountViewSet, LedgerEntryViewSet, PaymentAllocationViewSet, AdjustmentViewSet, InvoiceLineViewSet
@@ -91,6 +96,8 @@ router.register(r'saas/employees', SaaSEmployeeViewSet, basename='saas-employee'
 router.register(r'saas/audit-logs', SaaSAuditLogViewSet, basename='saas-audit-log')
 router.register(r'saas/api-credentials', SaaSApiCredentialViewSet, basename='saas-api-credential')
 router.register(r'saas/applications', SaaSApplicationViewSet, basename='saas-application')
+router.register(r'saas/organizations', SaaSOrganizationViewSet, basename='saas-organization')
+router.register(r'resellers', ResellerViewSet, basename='reseller')
 router.register(r'saas/wireguard', SaaSWireGuardViewSet, basename='saas-wireguard')
 router.register(r'saas/feature-flags', TenantFeatureFlagViewSet, basename='saas-feature-flag')
 router.register(r'settings', CompanySettingViewSet, basename='setting')
@@ -234,6 +241,11 @@ urlpatterns = [
     
     # SaaS Control Plane Endpoints (admin.shebafi.xyz)
     path('api/v1/saas/overview/', SaaSOverviewView.as_view(), name='saas-overview'),
+
+    # Phase 35: ISP Admin Dashboard namespace (within the parent SaaS
+    # subscriber tenant). Scoped to /api/v1/admin/* and gated by
+    # IsIspAdminDashboard (admin/manager-only, top-level tenant only).
+    path('api/v1/admin/', include('apps.core.admin_panel.urls')),
     path('api/v1/saas/health/', SaaSHealthView.as_view(), name='saas-health'),
     path('api/v1/saas/features/', SaaSFeatureCatalogView.as_view(), name='saas-features-catalog'),
     path('api/v1/saas/feature-matrix/', SaaSFeatureMatrixView.as_view(), name='saas-feature-matrix'),
@@ -242,6 +254,10 @@ urlpatterns = [
     path('api/v1/saas/auth/logout/', SaaSLogoutView.as_view(), name='saas-auth-logout'),
     path('api/v1/saas/auth/password-reset/', SaaSPasswordResetView.as_view(), name='saas-auth-password-reset'),
     path('api/v1/saas/auth/password-reset-confirm/', SaaSPasswordResetConfirmView.as_view(), name='saas-auth-password-reset-confirm'),
+
+    # Stage 2: ISP owner portal — my organizations & my organization detail
+    path('api/v1/organizations/me/', MyOrganizationsView.as_view(), name='orgs-me'),
+    path('api/v1/organizations/<uuid:id>/', MyOrganizationDetailView.as_view(), name='orgs-detail'),
     
     # Customer Portal APIs
     path('api/v1/portal/', include('apps.customers.portal_urls')),

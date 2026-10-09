@@ -322,3 +322,20 @@ from .sessions import (  # noqa: E402, F401
     SESSION_AUTH_SCHEME,
     SESSION_COOKIE_NAME,
 )
+
+# Stage 3: Reseller-to-Customer assignment through-model. Re-exported so
+# Django's app registry discovers it via apps.get_model('authentication',
+# 'ResellerCustomer').
+from .reseller_models import ResellerCustomer  # noqa: E402, F401
+
+# Stage 4: Wallet holds, credit facility, and settlement models. Re-exported
+# for Django app discovery.
+from .wallet_models import (  # noqa: E402, F401
+    ResellerWalletHold,
+    ResellerCreditFacility,
+    ResellerCreditApproval,
+    ResellerSettlement,
+)
+
+# Stage 5: Reseller collection events. Re-exported for Django app discovery.
+from .collection_models import ResellerCollectionEvent  # noqa: E402, F401

@@ -6,6 +6,95 @@ from django.utils import timezone
 from apps.core.fields import EncryptedCharField
 
 
+class Organization(models.Model):
+    """
+    An ISP owner organization. One organization can own multiple Tenant rows.
+
+    Master task §B.2: 'The organization and tenant must be modeled as separate
+    entities. One organization can own multiple tenants. Tenant-specific ERP
+    settings must remain isolated.'
+
+    Organization membership (OrganizationMembership) is independent of
+    StaffMembership: a user may be an org admin without holding staff rights
+    in any specific tenant, and a tenant staff member may have no org-level
+    authority.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=120, unique=True)
+    contact_phone = models.CharField(max_length=30, blank=True)
+    contact_email = models.EmailField(blank=True)
+    address = models.TextField(blank=True)
+    # Maximum number of top-level tenants this organization is allowed to own.
+    # Null = unlimited. Enforced when a SaaS plan is in place.
+    max_tenants = models.PositiveIntegerField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['is_active'], name='organization_active_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.slug})"
+
+    @property
+    def tenant_count(self) -> int:
+        return Tenant.objects.filter(organization=self).count()
+
+
+class OrganizationMembership(models.Model):
+    """
+    A user's membership inside an Organization. A user can be a member of many
+    organizations, with different roles in each.
+    """
+    class Role(models.TextChoices):
+        OWNER = 'OWNER', 'Owner (full control, billing, all tenants)'
+        ADMIN = 'ADMIN', 'Admin (manage tenants, members, settings)'
+        MEMBER = 'MEMBER', 'Member (read-only access to owned tenants)'
+        BILLING = 'BILLING', 'Billing (manage subscriptions, invoices)'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='memberships'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='organization_memberships',
+    )
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.MEMBER)
+    is_active = models.BooleanField(default=True)
+    invited_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('organization', 'user')]
+        ordering = ['organization', 'user']
+        indexes = [
+            models.Index(
+                fields=['user', 'organization', 'is_active'],
+                name='org_membership_user_active_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} → {self.organization.slug} [{self.role}]"
+
+    @classmethod
+    def get_active_membership(cls, user, organization):
+        if not user or not getattr(user, 'is_authenticated', False) or not organization:
+            return None
+        return cls.objects.filter(
+            user=user, organization=organization, is_active=True
+        ).first()
+
+
 class Tenant(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=150)
@@ -35,11 +124,74 @@ class Tenant(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Phase 35: Managed Sub-ISP hierarchy. Top-level SaaS subscriber
+    # tenants keep parent_tenant=NULL. Child tenants inherit plan, quotas,
+    # and feature-flag defaults from the parent but operate independently
+    # against the existing core app endpoints.
+    parent_tenant = models.ForeignKey(
+        'self', on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='child_tenants',
+        help_text='Parent SaaS subscriber tenant. Null for top-level ISP/tenant.',
+    )
+
+    # Stage 2: Owner organization. A SaaS subscriber buys a plan and creates
+    # an Organization; the Organization then owns one or more Tenant rows.
+    # Nullable so existing tenants keep working; the data migration
+    # 0018_organization backfills a synthetic 'legacy' organization for
+    # every existing tenant.
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='tenants',
+        help_text='ISP owner organization that owns this tenant. Null only '
+                  'on synthetic legacy records or during onboarding.',
+    )
+
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(
+                fields=['parent_tenant', 'is_active'],
+                name='tenant_parent_active_idx',
+            ),
+            models.Index(
+                fields=['organization', 'is_active'],
+                name='tenant_org_active_idx',
+            ),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(parent_tenant=models.F('id')),
+                name='tenant_not_self_parent',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.slug})"
+
+    # ── Hierarchy helpers ───────────────────────────────────────────────
+    @property
+    def is_child_tenant(self) -> bool:
+        """True when this tenant is managed under a parent SaaS subscriber."""
+        return self.parent_tenant_id is not None
+
+    @property
+    def root_tenant(self) -> 'Tenant':
+        """Walks up the parent chain to the top-level SaaS subscriber."""
+        node = self
+        # Bound the walk to prevent infinite loops on accidental cycles.
+        for _ in range(32):
+            if node.parent_tenant_id is None:
+                return node
+            node = node.parent_tenant
+        return node
+
+    @property
+    def children_count(self) -> int:
+        """Number of direct child tenants under this SaaS subscriber."""
+        return Tenant.objects.filter(parent_tenant=self).count()
 
 
 class TenantDomain(models.Model):
