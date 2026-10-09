@@ -55,7 +55,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['SUPER_ADMIN', 'ISP_ADMIN', 'TENANT', 'PUBLIC_HOME'],
         group: 'platform',
         multiTenant: true,
-        homeRoute: '/app',
+        homeRoute: '/dashboard',
     },
     ADMIN: {
         key: 'ADMIN',
@@ -64,7 +64,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'TENANT', 'PUBLIC_HOME'],
         group: 'isp',
         multiTenant: true,
-        homeRoute: '/app',
+        homeRoute: '/dashboard',
     },
     BILLING: {
         key: 'BILLING',
@@ -73,7 +73,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'isp',
         multiTenant: false,
-        homeRoute: '/app/billing',
+        homeRoute: '/billing',
     },
     BILLING_OPERATOR: {
         key: 'BILLING_OPERATOR',
@@ -82,7 +82,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'isp',
         multiTenant: false,
-        homeRoute: '/app/billing',
+        homeRoute: '/billing',
     },
     SALES: {
         key: 'SALES',
@@ -91,7 +91,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'isp',
         multiTenant: false,
-        homeRoute: '/app/customers',
+        homeRoute: '/customers',
     },
     DEMO: {
         key: 'DEMO',
@@ -100,7 +100,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'isp',
         multiTenant: false,
-        homeRoute: '/app',
+        homeRoute: '/dashboard',
     },
     TECHNICIAN: {
         key: 'TECHNICIAN',
@@ -109,7 +109,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'isp',
         multiTenant: false,
-        homeRoute: '/app/network',
+        homeRoute: '/network',
     },
     STAFF: {
         key: 'STAFF',
@@ -118,7 +118,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'isp',
         multiTenant: false,
-        homeRoute: '/app',
+        homeRoute: '/dashboard',
     },
     SUPPORT_STAFF: {
         key: 'SUPPORT_STAFF',
@@ -127,7 +127,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'isp',
         multiTenant: false,
-        homeRoute: '/app/tickets',
+        homeRoute: '/tickets',
     },
     LINE_MAN: {
         key: 'LINE_MAN',
@@ -136,7 +136,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'isp',
         multiTenant: false,
-        homeRoute: '/app/tickets',
+        homeRoute: '/tickets',
     },
     RESELLER: {
         key: 'RESELLER',
@@ -145,7 +145,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'reseller',
         multiTenant: false,
-        homeRoute: '/app/reseller',
+        homeRoute: '/resellers',
     },
     RESELLER_L1: {
         key: 'RESELLER_L1',
@@ -154,7 +154,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'reseller',
         multiTenant: false,
-        homeRoute: '/app/reseller',
+        homeRoute: '/resellers',
     },
     RESELLER_L2: {
         key: 'RESELLER_L2',
@@ -163,7 +163,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'reseller',
         multiTenant: false,
-        homeRoute: '/app/reseller',
+        homeRoute: '/resellers',
     },
     DISTRIBUTOR: {
         key: 'DISTRIBUTOR',
@@ -172,7 +172,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'reseller',
         multiTenant: false,
-        homeRoute: '/app/inventory',
+        homeRoute: '/inventory',
     },
     BANDWIDTH_RESELLER: {
         key: 'BANDWIDTH_RESELLER',
@@ -181,7 +181,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'reseller',
         multiTenant: true,
-        homeRoute: '/app/network',
+        homeRoute: '/network',
     },
     AGENT: {
         key: 'AGENT',
@@ -190,7 +190,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['ISP_ADMIN', 'PUBLIC_HOME'],
         group: 'reseller',
         multiTenant: false,
-        homeRoute: '/app/agent',
+        homeRoute: '/agent',
     },
     CUSTOMER: {
         key: 'CUSTOMER',
@@ -199,7 +199,7 @@ export const USER_ROLES: Readonly<Record<UserRoleKey, UserRoleDescriptor>> = Obj
         portals: ['TENANT', 'PUBLIC_HOME'],
         group: 'customer',
         multiTenant: false,
-        homeRoute: '/portal',
+        homeRoute: '/dashboard',
     },
 });
 

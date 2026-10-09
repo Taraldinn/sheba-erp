@@ -1,5 +1,5 @@
 import React from 'react';
-import { Route, Routes } from 'react-router';
+import { Navigate, Route, Routes } from 'react-router';
 import { usePortal } from './portal-provider';
 
 // Layouts
@@ -120,6 +120,28 @@ export function PortalRouter() {
                     <Route path="backups" element={<BackupsScreen />} />
                     <Route path="audit-logs" element={<AuditLogsScreen />} />
                 </Route>
+                {/*
+                  Legacy aliases — the older auth catalog used `/app/*` paths.
+                  We keep them in the SaaS admin tree so that a stale
+                  post-login redirect, an old bookmark, or a cached
+                  homeRoute doesn't 404. The mapped paths point at the
+                  current canonical SaaS admin routes.
+                */}
+                <Route path="/app" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/app/dashboard" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/app/tenants" element={<Navigate to="/tenants" replace />} />
+                <Route path="/app/packages" element={<Navigate to="/packages" replace />} />
+                <Route path="/app/subscriptions" element={<Navigate to="/subscriptions" replace />} />
+                <Route path="/app/payments" element={<Navigate to="/payments" replace />} />
+                <Route path="/app/billing" element={<Navigate to="/payments" replace />} />
+                <Route path="/app/employees" element={<Navigate to="/employees" replace />} />
+                <Route path="/app/users" element={<Navigate to="/employees" replace />} />
+                <Route path="/app/domains" element={<Navigate to="/domains" replace />} />
+                <Route path="/app/settings" element={<Navigate to="/domains" replace />} />
+                <Route path="/app/feature-matrix" element={<Navigate to="/feature-matrix" replace />} />
+                <Route path="/app/onboarding" element={<Navigate to="/onboarding" replace />} />
+                <Route path="/app/backups" element={<Navigate to="/backups" replace />} />
+                <Route path="/app/audit-logs" element={<Navigate to="/audit-logs" replace />} />
                 <Route path="*" element={<NotFound />} />
             </Routes>
         );
@@ -157,6 +179,18 @@ export function PortalRouter() {
                     <Route path="tickets" element={<IspDashboardScreen />} />
                     <Route path="reports" element={<IspDashboardScreen />} />
                     <Route path="settings" element={<IspDashboardScreen />} />
+                    {/* Legacy `/app/*` aliases — see SUPER_ADMIN branch. */}
+                    <Route path="app" element={<Navigate to="dashboard" replace />} />
+                    <Route path="app/dashboard" element={<Navigate to="dashboard" replace />} />
+                    <Route path="app/customers" element={<Navigate to="customers" replace />} />
+                    <Route path="app/packages" element={<Navigate to="services/packages" replace />} />
+                    <Route path="app/subscriptions" element={<Navigate to="subscriptions" replace />} />
+                    <Route path="app/billing" element={<Navigate to="billing/invoices" replace />} />
+                    <Route path="app/invoices" element={<Navigate to="billing/invoices" replace />} />
+                    <Route path="app/network" element={<Navigate to="network" replace />} />
+                    <Route path="app/tickets" element={<Navigate to="tickets" replace />} />
+                    <Route path="app/reseller" element={<Navigate to="resellers" replace />} />
+                    <Route path="app/resellers" element={<Navigate to="resellers" replace />} />
 
                     {/* Phase 35 — ISP Owner Dashboard (parent SaaS-subscriber). */}
                     <Route path="admin" element={<OwnerOverviewScreen />} />
