@@ -5,7 +5,9 @@
     "private": true,
     "scripts": {
         "dev": "vite",
-        "build": "tsc -b && vite build",
+        "build": "vite build",
+        "typecheck": "tsc -b",
+        "preflight": "pnpm run typecheck && pnpm run test && pnpm run build",
         "preview": "vite preview",
         "deploy": "vite build && wrangler deploy",
         "deploy:dry-run": "vite build && wrangler deploy --dry-run"
