@@ -17,7 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt .
+# Note: build context is the repo root in Dokploy, so requirements live
+# under backend/. Mirrored into /app/requirements.txt for the pip install.
+COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Stage 2: Production runtime
