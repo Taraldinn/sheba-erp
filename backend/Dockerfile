@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python packages into user directory
-COPY backend/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # ==============================================================================
@@ -47,7 +47,7 @@ RUN groupadd -r -g 1001 appuser && \
 COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
 
 # Copy application files (only backend code is copied)
-COPY --chown=appuser:appuser backend/ .
+COPY --chown=appuser:appuser . .
 
 # Ensure staticfiles, media, and entrypoint have correct permissions
 RUN mkdir -p /app/staticfiles /app/media && \

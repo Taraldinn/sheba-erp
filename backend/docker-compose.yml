@@ -57,6 +57,8 @@ services:
       - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:-}
       - LOG_LEVEL=INFO
     depends_on:
+      backend:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
