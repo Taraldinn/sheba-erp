@@ -12,6 +12,12 @@ import type {
     SaasDashboardOverview,
     SaasEmployee,
     FeatureMatrixResponse,
+    Organization,
+    OrganizationSummary,
+    OrganizationMember,
+    CreateOrganizationInput,
+    CreateOrganizationWithFirstTenantInput,
+    CreateOrganizationWithFirstTenantResult,
     PaginatedList,
 } from './types';
 import { asList } from './types';
@@ -48,6 +54,45 @@ function normalizeTenant(t: any): Tenant {
         is_active: Boolean(t.is_active),
         created_at: t.created_at || new Date().toISOString(),
         updated_at: t.updated_at || new Date().toISOString(),
+        organization_id: t.organization_id ? String(t.organization_id) : null,
+        organization_name: t.organization_name || null,
+        organization_slug: t.organization_slug || null,
+    } as Tenant;
+}
+
+function normalizeOrganization(o: any): OrganizationSummary {
+    return {
+        id: String(o.id),
+        name: o.name || '',
+        slug: o.slug || '',
+        contact_phone: o.contact_phone || '',
+        contact_email: o.contact_email || '',
+        address: o.address || '',
+        max_tenants: o.max_tenants ?? null,
+        is_active: o.is_active !== undefined ? Boolean(o.is_active) : true,
+        notes: o.notes || '',
+        created_at: o.created_at || new Date().toISOString(),
+        updated_at: o.updated_at || new Date().toISOString(),
+        tenant_count: Number(o.tenant_count ?? 0),
+        active_tenant_count: Number(o.active_tenant_count ?? 0),
+        member_count: Number(o.member_count ?? 0),
+        active_subscription_count: Number(o.active_subscription_count ?? 0),
+        owner_email: o.owner_email ?? null,
+    };
+}
+
+function normalizeOrganizationMember(m: any): OrganizationMember {
+    return {
+        id: String(m.id),
+        organization: String(m.organization || ''),
+        user: Number(m.user || 0),
+        username: m.username || '',
+        email: m.email || '',
+        role: (m.role || 'MEMBER') as OrganizationMember['role'],
+        is_active: m.is_active !== undefined ? Boolean(m.is_active) : true,
+        invited_at: m.invited_at || new Date().toISOString(),
+        accepted_at: m.accepted_at ?? null,
+        updated_at: m.updated_at || new Date().toISOString(),
     };
 }
 
@@ -247,6 +292,7 @@ export const saasApi = {
         if (data.contact_phone) payload.contact_phone = data.contact_phone;
         if (data.address) payload.address = data.address;
         if (data.is_active !== undefined) payload.is_active = data.is_active;
+        if (data.organization_id) payload.organization_id = data.organization_id;
         return fetchApi<any>('/tenants', { method: 'POST', json: payload, plane: 'central' }).then(normalizeTenant);
     },
     updateTenant: (id: string, data: Partial<Tenant>) => {
@@ -257,6 +303,54 @@ export const saasApi = {
     },
     toggleTenantStatus: (id: string) => fetchApi<any>(`/tenants/${id}/toggle-status`, { method: 'POST', plane: 'central' }).then(normalizeTenant),
     deleteTenant: (id: string) => fetchApi<void>(`/tenants/${id}`, { method: 'DELETE', plane: 'central' }),
+    moveTenantToOrganization: (tenantId: string, organizationId: string | null) =>
+        fetchApi<any>(`/tenants/${tenantId}/move-to-organization/`, {
+            method: 'POST',
+            json: { organization_id: organizationId },
+            plane: 'central',
+        }).then(normalizeTenant),
+
+    /* Organizations (parent of tenants) */
+    getOrganizations: (params?: Record<string, string>) =>
+        fetchApi<PaginatedList<any>>(`/organizations${toQuery(params)}`, { plane: 'central' }).then(r =>
+            asList<any>(r).map(normalizeOrganization),
+        ),
+    getOrganization: (id: string) =>
+        fetchApi<any>(`/organizations/${id}`, { plane: 'central' }).then(normalizeOrganization),
+    createOrganization: (data: CreateOrganizationInput) => {
+        const payload: Record<string, unknown> = { ...data };
+        return fetchApi<any>('/organizations', { method: 'POST', json: payload, plane: 'central' }).then(normalizeOrganization);
+    },
+    updateOrganization: (id: string, data: Partial<CreateOrganizationInput>) =>
+        fetchApi<any>(`/organizations/${id}`, { method: 'PATCH', json: data, plane: 'central' }).then(normalizeOrganization),
+    deleteOrganization: (id: string) => fetchApi<void>(`/organizations/${id}`, { method: 'DELETE', plane: 'central' }),
+    createOrganizationWithFirstTenant: (data: CreateOrganizationWithFirstTenantInput) => {
+        const payload: Record<string, unknown> = { ...data };
+        return fetchApi<any>('/organizations/create-with-first-tenant/', {
+            method: 'POST',
+            json: payload,
+            plane: 'central',
+        }).then(res => {
+            if (res && res.organization) {
+                return {
+                    ...(res as CreateOrganizationWithFirstTenantResult),
+                    organization: normalizeOrganization(res.organization),
+                    owner_membership: normalizeOrganizationMember(res.owner_membership),
+                } as CreateOrganizationWithFirstTenantResult;
+            }
+            return res as CreateOrganizationWithFirstTenantResult;
+        });
+    },
+    getOrganizationMembers: (id: string) =>
+        fetchApi<PaginatedList<any>>(`/organizations/${id}/members/`, { plane: 'central' }).then(r =>
+            asList<any>(r).map(normalizeOrganizationMember),
+        ),
+    upsertOrganizationMember: (id: string, body: { username: string; role: string; is_active?: boolean }) =>
+        fetchApi<any>(`/organizations/${id}/members/`, { method: 'POST', json: body, plane: 'central' }).then(normalizeOrganizationMember),
+    removeOrganizationMember: (id: string, userId: string | number) =>
+        fetchApi<void>(`/organizations/${id}/members/${userId}/`, { method: 'DELETE', plane: 'central' }),
+    getOrganizationTenants: (id: string) =>
+        fetchApi<{ count: number; results: any[] }>(`/organizations/${id}/tenants/`, { plane: 'central' }),
 
     /* Domains */
     getDomains: () => fetchApi<PaginatedList<any>>('/domains', { plane: 'central' }).then(r => asList<any>(r).map(normalizeDomain)),
@@ -359,5 +453,4 @@ export const saasApi = {
 
     /* ISP owner surface */
     getMyOrganizations: () => fetchApi<{ count: number; items: any[] }>('/organizations/me/', { plane: 'central' }),
-    getOrganization: (id: string) => fetchApi<any>(`/organizations/${id}/`, { plane: 'central' }),
 };

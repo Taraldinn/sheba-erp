@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/feedback/confirm';
 import { ErrorAlert, PageHeader, ListToolbar, StatusBadge, KpiCard, MoneyText } from '@/components/feedback';
 import { withMutationToast } from '@/lib/mutation-toast';
@@ -33,14 +35,16 @@ export default function SaasTenants() {
     const search = searchParams.get('search') ?? '';
     const is_active = searchParams.get('is_active') ?? '';
     const plan = searchParams.get('plan') ?? '';
+    const organization = searchParams.get('organization') ?? '';
 
     const [draftSearch, setDraftSearch] = useState(search);
     const [creating, setCreating] = useState(false);
     const [editing, setEditing] = useState<Tenant | null>(null);
     const [pendingDelete, setPendingDelete] = useState<Tenant | null>(null);
+    const [moveTarget, setMoveTarget] = useState<Tenant | null>(null);
 
-    const params = { page, search, is_active, plan };
-    
+    const params = { page, search, is_active, plan, organization };
+
     const tenants = useQuery({
         queryKey: queryKeys.saasTenants.list(params),
         queryFn: () => saasApi.getTenants({
@@ -48,10 +52,15 @@ export default function SaasTenants() {
             search: params.search,
             is_active: params.is_active,
             plan: params.plan,
+            organization: params.organization || '',
         }),
         placeholderData: previous => previous,
     });
     const overview = useQuery({ queryKey: queryKeys.saasOverview(), queryFn: () => saasApi.getDashboardOverview() });
+    const orgs = useQuery({
+        queryKey: queryKeys.saasOrganizations.list({}),
+        queryFn: () => saasApi.getOrganizations({}),
+    });
 
     const updateSearch = (patch: Partial<typeof params>) => {
         const newParams = new URLSearchParams(searchParams.toString());
@@ -70,14 +79,18 @@ export default function SaasTenants() {
             if (patch.plan) newParams.set('plan', patch.plan);
             else newParams.delete('plan');
         }
+        if (patch.organization !== undefined) {
+            if (patch.organization) newParams.set('organization', patch.organization);
+            else newParams.delete('organization');
+        }
         router.push(`/saas/tenants?${newParams.toString()}`);
     };
 
     const create = useMutation(
         withMutationToast(
             {
-                mutationFn: (form: { name: string; schema_name: string; domain_url: string; plan: string; contact_email?: string; contact_phone?: string }) =>
-                    saasApi.createTenant(form),
+                mutationFn: (form: { name: string; schema_name: string; domain_url: string; plan: string; contact_email?: string; contact_phone?: string; organization_id?: string | null }) =>
+                    saasApi.createTenant({ ...form, organization_id: form.organization_id ?? undefined } as Partial<Tenant>),
                 onSuccess: () => {
                     setCreating(false);
                     queryClient.invalidateQueries({ queryKey: queryKeys.saasTenants.all() });
@@ -96,6 +109,20 @@ export default function SaasTenants() {
                 },
             },
             { success: 'Tenant updated', error: 'Could not update tenant' },
+        ),
+    );
+    const move = useMutation(
+        withMutationToast(
+            {
+                mutationFn: ({ id, organization_id }: { id: string; organization_id: string | null }) =>
+                    saasApi.moveTenantToOrganization(id, organization_id),
+                onSuccess: () => {
+                    setMoveTarget(null);
+                    queryClient.invalidateQueries({ queryKey: queryKeys.saasTenants.all() });
+                    queryClient.invalidateQueries({ queryKey: queryKeys.saasOrganizations.all() });
+                },
+            },
+            { success: 'Tenant moved', error: 'Could not move tenant' },
         ),
     );
     const toggle = useMutation(
@@ -124,6 +151,21 @@ export default function SaasTenants() {
         { id: 'name', header: 'Name', sortable: true },
         { id: 'schema_name', header: 'Slug' },
         { id: 'domain_url', header: 'Domain' },
+        {
+            id: 'organization',
+            header: 'Organization',
+            cell: row =>
+                row.organization_id ? (
+                    <Link
+                        href={`/saas/organizations/${row.organization_id}`}
+                        className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium hover:underline"
+                    >
+                        {row.organization_name || row.organization_id}
+                    </Link>
+                ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                ),
+        },
         { id: 'plan', header: 'Plan' },
         { id: 'contact_email', header: 'Email' },
         {
@@ -138,6 +180,9 @@ export default function SaasTenants() {
             cell: row =>
                 canManage ? (
                     <div className="flex items-center justify-end gap-1">
+                        <Button size="sm" variant="ghost" disabled={move.isPending} onClick={() => setMoveTarget(row)}>
+                            Move org
+                        </Button>
                         <Button size="sm" variant="ghost" disabled={toggle.isPending} onClick={() => toggle.mutate(row.id)}>
                             {row.is_active ? 'Suspend' : 'Activate'}
                         </Button>
@@ -178,6 +223,23 @@ export default function SaasTenants() {
                 onStatusChange={v => updateSearch({ is_active: v })}
                 onRefresh={() => tenants.refetch()}
                 isRefreshing={tenants.isFetching}
+                extra={
+                    <Select
+                        value={organization || '__all__'}
+                        onValueChange={v => updateSearch({ organization: v === '__all__' ? undefined : v })}
+                    >
+                        <SelectTrigger className="w-[220px]" data-testid="tenants-org-filter">
+                            <SelectValue placeholder="Filter organization" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="__all__">All organizations</SelectItem>
+                            <SelectItem value="null">Unassigned</SelectItem>
+                            {(orgs.data ?? []).map(o => (
+                                <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                }
             />
             {tenants.error && <ErrorAlert title="Failed to load tenants" error={tenants.error} />}
             <DataTable<Tenant>
@@ -195,6 +257,8 @@ export default function SaasTenants() {
                     pending={create.isPending}
                     onOpenChange={o => !o && setCreating(false)}
                     onSubmit={form => create.mutateAsync(form)}
+                    organizations={(orgs.data ?? []).map(o => ({ id: o.id, name: o.name }))}
+                    defaultOrganizationId={orgs.data?.[0]?.id}
                 />
             )}
             {editing && (
@@ -217,6 +281,53 @@ export default function SaasTenants() {
                     if (pendingDelete) await remove.mutateAsync(pendingDelete.id);
                 }}
             />
+            {moveTarget && (
+                <Dialog open onOpenChange={o => !o && setMoveTarget(null)}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Move {moveTarget.name} to an organization</DialogTitle>
+                        </DialogHeader>
+                        <p className="text-sm text-muted-foreground">
+                            Reassign this tenant to a different organization. Pick <strong>Unassigned</strong> to detach it (e.g. for the legacy auto-migration backfill).
+                        </p>
+                        <div className="space-y-1">
+                            <Label className="text-xs">Organization</Label>
+                            <Select
+                                value={moveTarget.organization_id || '__null__'}
+                                onValueChange={v => {
+                                    // local-only; commit on confirm
+                                    const newOrgId = v === '__null__' ? null : v;
+                                    setMoveTarget(prev => prev ? { ...prev, organization_id: newOrgId } as Tenant : prev);
+                                }}
+                            >
+                                <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="__null__">Unassigned</SelectItem>
+                                    {(orgs.data ?? []).map(o => (
+                                        <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setMoveTarget(null)} disabled={move.isPending}>
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={async () => {
+                                    await move.mutateAsync({
+                                        id: moveTarget.id,
+                                        organization_id: moveTarget.organization_id || null,
+                                    });
+                                }}
+                                disabled={move.isPending}
+                            >
+                                {move.isPending ? 'Moving…' : 'Move tenant'}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
         </div>
     );
 }
@@ -226,13 +337,25 @@ function CreateTenantDialog({
     onOpenChange,
     onSubmit,
     pending,
+    organizations,
+    defaultOrganizationId,
 }: {
     open: boolean;
     onOpenChange: (o: boolean) => void;
-    onSubmit: (form: { name: string; schema_name: string; domain_url: string; plan: string; contact_email?: string; contact_phone?: string }) => Promise<unknown>;
+    onSubmit: (form: { name: string; schema_name: string; domain_url: string; plan: string; contact_email?: string; contact_phone?: string; organization_id?: string | null }) => Promise<unknown>;
     pending: boolean;
+    organizations: Array<{ id: string; name: string }>;
+    defaultOrganizationId?: string;
 }) {
-    const [form, setForm] = useState({ name: '', schema_name: '', domain_url: '', plan: PLAN_OPTIONS[1].value, contact_email: '', contact_phone: '' });
+    const [form, setForm] = useState<{
+        name: string; schema_name: string; domain_url: string; plan: string;
+        contact_email: string; contact_phone: string; organization_id: string;
+    }>({
+        name: '', schema_name: '', domain_url: '',
+        plan: PLAN_OPTIONS[1].value,
+        contact_email: '', contact_phone: '',
+        organization_id: defaultOrganizationId || '',
+    });
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
@@ -242,7 +365,15 @@ function CreateTenantDialog({
                 <form
                     onSubmit={e => {
                         e.preventDefault();
-                        void onSubmit(form);
+                        void onSubmit({
+                            name: form.name,
+                            schema_name: form.schema_name,
+                            domain_url: form.domain_url,
+                            plan: form.plan,
+                            contact_email: form.contact_email,
+                            contact_phone: form.contact_phone,
+                            organization_id: form.organization_id || null,
+                        });
                     }}
                     className="space-y-3"
                 >
@@ -271,6 +402,20 @@ function CreateTenantDialog({
                                     <option key={p.value} value={p.value}>{p.label}</option>
                                 ))}
                             </select>
+                        </Field>
+                        <Field label="Organization" full>
+                            <Select
+                                value={form.organization_id || '__none__'}
+                                onValueChange={v => setForm(f => ({ ...f, organization_id: v === '__none__' ? '' : v }))}
+                            >
+                                <SelectTrigger><SelectValue placeholder="Select organization" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="__none__">Unassigned (legacy)</SelectItem>
+                                    {organizations.map(o => (
+                                        <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </Field>
                         <Field label="Contact email">
                             <Input type="email" value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} />
@@ -374,9 +519,9 @@ function EditTenantDialog({
     );
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required, children, full }: { label: string; required?: boolean; children: React.ReactNode; full?: boolean }) {
     return (
-        <div className="space-y-1">
+        <div className={full ? 'sm:col-span-2 space-y-1' : 'space-y-1'}>
             <Label className="text-xs font-medium text-muted-foreground">
                 {label} {required && <span className="text-destructive">*</span>}
             </Label>

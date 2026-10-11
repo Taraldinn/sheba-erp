@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 export interface PageHeaderProps {
     title: string;
-    description?: string;
+    description?: ReactNode;
     actions?: ReactNode;
     action?: ReactNode;
     breadcrumbs?: Array<{ label: string; to?: string }>;

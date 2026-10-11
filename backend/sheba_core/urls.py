@@ -48,6 +48,10 @@ from apps.core.organization_views import (
     OrganizationSubscriptionsView,
     PublicSaaSPackageListView,
 )
+from apps.core.public_onboarding_views import (
+    PublicOnboardingView,
+    PublicOnboardingStatusView,
+)
 from apps.authentication.views import (
     LoginView, CurrentUserView, LogoutView, StaffProfileViewSet, RoleViewSet, PermissionViewSet,
     ResellerLoginView,
@@ -316,6 +320,13 @@ urlpatterns = [
     # creation form to populate the package picker.
     path('api/v1/saas/packages/public/',
          PublicSaaSPackageListView.as_view(), name='saas-packages-public'),
+
+    # Public, anonymous-facing organization onboarding. Throttled at
+    # settings.THROTTLE_RATES['public_onboarding'] (default 5/hour).
+    path('api/v1/public/onboarding/',
+         PublicOnboardingView.as_view(), name='public-onboarding'),
+    path('api/v1/public/onboarding/<uuid:request_id>/status/',
+         PublicOnboardingStatusView.as_view(), name='public-onboarding-status'),
     
     # Customer Portal APIs
     path('api/v1/portal/', include('apps.customers.portal_urls')),

@@ -22,7 +22,8 @@ from rest_framework.authtoken.models import Token
 from .models import (
     Tenant, TenantDomain, CompanySetting, AuditLog,
     TenantOnboardingRequest, SaaSPackage, TenantSubscription, SaaSPayment, DatabaseBackup,
-    TenantApiToken, ApiApplication, TenantFeatureFlag
+    TenantApiToken, ApiApplication, TenantFeatureFlag,
+    Organization,
 )
 from .permissions import IsCentralAdmin, IsCentralOrPlatformAdmin
 from .redis_service import RedisService
@@ -139,6 +140,17 @@ class SaaSTenantSerializer(serializers.ModelSerializer):
     admin_username = serializers.SerializerMethodField()
     admins = serializers.SerializerMethodField()
     admins_count = serializers.SerializerMethodField()
+    # Organization ownership (Stage 2: org is the parent of tenants).
+    organization_id = serializers.PrimaryKeyRelatedField(
+        source='organization', queryset=Organization.objects.all(),
+        required=False, allow_null=True,
+    )
+    organization_name = serializers.CharField(
+        source='organization.name', read_only=True, default=None
+    )
+    organization_slug = serializers.CharField(
+        source='organization.slug', read_only=True, default=None
+    )
 
     class Meta:
         model = Tenant
@@ -147,6 +159,7 @@ class SaaSTenantSerializer(serializers.ModelSerializer):
             'address', 'is_active', 'plan', 'max_subscribers', 'max_routers',
             'subscription_status', 'subscription_expires_at', 'notes',
             'created_at', 'updated_at',
+            'organization_id', 'organization_name', 'organization_slug',
             'subscriber_count', 'active_subscribers_count', 'expired_subscribers_count',
             'router_count', 'online_router_count',
             'pop_count', 'active_pop_count',
@@ -741,8 +754,9 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
         search = request.query_params.get('search', '')
         plan = request.query_params.get('plan', '')
         status_param = request.query_params.get('status', '') or request.query_params.get('subscription_status', '')
+        org_param = request.query_params.get('organization', '') or request.query_params.get('organization_id', '')
         page = request.query_params.get('page', '1')
-        cache_key = f"saas:tenants:list:{search}:{plan}:{status_param}:{page}"
+        cache_key = f"saas:tenants:list:{search}:{plan}:{status_param}:{org_param}:{page}"
         cached = RedisService.get(cache_key)
         if cached is not None:
             response = Response(cached)
@@ -761,6 +775,21 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(is_active=False)
             else:
                 queryset = queryset.filter(subscription_status__iexact=status_param)
+        if org_param:
+            # Accept UUID, slug, or "null" for tenants without an organization.
+            org_obj = None
+            if org_param.lower() in ('null', 'none', 'unassigned'):
+                queryset = queryset.filter(organization__isnull=True)
+            else:
+                try:
+                    uuid.UUID(str(org_param))
+                    org_obj = Organization.objects.filter(id=org_param).first()
+                except (ValueError, TypeError):
+                    org_obj = Organization.objects.filter(slug=org_param).first()
+                if org_obj is not None:
+                    queryset = queryset.filter(organization=org_obj)
+                else:
+                    queryset = queryset.none()
 
         page_data = self.paginate_queryset(queryset)
         targets = page_data if page_data is not None else list(queryset)
@@ -1167,6 +1196,67 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
             'tenant_name': tenant.name,
             'message': f'ISP Admin "{username}" successfully created for {tenant.name}.'
         }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='move-to-organization')
+    def move_to_organization(self, request, pk=None):
+        """
+        Reassign this tenant to a different Organization.
+
+        Body:
+          organization_id  (UUID, optional)   — set to null to detach.
+        """
+        tenant = self.get_object()
+        org_id = request.data.get('organization_id', None)
+        if org_id in ('', 'null', 'None', 'none'):
+            org_id = None
+        org = None
+        if org_id is not None:
+            try:
+                org = Organization.objects.get(id=org_id)
+            except (Organization.DoesNotExist, ValueError):
+                return Response(
+                    {'error': 'Organization not found.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            if org.max_tenants is not None:
+                current_count = org.tenants.exclude(id=tenant.id).count()
+                if current_count >= org.max_tenants:
+                    return Response(
+                        {
+                            'error': (
+                                f"Organization '{org.name}' has reached its "
+                                f"max_tenants limit of {org.max_tenants}."
+                            )
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+        previous_org_id = str(tenant.organization_id) if tenant.organization_id else None
+        tenant.organization = org
+        tenant.save(update_fields=['organization', 'updated_at'])
+        invalidate_saas_tenant_cache(tenant_id=str(tenant.id), slug=tenant.slug)
+        AuditLog.objects.create(
+            tenant=tenant,
+            actor_username=getattr(request.user, 'username', 'system'),
+            action='UPDATE',
+            module='SAAS',
+            resource_type='Tenant',
+            resource_id=str(tenant.id),
+            details={
+                'action': 'move-to-organization',
+                'previous_organization_id': previous_org_id,
+                'new_organization_id': str(org.id) if org else None,
+            },
+        )
+        return Response(
+            {
+                'id': str(tenant.id),
+                'name': tenant.name,
+                'slug': tenant.slug,
+                'organization_id': str(org.id) if org else None,
+                'organization_name': org.name if org else None,
+                'organization_slug': org.slug if org else None,
+            }
+        )
 
     # ── Bulk operations (Tier 3B) ──────────────────────────────────────────
 

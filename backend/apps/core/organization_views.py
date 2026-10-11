@@ -83,11 +83,160 @@ class OrganizationSerializer(serializers.ModelSerializer):
         return cleaned
 
 
+class OrganizationSummarySerializer(OrganizationSerializer):
+    """
+    Slim, list-friendly view of an Organization for the saas-owner
+    dashboard. Adds denormalized counts (members, active subscriptions)
+    and the primary owner's email so the UI can render a list without
+    N+1 lookups.
+
+    Falls back to a tolerant computation when annotations are not
+    present on the queryset, so it works equally well for a single
+    `.retrieve()` call and a list view.
+    """
+    member_count = serializers.SerializerMethodField()
+    active_subscription_count = serializers.SerializerMethodField()
+    owner_email = serializers.SerializerMethodField()
+
+    class Meta(OrganizationSerializer.Meta):
+        fields = OrganizationSerializer.Meta.fields + [
+            'member_count', 'active_subscription_count', 'owner_email',
+        ]
+
+    def get_member_count(self, obj):
+        cached = getattr(obj, '_member_count', None)
+        if cached is not None:
+            return cached
+        try:
+            return obj.memberships.count()
+        except Exception:
+            return 0
+
+    def get_active_subscription_count(self, obj):
+        cached = getattr(obj, '_active_subscription_count', None)
+        if cached is not None:
+            return cached
+        try:
+            return TenantSubscription.objects.filter(
+                tenant__organization=obj, status='active',
+            ).count()
+        except Exception:
+            return 0
+
+    def get_owner_email(self, obj):
+        cached = getattr(obj, '_owner_email', None)
+        if cached is not None:
+            return cached
+        try:
+            m = obj.memberships.filter(
+                role=OrganizationMembership.Role.OWNER, is_active=True,
+            ).select_related('user').order_by('invited_at').first()
+            return m.user.email if m and m.user else None
+        except Exception:
+            return None
+
+
 class OrganizationMemberWriteSerializer(serializers.Serializer):
     """Used by the /members/ sub-action to add or update a member."""
     username = serializers.CharField()
     role = serializers.ChoiceField(choices=OrganizationMembership.Role.choices)
     is_active = serializers.BooleanField(default=True)
+
+
+class CreateOrganizationWithFirstTenantSerializer(serializers.Serializer):
+    """
+    Combined payload for the saas-owner 'create org + first tenant + owner'
+    action. Used by the /saas/organizations/create-with-first-tenant/ endpoint.
+
+    Required (organization): name.
+    Required (tenant): name, slug, admin_username, admin_password.
+    Optional (tenant): package (SaaSPackage UUID). When omitted, the tenant
+    is created with the Growth default plan and a 14-day trial.
+    """
+    # Organization
+    org_name = serializers.CharField(max_length=200)
+    org_slug = serializers.SlugField(max_length=120, required=False, allow_blank=True)
+    org_contact_phone = serializers.CharField(
+        max_length=30, required=False, allow_blank=True
+    )
+    org_contact_email = serializers.EmailField(required=False, allow_blank=True)
+    org_address = serializers.CharField(required=False, allow_blank=True)
+    org_max_tenants = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1
+    )
+    # First tenant
+    tenant_name = serializers.CharField(max_length=150)
+    tenant_slug = serializers.SlugField(max_length=100)
+    tenant_domain = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
+    package = serializers.UUIDField(required=False, allow_null=True)
+    # Initial owner (an OrganizationMembership(OWNER) + User + ISP admin)
+    owner_username = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    owner_email = serializers.EmailField(required=False, allow_blank=True)
+    owner_password = serializers.CharField(
+        required=False, allow_blank=True, min_length=8, write_only=True
+    )
+    owner_first_name = serializers.CharField(
+        max_length=150, required=False, allow_blank=True
+    )
+    owner_last_name = serializers.CharField(
+        max_length=150, required=False, allow_blank=True
+    )
+    owner_phone = serializers.CharField(
+        max_length=30, required=False, allow_blank=True
+    )
+    billing_cycle = serializers.ChoiceField(
+        choices=['monthly', 'yearly'], default='monthly'
+    )
+    trial_days = serializers.IntegerField(
+        required=False, default=14, min_value=0, max_value=90
+    )
+
+    def validate_tenant_slug(self, value):
+        slug = (value or '').strip().lower()
+        if not slug:
+            raise serializers.ValidationError('tenant_slug is required.')
+        if Tenant.objects.filter(slug__iexact=slug).exists():
+            raise serializers.ValidationError(
+                'A tenant with this slug already exists.'
+            )
+        return slug
+
+    def validate_org_slug(self, value):
+        from django.utils.text import slugify
+        if not value:
+            return ''
+        cleaned = slugify(value)
+        if cleaned != value:
+            raise serializers.ValidationError(
+                'org_slug must be lowercase letters, numbers, and hyphens only.'
+            )
+        if Organization.objects.filter(slug=cleaned).exists():
+            raise serializers.ValidationError(
+                'An organization with this slug already exists.'
+            )
+        return cleaned
+
+    def validate_package(self, value):
+        if value is None:
+            return None
+        try:
+            return SaaSPackage.objects.get(id=value, is_active=True)
+        except SaaSPackage.DoesNotExist:
+            raise serializers.ValidationError(
+                'Package not found or not available for new sign-ups.'
+            )
+
+    def validate_owner_username(self, value):
+        if not value:
+            return ''
+        username = value.strip().lower()
+        if User.objects.filter(username__iexact=username).exists():
+            raise serializers.ValidationError(
+                'This owner username is already taken.'
+            )
+        return username
 
 
 # ── Permission helpers ────────────────────────────────────────────────────
@@ -203,7 +352,7 @@ class IsCentralOrOrgAdmin(permissions.BasePermission):
 )
 class SaaSOrganizationViewSet(viewsets.ModelViewSet):
     """SaaS super-admin CRUD over ISP owner organizations."""
-    serializer_class = OrganizationSerializer
+    serializer_class = OrganizationSummarySerializer
     permission_classes = [IsCentralAdmin]
     queryset = Organization.objects.all().order_by('-created_at')
     lookup_field = 'id'
@@ -215,8 +364,18 @@ class SaaSOrganizationViewSet(viewsets.ModelViewSet):
             qs = qs.filter(is_active=is_active.lower() in ('1', 'true', 'yes'))
         search = self.request.query_params.get('search')
         if search:
-            from django.db.models import Q
             qs = qs.filter(Q(name__icontains=search) | Q(slug__icontains=search))
+        # Only annotate when the action renders a list/retrieve payload that
+        # uses the summary serializer; avoids extra joins on writes.
+        if self.action in ('list', 'retrieve'):
+            qs = qs.annotate(
+                _member_count=Count('memberships', distinct=True),
+                _active_subscription_count=Count(
+                    'tenants__subscriptions',
+                    filter=Q(tenants__subscriptions__status='active'),
+                    distinct=True,
+                ),
+            )
         return qs
 
     def perform_create(self, serializer):
@@ -338,6 +497,222 @@ class SaaSOrganizationViewSet(viewsets.ModelViewSet):
             details={'organization_id': str(org.id), 'user_id': user.id},
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Create an organization with its first tenant and owner',
+        description=(
+            'One-shot provisioning used by the saas-owner dashboard when an '
+            'operator adds a new ISP. Atomically creates:\n'
+            ' - the **Organization**,\n'
+            ' - the **first Tenant** under it (with `organization` FK set),\n'
+            ' - the **owner User** (auto-generated username if blank),\n'
+            ' - the **OrganizationMembership(role=OWNER)**, and\n'
+            ' - an initial **TenantSubscription** for the chosen SaaSPackage '
+            '(or a 14-day trial if no package is given).\n\n'
+            'If `package` is omitted, the tenant is created with the default '
+            'Growth plan quotas and a `trial` subscription that auto-expires '
+            'after `trial_days` (default 14).'
+        ),
+        request=CreateOrganizationWithFirstTenantSerializer,
+        responses={
+            201: OpenApiResponse(description='Organization, tenant, and owner created.'),
+            400: OpenApiResponse(description='Validation error.'),
+            403: OpenApiResponse(description='Not a central admin.'),
+        },
+    )
+    @action(detail=False, methods=['post'], url_path='create-with-first-tenant')
+    def create_with_first_tenant(self, request):
+        from django.db import transaction
+        from django.utils.text import slugify
+        from apps.core.saas_views import provision_tenant_admin
+
+        ser = CreateOrganizationWithFirstTenantSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        v = ser.validated_data
+
+        org_slug = v.get('org_slug') or slugify(v['org_name'])
+        if Organization.objects.filter(slug=org_slug).exists():
+            return Response(
+                {'error': f"Organization with slug '{org_slug}' already exists."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        package = v.get('package')  # may be None → trial mode
+        billing_cycle = v.get('billing_cycle') or 'monthly'
+        trial_days = int(v.get('trial_days') or 14)
+        owner_username = v.get('owner_username') or f"{v['tenant_slug']}_owner"
+
+        try:
+            with transaction.atomic():
+                # 1) Organization
+                org = Organization.objects.create(
+                    name=v['org_name'],
+                    slug=org_slug,
+                    contact_phone=v.get('org_contact_phone', '') or '',
+                    contact_email=v.get('org_contact_email', '') or '',
+                    address=v.get('org_address', '') or '',
+                    max_tenants=v.get('org_max_tenants') or None,
+                    is_active=True,
+                )
+
+                # 2) Tenant (with `organization` FK set)
+                plan_label = 'Growth'
+                max_subs = 2500
+                max_routers = 10
+                if package is not None:
+                    plan_label = package.name.split(' ')[0] or 'Growth'
+                    max_subs = package.max_subscribers
+                    max_routers = package.max_routers
+                tenant = Tenant.objects.create(
+                    name=v['tenant_name'],
+                    slug=v['tenant_slug'],
+                    domain=v.get('tenant_domain') or '',
+                    contact_email=v.get('owner_email') or v.get('org_contact_email', ''),
+                    contact_phone=v.get('owner_phone') or v.get('org_contact_phone', ''),
+                    address=v.get('org_address', '') or '',
+                    organization=org,
+                    plan=plan_label,
+                    max_subscribers=max_subs,
+                    max_routers=max_routers,
+                    is_active=True,
+                )
+
+                # 3) Owner user
+                owner_password = v.get('owner_password')
+                generated_password = None
+                if not owner_password:
+                    import secrets
+                    import string
+                    alphabet = string.ascii_letters + string.digits
+                    generated_password = ''.join(secrets.choice(alphabet) for _ in range(14))
+                    owner_password = generated_password
+                user, _ = User.objects.get_or_create(
+                    username=owner_username,
+                    defaults={
+                        'email': v.get('owner_email') or '',
+                        'first_name': v.get('owner_first_name', '') or '',
+                        'last_name': v.get('owner_last_name', '') or '',
+                        'is_active': True,
+                    },
+                )
+                user.set_password(owner_password)
+                user.is_active = True
+                if v.get('owner_email'):
+                    user.email = v['owner_email']
+                if v.get('owner_first_name'):
+                    user.first_name = v['owner_first_name']
+                if v.get('owner_last_name'):
+                    user.last_name = v['owner_last_name']
+                user.save()
+
+                # 4) OrganizationMembership(OWNER)
+                membership = OrganizationMembership.objects.create(
+                    organization=org,
+                    user=user,
+                    role=OrganizationMembership.Role.OWNER,
+                    is_active=True,
+                    accepted_at=timezone.now(),
+                )
+
+                # 5) Tenant ISP-admin (so they can log into the tenant app)
+                provision_tenant_admin(
+                    tenant=tenant,
+                    username=owner_username,
+                    password=owner_password,
+                    email=v.get('owner_email') or '',
+                    phone=v.get('owner_phone') or '',
+                    first_name=v.get('owner_first_name', '') or '',
+                    last_name=v.get('owner_last_name', '') or '',
+                )
+
+                # 6) TenantSubscription
+                if package is not None:
+                    price = (
+                        package.yearly_price if billing_cycle == 'yearly'
+                        else package.monthly_price
+                    )
+                    sub = TenantSubscription.objects.create(
+                        tenant=tenant,
+                        package=package,
+                        billing_cycle=billing_cycle,
+                        price=price,
+                        status='active',
+                        start_date=timezone.now().date(),
+                        auto_renew=True,
+                    )
+                    sub_status = 'active'
+                else:
+                    # Trial: create subscription w/o package, status=trial, expires in trial_days.
+                    from datetime import timedelta
+                    sub = TenantSubscription.objects.create(
+                        tenant=tenant,
+                        package=None,
+                        billing_cycle='monthly',
+                        price=0,
+                        status='trial',
+                        start_date=timezone.now().date(),
+                        end_date=timezone.now().date() + timedelta(days=trial_days),
+                        auto_renew=False,
+                    )
+                    tenant.subscription_status = 'trial'
+                    if trial_days > 0:
+                        tenant.subscription_expires_at = timezone.now() + timedelta(days=trial_days)
+                    tenant.save(update_fields=['subscription_status', 'subscription_expires_at'])
+                    sub_status = 'trial'
+
+                # 7) Audit
+                AuditLog.objects.create(
+                    tenant=tenant,
+                    actor_username=getattr(request.user, 'username', 'system'),
+                    action='CREATE',
+                    module='SAAS',
+                    resource_type='Organization',
+                    resource_id=str(org.id),
+                    details={
+                        'via': 'create-with-first-tenant',
+                        'org_slug': org.slug,
+                        'tenant_slug': tenant.slug,
+                        'owner_username': owner_username,
+                        'subscription_status': sub_status,
+                    },
+                )
+        except Exception as exc:
+            return Response(
+                {'error': f'Could not create organization: {exc}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                'organization': OrganizationSummarySerializer(org).data,
+                'tenant': {
+                    'id': str(tenant.id),
+                    'name': tenant.name,
+                    'slug': tenant.slug,
+                    'plan': tenant.plan,
+                    'subscription_status': tenant.subscription_status,
+                    'is_active': tenant.is_active,
+                },
+                'owner': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                },
+                'owner_membership': OrganizationMembershipSerializer(membership).data,
+                'subscription': {
+                    'id': str(sub.id),
+                    'status': sub.status,
+                    'billing_cycle': sub.billing_cycle,
+                    'price': str(sub.price),
+                },
+                'generated_password': generated_password,  # only when caller did not supply one
+                'default_admin_url': f"/tenant/login?tenant={tenant.slug}",
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 # ── ISP owner surface ─────────────────────────────────────────────────────

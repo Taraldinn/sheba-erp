@@ -20,3 +20,4 @@ export * from './reports';
 export * from './health';
 export * from './reseller';
 export * from './platform-admin';
+export * from './public';

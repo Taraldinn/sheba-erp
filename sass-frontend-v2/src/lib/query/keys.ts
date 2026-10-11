@@ -21,6 +21,13 @@ export const queryKeys = {
         list: (params?: Record<string, unknown>) => [...queryKeys.saasTenants.all(), 'list', params ?? {}] as const,
         detail: (id: string) => [...queryKeys.saasTenants.all(), 'detail', id] as const,
     },
+    saasOrganizations: {
+        all: () => [...queryKeys.saas(), 'organizations'] as const,
+        list: (params?: Record<string, unknown>) => [...queryKeys.saasOrganizations.all(), 'list', params ?? {}] as const,
+        detail: (id: string) => [...queryKeys.saasOrganizations.all(), 'detail', id] as const,
+        members: (id: string) => [...queryKeys.saasOrganizations.all(), id, 'members'] as const,
+        tenants: (id: string) => [...queryKeys.saasOrganizations.all(), id, 'tenants'] as const,
+    },
     saasDomains: {
         all: () => [...queryKeys.saas(), 'domains'] as const,
         list: () => [...queryKeys.saasDomains.all(), 'list'] as const,

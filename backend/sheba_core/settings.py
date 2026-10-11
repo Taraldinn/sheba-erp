@@ -217,6 +217,7 @@ REST_FRAMEWORK = {
         'auth': env('THROTTLE_AUTH_RATE', default='30/minute'),
         'webhooks': env('THROTTLE_WEBHOOK_RATE', default='300/minute'),
         'recharge': env('THROTTLE_RECHARGE_RATE', default='60/minute'),
+        'public_onboarding': env('THROTTLE_PUBLIC_ONBOARDING_RATE', default='5/hour'),
     },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',

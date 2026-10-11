@@ -16,14 +16,14 @@ export const E2E_LIVE = process.env.VITE_E2E_LIVE === '1';
  * Returns a no-op when E2E_LIVE is set so a single test file can be
  * pointed at a real backend without conditional imports.
  */
-export async function installMockApi(page: Page, opts: { portal?: 'super_admin' | 'isp' | 'tenant' } = {}): Promise<void> {
+export async function installMockApi(page: Page, opts: { portal?: 'super_admin' | 'isp' | 'tenant' | 'public' } = {}): Promise<void> {
     if (E2E_LIVE) return;
     // A single matcher covers both /api/v1/* and any other API path. The
     // handler is permissive so future endpoints don't need fixture changes.
     await page.route('**/api/**', (route: Route) => handleApi(route, opts.portal));
 }
 
-function handleApi(route: Route, _portal?: 'super_admin' | 'isp' | 'tenant'): Promise<void> {
+function handleApi(route: Route, _portal?: 'super_admin' | 'isp' | 'tenant' | 'public'): Promise<void> {
     const url = route.request().url();
     const method = route.request().method();
     const path = new URL(url).pathname;

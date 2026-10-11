@@ -14,6 +14,9 @@ export interface Tenant {
     is_active: boolean;
     created_at: string;
     updated_at: string;
+    organization_id?: string | null;
+    organization_name?: string | null;
+    organization_slug?: string | null;
 }
 
 export interface SaasDomain {
@@ -38,11 +41,113 @@ export interface OnboardingRequest {
     created_at: string;
 }
 
+export interface OrganizationMember {
+    id: string;
+    organization: string;
+    user: number;
+    username: string;
+    email: string;
+    role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'BILLING';
+    is_active: boolean;
+    invited_at: string;
+    accepted_at: string | null;
+    updated_at: string;
+}
+
+export interface Organization {
+    id: string;
+    name: string;
+    slug: string;
+    contact_phone: string;
+    contact_email: string;
+    address: string;
+    max_tenants: number | null;
+    is_active: boolean;
+    notes: string;
+    created_at: string;
+    updated_at: string;
+    tenant_count: number;
+    active_tenant_count: number;
+    members?: OrganizationMember[];
+}
+
+export interface OrganizationSummary extends Organization {
+    member_count: number;
+    active_subscription_count: number;
+    owner_email: string | null;
+}
+
+export interface CreateOrganizationInput {
+    name: string;
+    slug?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    address?: string;
+    max_tenants?: number | null;
+    is_active?: boolean;
+    notes?: string;
+}
+
+export interface CreateOrganizationWithFirstTenantInput {
+    org_name: string;
+    org_slug?: string;
+    org_contact_phone?: string;
+    org_contact_email?: string;
+    org_address?: string;
+    org_max_tenants?: number | null;
+    tenant_name: string;
+    tenant_slug: string;
+    tenant_domain?: string;
+    package?: string | null;
+    owner_username?: string;
+    owner_email?: string;
+    owner_password?: string;
+    owner_first_name?: string;
+    owner_last_name?: string;
+    owner_phone?: string;
+    billing_cycle?: 'monthly' | 'yearly';
+    trial_days?: number;
+}
+
+export interface CreateOrganizationWithFirstTenantResult {
+    organization: OrganizationSummary;
+    tenant: {
+        id: string;
+        name: string;
+        slug: string;
+        plan: string;
+        subscription_status: string;
+        is_active: boolean;
+    };
+    owner: {
+        id: number;
+        username: string;
+        email: string;
+        first_name: string;
+        last_name: string;
+    };
+    owner_membership: OrganizationMember;
+    subscription: {
+        id: string;
+        status: string;
+        billing_cycle: string;
+        price: string;
+    };
+    generated_password?: string;
+    default_admin_url: string;
+}
+
 export interface SaasPackage {
     id: string;
     name: string;
     price: number;
     currency: string;
+    description?: string;
+    monthly_price?: number | string;
+    yearly_price?: number | string;
+    max_subscribers?: number;
+    max_routers?: number;
+    code?: string;
     billing_interval?: 'monthly' | 'yearly';
     features: string[];
     is_active: boolean;

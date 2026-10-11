@@ -26,6 +26,7 @@ const portalConfigs = {
     title: "Shebafi SaaS",
     navMain: [
       { title: "Overview", url: "/saas", icon: LayoutDashboard },
+      { title: "Organizations", url: "/saas/organizations", icon: Building },
       { title: "Tenants", url: "/saas/tenants", icon: Building },
       { title: "Onboarding", url: "/saas/onboarding", icon: Users },
       { title: "Platform Admins", url: "/saas/platform-admins", icon: Shield },
