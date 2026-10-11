@@ -1,0 +1,620 @@
+import type { PaginatedResponse } from '../errors';
+
+/* ── SaaS / central plane ────────────────────────────────────────────── */
+
+export interface Tenant {
+    id: string;
+    name: string;
+    schema_name: string;
+    domain_url: string;
+    plan?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    address?: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SaasDomain {
+    id: string;
+    domain: string;
+    tenant_id: string;
+    tenant_name?: string;
+    is_primary: boolean;
+    is_active: boolean;
+    ssl_active?: boolean;
+    created_at?: string;
+}
+
+export interface OnboardingRequest {
+    id: string;
+    company_name: string;
+    email: string;
+    phone?: string;
+    plan_requested?: string;
+    notes?: string;
+    status: 'pending' | 'approved' | 'rejected';
+    created_at: string;
+}
+
+export interface SaasPackage {
+    id: string;
+    name: string;
+    price: number;
+    currency: string;
+    billing_interval?: 'monthly' | 'yearly';
+    features: string[];
+    is_active: boolean;
+    subscriber_count?: number;
+}
+
+export interface SaasSubscription {
+    id: string;
+    tenant_id: string;
+    tenant_name?: string;
+    package_id: string;
+    package_name?: string;
+    status: 'active' | 'past_due' | 'canceled' | 'unpaid';
+    current_period_end: string;
+    created_at?: string;
+}
+
+export interface SaasPayment {
+    id: string;
+    subscription_id: string;
+    tenant_name?: string;
+    amount: number;
+    currency?: string;
+    payment_method?: string;
+    status: 'succeeded' | 'pending' | 'failed' | 'refunded';
+    created_at: string;
+}
+
+export interface SaasBackup {
+    id: string;
+    tenant_id: string;
+    tenant_name?: string;
+    backup_type?: 'full' | 'database' | 'media';
+    status: 'completed' | 'in_progress' | 'failed';
+    size_bytes: number;
+    created_at: string;
+}
+
+export interface SaasAuditLog {
+    id: string;
+    action: string;
+    user_id: string;
+    tenant_id?: string;
+    details: Record<string, unknown>;
+    ip_address?: string;
+    created_at: string;
+}
+
+export interface SaasDashboardOverview {
+    total_tenants: number;
+    active_subscriptions: number;
+    mrr: number;
+    pending_onboarding: number;
+    total_revenue?: number;
+    storage_used_bytes?: number;
+    system_health?: 'healthy' | 'warning' | 'degraded';
+}
+
+export interface SaasEmployee {
+    id: string | number;
+    worker_id?: string;
+    employee_code?: string;
+    full_name: string;
+    email: string;
+    phone?: string;
+    role: string;
+    designation?: string;
+    worker_type?: string;
+    department?: string;
+    is_active: boolean;
+    joining_date?: string;
+    basic_salary?: number;
+    created_at?: string;
+    tenant?: string;
+    tenant_name?: string;
+}
+
+export interface FeatureMatrixResponse {
+    features: Array<{ key: string; label: string; category: string; description?: string; paid?: boolean }>;
+    matrix: Record<string, Record<string, boolean>>;
+}
+
+/* ── ISP-Admin plane (parent SaaS subscriber) ───────────────────────── */
+
+export interface IspAdminOverview {
+    tenant_id: string;
+    tenant_name: string;
+    tenant_slug: string;
+    plan: string;
+    subscription_status: string;
+    subscription_expires_at: string | null;
+    domain_count: number;
+    verified_domain_count: number;
+    enabled_modules_count: number;
+    total_modules_count: number;
+    staff_count: number;
+    child_tenant_count: number;
+    child_tenant_active_count: number;
+    aggregate_subscriber_count: number;
+}
+
+export interface IspAdminDomain {
+    id: string;
+    hostname: string;
+    domain_type: string;
+    is_primary: boolean;
+    is_active: boolean;
+    verified: boolean;
+    verified_at: string | null;
+    verification_method: string | null;
+    dns_challenge_token: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface IspAdminModule {
+    key: string;
+    label: string;
+    category: string;
+    paid: boolean;
+    enabled: boolean;
+    is_override: boolean;
+    config: Record<string, unknown>;
+}
+
+export interface IspAdminModuleSubscription {
+    tenant_id: string;
+    features: IspAdminModule[];
+    overrides: Array<{
+        feature_key: string;
+        enabled: boolean;
+        config: Record<string, unknown>;
+        enabled_at: string | null;
+        updated_at: string | null;
+    }>;
+}
+
+export interface IspAdminChildTenant {
+    id: string;
+    name: string;
+    slug: string;
+    is_active: boolean;
+    subscription_status: string;
+    plan: string;
+    max_subscribers: number;
+    max_routers: number;
+    created_at: string;
+    domain_count: number;
+    customer_count: number;
+    admin_username: string | null;
+    admin_email: string | null;
+}
+
+export interface IspAdminChildTenantOverview {
+    tenant_id: string;
+    tenant_name: string;
+    tenant_slug: string;
+    is_active: boolean;
+    subscription_status: string;
+    domain_count: number;
+    enabled_modules_count: number;
+    customer_count: number;
+}
+
+export interface IspAdminChildAdminUser {
+    id: number;
+    username: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    is_active: boolean;
+    phone: string;
+}
+
+export interface IspAdminImpersonateResponse {
+    token: string;
+    tenant_slug: string;
+    tenant_id: string;
+    admin_username: string;
+}
+
+export interface IspAdminChildTenantCreatePayload {
+    name: string;
+    slug: string;
+    admin_username: string;
+    admin_password: string;
+    domain?: string;
+    plan?: string;
+}
+
+/* ── Tenant plane (staff) ──────────────────────────────────────────── */
+
+export interface TenantLoginResponse {
+    token?: string;
+    session_token?: string;
+    user?: Record<string, unknown>;
+    tenant?: { id?: string; slug?: string; name?: string } | null;
+    message?: string;
+    requires_tenant_selection?: boolean;
+    available_tenants?: Array<{ id: string; name: string; slug: string }>;
+}
+
+export interface IspAdminTenant {
+    id: string;
+    name: string;
+    slug: string;
+    is_active: boolean;
+    primary_hostname: string | null;
+    tenant_url: string;
+    role: string | null;
+    plan: string | null;
+    subscription_active: boolean;
+    contact_email: string;
+    contact_phone: string;
+    logo_url: string;
+    address: string;
+    created_at: string | null;
+}
+
+export interface TenantResolveResponse {
+    id: string;
+    slug: string;
+    name: string;
+    domain: string;
+    status: 'active' | 'suspended' | 'trial' | 'past_due';
+    is_active: boolean;
+    logo: string;
+    favicon: string;
+    branding: {
+        company_name: string;
+        tagline: string;
+        theme_mode: 'light' | 'dark' | 'system' | 'midnight' | 'cyberpunk';
+        accent_color: string;
+        primary_color: string;
+        secondary_color: string;
+        currency_symbol: string;
+        currency_code: string;
+        support_phone: string;
+        support_email: string;
+        website: string;
+    };
+    enabled_modules: string[];
+}
+
+export interface Customer {
+    id: string;
+    customer_code: string;
+    full_name: string;
+    mobile: string;
+    email?: string;
+    address?: string;
+    area_zone?: string;
+    connection_type?: string;
+    pppoe_username: string;
+    package?: string;
+    package_name?: string;
+    package_speed?: number;
+    router?: string;
+    router_name?: string;
+    monthly_bill: number | string;
+    due_amount: number | string;
+    advance_amount: number | string;
+    discount: number | string;
+    bill_date?: string;
+    expiry_date?: string;
+    promise_date?: string;
+    status: string;
+    services_count?: number;
+    live_session?: { is_online: boolean; ip_address?: string; uptime?: string };
+    created_at: string;
+}
+
+export interface CustomerCreatePayload {
+    customer_code?: string;
+    full_name: string;
+    mobile: string;
+    email?: string;
+    address?: string;
+    area_zone?: string;
+    connection_type?: string;
+    pppoe_username: string;
+    pppoe_password?: string;
+    package?: string;
+    router?: string;
+    monthly_bill?: number | string;
+    discount?: number | string;
+    status?: string;
+    remarks?: string;
+}
+
+export interface CustomerService {
+    id: string;
+    tenant: string;
+    customer: string;
+    customer_name?: string;
+    customer_code?: string;
+    package?: string;
+    package_name?: string;
+    package_speed?: number;
+    service_type: string;
+    service_identifier: string;
+    status: string;
+    activation_date?: string;
+    termination_date?: string;
+    monthly_price: number | string;
+    router?: string;
+    router_name?: string;
+    notes?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CustomerSubscription {
+    id: string;
+    tenant: string;
+    customer: string;
+    customer_name?: string;
+    customer_code?: string;
+    service: string;
+    service_identifier?: string;
+    service_type?: string;
+    package?: string;
+    package_name?: string;
+    billing_cycle: string;
+    price: number | string;
+    discount: number | string;
+    status: string;
+    start_date: string;
+    next_billing_date?: string;
+    end_date?: string;
+    auto_renew: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface IspPackage {
+    id: string;
+    name: string;
+    mikrotik_profile: string;
+    speed_mbps: number;
+    upload_speed_mbps?: number;
+    validity_days: number;
+    regular_price: number | string;
+    min_reseller_price?: number | string;
+    description?: string;
+    is_active: boolean;
+    subscribers_count?: number;
+    created_at?: string;
+}
+
+export interface Invoice {
+    id: string;
+    invoice_no: string;
+    customer: string;
+    customer_name?: string;
+    customer_username?: string;
+    service?: string;
+    service_identifier?: string;
+    subscription?: string;
+    billing_month: string;
+    package_name: string;
+    package_amount: number | string;
+    previous_due: number | string;
+    discount: number | string;
+    total_payable: number | string;
+    paid_amount: number | string;
+    due_amount: number | string;
+    status: string;
+    due_date?: string;
+    created_at: string;
+}
+
+export interface PaymentTransaction {
+    id: string;
+    customer?: string;
+    customer_name?: string;
+    customer_username?: string;
+    subscription?: string;
+    invoice?: string;
+    amount: number | string;
+    fee?: number | string;
+    net_amount?: number | string;
+    currency?: string;
+    payment_method?: string;
+    gateway?: string;
+    trx_id?: string;
+    status: string;
+    paid_at?: string;
+    created_at: string;
+}
+
+export interface Router {
+    id: string;
+    name: string;
+    hostname?: string;
+    ip_address?: string;
+    api_port?: number;
+    status: string;
+    cpu_load?: number;
+    memory_usage?: number;
+    uptime?: string;
+    last_sync_at?: string;
+    active_pppoe_count?: number;
+}
+
+export interface NetworkProfile {
+    id: string;
+    name: string;
+    download_speed: number;
+    upload_speed: number;
+    rate_limit?: string;
+    burst_limit?: string;
+    is_active: boolean;
+    created_at: string;
+}
+
+export interface PPPoEAccount {
+    id: string;
+    username: string;
+    password?: string;
+    customer?: string;
+    customer_name?: string;
+    profile?: string;
+    service?: string;
+    status: string;
+    ip_address?: string;
+    last_seen?: string;
+    created_at: string;
+}
+
+export interface Olt {
+    id: string;
+    name: string;
+    vendor?: string;
+    ip_address?: string;
+    location?: string;
+    status: string;
+    pon_ports?: number;
+    online_onus?: number;
+    total_onus?: number;
+    last_poll_at?: string;
+    created_at: string;
+}
+
+export interface Branch {
+    id: string;
+    name: string;
+    code?: string;
+    location?: string;
+    status: string;
+    total_capacity?: number;
+    created_at: string;
+}
+
+export interface CompanySetting {
+    id: string;
+    key: string;
+    value: string;
+    group?: string;
+    description?: string;
+    is_public?: boolean;
+    updated_at?: string;
+}
+
+export interface Notification {
+    id: string;
+    tenant?: string | null;
+    user?: number | string | null;
+    title: string;
+    message: string;
+    category: string;
+    priority: string;
+    action_url?: string;
+    is_read: boolean;
+    read_at?: string | null;
+    created_at: string;
+}
+
+export interface SearchResult {
+    id: string;
+    type: string;
+    title: string;
+    subtitle: string;
+    url: string;
+    icon: string;
+}
+
+export interface DashboardAnalytics {
+    total_customers?: number;
+    active_subscriptions?: number;
+    total_due?: number | string;
+    mrr?: number | string;
+    recent_payments?: Array<{ id: string; amount: number | string; customer_name?: string; created_at: string }>;
+    [key: string]: unknown;
+}
+
+/* ── Reseller plane ────────────────────────────────────────────────── */
+
+export interface ResellerProfile {
+    id: string;
+    user?: { id: number; username: string; email?: string; full_name?: string };
+    tenant?: string;
+    name: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    status: 'active' | 'suspended' | 'inactive' | string;
+    credit_limit: number | string;
+    available_credit: number | string;
+    wallet_balance: number | string;
+    commission_pct?: number | string;
+    created_at?: string;
+}
+
+export interface ResellerWallet {
+    reseller_id: string;
+    wallet_balance: string;
+    currency: string;
+    pending_holds: number | string;
+    as_of: string;
+}
+
+export interface ResellerLedgerEntry {
+    id: string;
+    reseller: string;
+    entry_type: 'CREDIT' | 'DEBIT' | string;
+    amount: string;
+    balance_after: string;
+    reference?: string;
+    description: string;
+    created_at: string;
+}
+
+export interface ResellerHold {
+    id: string;
+    reseller: string;
+    customer?: string;
+    amount: string;
+    status: 'PENDING' | 'RELEASED' | 'CONSUMED' | 'EXPIRED' | string;
+    purpose: string;
+    expires_at?: string;
+    created_at: string;
+    released_at?: string | null;
+}
+
+export interface ResellerCollection {
+    id: string;
+    reseller: string;
+    customer: string;
+    customer_name?: string;
+    amount: string;
+    method: string;
+    reference?: string;
+    status: 'PENDING' | 'ALLOCATED' | 'REVERSED' | string;
+    created_at: string;
+}
+
+export interface ResellerCustomer {
+    id: string;
+    full_name: string;
+    mobile: string;
+    area_zone?: string;
+    pppoe_username?: string;
+    package_name?: string;
+    status: string;
+    expiry_date?: string;
+}
+
+export type PaginatedList<T> = PaginatedResponse<T> | T[];
+
+export function asList<T>(res: PaginatedList<T> | undefined | null): T[] {
+    if (!res) return [];
+    if (Array.isArray(res)) return res;
+    return res.results ?? [];
+}

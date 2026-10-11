@@ -1,0 +1,22 @@
+# robots.txt for Shebafi
+# https://www.robotstxt.org/robotstxt.html
+#
+# We allow indexing of the public homepage + the public sign-in pages
+# so the marketing site ranks in search engines. We disallow everything
+# under /saas/, /isp/, and /tenant/ because those are authenticated
+# workspaces and shouldn't leak URLs into search results.
+
+User-agent: *
+
+Allow: /
+Allow: /login
+Allow: /signup
+Allow: /forgot-password
+
+Disallow: /saas/
+Disallow: /isp/
+Disallow: /tenant/
+Disallow: /api/
+Disallow: /_build/
+
+Sitemap: https://shebafi.example.com/sitemap.xml

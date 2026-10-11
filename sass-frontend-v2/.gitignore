@@ -1,0 +1,21 @@
+node_modules
+.DS_Store
+dist
+dist-ssr
+*.local
+.env*
+!.env.example
+.nitro
+.tanstack
+.wrangler
+.output
+.vinxi
+__unconfig*
+todos.json
+
+# typescript
+*.tsbuildinfo
+
+# test and next build
+test-results/
+.next/
