@@ -24,9 +24,16 @@ export default function IspLogin() {
 
     const submit = useMutation({
         mutationFn: () => tenantApi.login({ username, password, tenant: tenant || undefined }),
-        onSuccess: () => {
+        onSuccess: data => {
             setError(null);
-            router.push('/isp');
+            if (data?.requires_tenant_selection && data.available_tenants?.length) {
+                setError(data.message || 'Please select which ISP tenant to sign into.');
+                return;
+            }
+            const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+            const nextParam = params?.get('next');
+            const target = nextParam && nextParam.startsWith('/') ? nextParam : '/isp';
+            window.location.href = target;
         },
         onError: (e: Error) => setError(e.message || 'Login failed'),
     });

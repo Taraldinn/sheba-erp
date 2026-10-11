@@ -21,10 +21,14 @@ export const STORAGE_KEYS = {
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
 
+import Cookies from 'js-cookie';
+
 function safeGet(key: string): string | null {
     if (typeof window === 'undefined') return null;
     try {
-        return window.localStorage.getItem(key);
+        const val = window.localStorage.getItem(key);
+        if (val) return val;
+        return Cookies.get(key) || null;
     } catch {
         return null;
     }
@@ -37,12 +41,25 @@ function safeSet(key: string, value: string): void {
     } catch {
         /* quota / private mode */
     }
+    try {
+        // Only sync tokens, slugs, and IDs to cookies so HTTP header remains small and valid for Next.js middleware
+        if (!key.toLowerCase().includes('user')) {
+            Cookies.set(key, value, { path: '/', sameSite: 'lax', expires: 30 });
+        }
+    } catch {
+        /* ignore */
+    }
 }
 
 function safeRemove(key: string): void {
     if (typeof window === 'undefined') return;
     try {
         window.localStorage.removeItem(key);
+    } catch {
+        /* ignore */
+    }
+    try {
+        Cookies.remove(key, { path: '/' });
     } catch {
         /* ignore */
     }

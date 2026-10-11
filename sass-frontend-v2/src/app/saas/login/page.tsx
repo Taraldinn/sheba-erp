@@ -24,7 +24,10 @@ export default function SaasLogin() {
         mutationFn: () => saasApi.login({ username, password }),
         onSuccess: () => {
             setError(null);
-            router.push('/saas');
+            const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+            const nextParam = params?.get('next');
+            const target = nextParam && nextParam.startsWith('/') ? nextParam : '/saas';
+            window.location.href = target;
         },
         onError: (e: Error) => setError(e.message || 'Login failed'),
     });
