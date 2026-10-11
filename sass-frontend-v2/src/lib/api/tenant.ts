@@ -13,9 +13,8 @@ export const tenantApi = {
         const payload: Record<string, string> = { username: credentials.username, password: credentials.password };
         if (credentials.tenant) payload.tenant = credentials.tenant;
         const res = await fetchApi<TenantLoginResponse>('/auth/login', { method: 'POST', json: payload, plane: 'tenant' });
-        const token = res?.token || res?.session_token;
-        if (token && typeof window !== 'undefined') {
-            storage.set(STORAGE_KEYS.tenantToken, token);
+        if (res?.token && typeof window !== 'undefined') {
+            storage.set(STORAGE_KEYS.tenantToken, res.token);
             if (res.user) storage.setJSON(STORAGE_KEYS.tenantUser, res.user);
             if (res.tenant?.slug) storage.set(STORAGE_KEYS.tenantSlug, res.tenant.slug);
             if (res.tenant?.id) storage.set(STORAGE_KEYS.tenantId, res.tenant.id);

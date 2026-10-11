@@ -4,7 +4,6 @@ export interface PageHeaderProps {
     title: string;
     description?: string;
     actions?: ReactNode;
-    action?: ReactNode;
     breadcrumbs?: Array<{ label: string; to?: string }>;
 }
 
@@ -13,8 +12,7 @@ export interface PageHeaderProps {
  * right-aligned actions slot. Keeps the layout consistent across modules
  * without forcing every screen to repeat the same flex / spacing boilerplate.
  */
-export function PageHeader({ title, description, actions, action, breadcrumbs }: PageHeaderProps) {
-    const renderedActions = actions ?? action;
+export function PageHeader({ title, description, actions, breadcrumbs }: PageHeaderProps) {
     return (
         <header className="flex flex-wrap items-end justify-between gap-4">
             <div className="space-y-1">
@@ -31,7 +29,7 @@ export function PageHeader({ title, description, actions, action, breadcrumbs }:
                 <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
                 {description && <p className="text-sm text-muted-foreground">{description}</p>}
             </div>
-            {renderedActions && <div className="flex flex-wrap items-center gap-2">{renderedActions}</div>}
+            {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         </header>
     );
 }

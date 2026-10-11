@@ -16,19 +16,14 @@ export const STORAGE_KEYS = {
     portalToken: 'saas_portal_token',
     portalUser: 'saas_portal_user',
     bootstrapPending: 'saas_bootstrap_pending',
-    impersonatingTenant: 'saas_impersonating_tenant',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
 
-import Cookies from 'js-cookie';
-
 function safeGet(key: string): string | null {
     if (typeof window === 'undefined') return null;
     try {
-        const val = window.localStorage.getItem(key);
-        if (val) return val;
-        return Cookies.get(key) || null;
+        return window.localStorage.getItem(key);
     } catch {
         return null;
     }
@@ -41,25 +36,12 @@ function safeSet(key: string, value: string): void {
     } catch {
         /* quota / private mode */
     }
-    try {
-        // Only sync tokens, slugs, and IDs to cookies so HTTP header remains small and valid for Next.js middleware
-        if (!key.toLowerCase().includes('user')) {
-            Cookies.set(key, value, { path: '/', sameSite: 'lax', expires: 30 });
-        }
-    } catch {
-        /* ignore */
-    }
 }
 
 function safeRemove(key: string): void {
     if (typeof window === 'undefined') return;
     try {
         window.localStorage.removeItem(key);
-    } catch {
-        /* ignore */
-    }
-    try {
-        Cookies.remove(key, { path: '/' });
     } catch {
         /* ignore */
     }

@@ -5,7 +5,6 @@ dist-ssr
 *.local
 .env*
 !.env.example
-!.env.production.example
 .nitro
 .tanstack
 .wrangler
@@ -16,7 +15,3 @@ todos.json
 
 # typescript
 *.tsbuildinfo
-
-# test and next build
-test-results/
-.next/

@@ -3,23 +3,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
 import type { ReactNode } from 'react';
 
-export function ErrorAlert({
-    title = 'Something went wrong',
-    error,
-    message,
-}: {
-    title?: string;
-    error?: unknown;
-    message?: string;
-}) {
-    const displayMessage =
-        message ||
+export function ErrorAlert({ title = 'Something went wrong', error }: { title?: string; error: unknown }) {
+    const message =
         (error as { message?: string })?.message ||
         (typeof error === 'string' ? error : 'Unknown error');
     return (
         <Alert variant="destructive" className="border-destructive/30 bg-destructive/5">
             <AlertTitle>{title}</AlertTitle>
-            <AlertDescription>{displayMessage}</AlertDescription>
+            <AlertDescription>{message}</AlertDescription>
         </Alert>
     );
 }

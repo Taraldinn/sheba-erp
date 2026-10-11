@@ -9,9 +9,6 @@ export interface ResolvePortalOptions {
 }
 
 function detectIsDev(): boolean {
-    if (typeof process !== 'undefined' && process.env?.NODE_ENV) {
-        return process.env.NODE_ENV !== 'production';
-    }
     try {
         const mode = (import.meta as unknown as { env?: { MODE?: string; DEV?: boolean } }).env?.MODE;
         if (typeof mode === 'string') return mode !== 'production';
