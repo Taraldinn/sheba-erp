@@ -34,7 +34,7 @@ paths:
         GET /api/v1/payments/checkout-status/ (Read-only polling)
         POST /api/v1/payments/checkout-status/ (Authorized settlement)
       tags:
-      - ajax
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -50,7 +50,7 @@ paths:
         GET /api/v1/payments/checkout-status/ (Read-only polling)
         POST /api/v1/payments/checkout-status/ (Authorized settlement)
       tags:
-      - ajax
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -67,7 +67,7 @@ paths:
         bKash Middleware calls this when a customer pays their ISP bill through bKash.
         POST /api/payBill/ or /api/v1/payments/bkash/paybill/pay/
       tags:
-      - api
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -85,7 +85,7 @@ paths:
         bKash Middleware calls this when a customer pays their ISP bill through bKash.
         POST /api/payBill/ or /api/v1/payments/bkash/paybill/pay/
       tags:
-      - api
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -103,7 +103,7 @@ paths:
         bKash Middleware calls this to validate subscriber account and get outstanding bill.
         POST /api/queryBill/ or /api/v1/payments/bkash/paybill/query/
       tags:
-      - api
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -121,7 +121,7 @@ paths:
         bKash Middleware calls this to validate subscriber account and get outstanding bill.
         POST /api/queryBill/ or /api/v1/payments/bkash/paybill/query/
       tags:
-      - api
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -139,7 +139,7 @@ paths:
         bKash Middleware calls this to check whether a transaction was successful at the biller.
         POST /api/searchTransaction/ or /api/v1/payments/bkash/paybill/search/
       tags:
-      - api
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -157,7 +157,7 @@ paths:
         bKash Middleware calls this to check whether a transaction was successful at the biller.
         POST /api/searchTransaction/ or /api/v1/payments/bkash/paybill/search/
       tags:
-      - api
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -1517,7 +1517,7 @@ paths:
           - json
           - ndjson
       tags:
-      - api
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -1817,7 +1817,7 @@ paths:
     post:
       operationId: api_v1_bill_disputes_create
       tags:
-      - api
+      - 6. Billing & Invoices
       requestBody:
         content:
           application/json:
@@ -1878,7 +1878,7 @@ paths:
         description: A UUID string identifying this bill dispute.
         required: true
       tags:
-      - api
+      - 6. Billing & Invoices
       requestBody:
         content:
           application/json:
@@ -1965,7 +1965,7 @@ paths:
         description: A UUID string identifying this billing account.
         required: true
       tags:
-      - api
+      - 18. Financial Reconciliations & Ledgers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -1996,7 +1996,7 @@ paths:
           type: string
         description: Portal magic-link token
       tags:
-      - api
+      - 17. Customer Self-Care Portal
       security:
       - {}
       responses:
@@ -2352,7 +2352,7 @@ paths:
         Gated by the ``ip_phone.epbx`` feature flag — tenants that haven't
         subscribed to the ePBX module get a 403 with code ``FEATURE_DISABLED``.
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -2370,7 +2370,7 @@ paths:
         Mirrors PHP ``case 'get_customer_timeline'`` — fetches call logs,
         follow-ups, support tickets, payment events and voice campaigns.
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -2509,7 +2509,7 @@ paths:
         description: A UUID string identifying this corporate billing period.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       requestBody:
         content:
           application/json:
@@ -2544,7 +2544,7 @@ paths:
         description: A UUID string identifying this corporate billing period.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -2566,7 +2566,7 @@ paths:
         description: A UUID string identifying this corporate billing period.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       requestBody:
         content:
           application/json:
@@ -2604,7 +2604,7 @@ paths:
         description: A UUID string identifying this corporate billing period.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       requestBody:
         content:
           application/json:
@@ -2822,7 +2822,7 @@ paths:
         description: A UUID string identifying this corporate connection.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       requestBody:
         content:
           application/json:
@@ -2860,7 +2860,7 @@ paths:
         description: A UUID string identifying this corporate connection.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       requestBody:
         content:
           application/json:
@@ -2898,7 +2898,7 @@ paths:
         description: A UUID string identifying this corporate connection.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       requestBody:
         content:
           application/json:
@@ -3118,7 +3118,7 @@ paths:
         description: A UUID string identifying this corporate customer.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -3205,7 +3205,7 @@ paths:
         description: A UUID string identifying this corporate ip address.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       requestBody:
         content:
           application/json:
@@ -3423,7 +3423,7 @@ paths:
         description: A UUID string identifying this corporate ip pool.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       requestBody:
         content:
           application/json:
@@ -3536,7 +3536,7 @@ paths:
         description: A UUID string identifying this corporate traffic sample.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       requestBody:
         content:
           application/json:
@@ -3572,7 +3572,7 @@ paths:
         description: A UUID string identifying this corporate traffic sample.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       requestBody:
         content:
           application/json:
@@ -3607,7 +3607,7 @@ paths:
         description: A UUID string identifying this corporate traffic sample.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -3626,7 +3626,7 @@ paths:
           customer_id (UUID, optional)
           hours (int, default 24)
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -3775,7 +3775,7 @@ paths:
         description: A UUID string identifying this corporate vlan.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       requestBody:
         content:
           application/json:
@@ -3832,7 +3832,7 @@ paths:
         description: A UUID string identifying this corporate vlan.
         required: true
       tags:
-      - api
+      - 11. Corporate & Enterprise ISP
       requestBody:
         content:
           application/json:
@@ -3918,7 +3918,7 @@ paths:
         description: A UUID string identifying this credit note.
         required: true
       tags:
-      - api
+      - 6. Billing & Invoices
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -4112,7 +4112,7 @@ paths:
         description: A UUID string identifying this customer service.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -4149,7 +4149,7 @@ paths:
         description: A UUID string identifying this customer service.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -4186,7 +4186,7 @@ paths:
         description: A UUID string identifying this customer service.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -4223,7 +4223,7 @@ paths:
         description: A UUID string identifying this customer service.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -4428,7 +4428,7 @@ paths:
         description: A UUID string identifying this customer subscription.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -4465,7 +4465,7 @@ paths:
         description: A UUID string identifying this customer subscription.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -4502,7 +4502,7 @@ paths:
         description: A UUID string identifying this customer subscription.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -4539,7 +4539,7 @@ paths:
         description: A UUID string identifying this customer subscription.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -4576,7 +4576,7 @@ paths:
         description: A UUID string identifying this customer subscription.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -4816,7 +4816,7 @@ paths:
         description: A UUID string identifying this customer.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -4853,7 +4853,7 @@ paths:
         description: A UUID string identifying this customer.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -4890,7 +4890,7 @@ paths:
         description: A UUID string identifying this customer.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -4915,7 +4915,7 @@ paths:
         description: A UUID string identifying this customer.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -4952,7 +4952,7 @@ paths:
         description: A UUID string identifying this customer.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -5013,7 +5013,7 @@ paths:
         description: A UUID string identifying this customer.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -5103,7 +5103,7 @@ paths:
         description: A UUID string identifying this customer.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -5140,7 +5140,7 @@ paths:
         description: A UUID string identifying this customer.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -5177,7 +5177,7 @@ paths:
         description: A UUID string identifying this customer.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -5525,7 +5525,7 @@ paths:
         redemption — the caller must POST to ``/invoices/{id}/apply-coupon``
         to consume the coupon.
       tags:
-      - api
+      - 6. Billing & Invoices
       requestBody:
         content:
           application/json:
@@ -5611,7 +5611,7 @@ paths:
     post:
       operationId: api_v1_dunning_events_cascade_now_create
       tags:
-      - api
+      - 6. Billing & Invoices
       requestBody:
         content:
           application/json:
@@ -6016,7 +6016,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -6032,7 +6032,7 @@ paths:
     post:
       operationId: api_v1_followups_create
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -6069,7 +6069,7 @@ paths:
         description: A UUID string identifying this customer followup.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -6093,7 +6093,7 @@ paths:
         description: A UUID string identifying this customer followup.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -6129,7 +6129,7 @@ paths:
         description: A UUID string identifying this customer followup.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -6164,7 +6164,7 @@ paths:
         description: A UUID string identifying this customer followup.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -6427,7 +6427,7 @@ paths:
         description: A UUID string identifying this invoice.
         required: true
       tags:
-      - api
+      - 6. Billing & Invoices
       requestBody:
         content:
           application/json:
@@ -6459,7 +6459,7 @@ paths:
         description: A UUID string identifying this invoice.
         required: true
       tags:
-      - api
+      - 6. Billing & Invoices
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -6702,7 +6702,7 @@ paths:
         description: A UUID string identifying this invoice.
         required: true
       tags:
-      - api
+      - 6. Billing & Invoices
       requestBody:
         content:
           application/json:
@@ -6739,7 +6739,7 @@ paths:
         description: A UUID string identifying this invoice.
         required: true
       tags:
-      - api
+      - 6. Billing & Invoices
       requestBody:
         content:
           application/json:
@@ -6776,7 +6776,7 @@ paths:
         description: A UUID string identifying this invoice.
         required: true
       tags:
-      - api
+      - 6. Billing & Invoices
       requestBody:
         content:
           application/json:
@@ -6805,7 +6805,7 @@ paths:
     post:
       operationId: api_v1_invoices_generate_batch_create
       tags:
-      - api
+      - 6. Billing & Invoices
       requestBody:
         content:
           application/json:
@@ -6846,7 +6846,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -6867,7 +6867,7 @@ paths:
         Gated by the ``ip_phone.epbx`` feature flag — tenants that haven't
         subscribed get a 403 from every action.
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -6909,7 +6909,7 @@ paths:
         description: A UUID string identifying this ip phone config.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -6938,7 +6938,7 @@ paths:
         description: A UUID string identifying this ip phone config.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -6979,7 +6979,7 @@ paths:
         description: A UUID string identifying this ip phone config.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -7019,7 +7019,7 @@ paths:
         description: A UUID string identifying this ip phone config.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -7039,7 +7039,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -7055,7 +7055,7 @@ paths:
     post:
       operationId: api_v1_ip_phone_numbers_create
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -7092,7 +7092,7 @@ paths:
         description: A UUID string identifying this ip phone number.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -7116,7 +7116,7 @@ paths:
         description: A UUID string identifying this ip phone number.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -7152,7 +7152,7 @@ paths:
         description: A UUID string identifying this ip phone number.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -7187,7 +7187,7 @@ paths:
         description: A UUID string identifying this ip phone number.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -7208,7 +7208,7 @@ paths:
         description: A UUID string identifying this ip phone number.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -7647,7 +7647,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -7678,7 +7678,7 @@ paths:
         description: A UUID string identifying this network sync job.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -7704,7 +7704,7 @@ paths:
         description: A UUID string identifying this network sync job.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -7741,7 +7741,7 @@ paths:
         description: A UUID string identifying this network sync job.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -7770,7 +7770,7 @@ paths:
       operationId: api_v1_network_actions_enqueue_create
       description: Manually enqueues a single network action.
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -7806,7 +7806,7 @@ paths:
           router_id=<uuid>      username=<substring>
           limit=<int>           offset=<int>
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -7826,7 +7826,7 @@ paths:
         Use ``export_format=csv`` (or ``json``); plain ``format=...`` is
         reserved for DRF content negotiation.
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8014,7 +8014,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8034,7 +8034,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8048,7 +8048,7 @@ paths:
       operationId: api_v1_network_bulk_batches_retrieve
       description: Lists bulk batches for the active tenant.
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8062,7 +8062,7 @@ paths:
       operationId: api_v1_network_bulk_confirm_create
       description: 'Step 3 & 4: Confirm -> Queue.'
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8076,7 +8076,7 @@ paths:
       operationId: api_v1_network_bulk_preview_create
       description: 'Step 1 & 2: Select -> Validate -> Preview.'
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8281,7 +8281,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8305,7 +8305,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8319,7 +8319,7 @@ paths:
       operationId: api_v1_network_geo_map_retrieve
       description: 'Phase 14: Geographical Fiber Map GeoJSON feature collection.'
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8335,7 +8335,7 @@ paths:
         Phase 14 & 20: Path and Impact Analysis / Blast-Radius Simulation.
         Supports both GET and POST requests.
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8350,7 +8350,7 @@ paths:
         Phase 14 & 20: Path and Impact Analysis / Blast-Radius Simulation.
         Supports both GET and POST requests.
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8366,7 +8366,7 @@ paths:
         Phase 14: Realtime active PPPoE sessions visibility and termination.
         Cached ephemeral state in Redis; never lets frontend connect directly to router.
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8394,7 +8394,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -8426,7 +8426,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8440,7 +8440,7 @@ paths:
       operationId: api_v1_network_live_sessions_history_retrieve
       description: 'Phase 14: Historical session records stored in PostgreSQL.'
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8456,7 +8456,7 @@ paths:
         Phase 14: Force terminates an active subscriber session through backend MikroTik service.
         Durable history is saved to PostgreSQL; Redis cache invalidated.
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -8487,7 +8487,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8501,7 +8501,7 @@ paths:
       operationId: api_v1_network_olt_reconciliation_runs_retrieve
       description: 'Phase 15: History of OLT hardware reconciliation runs.'
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8704,7 +8704,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -8743,7 +8743,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8769,7 +8769,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8794,7 +8794,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -8833,7 +8833,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -8873,7 +8873,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -8911,7 +8911,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -8942,7 +8942,7 @@ paths:
       description: Fast cross-OLT MAC address explorer. Matches against learned MAC
         tables and live OLT CLI.
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8961,7 +8961,7 @@ paths:
       description: Returns global KPIs (total, active, offline, poor signal) and per-OLT/per-PON
         port distribution.
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -8979,7 +8979,7 @@ paths:
       operationId: api_v1_network_olts_sync_all_monitor_create
       description: Synchronizes all tenant OLTs and compiles results.
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -9184,7 +9184,7 @@ paths:
         description: A UUID string identifying this onu.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -9222,7 +9222,7 @@ paths:
         description: A UUID string identifying this onu.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -9258,7 +9258,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -9293,7 +9293,7 @@ paths:
         description: A UUID string identifying this onu.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -9317,7 +9317,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -9339,7 +9339,7 @@ paths:
         description: A UUID string identifying this onu.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -9375,7 +9375,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -9390,7 +9390,7 @@ paths:
       description: 'Phase 15: Automatically matches unassigned ONUs on an OLT to ERP
         Customers.'
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -9616,7 +9616,7 @@ paths:
         description: A UUID string identifying this pp po e secret item.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -9654,7 +9654,7 @@ paths:
         description: A UUID string identifying this pp po e secret item.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -9693,7 +9693,7 @@ paths:
         description: A UUID string identifying this pp po e secret item.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -9732,7 +9732,7 @@ paths:
         description: A UUID string identifying this pp po e secret item.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -9771,7 +9771,7 @@ paths:
         description: A UUID string identifying this pp po e secret item.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -10094,7 +10094,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -10395,7 +10395,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -10433,7 +10433,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -10459,7 +10459,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -10498,7 +10498,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -10536,7 +10536,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -10574,7 +10574,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -10612,7 +10612,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -10653,7 +10653,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -10681,7 +10681,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -10773,7 +10773,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -10813,7 +10813,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -10851,7 +10851,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -10879,7 +10879,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -10917,7 +10917,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -10942,7 +10942,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -11061,7 +11061,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -11101,7 +11101,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11301,7 +11301,7 @@ paths:
         Phase 14 & 20: Multi-tier hierarchical physical and logical graph
         (Internet -> Router -> POP -> OLT -> PON -> ONU -> Customer).
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11317,7 +11317,7 @@ paths:
         Phase 20: On-demand paginated drill-down into network nodes.
         Supports node_type in ('pon', 'onu', 'olt', 'pop', 'router').
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11334,7 +11334,7 @@ paths:
         Internet → Router → POP → OLT → PON.
         Optimized for large ISPs (returns summary counts down to PON ports).
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11350,7 +11350,7 @@ paths:
         Phase 14 & 20: Path and Impact Analysis / Blast-Radius Simulation.
         Supports both GET and POST requests.
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11365,7 +11365,7 @@ paths:
         Phase 14 & 20: Path and Impact Analysis / Blast-Radius Simulation.
         Supports both GET and POST requests.
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11378,7 +11378,7 @@ paths:
     get:
       operationId: api_v1_network_usage_charts_retrieve
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11391,7 +11391,7 @@ paths:
     get:
       operationId: api_v1_network_usage_live_retrieve
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11404,7 +11404,7 @@ paths:
     get:
       operationId: api_v1_network_usage_reports_retrieve
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11417,7 +11417,7 @@ paths:
     get:
       operationId: api_v1_network_usage_router_status_retrieve
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11430,7 +11430,7 @@ paths:
     post:
       operationId: api_v1_network_usage_sync_create
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11500,7 +11500,7 @@ paths:
         description: A UUID string identifying this user session.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -11541,7 +11541,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11562,7 +11562,7 @@ paths:
         Gated by the ``network.vpn_wireguard`` feature flag — tenants without
         the add-on can't manage VPN tunnels.
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -11604,7 +11604,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11633,7 +11633,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -11674,7 +11674,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -11714,7 +11714,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11740,7 +11740,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11770,7 +11770,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11800,7 +11800,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11830,7 +11830,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -11872,7 +11872,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -11914,7 +11914,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -11956,7 +11956,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -11986,7 +11986,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -12016,7 +12016,7 @@ paths:
       operationId: api_v1_network_wireguard_configs_audit_log_retrieve
       description: All audit events for the tenant's WireGuard configs.
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -12034,7 +12034,7 @@ paths:
       operationId: api_v1_network_wireguard_configs_generate_keypair_create
       description: Server-side key generation for the create / rotate flows.
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -12070,7 +12070,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -12086,7 +12086,7 @@ paths:
     post:
       operationId: api_v1_network_wireguard_subnets_create
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -12123,7 +12123,7 @@ paths:
         description: A UUID string identifying this wire guard subnet.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -12147,7 +12147,7 @@ paths:
         description: A UUID string identifying this wire guard subnet.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -12183,7 +12183,7 @@ paths:
         description: A UUID string identifying this wire guard subnet.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -12218,7 +12218,7 @@ paths:
         description: A UUID string identifying this wire guard subnet.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -12242,7 +12242,7 @@ paths:
         schema:
           type: integer
       tags:
-      - Notifications
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -12262,7 +12262,7 @@ paths:
         Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
         Strictly isolated by tenant and user.
       tags:
-      - Notifications
+      - 14. Core & Tenant Settings
       requestBody:
         content:
           application/json:
@@ -12301,7 +12301,7 @@ paths:
           type: string
         required: true
       tags:
-      - Notifications
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -12327,7 +12327,7 @@ paths:
           type: string
         required: true
       tags:
-      - Notifications
+      - 14. Core & Tenant Settings
       requestBody:
         content:
           application/json:
@@ -12365,7 +12365,7 @@ paths:
           type: string
         required: true
       tags:
-      - Notifications
+      - 14. Core & Tenant Settings
       requestBody:
         content:
           application/json:
@@ -12402,7 +12402,7 @@ paths:
           type: string
         required: true
       tags:
-      - Notifications
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -12425,7 +12425,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 14. Core & Tenant Settings
       requestBody:
         content:
           application/json:
@@ -12463,7 +12463,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 14. Core & Tenant Settings
       requestBody:
         content:
           application/json:
@@ -12495,7 +12495,7 @@ paths:
         Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
         Strictly isolated by tenant and user.
       tags:
-      - api
+      - 14. Core & Tenant Settings
       requestBody:
         content:
           application/json:
@@ -12528,7 +12528,7 @@ paths:
         Provides real-time alert listing, unread count tracking, and bulk/single mark-as-read.
         Strictly isolated by tenant and user.
       tags:
-      - api
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -12903,7 +12903,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -12942,7 +12942,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -12968,7 +12968,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -12993,7 +12993,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -13032,7 +13032,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -13072,7 +13072,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -13110,7 +13110,7 @@ paths:
         description: A UUID string identifying this olt.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -13141,7 +13141,7 @@ paths:
       description: Fast cross-OLT MAC address explorer. Matches against learned MAC
         tables and live OLT CLI.
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -13160,7 +13160,7 @@ paths:
       description: Returns global KPIs (total, active, offline, poor signal) and per-OLT/per-PON
         port distribution.
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -13178,7 +13178,7 @@ paths:
       operationId: api_v1_olts_sync_all_monitor_create
       description: Synchronizes all tenant OLTs and compiles results.
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -13383,7 +13383,7 @@ paths:
         description: A UUID string identifying this onu.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -13421,7 +13421,7 @@ paths:
         description: A UUID string identifying this onu.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -13460,7 +13460,7 @@ paths:
         description: A UUID string identifying this onu.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -13523,7 +13523,7 @@ paths:
         description: A UUID string identifying this onu.
         required: true
       tags:
-      - api
+      - 5. OLT & Optical ONUs
       requestBody:
         content:
           application/json:
@@ -13548,6 +13548,43 @@ paths:
               schema:
                 $ref: '#/components/schemas/ONU'
           description: ''
+  /api/v1/organizations/{id}/:
+    get:
+      operationId: api_v1_organizations_retrieve
+      description: Return a single organization the caller is a member of, by id.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/organizations/me/:
+    get:
+      operationId: api_v1_organizations_me_retrieve
+      description: |-
+        Return the organizations the caller is a member of, with nested
+        tenants. Used by the ISP Owner SaaS Portal (app.example.com).
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/packages/:
     get:
       operationId: api_v1_packages_list
@@ -13728,7 +13765,7 @@ paths:
         description: A UUID string identifying this package.
         required: true
       tags:
-      - api
+      - 3. Broadband Packages & Offers
       requestBody:
         content:
           application/json:
@@ -13757,7 +13794,7 @@ paths:
     post:
       operationId: api_v1_packages_sync_all_to_routers_create
       tags:
-      - api
+      - 3. Broadband Packages & Offers
       requestBody:
         content:
           application/json:
@@ -13935,7 +13972,7 @@ paths:
         description: A UUID string identifying this inbound payment event.
         required: true
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       requestBody:
         content:
           application/json:
@@ -14151,7 +14188,7 @@ paths:
         bKash Middleware calls this when a customer pays their ISP bill through bKash.
         POST /api/payBill/ or /api/v1/payments/bkash/paybill/pay/
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -14169,7 +14206,7 @@ paths:
         bKash Middleware calls this to validate subscriber account and get outstanding bill.
         POST /api/queryBill/ or /api/v1/payments/bkash/paybill/query/
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -14187,7 +14224,7 @@ paths:
         bKash Middleware calls this to check whether a transaction was successful at the biller.
         POST /api/searchTransaction/ or /api/v1/payments/bkash/paybill/search/
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -14205,7 +14242,7 @@ paths:
         GET /api/v1/payments/checkout-status/ (Read-only polling)
         POST /api/v1/payments/checkout-status/ (Authorized settlement)
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -14221,7 +14258,7 @@ paths:
         GET /api/v1/payments/checkout-status/ (Read-only polling)
         POST /api/v1/payments/checkout-status/ (Authorized settlement)
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -14334,7 +14371,7 @@ paths:
         description: A UUID string identifying this inbound payment event.
         required: true
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       requestBody:
         content:
           application/json:
@@ -14375,7 +14412,7 @@ paths:
           "provider": "bKash"
         }
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -14719,7 +14756,7 @@ paths:
       description: Allows an authenticated subscriber to update their self-care portal
         password.
       tags:
-      - api
+      - 1. Authentication & Users
       security:
       - customerJwtAuth: []
       responses:
@@ -14732,7 +14769,7 @@ paths:
         Authenticates subscriber using PPPoE Username and Password or primary mobile.
         Issues a cryptographically signed customer JWT.
       tags:
-      - api
+      - 1. Authentication & Users
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -14749,7 +14786,7 @@ paths:
         Initiates customer login by requesting an OTP.
         Rate-limited to 3 requests per 10 minutes per identifier/IP.
       tags:
-      - api
+      - 1. Authentication & Users
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -14764,7 +14801,7 @@ paths:
       operationId: api_v1_portal_auth_verify_otp_create
       description: Validates OTP and issues a cryptographically signed customer JWT.
       tags:
-      - api
+      - 1. Authentication & Users
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -14780,7 +14817,7 @@ paths:
       description: Returns entertainment, BDIX, and FTP media server links configured
         by the ISP.
       tags:
-      - api
+      - 17. Customer Self-Care Portal
       security:
       - customerJwtAuth: []
       responses:
@@ -14796,7 +14833,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - 17. Customer Self-Care Portal
       security:
       - customerJwtAuth: []
       responses:
@@ -14806,7 +14843,7 @@ paths:
     get:
       operationId: api_v1_portal_funbox_movies_retrieve
       tags:
-      - api
+      - 17. Customer Self-Care Portal
       security:
       - customerJwtAuth: []
       responses:
@@ -14815,7 +14852,7 @@ paths:
     post:
       operationId: api_v1_portal_funbox_movies_create
       tags:
-      - api
+      - 17. Customer Self-Care Portal
       security:
       - customerJwtAuth: []
       responses:
@@ -14835,7 +14872,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 6. Billing & Invoices
       security:
       - customerJwtAuth: []
       responses:
@@ -14860,7 +14897,7 @@ paths:
         description: A UUID string identifying this invoice.
         required: true
       tags:
-      - api
+      - 6. Billing & Invoices
       security:
       - customerJwtAuth: []
       responses:
@@ -14883,7 +14920,7 @@ paths:
         description: A UUID string identifying this invoice.
         required: true
       tags:
-      - api
+      - 6. Billing & Invoices
       security:
       - customerJwtAuth: []
       responses:
@@ -14898,7 +14935,7 @@ paths:
       operationId: api_v1_portal_notifications_retrieve
       description: Returns personalized notices, maintenance alerts, and renewal reminders.
       tags:
-      - api
+      - 17. Customer Self-Care Portal
       security:
       - customerJwtAuth: []
       responses:
@@ -14930,7 +14967,7 @@ paths:
         Initiates bKash Tokenized Checkout for authenticated customers.
         POST /api/v1/portal/payments/bkash/create/ or /api/v1/payments/bkash/checkout/create/
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       security:
       - customerJwtAuth: []
       responses:
@@ -14943,7 +14980,7 @@ paths:
         Executes bKash Tokenized Checkout after customer confirmation.
         POST /api/v1/portal/payments/bkash/execute/ or /api/v1/payments/bkash/checkout/execute/
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       security:
       - customerJwtAuth: []
       responses:
@@ -14957,7 +14994,7 @@ paths:
         POST /api/v1/portal/payments/claim/
         Payload: {"trx_id": "9H82JKS10A"}
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       security:
       - customerJwtAuth: []
       responses:
@@ -15095,7 +15132,7 @@ paths:
       description: Returns last 50 PPPoE session records (active session + historical
         records).
       tags:
-      - api
+      - 17. Customer Self-Care Portal
       security:
       - customerJwtAuth: []
       responses:
@@ -15107,7 +15144,7 @@ paths:
       description: Returns public tenant branding and support info for the customer
         portal.
       tags:
-      - api
+      - 14. Core & Tenant Settings
       security:
       - customerJwtAuth: []
       responses:
@@ -15125,7 +15162,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 8. Support Desk & NOC Tickets
       security:
       - customerJwtAuth: []
       responses:
@@ -15139,7 +15176,7 @@ paths:
       operationId: api_v1_portal_tickets_create
       description: Support ticket management for authenticated portal customers.
       tags:
-      - api
+      - 8. Support Desk & NOC Tickets
       requestBody:
         content:
           application/json:
@@ -15174,7 +15211,7 @@ paths:
         description: A UUID string identifying this ticket.
         required: true
       tags:
-      - api
+      - 8. Support Desk & NOC Tickets
       security:
       - customerJwtAuth: []
       responses:
@@ -15197,7 +15234,7 @@ paths:
         description: A UUID string identifying this ticket.
         required: true
       tags:
-      - api
+      - 8. Support Desk & NOC Tickets
       requestBody:
         content:
           application/json:
@@ -15225,7 +15262,7 @@ paths:
       description: Returns real-time download and upload rate (Mbps) for subscriber's
         active session.
       tags:
-      - api
+      - 17. Customer Self-Care Portal
       security:
       - customerJwtAuth: []
       responses:
@@ -15292,7 +15329,7 @@ paths:
         description: A UUID string identifying this recharge.
         required: true
       tags:
-      - api
+      - 6. Billing & Invoices
       requestBody:
         content:
           application/json:
@@ -15328,7 +15365,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -15344,7 +15381,7 @@ paths:
     post:
       operationId: api_v1_reminder_campaigns_create
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -15381,7 +15418,7 @@ paths:
         description: A UUID string identifying this voice campaign.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -15405,7 +15442,7 @@ paths:
         description: A UUID string identifying this voice campaign.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -15441,7 +15478,7 @@ paths:
         description: A UUID string identifying this voice campaign.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -15476,7 +15513,7 @@ paths:
         description: A UUID string identifying this voice campaign.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -15496,7 +15533,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -15512,7 +15549,7 @@ paths:
     post:
       operationId: api_v1_reminder_templates_create
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -15549,7 +15586,7 @@ paths:
         description: A UUID string identifying this reminder template.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -15573,7 +15610,7 @@ paths:
         description: A UUID string identifying this reminder template.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -15609,7 +15646,7 @@ paths:
         description: A UUID string identifying this reminder template.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       requestBody:
         content:
           application/json:
@@ -15644,7 +15681,7 @@ paths:
         description: A UUID string identifying this reminder template.
         required: true
       tags:
-      - api
+      - 12. Call Center & Voice Reminders
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -15856,6 +15893,814 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/resellers/:
+    get:
+      operationId: api_v1_resellers_list
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResellerList'
+          description: ''
+    post:
+      operationId: api_v1_resellers_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/:
+    get:
+      operationId: api_v1_resellers_retrieve
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+    put:
+      operationId: api_v1_resellers_update
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+    patch:
+      operationId: api_v1_resellers_partial_update
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedReseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedReseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedReseller'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+    delete:
+      operationId: api_v1_resellers_destroy
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/resellers/{id}/activate/:
+    post:
+      operationId: api_v1_resellers_activate_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/assignments/:
+    post:
+      operationId: api_v1_resellers_assignments_create
+      description: |-
+        Assign or unassign a customer. Body:
+          { customer_id, is_active (default True), notes }
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/collections/:
+    get:
+      operationId: api_v1_resellers_collections_retrieve
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+    post:
+      operationId: api_v1_resellers_collections_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/collections/{coll_id}/allocate/:
+    post:
+      operationId: api_v1_resellers_collections_allocate_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: coll_id
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/credit/:
+    get:
+      operationId: api_v1_resellers_credit_retrieve
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/credit_adjust/:
+    post:
+      operationId: api_v1_resellers_credit_adjust_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/credit_suspend/:
+    post:
+      operationId: api_v1_resellers_credit_suspend_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/customers/:
+    get:
+      operationId: api_v1_resellers_customers_retrieve
+      description: List the reseller's assigned customers.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 2. Customers & Subscribers
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/holds/:
+    get:
+      operationId: api_v1_resellers_holds_retrieve
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+    post:
+      operationId: api_v1_resellers_holds_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/holds/{hold_id}/release/:
+    post:
+      operationId: api_v1_resellers_holds_release_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: hold_id
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/ledger/:
+    get:
+      operationId: api_v1_resellers_ledger_retrieve
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/purchase/:
+    post:
+      operationId: api_v1_resellers_purchase_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/refund/:
+    post:
+      operationId: api_v1_resellers_refund_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/renew/:
+    post:
+      operationId: api_v1_resellers_renew_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/suspend/:
+    post:
+      operationId: api_v1_resellers_suspend_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/topup/:
+    post:
+      operationId: api_v1_resellers_topup_create
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Reseller'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/{id}/wallet/:
+    get:
+      operationId: api_v1_resellers_wallet_retrieve
+      description: |-
+        Read-only balance summary. Server-authoritative. Resellers may read
+        their own; tenant staff may read any reseller in their tenant.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
+  /api/v1/resellers/me/:
+    get:
+      operationId: api_v1_resellers_me_retrieve
+      description: Tenant-scoped CRUD for resellers. List/retrieve/partial_update/destroy.
+      tags:
+      - 14. Core & Tenant Settings
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reseller'
+          description: ''
   /api/v1/roles/:
     get:
       operationId: api_v1_roles_list
@@ -16231,7 +17076,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -16269,7 +17114,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -16295,7 +17140,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -16334,7 +17179,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -16372,7 +17217,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -16410,7 +17255,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -16448,7 +17293,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -16489,7 +17334,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -16517,7 +17362,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -16609,7 +17454,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -16649,7 +17494,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -16687,7 +17532,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -16715,7 +17560,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -16753,7 +17598,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -16778,7 +17623,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -16897,7 +17742,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -16937,7 +17782,7 @@ paths:
         description: A UUID string identifying this router.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -17050,7 +17895,7 @@ paths:
         description: A UUID string identifying this tenant api token.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17089,7 +17934,7 @@ paths:
         description: A UUID string identifying this tenant api token.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17127,7 +17972,7 @@ paths:
         description: A UUID string identifying this tenant api token.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -17149,7 +17994,7 @@ paths:
         description: A UUID string identifying this tenant api token.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17187,7 +18032,7 @@ paths:
         description: A UUID string identifying this tenant api token.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17225,7 +18070,7 @@ paths:
         description: A UUID string identifying this tenant api token.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17263,7 +18108,7 @@ paths:
         description: A UUID string identifying this tenant api token.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17302,7 +18147,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -17321,7 +18166,7 @@ paths:
         Super Admin ViewSet to register, manage, generate, rotate, revoke, and monitor
         External ISP Frontend Applications (e.g. Next.js, Mobile App) for each ISP tenant.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17361,7 +18206,7 @@ paths:
         description: A UUID string identifying this API Application.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -17388,7 +18233,7 @@ paths:
         description: A UUID string identifying this API Application.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17427,7 +18272,7 @@ paths:
         description: A UUID string identifying this API Application.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17465,7 +18310,7 @@ paths:
         description: A UUID string identifying this API Application.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -17487,7 +18332,7 @@ paths:
         description: A UUID string identifying this API Application.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17525,7 +18370,7 @@ paths:
         description: A UUID string identifying this API Application.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17564,7 +18409,7 @@ paths:
         description: A UUID string identifying this API Application.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17603,7 +18448,7 @@ paths:
         description: A UUID string identifying this API Application.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17640,7 +18485,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -17657,7 +18502,7 @@ paths:
       operationId: api_v1_saas_audit_logs_create
       description: Global SaaS Audit Trail across all tenants and control plane operations.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17695,7 +18540,7 @@ paths:
         description: A UUID string identifying this audit log.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -17720,7 +18565,7 @@ paths:
         description: A UUID string identifying this audit log.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17757,7 +18602,7 @@ paths:
         description: A UUID string identifying this audit log.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -17793,7 +18638,7 @@ paths:
         description: A UUID string identifying this audit log.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -17820,7 +18665,7 @@ paths:
           - json
           - ndjson
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -18016,7 +18861,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -18035,7 +18880,7 @@ paths:
         Global Disaster Recovery Engine & Database Backup Management.
         Trigger on-demand backups, list archives, download, and export single-tenant datasets.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18075,7 +18920,7 @@ paths:
         description: A UUID string identifying this database backup.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -18102,7 +18947,7 @@ paths:
         description: A UUID string identifying this database backup.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18141,7 +18986,7 @@ paths:
         description: A UUID string identifying this database backup.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18179,7 +19024,7 @@ paths:
         description: A UUID string identifying this database backup.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -18203,7 +19048,7 @@ paths:
         description: A UUID string identifying this database backup.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -18231,7 +19076,7 @@ paths:
         description: A UUID string identifying this database backup.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18263,7 +19108,7 @@ paths:
         Global Disaster Recovery Engine & Database Backup Management.
         Trigger on-demand backups, list archives, download, and export single-tenant datasets.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18295,7 +19140,7 @@ paths:
         Global Disaster Recovery Engine & Database Backup Management.
         Trigger on-demand backups, list archives, download, and export single-tenant datasets.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18333,7 +19178,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -18351,7 +19196,7 @@ paths:
       description: 'Control plane domain management across all tenants: primary hostnames,
         aliases, DNS status.'
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18389,7 +19234,7 @@ paths:
         description: A unique integer value identifying this tenant domain.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -18414,7 +19259,7 @@ paths:
         description: A unique integer value identifying this tenant domain.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18451,7 +19296,7 @@ paths:
         description: A unique integer value identifying this tenant domain.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18487,7 +19332,7 @@ paths:
         description: A unique integer value identifying this tenant domain.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -18509,7 +19354,7 @@ paths:
         description: A unique integer value identifying this tenant domain.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18547,7 +19392,7 @@ paths:
         description: A unique integer value identifying this tenant domain.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18719,7 +19564,7 @@ paths:
         description: A UUID string identifying this employee.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18781,7 +19626,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -18798,7 +19643,7 @@ paths:
       operationId: api_v1_saas_feature_flags_create
       description: Central control-plane endpoint for per-tenant feature overrides.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18836,7 +19681,7 @@ paths:
         description: A UUID string identifying this tenant feature flag.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -18861,7 +19706,7 @@ paths:
         description: A UUID string identifying this tenant feature flag.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18898,7 +19743,7 @@ paths:
         description: A UUID string identifying this tenant feature flag.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18934,7 +19779,7 @@ paths:
         description: A UUID string identifying this tenant feature flag.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -18948,7 +19793,7 @@ paths:
       operationId: api_v1_saas_feature_flags_bulk_set_create
       description: Central control-plane endpoint for per-tenant feature overrides.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -18980,7 +19825,7 @@ paths:
       operationId: api_v1_saas_feature_flags_clone_create
       description: Central control-plane endpoint for per-tenant feature overrides.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19010,7 +19855,7 @@ paths:
       operationId: api_v1_saas_feature_flags_reset_create
       description: Central control-plane endpoint for per-tenant feature overrides.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19040,7 +19885,7 @@ paths:
       operationId: api_v1_saas_feature_flags_set_create
       description: Central control-plane endpoint for per-tenant feature overrides.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19074,7 +19919,7 @@ paths:
         Used by the SaaS dashboard to render the toggle matrix without N²
         HTTP calls.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19088,7 +19933,7 @@ paths:
       operationId: api_v1_saas_features_retrieve
       description: List every feature in :data:`FEATURE_REGISTRY` with metadata.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19125,6 +19970,273 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/v1/saas/organizations/:
+    get:
+      operationId: api_v1_saas_organizations_list
+      description: SaaS super-admin CRUD over ISP owner organizations.
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - 16. Multi-Tenant SaaS & Control Plane
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrganizationList'
+          description: ''
+    post:
+      operationId: api_v1_saas_organizations_create
+      description: SaaS super-admin CRUD over ISP owner organizations.
+      tags:
+      - 16. Multi-Tenant SaaS & Control Plane
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Organization'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/v1/saas/organizations/{id}/:
+    get:
+      operationId: api_v1_saas_organizations_retrieve
+      description: SaaS super-admin CRUD over ISP owner organizations.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      tags:
+      - 16. Multi-Tenant SaaS & Control Plane
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+    put:
+      operationId: api_v1_saas_organizations_update
+      description: SaaS super-admin CRUD over ISP owner organizations.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      tags:
+      - 16. Multi-Tenant SaaS & Control Plane
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Organization'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+    patch:
+      operationId: api_v1_saas_organizations_partial_update
+      description: SaaS super-admin CRUD over ISP owner organizations.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      tags:
+      - 16. Multi-Tenant SaaS & Control Plane
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOrganization'
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+    delete:
+      operationId: api_v1_saas_organizations_destroy
+      description: SaaS super-admin CRUD over ISP owner organizations.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      tags:
+      - 16. Multi-Tenant SaaS & Control Plane
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/saas/organizations/{id}/members/:
+    post:
+      operationId: api_v1_saas_organizations_members_create
+      description: |-
+        Add or update a member of the organization.
+        Body: { username, role, is_active }.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      tags:
+      - 16. Multi-Tenant SaaS & Control Plane
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Organization'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Organization'
+        required: true
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
+  /api/v1/saas/organizations/{id}/members/{user_id}/:
+    delete:
+      operationId: api_v1_saas_organizations_members_destroy
+      description: SaaS super-admin CRUD over ISP owner organizations.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      - in: path
+        name: user_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - 16. Multi-Tenant SaaS & Control Plane
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/saas/organizations/{id}/tenants/:
+    get:
+      operationId: api_v1_saas_organizations_tenants_retrieve
+      description: List tenants owned by this organization.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this organization.
+        required: true
+      tags:
+      - 16. Multi-Tenant SaaS & Control Plane
+      security:
+      - apiKeyHeaderAuth: []
+      - apiKeyAuthorizationAuth: []
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: ''
   /api/v1/saas/overview/:
     get:
       operationId: api_v1_saas_overview_retrieve
@@ -19160,7 +20272,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19179,7 +20291,7 @@ paths:
         Platform Owner SaaS Packages / Pricing Tiers Management.
         Supports Create, Update, Delete, and Pause/Resume.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19219,7 +20331,7 @@ paths:
         description: A UUID string identifying this saa s package.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19246,7 +20358,7 @@ paths:
         description: A UUID string identifying this saa s package.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19285,7 +20397,7 @@ paths:
         description: A UUID string identifying this saa s package.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19323,7 +20435,7 @@ paths:
         description: A UUID string identifying this saa s package.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19347,7 +20459,7 @@ paths:
         description: A UUID string identifying this saa s package.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19385,7 +20497,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19403,7 +20515,7 @@ paths:
       description: Platform revenue transactions collected from tenants for software
         licenses.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19442,7 +20554,7 @@ paths:
         description: A UUID string identifying this saa s payment.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19468,7 +20580,7 @@ paths:
         description: A UUID string identifying this saa s payment.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19506,7 +20618,7 @@ paths:
         description: A UUID string identifying this saa s payment.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19543,7 +20655,7 @@ paths:
         description: A UUID string identifying this saa s payment.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19566,7 +20678,7 @@ paths:
         description: A UUID string identifying this saa s payment.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19605,7 +20717,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19624,7 +20736,7 @@ paths:
         Incoming Tenant Onboarding Signup Requests Queue.
         Platform owners review, approve (auto-deploy), or reject requests.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19664,7 +20776,7 @@ paths:
         description: A UUID string identifying this tenant onboarding request.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19691,7 +20803,7 @@ paths:
         description: A UUID string identifying this tenant onboarding request.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19730,7 +20842,7 @@ paths:
         description: A UUID string identifying this tenant onboarding request.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19768,7 +20880,7 @@ paths:
         description: A UUID string identifying this tenant onboarding request.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19792,7 +20904,7 @@ paths:
         description: A UUID string identifying this tenant onboarding request.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19840,7 +20952,7 @@ paths:
         description: A UUID string identifying this tenant onboarding request.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19880,7 +20992,7 @@ paths:
         description: A UUID string identifying this tenant onboarding request.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19917,7 +21029,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19934,7 +21046,7 @@ paths:
       operationId: api_v1_saas_subscriptions_create
       description: Tenant active software licensing contracts.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -19972,7 +21084,7 @@ paths:
         description: A UUID string identifying this tenant subscription.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -19997,7 +21109,7 @@ paths:
         description: A UUID string identifying this tenant subscription.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20034,7 +21146,7 @@ paths:
         description: A UUID string identifying this tenant subscription.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20070,7 +21182,7 @@ paths:
         description: A UUID string identifying this tenant subscription.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -20092,7 +21204,7 @@ paths:
         description: A UUID string identifying this tenant subscription.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20130,7 +21242,7 @@ paths:
         description: A UUID string identifying this tenant subscription.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20168,7 +21280,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -20186,7 +21298,7 @@ paths:
       description: 'Control Plane Tenant Management: Onboard new ISPs, modify quotas,
         activate/suspend, delete, and impersonate.'
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20225,7 +21337,7 @@ paths:
         description: A UUID string identifying this tenant.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -20251,7 +21363,7 @@ paths:
         description: A UUID string identifying this tenant.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20289,7 +21401,7 @@ paths:
         description: A UUID string identifying this tenant.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20326,7 +21438,7 @@ paths:
         description: A UUID string identifying this tenant.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -20348,7 +21460,7 @@ paths:
         description: A UUID string identifying this tenant.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -20375,7 +21487,7 @@ paths:
         description: A UUID string identifying this tenant.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20416,7 +21528,7 @@ paths:
         description: A UUID string identifying this tenant.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -20444,7 +21556,7 @@ paths:
         description: A UUID string identifying this tenant.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20483,7 +21595,7 @@ paths:
         description: A UUID string identifying this tenant.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20523,7 +21635,7 @@ paths:
         description: A UUID string identifying this tenant.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -20550,7 +21662,7 @@ paths:
         description: A UUID string identifying this tenant.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20581,7 +21693,7 @@ paths:
       description: 'Control Plane Tenant Management: Onboard new ISPs, modify quotas,
         activate/suspend, delete, and impersonate.'
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20612,7 +21724,7 @@ paths:
       description: 'Control Plane Tenant Management: Onboard new ISPs, modify quotas,
         activate/suspend, delete, and impersonate.'
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20643,7 +21755,7 @@ paths:
       description: 'Control Plane Tenant Management: Onboard new ISPs, modify quotas,
         activate/suspend, delete, and impersonate.'
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20954,7 +22066,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -20997,7 +22109,7 @@ paths:
         description: A UUID string identifying this wire guard config.
         required: true
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       requestBody:
         content:
           application/json:
@@ -21072,7 +22184,7 @@ paths:
         tenant's behalf. All mutations are recorded with ``is_saas_admin``
         so ISP admins can see SaaS-side changes.
       tags:
-      - api
+      - 16. Multi-Tenant SaaS & Control Plane
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -21091,7 +22203,7 @@ paths:
       description: Extensible global search endpoint for Command Menu (Ctrl/Cmd +
         K). Tenant-isolated.
       tags:
-      - Search
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -21285,7 +22397,7 @@ paths:
         description: A UUID string identifying this customer service.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -21322,7 +22434,7 @@ paths:
         description: A UUID string identifying this customer service.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -21359,7 +22471,7 @@ paths:
         description: A UUID string identifying this customer service.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -21396,7 +22508,7 @@ paths:
         description: A UUID string identifying this customer service.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -21587,7 +22699,7 @@ paths:
     get:
       operationId: api_v1_settings_current_retrieve
       tags:
-      - api
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -21603,7 +22715,7 @@ paths:
     put:
       operationId: api_v1_settings_current_update
       tags:
-      - api
+      - 14. Core & Tenant Settings
       requestBody:
         content:
           application/json:
@@ -21630,7 +22742,7 @@ paths:
     patch:
       operationId: api_v1_settings_current_partial_update
       tags:
-      - api
+      - 14. Core & Tenant Settings
       requestBody:
         content:
           application/json:
@@ -21658,7 +22770,7 @@ paths:
     post:
       operationId: api_v1_settings_test_sms_create
       tags:
-      - api
+      - 14. Core & Tenant Settings
       requestBody:
         content:
           application/json:
@@ -21770,7 +22882,7 @@ paths:
         description: A UUID string identifying this sms log.
         required: true
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       requestBody:
         content:
           application/json:
@@ -21806,7 +22918,7 @@ paths:
         description: A UUID string identifying this sms log.
         required: true
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       requestBody:
         content:
           application/json:
@@ -21841,7 +22953,7 @@ paths:
         description: A UUID string identifying this sms log.
         required: true
       tags:
-      - api
+      - 7. Payments & SMS Gateways
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -21860,7 +22972,7 @@ paths:
         Uses Django cache (60s TTL) and falls back to the last known cached value
         on transient provider failures so the dashboard stays responsive.
       tags:
-      - api
+      - 14. Core & Tenant Settings
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -22547,7 +23659,7 @@ paths:
         description: A UUID string identifying this customer subscription.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -22584,7 +23696,7 @@ paths:
         description: A UUID string identifying this customer subscription.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -22621,7 +23733,7 @@ paths:
         description: A UUID string identifying this customer subscription.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -22658,7 +23770,7 @@ paths:
         description: A UUID string identifying this customer subscription.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -22695,7 +23807,7 @@ paths:
         description: A UUID string identifying this customer subscription.
         required: true
       tags:
-      - api
+      - 2. Customers & Subscribers
       requestBody:
         content:
           application/json:
@@ -22929,7 +24041,7 @@ paths:
         description: A UUID string identifying this task.
         required: true
       tags:
-      - api
+      - 9. Field Tasks & Maintenance
       requestBody:
         content:
           application/json:
@@ -22966,7 +24078,7 @@ paths:
         description: A UUID string identifying this task.
         required: true
       tags:
-      - api
+      - 9. Field Tasks & Maintenance
       requestBody:
         content:
           application/json:
@@ -23555,7 +24667,7 @@ paths:
       description: Central Control Plane endpoint. Only central administrators on
         the control plane can manage tenants.
       tags:
-      - api
+      - 14. Core & Tenant Settings
       requestBody:
         content:
           application/json:
@@ -23586,7 +24698,7 @@ paths:
       description: Central Control Plane endpoint. Only central administrators on
         the control plane can manage tenants.
       tags:
-      - api
+      - 14. Core & Tenant Settings
       requestBody:
         content:
           application/json:
@@ -23617,7 +24729,7 @@ paths:
       description: Central Control Plane endpoint. Only central administrators on
         the control plane can manage tenants.
       tags:
-      - api
+      - 14. Core & Tenant Settings
       requestBody:
         content:
           application/json:
@@ -23884,7 +24996,7 @@ paths:
         description: A UUID string identifying this ticket.
         required: true
       tags:
-      - api
+      - 8. Support Desk & NOC Tickets
       requestBody:
         content:
           application/json:
@@ -23921,7 +25033,7 @@ paths:
         description: A UUID string identifying this ticket.
         required: true
       tags:
-      - api
+      - 8. Support Desk & NOC Tickets
       requestBody:
         content:
           application/json:
@@ -24302,7 +25414,7 @@ paths:
         description: A UUID string identifying this user session.
         required: true
       tags:
-      - api
+      - 4. Network & Core Routers
       requestBody:
         content:
           application/json:
@@ -24690,7 +25802,7 @@ paths:
     get:
       operationId: health_retrieve
       tags:
-      - health
+      - 19. Production Readiness & Observability Probes
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -24704,7 +25816,7 @@ paths:
     get:
       operationId: health_retrieve_2
       tags:
-      - health
+      - 19. Production Readiness & Observability Probes
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -24718,7 +25830,7 @@ paths:
     get:
       operationId: healthz_retrieve
       tags:
-      - healthz
+      - 19. Production Readiness & Observability Probes
       security:
       - apiKeyHeaderAuth: []
       - apiKeyAuthorizationAuth: []
@@ -29269,6 +30381,123 @@ components:
         * `Critical` - Critical
         * `LOS` - Loss of Signal (LOS)
         * `PowerLoss` - Power Loss (Dying Gasp)
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          maxLength: 120
+          pattern: ^[-a-zA-Z0-9_]+$
+        contact_phone:
+          type: string
+          maxLength: 30
+        contact_email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        address:
+          type: string
+        max_tenants:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        is_active:
+          type: boolean
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        tenant_count:
+          type: integer
+          readOnly: true
+        active_tenant_count:
+          type: string
+          readOnly: true
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationMembership'
+          readOnly: true
+      required:
+      - active_tenant_count
+      - created_at
+      - id
+      - members
+      - name
+      - slug
+      - tenant_count
+      - updated_at
+    OrganizationMembership:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        organization:
+          type: string
+          format: uuid
+        user:
+          type: integer
+        username:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          readOnly: true
+        role:
+          $ref: '#/components/schemas/OrganizationMembershipRoleEnum'
+        is_active:
+          type: boolean
+        invited_at:
+          type: string
+          format: date-time
+          readOnly: true
+        accepted_at:
+          type: string
+          format: date-time
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - email
+      - id
+      - invited_at
+      - organization
+      - updated_at
+      - user
+      - username
+    OrganizationMembershipRoleEnum:
+      enum:
+      - OWNER
+      - ADMIN
+      - MEMBER
+      - BILLING
+      type: string
+      description: |-
+        * `OWNER` - Owner (full control, billing, all tenants)
+        * `ADMIN` - Admin (manage tenants, members, settings)
+        * `MEMBER` - Member (read-only access to owned tenants)
+        * `BILLING` - Billing (manage subscriptions, invoices)
     POPBranch:
       type: object
       properties:
@@ -30711,6 +31940,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Offer'
+    PaginatedOrganizationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Organization'
     PaginatedPOPBranchList:
       type: object
       required:
@@ -30964,6 +32216,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ReminderTemplate'
+    PaginatedResellerList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reseller'
     PaginatedResellerPricingList:
       type: object
       required:
@@ -33669,6 +34944,60 @@ components:
           type: string
           format: uuid
           readOnly: true
+    PatchedOrganization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+        slug:
+          type: string
+          maxLength: 120
+          pattern: ^[-a-zA-Z0-9_]+$
+        contact_phone:
+          type: string
+          maxLength: 30
+        contact_email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        address:
+          type: string
+        max_tenants:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+        is_active:
+          type: boolean
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        tenant_count:
+          type: integer
+          readOnly: true
+        active_tenant_count:
+          type: string
+          readOnly: true
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizationMembership'
+          readOnly: true
     PatchedPOPBranch:
       type: object
       properties:
@@ -34026,6 +35355,67 @@ components:
         language:
           type: string
           maxLength: 40
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedReseller:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant:
+          type: string
+          format: uuid
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+          description: Primary login user for this reseller account
+        username:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          readOnly: true
+        business_name:
+          type: string
+          maxLength: 200
+        contact_phone:
+          type: string
+          maxLength: 30
+        contact_email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        address:
+          type: string
+        wallet_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+        credit_limit:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+        commission_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          description: Default commission % on each customer recharge
+        is_active:
+          type: boolean
         created_at:
           type: string
           format: date-time
@@ -34803,7 +36193,7 @@ components:
         last_name:
           type: string
         role:
-          $ref: '#/components/schemas/RoleEnum'
+          $ref: '#/components/schemas/StaffProfileRoleEnum'
         role_display:
           type: string
           readOnly: true
@@ -35107,6 +36497,12 @@ components:
           format: uuid
           nullable: true
           description: Parent SaaS subscriber tenant. Null for top-level ISP/tenant.
+        organization:
+          type: string
+          format: uuid
+          nullable: true
+          description: ISP owner organization that owns this tenant. Null only on
+            synthetic legacy records or during onboarding.
     PatchedTenantDomain:
       type: object
       description: Serializer for TenantDomain — proper multi-domain management (Plan
@@ -36306,6 +37702,79 @@ components:
         * `Welcome` - Welcome message
         * `Complaint update` - Complaint update
         * `Custom` - Custom broadcast
+    Reseller:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant:
+          type: string
+          format: uuid
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+          description: Primary login user for this reseller account
+        username:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          readOnly: true
+        business_name:
+          type: string
+          maxLength: 200
+        contact_phone:
+          type: string
+          maxLength: 30
+        contact_email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        address:
+          type: string
+        wallet_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+        credit_limit:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,12}(?:\.\d{0,2})?$
+          readOnly: true
+        commission_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          description: Default commission % on each customer recharge
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - business_name
+      - created_at
+      - credit_limit
+      - email
+      - id
+      - is_active
+      - tenant
+      - updated_at
+      - user
+      - username
+      - wallet_balance
     ResellerPricing:
       type: object
       properties:
@@ -36389,44 +37858,6 @@ components:
       - permissions
       - permissions_detail
       - tenant
-    RoleEnum:
-      enum:
-      - SUPER_ADMIN
-      - ADMIN
-      - BILLING
-      - SALES
-      - DEMO
-      - TECHNICIAN
-      - STAFF
-      - RESELLER_L1
-      - RESELLER_L2
-      - DISTRIBUTOR
-      - BANDWIDTH_RESELLER
-      - BILLING_OPERATOR
-      - SUPPORT_STAFF
-      - LINE_MAN
-      - RESELLER
-      - AGENT
-      - CUSTOMER
-      type: string
-      description: |-
-        * `SUPER_ADMIN` - Super Admin
-        * `ADMIN` - Admin / Managing Director
-        * `BILLING` - Billing Operator
-        * `SALES` - Sales Executive
-        * `DEMO` - Demo Accounts Manager
-        * `TECHNICIAN` - NOC / Field Technician
-        * `STAFF` - General Staff
-        * `RESELLER_L1` - Reseller (Level 1 POP)
-        * `RESELLER_L2` - Sub Reseller (Level 2 POP)
-        * `DISTRIBUTOR` - Hardware / Card Distributor
-        * `BANDWIDTH_RESELLER` - Bandwidth Carrier Reseller
-        * `BILLING_OPERATOR` - Billing Operator
-        * `SUPPORT_STAFF` - Support Staff
-        * `LINE_MAN` - Line Man / Field Tech
-        * `RESELLER` - Reseller / Master Sub-ISP
-        * `AGENT` - Local Agent
-        * `CUSTOMER` - Customer / Subscriber
     Router:
       type: object
       properties:
@@ -37475,7 +38906,7 @@ components:
         last_name:
           type: string
         role:
-          $ref: '#/components/schemas/RoleEnum'
+          $ref: '#/components/schemas/StaffProfileRoleEnum'
         role_display:
           type: string
           readOnly: true
@@ -37524,6 +38955,44 @@ components:
       - id
       - role_display
       - role_name
+    StaffProfileRoleEnum:
+      enum:
+      - SUPER_ADMIN
+      - ADMIN
+      - BILLING
+      - SALES
+      - DEMO
+      - TECHNICIAN
+      - STAFF
+      - RESELLER_L1
+      - RESELLER_L2
+      - DISTRIBUTOR
+      - BANDWIDTH_RESELLER
+      - BILLING_OPERATOR
+      - SUPPORT_STAFF
+      - LINE_MAN
+      - RESELLER
+      - AGENT
+      - CUSTOMER
+      type: string
+      description: |-
+        * `SUPER_ADMIN` - Super Admin
+        * `ADMIN` - Admin / Managing Director
+        * `BILLING` - Billing Operator
+        * `SALES` - Sales Executive
+        * `DEMO` - Demo Accounts Manager
+        * `TECHNICIAN` - NOC / Field Technician
+        * `STAFF` - General Staff
+        * `RESELLER_L1` - Reseller (Level 1 POP)
+        * `RESELLER_L2` - Sub Reseller (Level 2 POP)
+        * `DISTRIBUTOR` - Hardware / Card Distributor
+        * `BANDWIDTH_RESELLER` - Bandwidth Carrier Reseller
+        * `BILLING_OPERATOR` - Billing Operator
+        * `SUPPORT_STAFF` - Support Staff
+        * `LINE_MAN` - Line Man / Field Tech
+        * `RESELLER` - Reseller / Master Sub-ISP
+        * `AGENT` - Local Agent
+        * `CUSTOMER` - Customer / Subscriber
     StateEnum:
       enum:
       - 'on'
@@ -37909,6 +39378,12 @@ components:
           format: uuid
           nullable: true
           description: Parent SaaS subscriber tenant. Null for top-level ISP/tenant.
+        organization:
+          type: string
+          format: uuid
+          nullable: true
+          description: ISP owner organization that owns this tenant. Null only on
+            synthetic legacy records or during onboarding.
       required:
       - created_at
       - id

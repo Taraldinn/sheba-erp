@@ -339,3 +339,97 @@ from .wallet_models import (  # noqa: E402, F401
 
 # Stage 5: Reseller collection events. Re-exported for Django app discovery.
 from .collection_models import ResellerCollectionEvent  # noqa: E402, F401
+
+
+# ---------------------------------------------------------------------------
+# Stage 6: Platform Admin (admin.example.com control-plane operators).
+#
+# PlatformAdmin is a named, role-bearing operator on the SaaS control plane
+# (the platform owner's own surface at admin.example.com). It is independent
+# of the existing StaffMembership chain (which scopes a user to a single
+# tenant). A PlatformAdmin can act across all tenants but is *never* a member
+# of any tenant.
+#
+# Roles:
+#   - OWNER     — full access; required for kill-switch, invite, role-change
+#   - ADMIN     — tenant/package/feature CRUD, audit export
+#   - BILLING   — read-only on subscriptions, payments, billing reconcile
+#   - SUPPORT   — tenant list/detail, impersonate, read audit
+# ---------------------------------------------------------------------------
+
+class PlatformAdminRole(models.TextChoices):
+    OWNER = 'OWNER', 'Owner'
+    ADMIN = 'ADMIN', 'Admin'
+    BILLING = 'BILLING', 'Billing'
+    SUPPORT = 'SUPPORT', 'Support'
+
+
+class PlatformAdmin(models.Model):
+    """A named operator on the SaaS control plane (admin.example.com)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='platform_admin',
+    )
+    role = models.CharField(
+        max_length=16,
+        choices=PlatformAdminRole.choices,
+        default=PlatformAdminRole.SUPPORT,
+    )
+    is_active = models.BooleanField(default=True)
+    mfa_enabled = models.BooleanField(default=False)
+    mfa_secret = models.CharField(max_length=64, blank=True, default='')
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='platform_admin_invites',
+    )
+    invited_at = models.DateTimeField(null=True, blank=True)
+    last_login_at = models.DateTimeField(null=True, blank=True)
+    setup_token = models.CharField(max_length=128, blank=True, default='')
+    setup_token_expires_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['role', 'is_active'], name='pa_role_active_idx'),
+        ]
+
+    def __str__(self):
+        return f"PlatformAdmin<{self.user.username}, {self.role}>"
+
+    @classmethod
+    def active_admins(cls):
+        return cls.objects.filter(is_active=True).select_related('user')
+
+    @classmethod
+    def get_active(cls, user):
+        if not user or not getattr(user, 'is_authenticated', False):
+            return None
+        try:
+            pa = cls.objects.select_related('user').get(user=user, is_active=True)
+        except cls.DoesNotExist:
+            return None
+        return pa
+
+    @property
+    def is_owner(self):
+        return self.role == PlatformAdminRole.OWNER
+
+    @property
+    def is_admin(self):
+        return self.role in (PlatformAdminRole.OWNER, PlatformAdminRole.ADMIN)
+
+    @property
+    def is_billing(self):
+        return self.role == PlatformAdminRole.BILLING
+
+    @property
+    def is_support(self):
+        return self.role == PlatformAdminRole.SUPPORT

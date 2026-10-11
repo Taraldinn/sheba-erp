@@ -213,3 +213,51 @@ def enabled_features_for(tenant) -> list[dict]:
 
 def invalidate_tenant_feature_cache(tenant) -> None:
     invalidate_cache(tenant)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Global kill-switch (Phase 2.2 of the SaaS Owner Admin Panel plan).
+#
+# Independent of per-tenant features: a platform-owner-only flag that pauses
+# all write traffic on the central control plane during incidents. Reads
+# (GET) keep working so dashboards don't go dark.
+#
+# Backed by Django cache (LocMemCache in dev, Redis in prod via the same
+# RedisService) so the value is shared across processes and survives a
+# rolling restart.
+# ─────────────────────────────────────────────────────────────────────────────
+
+KILL_SWITCH_CACHE_KEY = 'saas:platform_write_lock'
+KILL_SWITCH_REASON_KEY = 'saas:platform_write_lock:reason'
+KILL_SWITCH_ACTOR_KEY = 'saas:platform_write_lock:actor'
+
+
+def is_platform_write_locked() -> bool:
+    from apps.core.redis_service import RedisService
+    val = RedisService.get(KILL_SWITCH_CACHE_KEY)
+    return bool(val)
+
+
+def get_platform_write_lock_state() -> dict:
+    from apps.core.redis_service import RedisService
+    return {
+        'locked': is_platform_write_locked(),
+        'reason': RedisService.get(KILL_SWITCH_REASON_KEY) or '',
+        'actor': RedisService.get(KILL_SWITCH_ACTOR_KEY) or '',
+    }
+
+
+def set_platform_write_lock(actor: str, reason: str = '') -> dict:
+    from apps.core.redis_service import RedisService
+    RedisService.set(KILL_SWITCH_CACHE_KEY, '1', ttl=None)
+    RedisService.set(KILL_SWITCH_REASON_KEY, reason, ttl=None)
+    RedisService.set(KILL_SWITCH_ACTOR_KEY, actor, ttl=None)
+    return get_platform_write_lock_state()
+
+
+def clear_platform_write_lock() -> dict:
+    from apps.core.redis_service import RedisService
+    RedisService.delete(KILL_SWITCH_CACHE_KEY)
+    RedisService.delete(KILL_SWITCH_REASON_KEY)
+    RedisService.delete(KILL_SWITCH_ACTOR_KEY)
+    return get_platform_write_lock_state()

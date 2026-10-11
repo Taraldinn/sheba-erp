@@ -23,9 +23,30 @@ from apps.core.saas_views import (
     SaaSPasswordResetView, SaaSPasswordResetConfirmView,
     SaaSEmployeeViewSet,
 )
+from apps.core.platform_admin_views import (
+    PlatformAdminInviteView,
+    PlatformAdminListView,
+    PlatformAdminDetailView,
+    PlatformAuditExportView,
+    PlatformBillingReconcileView,
+    PlatformFeatureFlagsRolloutView,
+    PlatformHealthDeepView,
+    PlatformImpersonationLogView,
+    PlatformImpersonationStopView,
+    PlatformJobsListView,
+    PlatformJobsRunView,
+    PlatformKillSwitchToggleView,
+    PlatformKillSwitchView,
+)
 from apps.core.organization_views import (
     SaaSOrganizationViewSet,
     MyOrganizationsView, MyOrganizationDetailView,
+    OrganizationDashboardView,
+    OrganizationTenantListCreateView,
+    OrganizationTenantDetailView,
+    OrganizationTenantActionView,
+    OrganizationSubscriptionsView,
+    PublicSaaSPackageListView,
 )
 from apps.authentication.views import (
     LoginView, CurrentUserView, LogoutView, StaffProfileViewSet, RoleViewSet, PermissionViewSet,
@@ -242,6 +263,22 @@ urlpatterns = [
     # SaaS Control Plane Endpoints (admin.shebafi.xyz)
     path('api/v1/saas/overview/', SaaSOverviewView.as_view(), name='saas-overview'),
 
+    # Phase 2: Platform Owner Admin endpoints (admin.example.com).
+    # Tag: 17. Platform Owner Admin. Owner-only role gates per endpoint.
+    path('api/v1/saas/kill-switch/', PlatformKillSwitchView.as_view(), name='pa-killswitch'),
+    path('api/v1/saas/kill-switch/toggle/', PlatformKillSwitchToggleView.as_view(), name='pa-killswitch-toggle'),
+    path('api/v1/saas/health/deep/', PlatformHealthDeepView.as_view(), name='pa-health-deep'),
+    path('api/v1/saas/feature-flags/rollout/', PlatformFeatureFlagsRolloutView.as_view(), name='pa-feature-rollout'),
+    path('api/v1/saas/billing/reconcile/', PlatformBillingReconcileView.as_view(), name='pa-billing-reconcile'),
+    path('api/v1/saas/impersonation-log/', PlatformImpersonationLogView.as_view(), name='pa-impersonation-log'),
+    path('api/v1/saas/impersonation/<uuid:tenant_id>/stop/', PlatformImpersonationStopView.as_view(), name='pa-impersonation-stop'),
+    path('api/v1/saas/platform-admin/invite/', PlatformAdminInviteView.as_view(), name='pa-invite'),
+    path('api/v1/saas/platform-admin/list/', PlatformAdminListView.as_view(), name='pa-list'),
+    path('api/v1/saas/platform-admin/<uuid:pa_id>/', PlatformAdminDetailView.as_view(), name='pa-detail'),
+    path('api/v1/saas/jobs/', PlatformJobsListView.as_view(), name='pa-jobs'),
+    path('api/v1/saas/jobs/run/', PlatformJobsRunView.as_view(), name='pa-jobs-run'),
+    path('api/v1/saas/audit/export/', PlatformAuditExportView.as_view(), name='pa-audit-export'),
+
     # Phase 35: ISP Admin Dashboard namespace (within the parent SaaS
     # subscriber tenant). Scoped to /api/v1/admin/* and gated by
     # IsIspAdminDashboard (admin/manager-only, top-level tenant only).
@@ -258,6 +295,27 @@ urlpatterns = [
     # Stage 2: ISP owner portal — my organizations & my organization detail
     path('api/v1/organizations/me/', MyOrganizationsView.as_view(), name='orgs-me'),
     path('api/v1/organizations/<uuid:id>/', MyOrganizationDetailView.as_view(), name='orgs-detail'),
+
+    # Stage 2.5: Organization dashboard + Tenants-under-organization
+    # An ISP owner (Organization admin) creates Tenants from their org
+    # dashboard, picking a SaaSPackage (the plan we sell them) at creation
+    # time. The package drives quotas (max_subscribers, max_routers, …) and
+    # auto-creates the initial ISP admin + TenantSubscription.
+    path('api/v1/organizations/<uuid:id>/dashboard/',
+         OrganizationDashboardView.as_view(), name='org-dashboard'),
+    path('api/v1/organizations/<uuid:id>/tenants/',
+         OrganizationTenantListCreateView.as_view(), name='org-tenants'),
+    path('api/v1/organizations/<uuid:id>/tenants/<str:tid>/',
+         OrganizationTenantDetailView.as_view(), name='org-tenant-detail'),
+    path('api/v1/organizations/<uuid:id>/tenants/<str:tid>/<str:action>/',
+         OrganizationTenantActionView.as_view(), name='org-tenant-action'),
+    path('api/v1/organizations/<uuid:id>/subscriptions/',
+         OrganizationSubscriptionsView.as_view(), name='org-subscriptions'),
+
+    # Public SaaSPackage list (auth-only) — used by the org-admin tenant
+    # creation form to populate the package picker.
+    path('api/v1/saas/packages/public/',
+         PublicSaaSPackageListView.as_view(), name='saas-packages-public'),
     
     # Customer Portal APIs
     path('api/v1/portal/', include('apps.customers.portal_urls')),

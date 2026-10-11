@@ -24,7 +24,7 @@ from .models import (
     TenantOnboardingRequest, SaaSPackage, TenantSubscription, SaaSPayment, DatabaseBackup,
     TenantApiToken, ApiApplication, TenantFeatureFlag
 )
-from .permissions import IsCentralAdmin
+from .permissions import IsCentralAdmin, IsCentralOrPlatformAdmin
 from .redis_service import RedisService
 from .cache_invalidation import (
     invalidate_saas_overview_cache,
@@ -427,7 +427,7 @@ class SaaSOverviewView(views.APIView):
     Central SaaS Control Plane telemetry and aggregate business metrics.
     Accessible exclusively by Central Super Administrators on admin.shebafi.xyz.
     """
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
 
     def get(self, request):
         cached = RedisService.get('saas:overview')
@@ -585,9 +585,9 @@ class SaaSOverviewView(views.APIView):
 class SaaSHealthView(views.APIView):
     """
     Platform-level operational health diagnostics for the SaaS Control Plane.
-    Strictly restricted to Central Platform Administrators via IsCentralAdmin.
+    Strictly restricted to Central Platform Administrators via IsCentralOrPlatformAdmin.
     """
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
 
     def get(self, request):
         from django.db import connection
@@ -620,7 +620,7 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
     """
     Control Plane Tenant Management: Onboard new ISPs, modify quotas, activate/suspend, delete, and impersonate.
     """
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     queryset = Tenant.objects.all().order_by('-created_at')
     serializer_class = SaaSTenantSerializer
 
@@ -1428,7 +1428,7 @@ class SaaSTenantRequestViewSet(viewsets.ModelViewSet):
     Incoming Tenant Onboarding Signup Requests Queue.
     Platform owners review, approve (auto-deploy), or reject requests.
     """
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     queryset = TenantOnboardingRequest.objects.all().order_by('-created_at')
     serializer_class = TenantOnboardingRequestSerializer
 
@@ -1644,7 +1644,7 @@ class SaaSPackageViewSet(viewsets.ModelViewSet):
     Platform Owner SaaS Packages / Pricing Tiers Management.
     Supports Create, Update, Delete, and Pause/Resume.
     """
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     queryset = SaaSPackage.objects.all().order_by('monthly_price')
     serializer_class = SaaSPackageSerializer
 
@@ -1698,7 +1698,7 @@ class SaaSPackageViewSet(viewsets.ModelViewSet):
 
 class SaaSSubscriptionViewSet(viewsets.ModelViewSet):
     """Tenant active software licensing contracts."""
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     queryset = TenantSubscription.objects.select_related('tenant', 'package').all().order_by('-created_at')
     serializer_class = TenantSubscriptionSerializer
 
@@ -1845,7 +1845,7 @@ class SaaSSubscriptionViewSet(viewsets.ModelViewSet):
 
 class SaaSPaymentViewSet(viewsets.ModelViewSet):
     """Platform revenue transactions collected from tenants for software licenses."""
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     queryset = SaaSPayment.objects.select_related('tenant', 'subscription').all().order_by('-paid_at')
     serializer_class = SaaSPaymentSerializer
 
@@ -1935,7 +1935,7 @@ class SaaSBackupViewSet(viewsets.ModelViewSet):
     Global Disaster Recovery Engine & Database Backup Management.
     Trigger on-demand backups, list archives, download, and export single-tenant datasets.
     """
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     queryset = DatabaseBackup.objects.select_related('tenant').all().order_by('-created_at')
     serializer_class = DatabaseBackupSerializer
 
@@ -2139,7 +2139,7 @@ class SaaSDomainViewSet(viewsets.ModelViewSet):
     """
     Control plane domain management across all tenants: primary hostnames, aliases, DNS status.
     """
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     queryset = TenantDomain.objects.select_related('tenant').all().order_by('hostname')
     serializer_class = SaaSDomainSerializer
 
@@ -2224,7 +2224,7 @@ class SaaSUserViewSet(viewsets.ViewSet):
     Global Software User Management: Directory, Creation, Status Toggling, Password Reset, and Deletion.
     Only accessible by Central Platform Administrators.
     """
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     serializer_class = SaaSUserItemSerializer
     queryset = User.objects.all()
 
@@ -2444,7 +2444,7 @@ class SaaSUserViewSet(viewsets.ViewSet):
 
 class SaaSAuditLogViewSet(viewsets.ModelViewSet):
     """Global SaaS Audit Trail across all tenants and control plane operations."""
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     queryset = AuditLog.objects.select_related('tenant').all().order_by('-timestamp')
     serializer_class = SaaSAuditLogSerializer
 
@@ -2663,7 +2663,7 @@ class SaaSLoginView(views.APIView):
 )
 class SaaSMeView(views.APIView):
     """Returns profile information for the authenticated Central SaaS Administrator."""
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
 
     def get(self, request):
         user = request.user
@@ -2690,7 +2690,7 @@ class SaaSLogoutView(views.APIView):
     Only the current AuthSession is revoked — does NOT delete the
     user's DRF Token (which would lock out other devices / sessions).
     """
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
 
     def post(self, request):
         from apps.authentication.sessions import (
@@ -2879,7 +2879,7 @@ class SaaSApiCredentialViewSet(viewsets.ModelViewSet):
     Super Admin ViewSet to manage, generate, rotate, revoke, and monitor secret API credentials
     for each ISP tenant.
     """
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     serializer_class = SaaSApiCredentialSerializer
     queryset = TenantApiToken.objects.select_related('tenant', 'created_by').all().order_by('-created_at')
 
@@ -3121,7 +3121,7 @@ class SaaSWireGuardViewSet(viewsets.ReadOnlyModelViewSet):
         WireGuardAuditEvent,
         WireGuardConfig,
     )
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     serializer_class = None  # populated lazily to avoid circular import
 
     def get_serializer_class(self):
@@ -3204,7 +3204,7 @@ class SaaSApplicationViewSet(viewsets.ModelViewSet):
     Super Admin ViewSet to register, manage, generate, rotate, revoke, and monitor
     External ISP Frontend Applications (e.g. Next.js, Mobile App) for each ISP tenant.
     """
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     serializer_class = SaaSApplicationSerializer
     queryset = ApiApplication.objects.select_related('tenant', 'created_by').all().order_by('-created_at')
 
@@ -3410,7 +3410,7 @@ class TenantFeatureFlagBulkSetSerializer(serializers.Serializer):
 class TenantFeatureFlagViewSet(viewsets.ModelViewSet):
     """Central control-plane endpoint for per-tenant feature overrides."""
 
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
     queryset = TenantFeatureFlag.objects.select_related('tenant', 'enabled_by')
     serializer_class = TenantFeatureFlagSerializer
 
@@ -3582,7 +3582,7 @@ class TenantFeatureFlagViewSet(viewsets.ModelViewSet):
 class SaaSFeatureCatalogView(views.APIView):
     """List every feature in :data:`FEATURE_REGISTRY` with metadata."""
 
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
 
     def get(self, request):
         from .features import FEATURE_REGISTRY
@@ -3608,7 +3608,7 @@ class SaaSFeatureMatrixView(views.APIView):
     HTTP calls.
     """
 
-    permission_classes = [permissions.IsAuthenticated, IsCentralAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
 
     def get(self, request):
         from .features import FEATURE_REGISTRY, is_feature_enabled
@@ -3690,7 +3690,7 @@ class SaaSEmployeeViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if settings.DEBUG:
             return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated(), IsCentralAdmin()]
+        return [permissions.IsAuthenticated(), IsCentralOrPlatformAdmin()]
 
     def _ensure_initial_seeds(self):
         if Employee.objects.count() >= 6:

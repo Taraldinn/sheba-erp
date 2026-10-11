@@ -99,9 +99,34 @@ class IsCentralAdmin(permissions.BasePermission):
     """
     Restricts access to Central Platform Administrators on the Control Plane.
     ISP staff, API Key clients, and Application callers are completely blocked.
+
+    DEPRECATED: Use IsCentralOrPlatformAdmin instead. Kept as an alias for
+    backwards compatibility with any third-party code that imports it. The
+    deprecation timeline (see docs/runbooks/platform-admin-migration.md) is:
+    Week 0–2: both work identically.
+    Week 4: this alias is removed; IsCentralOrPlatformAdmin is the only gate.
     """
     def has_permission(self, request, view):
-        # API Keys and applications are strictly forbidden from accessing SaaS Control Plane endpoints
+        return IsCentralOrPlatformAdmin().has_permission(request, view)
+
+
+class IsCentralOrPlatformAdmin(permissions.BasePermission):
+    """
+    Central control plane gate for the SaaS owner plan (admin.example.com).
+
+    Allows either:
+    - A Django superuser (legacy is_superuser == True shortcut), OR
+    - A user with an active PlatformAdmin row (any role, any tier).
+
+    API Keys, applications, and tenant-scoped StaffMembership holders are
+    always denied. The role-specific permission classes
+    (IsPlatformBilling, IsPlatformSupport, IsPlatformOwnerOnly) provide
+    narrower gates that layer on top of this one for write operations.
+    """
+    message = "Central platform admin access required."
+
+    def has_permission(self, request, view):
+        # API Keys and applications are strictly forbidden from the control plane.
         if (
             getattr(request, 'auth_type', None) == 'api_key'
             or hasattr(request.user, 'api_token')
@@ -119,7 +144,57 @@ class IsCentralAdmin(permissions.BasePermission):
         # Any tenant-scoped membership holder is denied control-plane access.
         if StaffMembership.objects.filter(user=request.user, is_active=True).exists():
             return False
-        return False  # non-superuser always denied
+        # Active PlatformAdmin (any role) passes the control-plane gate.
+        from apps.authentication.models import PlatformAdmin
+        pa = PlatformAdmin.get_active(request.user)
+        if pa is not None:
+            request.platform_admin = pa
+            return True
+        return False
+
+
+class _PlatformRoleGate(permissions.BasePermission):
+    """
+    Base for role-narrowed platform-admin gates. Layered on top of
+    IsCentralOrPlatformAdmin — this class does not perform authentication
+    itself; it only checks the role of the resolved PlatformAdmin.
+    """
+    allowed_roles = ()
+
+    def has_permission(self, request, view):
+        # The base gate must have already passed; if not, refuse here.
+        if not IsCentralOrPlatformAdmin().has_permission(request, view):
+            return False
+        if request.user.is_superuser:
+            return True
+        pa = getattr(request, 'platform_admin', None) or PlatformAdmin.get_active(request.user)
+        if pa is None:
+            return False
+        return pa.role in self.allowed_roles
+
+
+class IsPlatformOwnerOnly(_PlatformRoleGate):
+    """OWNER-only. Kill-switch, invite, role-change, remove-admin."""
+    message = "Platform Owner role required."
+    allowed_roles = ('OWNER',)
+
+
+class IsPlatformOwnerOrAdmin(_PlatformRoleGate):
+    """OWNER or ADMIN. Tenant/package CRUD, audit export, jobs."""
+    message = "Platform Owner or Admin role required."
+    allowed_roles = ('OWNER', 'ADMIN')
+
+
+class IsPlatformBilling(_PlatformRoleGate):
+    """OWNER, ADMIN, or BILLING. Read-only on revenue endpoints."""
+    message = "Platform Billing access required."
+    allowed_roles = ('OWNER', 'ADMIN', 'BILLING')
+
+
+class IsPlatformSupport(_PlatformRoleGate):
+    """Any active platform admin. Read-only support access."""
+    message = "Platform Support access required."
+    allowed_roles = ('OWNER', 'ADMIN', 'BILLING', 'SUPPORT')
 
 
 class IsApplicationAuthenticated(permissions.BasePermission):

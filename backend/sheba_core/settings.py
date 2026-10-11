@@ -240,7 +240,18 @@ SPECTACULAR_SETTINGS = {
         'displayOperationId': False,
         'docExpansion': 'none',
         'filter': True,
-        'tagsSorter': 'alpha',
+        # Our tags follow a "<N>. <Title>" pattern (e.g. "1. Authentication").
+        # The default 'alpha' sorter breaks numerical ordering ("1." < "10." <
+        # "11." < ... < "2.") so we sort by the leading number instead.
+        'tagsSorter': (
+            "(a, b) => {"
+            "  const re = /^(\\d+)\\./;"
+            "  const na = parseInt((a.match(re) || [0,0])[1], 10);"
+            "  const nb = parseInt((b.match(re) || [0,0])[1], 10);"
+            "  if (na !== nb) return na - nb;"
+            "  return a.localeCompare(b);"
+            "}"
+        ),
         'tryItOutEnabled': True,
         'syntaxHighlight': {
             'activate': True,
@@ -296,6 +307,7 @@ SPECTACULAR_SETTINGS = {
         {'name': '17. Customer Self-Care Portal', 'description': 'Subscriber self-service portal, usage stats, online payments, and support ticketing.'},
         {'name': '18. Financial Reconciliations & Ledgers', 'description': 'Double-entry ledger journal, advance credit adjustments, compensating reversals, and reconciliation audits.'},
         {'name': '19. Production Readiness & Observability Probes', 'description': 'Comprehensive production readiness verification, database latencies, Redis lock safety, and disaster recovery status.'},
+        {'name': '20. Organization Admin Portal', 'description': 'ISP-owner portal — organizations, tenants under an organization, subscription roll-ups, and the org-admin dashboard.'},
     ],
     'APPEND_COMPONENTS': {
         'securitySchemes': {
@@ -313,6 +325,11 @@ SPECTACULAR_SETTINGS = {
             },
         }
     },
+    'POSTPROCESSING_HOOKS': [
+        'drf_spectacular.hooks.postprocess_schema_enums',
+        'sheba_core.openapi.sort_tags_by_prefix',
+        'sheba_core.openapi.organize_swagger_tags_hook',
+    ],
 }
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
@@ -326,6 +343,10 @@ DEFAULT_CORS_ORIGINS = [
     'https://app.shebafi.xyz',
     'https://shebafi.xyz',
     'https://api.shebafi.xyz',
+    # Phase 4 of the SaaS Owner Admin Panel plan: the canonical admin panel
+    # domain. Kept in sync with SUPER_ADMIN_DOMAIN above.
+    'https://admin.example.com',
+    'http://admin.example.com',
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:3002',
@@ -396,6 +417,17 @@ _env_csrf_trusted = env.list('CSRF_TRUSTED_ORIGINS', default=[])
 CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(
     DEFAULT_CSRF_TRUSTED_ORIGINS + [_normalize_origin(o) for o in _env_csrf_trusted if o.strip()]
 ))
+
+# ─── Platform Owner Admin V2 (Phase 4.2) ─────────────────────────────────────
+# Feature flag for the new PlatformAdmin model + IsCentralOrPlatformAdmin gate.
+# Cutover timeline (see docs/runbooks/platform-admin-migration.md):
+#   Week 0: PLATFORM_ADMIN_V2_ENABLED=False, ship behind flag, OFF
+#   Week 1: enable on staging, smoke test
+#   Week 2: enable on prod, all is_superuser=True users get PA(OWNER) rows
+#   Week 4: remove the flag and the IsCentralAdmin alias
+# Default: ON in local dev (so the new endpoints work out of the box);
+# OFF in production until the cutover is ready.
+PLATFORM_ADMIN_V2_ENABLED = env.bool('PLATFORM_ADMIN_V2_ENABLED', default=IS_LOCAL)
 
 # ─── Security Headers ────────────────────────────────────────────────────────
 SECURE_CONTENT_TYPE_NOSNIFF = True

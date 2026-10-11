@@ -675,6 +675,47 @@ class AuditLog(models.Model):
         return f"[{self.timestamp.strftime('%Y-%m-%d %H:%M')}] {self.actor_username}: {self.action} on {self.module}"
 
 
+class ImpersonationLog(models.Model):
+    """
+    Records every platform-admin impersonation of a tenant.
+
+    One row per (start, end) tuple. While impersonation is active, the row
+    has ``ended_at = None``. The session is force-stoppable from the SaaS
+    owner admin panel (see Phase 2 endpoint ``impersonation/<tenant>/stop/``).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='impersonation_sessions'
+    )
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='impersonation_sessions'
+    )
+    started_at = models.DateTimeField(default=timezone.now)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    reason = models.CharField(max_length=200, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    force_stopped_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='impersonation_force_stops',
+    )
+
+    class Meta:
+        ordering = ['-started_at']
+        indexes = [
+            models.Index(fields=['actor', 'started_at'], name='impers_actor_ts_idx'),
+            models.Index(fields=['tenant', 'started_at'], name='impers_tenant_ts_idx'),
+            models.Index(fields=['ended_at'], name='impers_ended_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.actor.username} -> {self.tenant.slug} @ {self.started_at:%Y-%m-%d %H:%M}"
+
+    @property
+    def is_active(self):
+        return self.ended_at is None
+
+
 class TenantOnboardingRequest(models.Model):
     """Pending queue for new ISP tenant onboarding / signup requests."""
     STATUS_CHOICES = [
