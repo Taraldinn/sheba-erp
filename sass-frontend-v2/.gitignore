@@ -17,7 +17,9 @@ todos.json
 # Cloudflare / OpenNext build output + local secrets
 .open-next/
 dev.vars
+.dev.vars
 cloudflare-env.d.ts
+dist-test/
 
 # typescript
 *.tsbuildinfo

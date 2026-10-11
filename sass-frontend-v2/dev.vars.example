@@ -12,6 +12,8 @@ NEXTJS_ENV=development
 # These mirror `NEXT_PUBLIC_*` in `.env.local`; the build inlines them.  Set
 # them here so `wrangler dev` can route to your live API.
 NEXT_PUBLIC_API_URL=https://api.shebafi.xyz/api/v1
+NEXT_PUBLIC_API_BASE_URL=https://api.shebafi.xyz/api/v1
+NEXT_PUBLIC_SAAS_API_BASE_URL=
 NEXT_PUBLIC_SUPER_ADMIN_HOST=admin.shebafi.xyz
 NEXT_PUBLIC_ISP_HOST=app.shebafi.xyz
 NEXT_PUBLIC_PUBLIC_HOME_HOST=shebafi.xyz
@@ -19,3 +21,6 @@ NEXT_PUBLIC_TENANT_ROOT_DOMAIN=shebafi.xyz
 NEXT_PUBLIC_KNOWN_APEX_DOMAINS=shebafi.xyz
 NEXT_PUBLIC_PUBLIC_SIGNUP_ENABLED=true
 NEXT_PUBLIC_SHOW_DEV_PORTAL_SWITCHER=false
+
+# Non-NEXT_PUBLIC secrets (if any in the future) belong in `wrangler secret put`,
+# not in dev.vars. This file is only for build-time inlined public values.
