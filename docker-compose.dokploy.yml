@@ -93,6 +93,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        CTX_PREFIX: .
     container_name: sheba-celery-beat
     restart: unless-stopped
     command: celery -A sheba_core beat --loglevel=info --schedule=/app/media/celerybeat-schedule.db

@@ -1,6 +1,8 @@
 # Ignore all frontend and legacy code completely
 frontend/
 php-legecy-shebafi/
+sass-frontend-v2/
+docs/
 *.sql
 
 # Backend local environments and sqlite
@@ -11,6 +13,12 @@ backend/*.sqlite3
 backend/db.sqlite3
 backend/backups/
 backend/.env
+backend/.env.local
+backend/.env.production
+backend/staticfiles/
+backend/.vscode/
+backend/edge-bff/
+backend/scripts/
 
 # Caches and logs
 __pycache__/

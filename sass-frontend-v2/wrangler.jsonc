@@ -1,0 +1,65 @@
+// ==============================================================================
+// Sheba Frontend (Next.js 16 App Router) — Cloudflare Workers deployment
+// Generated for @opennextjs/cloudflare.  Do not edit `main` / `assets.directory`
+// unless you also change the build output layout.
+// Docs: https://opennext.js.org/cloudflare/get-started
+// ==============================================================================
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sheba-frontend",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-05-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  // Static assets (client bundle, hashed JS/CSS) are served by the asset worker
+  // bound as `ASSETS` to `.open-next/assets`.  OpenNext wires this up.
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  // `WORKER_SELF_REFERENCE` lets the worker invoke itself (used by OpenNext for
+  // the warmer / revalidation queue).  Keep `service` in sync with `name`.
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "sheba-frontend"
+    }
+  ],
+
+  // Incremental cache for ISR / on-demand revalidation.  Uncomment after
+  // creating the R2 bucket with:  wrangler r2 bucket create sheba-frontend-cache
+  // "r2_buckets": [
+  //   {
+  //     "binding": "NEXT_INC_CACHE_R2_BUCKET",
+  //     "bucket_name": "sheba-frontend-cache"
+  //   }
+  // ],
+
+  // Cloudflare Images (paid) is the only fully-supported optimization backend
+  // on Workers.  If you do not enable this, `<Image>` falls back to a custom
+  // loader or is served unchanged.  See docs/FRONTEND_HOST_DEPLOYMENT.md for
+  // background on image strategy in this multi-tenant app.
+  // "images": {
+  //   "binding": "IMAGES"
+  // },
+
+  // Surface build / branch info on every deploy.  Override per-env in the
+  // dashboard if you need separate staging + production worker names.
+  "observability": {
+    "enabled": true
+  },
+
+  // Multi-host production topology:
+  //   apex  shebafi.xyz        → /  (public landing)
+  //   saas  admin.shebafi.xyz  → /saas/* (platform control plane)
+  //   isp   app.shebafi.xyz    → /isp/* (ISP owner portal)
+  //   *.shebafi.xyz            → /tenant/* (per-tenant subdomains)
+  // The Next.js middleware (src/middleware.ts) inspects the Host header and
+  // rewrites / redirects to the correct portal.  Wildcard routes are added
+  // per-env in the Cloudflare dashboard; this file only declares the worker
+  // itself, not the DNS records.
+  "vars": {
+    "NEXTJS_ENV": "production"
+  }
+}

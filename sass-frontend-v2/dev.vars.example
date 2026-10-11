@@ -1,0 +1,21 @@
+# ==============================================================================
+# Cloudflare local development secrets (mirrors what `wrangler secret put` will
+# store in the dashboard for production).
+#
+# Copy to `dev.vars` and fill in real values.  `dev.vars` is git-ignored.
+# ==============================================================================
+
+# Tells OpenNext which .env file Next.js should load.  Leave at "development"
+# for `wrangler dev`; the production build defaults to "production" automatically.
+NEXTJS_ENV=development
+
+# These mirror `NEXT_PUBLIC_*` in `.env.local`; the build inlines them.  Set
+# them here so `wrangler dev` can route to your live API.
+NEXT_PUBLIC_API_URL=https://api.shebafi.xyz/api/v1
+NEXT_PUBLIC_SUPER_ADMIN_HOST=admin.shebafi.xyz
+NEXT_PUBLIC_ISP_HOST=app.shebafi.xyz
+NEXT_PUBLIC_PUBLIC_HOME_HOST=shebafi.xyz
+NEXT_PUBLIC_TENANT_ROOT_DOMAIN=shebafi.xyz
+NEXT_PUBLIC_KNOWN_APEX_DOMAINS=shebafi.xyz
+NEXT_PUBLIC_PUBLIC_SIGNUP_ENABLED=true
+NEXT_PUBLIC_SHOW_DEV_PORTAL_SWITCHER=false

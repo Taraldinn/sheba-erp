@@ -14,6 +14,11 @@ dist-ssr
 __unconfig*
 todos.json
 
+# Cloudflare / OpenNext build output + local secrets
+.open-next/
+dev.vars
+cloudflare-env.d.ts
+
 # typescript
 *.tsbuildinfo
 

@@ -5,6 +5,11 @@ This repository is optimized for a decoupled cloud architecture:
 - **Backend API & Background Workers**: Deployed on a Linux VPS using **Dokploy** (Docker / Docker Compose).
 - **Frontend Portals & Marketing**: Deployed globally on **Vercel** (Next.js 16 with multi-tenant subdomain routing).
 
+> **Want to host the frontend on Cloudflare Workers instead?** See
+> `sass-frontend-v2/CLOUDFLARE_DEPLOY.md`. The OpenNext adapter
+> (`@opennextjs/cloudflare`) replaces Vercel with no other code changes; the
+> Django backend + Dokploy deployment stays identical.
+
 ---
 
 ## Part 1: Backend Deployment on Dokploy (VPS)
