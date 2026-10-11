@@ -27,3 +27,5 @@ dist-test/
 # test and next build
 test-results/
 .next/
+.vinext/
+.cloudflare/
