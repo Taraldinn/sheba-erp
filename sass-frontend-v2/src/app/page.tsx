@@ -25,6 +25,18 @@ export default function Home() {
     const auth = useAuth();
     const router = useRouter();
 
+    // Clear any leftover dev-portal override from a previous session so a
+    // fresh visitor on `localhost` always lands on the marketing page.
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            window.localStorage.removeItem('sheba_dev_portal_override');
+            window.localStorage.removeItem('sheba_dev_tenant_override');
+        } catch {
+            /* localStorage may be unavailable (private mode) — that's fine */
+        }
+    }, []);
+
     // If the visitor is already authed as a saas/isp/tenant user, send them home.
     useEffect(() => {
         if (portal.portal === 'SUPER_ADMIN') {
