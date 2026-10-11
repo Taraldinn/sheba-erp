@@ -1,9 +1,26 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { STORAGE_KEYS } from './lib/api/storage';
+import { resolvePortal } from './lib/portal/resolve-portal';
 
 export function middleware(request: NextRequest) {
     const pathname = request.nextUrl.pathname;
+    const rawHost = request.headers.get('host') || request.nextUrl.hostname;
+    const hostname = rawHost.split(':')[0].toLowerCase();
+
+    // 0. Subdomain root routing
+    if (pathname === '/') {
+        const resolution = resolvePortal(hostname);
+        if (resolution.portal === 'SUPER_ADMIN') {
+            return NextResponse.redirect(new URL('/saas', request.url));
+        }
+        if (resolution.portal === 'ISP_ADMIN') {
+            return NextResponse.redirect(new URL('/isp', request.url));
+        }
+        if (resolution.portal === 'TENANT') {
+            return NextResponse.redirect(new URL('/tenant', request.url));
+        }
+    }
 
     // SaaS Control Plane Protection
     if (pathname.startsWith('/saas') && !pathname.startsWith('/saas/login')) {
@@ -39,5 +56,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/saas/:path*', '/tenant/:path*', '/isp/:path*'],
+    matcher: ['/', '/saas/:path*', '/tenant/:path*', '/isp/:path*'],
 };

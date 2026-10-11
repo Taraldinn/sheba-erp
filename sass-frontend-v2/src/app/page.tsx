@@ -12,11 +12,16 @@ export default function Home() {
     const router = useRouter();
 
     useEffect(() => {
-        if (auth.isLoading) return;
-        if (auth.isAuthenticated && portal.portal === 'PUBLIC_HOME') {
-            router.push(auth.dashboardUrl);
+        if (portal.portal === 'SUPER_ADMIN') {
+            router.replace('/saas');
+        } else if (portal.portal === 'ISP_ADMIN') {
+            router.replace('/isp');
+        } else if (portal.portal === 'TENANT') {
+            router.replace('/tenant');
+        } else if (auth.isAuthenticated && portal.portal === 'PUBLIC_HOME') {
+            router.replace(auth.dashboardUrl);
         }
-    }, [auth.isLoading, auth.isAuthenticated, portal.portal, router, auth.dashboardUrl]);
+    }, [portal.portal, auth.isAuthenticated, auth.dashboardUrl, router]);
 
     if (portal.portal === 'UNKNOWN') {
         return (

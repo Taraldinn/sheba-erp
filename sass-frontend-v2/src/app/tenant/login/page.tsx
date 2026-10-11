@@ -26,7 +26,10 @@ export default function TenantLogin() {
         mutationFn: () => tenantApi.login({ username, password, tenant: inferredSlug || undefined }),
         onSuccess: () => {
             setError(null);
-            router.push('/tenant');
+            const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+            const nextParam = params?.get('next');
+            const target = nextParam && nextParam.startsWith('/') ? nextParam : '/tenant';
+            window.location.href = target;
         },
         onError: (e: Error) => setError(e.message || 'Login failed'),
     });
