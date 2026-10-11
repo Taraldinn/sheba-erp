@@ -33,7 +33,13 @@ export default function IspTenants() {
                 <p className="text-sm text-muted-foreground">Tenants you administer on this ISP workspace.</p>
             </header>
             {my.error && <ErrorAlert title="Failed to load tenants" error={my.error} />}
-            <DataTable<IspAdminTenant> data={my.data?.items} columns={columns} isLoading={my.isLoading} error={my.error} />
+            <DataTable<IspAdminTenant>
+                data={my.data?.items}
+                columns={columns}
+                isLoading={my.isLoading}
+                error={my.error}
+                rowKey={row => String(row.id)}
+            />
         </div>
     );
 }

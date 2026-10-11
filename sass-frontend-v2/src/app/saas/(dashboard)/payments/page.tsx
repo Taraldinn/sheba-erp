@@ -24,7 +24,7 @@ export default function SaasPayments() {
                 return <Badge variant={s === 'succeeded' ? 'default' : s === 'failed' ? 'destructive' : 'secondary'}>{s}</Badge>;
             },
         },
-        { id: 'created_at', header: 'Paid at', cell: (row: any) => formatDateTime(row.tenant_name as string) },
+        { id: 'created_at', header: 'Paid at', cell: (row: any) => formatDateTime(row.created_at as string) },
     ];
     return (
         <div className="space-y-6">
@@ -33,7 +33,13 @@ export default function SaasPayments() {
                 <p className="text-sm text-muted-foreground">Tenant subscription payments.</p>
             </header>
             {list.error && <ErrorAlert title="Failed to load payments" error={list.error} />}
-            <DataTable<SaasPayment> data={list.data} columns={columns} isLoading={list.isLoading} error={list.error} />
+            <DataTable<SaasPayment>
+                data={list.data}
+                columns={columns}
+                isLoading={list.isLoading}
+                error={list.error}
+                rowKey={row => String(row.id)}
+            />
         </div>
     );
 }

@@ -90,7 +90,13 @@ export default function IspCustomers() {
                 <Button variant="outline" onClick={() => updateSearch({ search: draftSearch || undefined })}>Search</Button>
             </div>
             {customers.error && <ErrorAlert title="Failed to load customers" error={customers.error} />}
-            <DataTable<Customer> data={customers.data} columns={columns} isLoading={customers.isLoading} error={customers.error} />
+            <DataTable<Customer>
+                data={customers.data}
+                columns={columns}
+                isLoading={customers.isLoading}
+                error={customers.error}
+                rowKey={row => String(row.id)}
+            />
             <CreateCustomerDialog
                 open={showCreate}
                 onOpenChange={setShowCreate}

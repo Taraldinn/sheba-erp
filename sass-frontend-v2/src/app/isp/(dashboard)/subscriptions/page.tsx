@@ -47,7 +47,13 @@ export default function IspSubscriptions() {
                 <p className="text-sm text-muted-foreground">All customer subscriptions across the ISP.</p>
             </header>
             {list.error && <ErrorAlert title="Failed to load subscriptions" error={list.error} />}
-            <DataTable<CustomerSubscription> data={list.data} columns={columns} isLoading={list.isLoading} error={list.error} />
+            <DataTable<CustomerSubscription>
+                data={list.data}
+                columns={columns}
+                isLoading={list.isLoading}
+                error={list.error}
+                rowKey={row => String(row.id)}
+            />
         </div>
     );
 }

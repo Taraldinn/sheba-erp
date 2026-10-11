@@ -33,7 +33,13 @@ export default function IspPayments() {
                 <p className="text-sm text-muted-foreground">Customer payment transactions.</p>
             </header>
             {list.error && <ErrorAlert title="Failed to load payments" error={list.error} />}
-            <DataTable<PaymentTransaction> data={list.data} columns={columns} isLoading={list.isLoading} error={list.error} />
+            <DataTable<PaymentTransaction>
+                data={list.data}
+                columns={columns}
+                isLoading={list.isLoading}
+                error={list.error}
+                rowKey={row => String(row.id)}
+            />
         </div>
     );
 }

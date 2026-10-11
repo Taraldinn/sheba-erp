@@ -146,9 +146,8 @@ export default function ImpersonationLogPage() {
             <DataTable
                 columns={columns}
                 data={logsQuery.data || []}
-                loading={logsQuery.isLoading}
-                emptyTitle="No impersonation records found"
-                emptyDescription={activeOnly ? "There are currently no active operator impersonation sessions." : "No impersonation events have been recorded."}
+                isLoading={logsQuery.isLoading}
+                rowKey={(row: any) => String(row.id)}
             />
         </div>
     );

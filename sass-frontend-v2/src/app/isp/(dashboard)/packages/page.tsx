@@ -31,7 +31,13 @@ export default function IspPackages() {
                 <p className="text-sm text-muted-foreground">ISP packages and MikroTik profiles.</p>
             </header>
             {list.error && <ErrorAlert title="Failed to load packages" error={list.error} />}
-            <DataTable<IspPackage> data={list.data} columns={columns} isLoading={list.isLoading} error={list.error} />
+            <DataTable<IspPackage>
+                data={list.data}
+                columns={columns}
+                isLoading={list.isLoading}
+                error={list.error}
+                rowKey={row => String(row.id)}
+            />
         </div>
     );
 }

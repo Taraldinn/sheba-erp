@@ -185,9 +185,8 @@ export default function PlatformAdminsPage() {
             <DataTable
                 columns={columns}
                 data={adminsQuery.data || []}
-                loading={adminsQuery.isLoading}
-                emptyTitle="No platform administrators found"
-                emptyDescription="Invite your ops or billing team members using the button above."
+                isLoading={adminsQuery.isLoading}
+                rowKey={(row: any) => String(row.id)}
             />
 
             {/* Invite Modal */}

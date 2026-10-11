@@ -22,7 +22,7 @@ export default function SaasSubscriptions() {
                 return <Badge variant={s === 'active' ? 'default' : 'secondary'}>{s}</Badge>;
             },
         },
-        { id: 'current_period_end', header: 'Renews', cell: (row: any) => formatDate(row.tenant_name as string) },
+        { id: 'current_period_end', header: 'Renews', cell: (row: any) => formatDate(row.current_period_end as string) },
     ];
     return (
         <div className="space-y-6">
@@ -31,7 +31,13 @@ export default function SaasSubscriptions() {
                 <p className="text-sm text-muted-foreground">Tenant SaaS subscription status and renewal dates.</p>
             </header>
             {list.error && <ErrorAlert title="Failed to load subscriptions" error={list.error} />}
-            <DataTable<SaasSubscription> data={list.data} columns={columns} isLoading={list.isLoading} error={list.error} />
+            <DataTable<SaasSubscription>
+                data={list.data}
+                columns={columns}
+                isLoading={list.isLoading}
+                error={list.error}
+                rowKey={row => String(row.id)}
+            />
         </div>
     );
 }

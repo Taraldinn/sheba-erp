@@ -43,7 +43,13 @@ export default function IspRouters() {
                 <p className="text-sm text-muted-foreground">MikroTik routers across all branches.</p>
             </header>
             {list.error && <ErrorAlert title="Failed to load routers" error={list.error} />}
-            <DataTable<Router> data={list.data} columns={columns} isLoading={list.isLoading} error={list.error} />
+            <DataTable<Router>
+                data={list.data}
+                columns={columns}
+                isLoading={list.isLoading}
+                error={list.error}
+                rowKey={row => String(row.id)}
+            />
         </div>
     );
 }

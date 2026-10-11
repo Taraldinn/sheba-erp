@@ -34,7 +34,13 @@ export default function IspInvoices() {
                 <p className="text-sm text-muted-foreground">Customer invoices across the ISP.</p>
             </header>
             {list.error && <ErrorAlert title="Failed to load invoices" error={list.error} />}
-            <DataTable<Invoice> data={list.data} columns={columns} isLoading={list.isLoading} error={list.error} />
+            <DataTable<Invoice>
+                data={list.data}
+                columns={columns}
+                isLoading={list.isLoading}
+                error={list.error}
+                rowKey={row => String(row.id)}
+            />
         </div>
     );
 }

@@ -99,9 +99,8 @@ export default function BillingReconcilePage() {
                     <DataTable
                         columns={columns}
                         data={(data?.packages || []) as PackageRow[]}
-                        loading={reconcileQuery.isLoading}
-                        emptyTitle="No packages configured"
-                        emptyDescription="Create packages in the Packages menu to establish billing baselines."
+                        isLoading={reconcileQuery.isLoading}
+                        rowKey={(row: any) => String(row.id)}
                     />
                 </CardContent>
             </Card>

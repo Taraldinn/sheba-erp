@@ -60,7 +60,13 @@ export default function SaasOnboarding() {
                 <p className="text-sm text-muted-foreground">Approve or reject new ISP onboarding applications.</p>
             </header>
             {list.error && <ErrorAlert title="Failed to load onboarding" error={list.error} />}
-            <DataTable<OnboardingRequest> data={list.data} columns={columns} isLoading={list.isLoading} error={list.error} />
+            <DataTable<OnboardingRequest>
+                data={list.data}
+                columns={columns}
+                isLoading={list.isLoading}
+                error={list.error}
+                rowKey={row => String(row.id)}
+            />
         </div>
     );
 }
