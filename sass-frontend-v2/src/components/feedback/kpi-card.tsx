@@ -5,6 +5,7 @@ export interface KpiCardProps {
     label: string;
     value: ReactNode;
     hint?: ReactNode;
+    subtext?: ReactNode;
     trend?: 'up' | 'down' | 'flat';
     /** When true, render the value in a destructive colour. */
     danger?: boolean;
@@ -17,7 +18,8 @@ export interface KpiCardProps {
  * or a short string. The hint slot is for "% change vs last month" type
  * annotations and is rendered in muted text.
  */
-export function KpiCard({ label, value, hint, danger, icon, testId }: KpiCardProps) {
+export function KpiCard({ label, value, hint, subtext, danger, icon, testId }: KpiCardProps) {
+    const hintText = hint ?? subtext;
     return (
         <Card data-testid={testId}>
             <CardContent className="flex flex-col gap-2 p-5">
@@ -28,7 +30,7 @@ export function KpiCard({ label, value, hint, danger, icon, testId }: KpiCardPro
                 <div className={`text-2xl font-semibold tabular-nums ${danger ? 'text-destructive' : 'text-foreground'}`}>
                     {value}
                 </div>
-                {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
+                {hintText && <div className="text-xs text-muted-foreground">{hintText}</div>}
             </CardContent>
         </Card>
     );

@@ -55,7 +55,17 @@ function readToken(slot: TokenSlot): string | null {
 }
 
 function readTenantSlug(opts: FetchOptions): string | null {
-    return opts.tenantSlug || storage.get(STORAGE_KEYS.tenantSlug);
+    if (opts.tenantSlug) return opts.tenantSlug;
+    if (typeof window !== 'undefined') {
+        const host = window.location.hostname.toLowerCase();
+        if (host.endsWith('.localhost')) {
+            const sub = host.replace(/\.localhost$/, '');
+            if (sub && sub !== 'admin' && sub !== 'app' && sub !== 'saas' && sub !== 'control') {
+                return sub;
+            }
+        }
+    }
+    return storage.get(STORAGE_KEYS.tenantSlug);
 }
 
 function buildHeaders(token: string | null, opts: FetchOptions): Headers {

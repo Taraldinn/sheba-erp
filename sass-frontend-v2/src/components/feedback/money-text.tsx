@@ -1,5 +1,6 @@
 export interface MoneyTextProps {
-    value: number | string | null | undefined;
+    value?: number | string | null | undefined;
+    amount?: number | string | null | undefined;
     currency?: string;
     className?: string;
     /** When true, display in red if value is negative. */
@@ -20,11 +21,12 @@ function formatNumber(value: number, currency: string): string {
  * Render a currency-aware numeric value. Falls back to the raw value when it
  * is not numeric so the cell never crashes on a backend regression.
  */
-export function MoneyText({ value, currency = DEFAULT_CURRENCY, className, showSign }: MoneyTextProps) {
-    if (value === null || value === undefined || value === '') {
+export function MoneyText({ value, amount, currency = DEFAULT_CURRENCY, className, showSign }: MoneyTextProps) {
+    const raw = value ?? amount;
+    if (raw === null || raw === undefined || raw === '') {
         return <span className={className}>—</span>;
     }
-    const num = typeof value === 'number' ? value : Number(value);
+    const num = typeof raw === 'number' ? raw : Number(raw);
     if (Number.isNaN(num)) {
         return <span className={className}>{String(value)}</span>;
     }
