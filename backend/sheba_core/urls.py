@@ -51,6 +51,7 @@ from apps.core.organization_views import (
 from apps.core.public_onboarding_views import (
     PublicOnboardingView,
     PublicOnboardingStatusView,
+    PublicPackagesListView,
 )
 from apps.authentication.views import (
     LoginView, CurrentUserView, LogoutView, StaffProfileViewSet, RoleViewSet, PermissionViewSet,
@@ -327,6 +328,10 @@ urlpatterns = [
          PublicOnboardingView.as_view(), name='public-onboarding'),
     path('api/v1/public/onboarding/<uuid:request_id>/status/',
          PublicOnboardingStatusView.as_view(), name='public-onboarding-status'),
+    # Anonymous list of active public SaaS packages — used by the
+    # marketing homepage pricing strip and the public onboarding wizard.
+    path('api/v1/public/packages/',
+         PublicPackagesListView.as_view(), name='public-packages-list'),
     
     # Customer Portal APIs
     path('api/v1/portal/', include('apps.customers.portal_urls')),

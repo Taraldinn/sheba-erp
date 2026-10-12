@@ -316,3 +316,41 @@ class PublicOnboardingStatusView(views.APIView):
             'created_at': obj.created_at.isoformat() if obj.created_at else None,
             'updated_at': obj.updated_at.isoformat() if obj.updated_at else None,
         })
+
+
+@extend_schema(
+    tags=['22. Public Onboarding'],
+    summary='List active public SaaS packages',
+    description=(
+        'Public, anonymous-facing read of every active, public SaaSPackage. '
+        'Used by the marketing homepage pricing strip and the public '
+        'onboarding wizard. Returns a flat array (no pagination wrapper).'
+    ),
+    responses={
+        200: OpenApiResponse(description='Array of active public packages.'),
+    },
+)
+class PublicPackagesListView(views.APIView):
+    """Anonymous list of active public SaaSPackages."""
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+    throttle_classes = [PublicOnboardingThrottle]
+
+    def get(self, request):
+        qs = SaaSPackage.objects.filter(
+            is_active=True, is_public=True,
+        ).order_by('monthly_price')
+        out = []
+        for p in qs:
+            out.append({
+                'id': str(p.id),
+                'name': p.name,
+                'code': p.code,
+                'description': p.description or '',
+                'monthly_price': str(p.monthly_price),
+                'yearly_price': str(p.yearly_price),
+                'max_subscribers': p.max_subscribers,
+                'max_routers': p.max_routers,
+                'features': p.features or [],
+            })
+        return Response(out)

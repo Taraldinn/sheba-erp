@@ -165,3 +165,50 @@ class PublicOnboardingHappyPathTests(TestCase):
         self.assertEqual(status_resp.data['status'], 'pending')
         self.assertEqual(status_resp.data['organization_name'], 'Public Acme')
         self.assertEqual(status_resp.data['plan'], 'Trial')
+
+
+class PublicPackagesListTests(TestCase):
+    """Anonymous read of active public SaaSPackages."""
+
+    def setUp(self):
+        self.client = APIClient()
+        cache.clear()
+        # Active + public — should appear
+        self.public_pkg = SaaSPackage.objects.create(
+            name='Public Growth', code='public-growth',
+            description='Public', monthly_price=5000, yearly_price=50000,
+            max_subscribers=2000, max_routers=8, is_active=True, is_public=True,
+        )
+        # Active but not public — must be filtered out
+        self.private_pkg = SaaSPackage.objects.create(
+            name='Private Custom', code='private-custom',
+            description='Hidden', monthly_price=9999, yearly_price=99999,
+            max_subscribers=5000, max_routers=20, is_active=True, is_public=False,
+        )
+        # Public but paused — must be filtered out
+        self.paused_pkg = SaaSPackage.objects.create(
+            name='Paused Beta', code='paused-beta',
+            description='Paused', monthly_price=100, yearly_price=1000,
+            max_subscribers=100, max_routers=1, is_active=False, is_public=True,
+        )
+
+    def test_anonymous_list_returns_only_active_public(self):
+        resp = self.client.get('/api/v1/public/packages/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        codes = [p['code'] for p in resp.data]
+        self.assertIn('public-growth', codes)
+        self.assertNotIn('private-custom', codes)
+        self.assertNotIn('paused-beta', codes)
+
+    def test_response_shape(self):
+        resp = self.client.get('/api/v1/public/packages/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        first = next(p for p in resp.data if p['code'] == 'public-growth')
+        for key in ('id', 'name', 'code', 'description', 'monthly_price',
+                    'yearly_price', 'max_subscribers', 'max_routers', 'features'):
+            self.assertIn(key, first, f'missing field {key!r}')
+
+    def test_no_auth_required(self):
+        # No Authorization header at all.
+        resp = APIClient().get('/api/v1/public/packages/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)

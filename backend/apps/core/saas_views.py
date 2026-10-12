@@ -871,6 +871,26 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
         admin_username = data.get('admin_username') or f"{slug}_admin"
         admin_email = data.get('admin_email') or data.get('contact_email') or f"admin@{slug}.net"
 
+        # Optional parent organization. The create-tenant form (org detail
+        # page, global Tenants page) can pass `organization_id`; if so, we
+        # also check the org's `max_tenants` quota before provisioning.
+        org = None
+        org_id = data.get('organization_id')
+        if org_id:
+            try:
+                import uuid as _uuid
+                org = Organization.objects.get(id=_uuid.UUID(str(org_id)))
+                if org.max_tenants is not None and org.tenants.count() >= org.max_tenants:
+                    return Response(
+                        {'error': f'Organization "{org.name}" has reached its max_tenants quota ({org.max_tenants}).'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            except (Organization.DoesNotExist, ValueError, TypeError):
+                return Response(
+                    {'error': f'Organization with id {org_id} not found.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         with transaction.atomic():
             # 1. Create Tenant
             tenant = Tenant.objects.create(
@@ -885,7 +905,8 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
                 max_routers=max_rtrs,
                 subscription_status='active',
                 is_active=True,
-                notes=data.get('notes', 'Provisioned via SaaS Control Plane')
+                notes=data.get('notes', 'Provisioned via SaaS Control Plane'),
+                organization=org,
             )
 
             # 2. Create CompanySetting

@@ -29,7 +29,10 @@ export interface FetchOptions extends Omit<RequestInit, 'signal' | 'body'> {
 }
 
 function resolveBaseUrl(plane: Plane): string {
-    return plane === 'central' ? getApiBaseUrls().central : getApiBaseUrls().tenant;
+    const urls = getApiBaseUrls();
+    if (plane === 'central') return urls.central;
+    if (plane === 'public') return urls.public;
+    return urls.tenant;
 }
 
 function normalizeEndpoint(endpoint: string): string {
@@ -165,7 +168,13 @@ export interface FetchApiResult<T> {
  */
 export async function fetchApi<T = unknown>(endpoint: string, opts: FetchOptions = {}): Promise<T> {
     const plane: Plane = opts.plane ?? 'tenant';
-    const slot: TokenSlot = opts.tokenSlot ?? (plane === 'central' ? 'centralToken' : 'tenantToken');
+    const slot: TokenSlot =
+        opts.tokenSlot ??
+        (plane === 'central'
+            ? 'centralToken'
+            : plane === 'public'
+                ? 'tenantToken'
+                : 'tenantToken');
     const baseUrl = resolveBaseUrl(plane);
     const fullUrl = `${baseUrl}${normalizeEndpoint(endpoint)}`;
     const skipAuth = opts.skipAuth === true || isAuthEndpoint(endpoint);

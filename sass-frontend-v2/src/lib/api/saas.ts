@@ -57,6 +57,7 @@ function normalizeTenant(t: any): Tenant {
         organization_id: t.organization_id ? String(t.organization_id) : null,
         organization_name: t.organization_name || null,
         organization_slug: t.organization_slug || null,
+        subscription_status: t.subscription_status || (t.is_active ? 'active' : 'suspended'),
     } as Tenant;
 }
 
@@ -119,6 +120,11 @@ function normalizeOnboarding(r: any): OnboardingRequest {
         notes: r.notes || r.admin_notes || '',
         status: (r.status || 'pending').toLowerCase() as OnboardingRequest['status'],
         created_at: r.created_at || new Date().toISOString(),
+        contact_name: r.contact_name || '',
+        requested_slug: r.requested_slug || '',
+        requested_domain: r.requested_domain || '',
+        address: r.address || '',
+        admin_notes: r.admin_notes || '',
     };
 }
 
@@ -349,6 +355,11 @@ export const saasApi = {
         fetchApi<any>(`/organizations/${id}/members/`, { method: 'POST', json: body, plane: 'central' }).then(normalizeOrganizationMember),
     removeOrganizationMember: (id: string, userId: string | number) =>
         fetchApi<void>(`/organizations/${id}/members/${userId}/`, { method: 'DELETE', plane: 'central' }),
+    resetOrganizationMemberPassword: (orgId: string, userId: string | number) =>
+        fetchApi<{ sent: boolean; recipient?: string; username?: string; message?: string }>(
+            `/organizations/${orgId}/reset-member-password/${userId}/`,
+            { method: 'POST', plane: 'central' },
+        ),
     getOrganizationTenants: (id: string) =>
         fetchApi<{ count: number; results: any[] }>(`/organizations/${id}/tenants/`, { plane: 'central' }),
 

@@ -352,3 +352,160 @@ class MoveTenantToOrganizationTests(TestCase):
             HTTP_HOST=CONTROL_HOST,
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ResetMemberPasswordTests(TestCase):
+    """`POST /saas/organizations/<id>/reset-member-password/<user_id>/`"""
+
+    def setUp(self):
+        self.superuser = _make_user('central', superuser=True)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.superuser)
+
+        self.org = Organization.objects.create(
+            name='Reset Org', slug='reset-org', is_active=True,
+        )
+        self.member = _make_user('reset-member')
+        self.member.email = 'reset-member@test.local'
+        self.member.save()
+        OrganizationMembership.objects.create(
+            organization=self.org, user=self.member, role='OWNER', is_active=True,
+        )
+        # A user that exists on the platform but is NOT a member.
+        self.stranger = _make_user('reset-stranger')
+        self.stranger.email = 'reset-stranger@test.local'
+        self.stranger.save()
+
+    def test_member_receives_reset_email(self):
+        resp = self.client.post(
+            f'/api/v1/saas/organizations/{self.org.id}/'
+            f'reset-member-password/{self.member.id}/',
+            HTTP_HOST=CONTROL_HOST,
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        self.assertTrue(resp.data['sent'])
+        self.assertEqual(resp.data['recipient'], 'reset-member@test.local')
+        self.assertEqual(resp.data['username'], 'reset-member')
+
+    def test_look_up_by_username(self):
+        resp = self.client.post(
+            f'/api/v1/saas/organizations/{self.org.id}/'
+            f'reset-member-password/{self.member.username}/',
+            HTTP_HOST=CONTROL_HOST,
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        self.assertTrue(resp.data['sent'])
+        self.assertEqual(resp.data['username'], 'reset-member')
+
+    def test_look_up_by_email(self):
+        resp = self.client.post(
+            f'/api/v1/saas/organizations/{self.org.id}/'
+            f'reset-member-password/{self.member.email}/',
+            HTTP_HOST=CONTROL_HOST,
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        self.assertTrue(resp.data['sent'])
+
+    def test_non_member_rejected(self):
+        resp = self.client.post(
+            f'/api/v1/saas/organizations/{self.org.id}/'
+            f'reset-member-password/{self.stranger.id}/',
+            HTTP_HOST=CONTROL_HOST,
+        )
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND, resp.data)
+        self.assertIn('not a member', resp.data['error'])
+
+    def test_unknown_user_no_enumeration(self):
+        resp = self.client.post(
+            f'/api/v1/saas/organizations/{self.org.id}/'
+            f'reset-member-password/99999999/',
+            HTTP_HOST=CONTROL_HOST,
+        )
+        # 200 with sent=False so the UI never leaks "user not found".
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        self.assertFalse(resp.data['sent'])
+
+    def test_audit_log_written(self):
+        from apps.core.models import AuditLog
+        before = AuditLog.objects.filter(
+            action='organization_member_password_reset',
+        ).count()
+        self.client.post(
+            f'/api/v1/saas/organizations/{self.org.id}/'
+            f'reset-member-password/{self.member.id}/',
+            HTTP_HOST=CONTROL_HOST,
+        )
+        after = AuditLog.objects.filter(
+            action='organization_member_password_reset',
+        ).count()
+        self.assertEqual(after, before + 1)
+
+
+class CentralTenantCreateWithOrgTests(TestCase):
+    """`POST /saas/tenants/` should accept `organization_id` and wire it
+    onto the new tenant (this is the path the org-detail "Add tenant"
+    dialog uses)."""
+
+    def setUp(self):
+        self.superuser = _make_user('central', superuser=True)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.superuser)
+        self.org = Organization.objects.create(
+            name='Org T', slug='org-t', is_active=True,
+        )
+
+    def test_create_tenant_with_organization_id(self):
+        resp = self.client.post(
+            '/api/v1/saas/tenants/',
+            {
+                'name': 'Tenant A',
+                'slug': 'tenant-a',
+                'domain': 'tenant-a.example.com',
+                'plan': 'Growth',
+                'organization_id': str(self.org.id),
+            },
+            format='json',
+            HTTP_HOST=CONTROL_HOST,
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
+        t = Tenant.objects.get(slug='tenant-a')
+        self.assertEqual(t.organization_id, self.org.id)
+
+    def test_create_tenant_with_unknown_org_id_rejected(self):
+        resp = self.client.post(
+            '/api/v1/saas/tenants/',
+            {
+                'name': 'Tenant B',
+                'slug': 'tenant-b',
+                'domain': 'tenant-b.example.com',
+                'plan': 'Growth',
+                'organization_id': '00000000-0000-0000-0000-000000000000',
+            },
+            format='json',
+            HTTP_HOST=CONTROL_HOST,
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST, resp.data)
+        self.assertIn('not found', resp.data['error'])
+
+    def test_org_max_tenants_quota_enforced(self):
+        org = Organization.objects.create(
+            name='Org Quota', slug='org-quota', is_active=True, max_tenants=1,
+        )
+        Tenant.objects.create(
+            name='Pre-existing', slug='pre-existing', domain='p.example.com',
+            organization=org, is_active=True,
+        )
+        resp = self.client.post(
+            '/api/v1/saas/tenants/',
+            {
+                'name': 'Tenant C',
+                'slug': 'tenant-c',
+                'domain': 'tenant-c.example.com',
+                'plan': 'Growth',
+                'organization_id': str(org.id),
+            },
+            format='json',
+            HTTP_HOST=CONTROL_HOST,
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST, resp.data)
+        self.assertIn('max_tenants', resp.data['error'])

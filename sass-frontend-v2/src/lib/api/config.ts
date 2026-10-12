@@ -42,14 +42,23 @@ const CLEAN_SAAS_API_URL = RAW_SAAS_API_URL
 
 export const API_BASE_URL = CLEAN_API_URL;
 export const SAAS_API_BASE_URL = CLEAN_SAAS_API_URL;
+// Public endpoints (`/api/v1/public/*`, `/api/v1/saas/packages/public/`)
+// live on the tenant-plane origin without the `/saas/` prefix that the
+// central plane adds. Share the same origin as the tenant API.
+export const PUBLIC_API_BASE_URL = CLEAN_API_URL;
 
-export type Plane = 'central' | 'tenant';
+export type Plane = 'central' | 'tenant' | 'public';
 
 export interface ApiBaseUrls {
     central: string;
     tenant: string;
+    public: string;
 }
 
 export function getApiBaseUrls(): ApiBaseUrls {
-    return { central: SAAS_API_BASE_URL, tenant: API_BASE_URL };
+    return {
+        central: SAAS_API_BASE_URL,
+        tenant: API_BASE_URL,
+        public: PUBLIC_API_BASE_URL,
+    };
 }

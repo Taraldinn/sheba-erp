@@ -14,6 +14,7 @@ export interface Tenant {
     is_active: boolean;
     created_at: string;
     updated_at: string;
+    subscription_status?: string;
     organization_id?: string | null;
     organization_name?: string | null;
     organization_slug?: string | null;
@@ -39,6 +40,12 @@ export interface OnboardingRequest {
     notes?: string;
     status: 'pending' | 'approved' | 'rejected';
     created_at: string;
+    // Additional fields exposed by the backend serializer (`__all__`).
+    contact_name?: string;
+    requested_slug?: string;
+    requested_domain?: string;
+    address?: string;
+    admin_notes?: string;
 }
 
 export interface OrganizationMember {

@@ -142,10 +142,11 @@ export function resolvePortal(rawHostname: string, options: ResolvePortalOptions
 }
 
 /** Returns the plane tag used by the API client. */
-export type Plane = 'central' | 'tenant';
+export type Plane = 'central' | 'tenant' | 'public';
 
 export function planeForPortal(portal: PortalType): Plane | null {
     if (portal === 'SUPER_ADMIN') return 'central';
     if (portal === 'ISP_ADMIN' || portal === 'TENANT') return 'tenant';
+    if (portal === 'PUBLIC_HOME' || portal === 'UNKNOWN') return 'public';
     return null;
 }

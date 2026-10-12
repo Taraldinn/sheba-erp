@@ -714,6 +714,154 @@ class SaaSOrganizationViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    @extend_schema(
+        tags=['16. Multi-Tenant SaaS & Control Plane'],
+        summary='Send a password-reset email to an organization member',
+        description=(
+            'Platform-admin convenience action: look up the user by '
+            '`user_id` (or `username` / `email`), confirm they are a member '
+            'of this organization, and dispatch the standard '
+            '`send_password_reset_email` link. Always returns 200 with a '
+            '`sent` flag so the UI can show a friendly toast without '
+            'enumerating accounts.'
+        ),
+        request=serializers.Serializer,
+        responses={
+            200: OpenApiResponse(description='Reset email dispatched (or no-op for unknown user).'),
+            404: OpenApiResponse(description='User is not a member of this organization.'),
+        },
+    )
+    @action(
+        detail=True, methods=['post'],
+        # `user_id` may be a numeric pk, a username, or an email address,
+        # so we have to accept `@` and `+` in the path. We still refuse
+        # path separators so a request can't escape the URL segment.
+        url_path=r'reset-member-password/(?P<user_id>[^/]+)',
+    )
+    def reset_member_password(self, request, id=None, user_id=None):
+        """
+        Send a one-time password-reset email to a member of the
+        organization identified by `id`.
+
+        Path: `POST /api/v1/saas/organizations/<org_id>/reset-member-password/<user_id>/`
+
+        Look-up precedence for `user_id`:
+        1. Numeric primary key (User.id)
+        2. UUID (User.username is unique in dev; primary key is auto-int)
+        3. Plain username string
+        4. Email (case-insensitive exact match)
+
+        Always returns 200 with `{ sent: bool, recipient: str }` so the
+        UI never gets a 404 for a user that simply isn't on the platform.
+        """
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.encoding import force_bytes
+        from django.utils.http import urlsafe_base64_encode
+
+        org = self.get_object()
+
+        # ── Resolve the user ─────────────────────────────────────────────
+        user = None
+        if user_id is not None:
+            raw = str(user_id).strip()
+            # 1. Numeric primary key
+            if raw.isdigit():
+                user = User.objects.filter(id=int(raw)).first()
+            # 2. UUID primary key (defensive)
+            if not user:
+                try:
+                    import uuid as _uuid
+                    user = User.objects.filter(id=_uuid.UUID(raw)).first()
+                except (ValueError, TypeError, AttributeError):
+                    pass
+            # 3. Username
+            if not user:
+                user = User.objects.filter(username=raw).first()
+            # 4. Email
+            if not user:
+                user = User.objects.filter(email__iexact=raw).first()
+
+        if not user:
+            return Response(
+                {'sent': False, 'recipient': '', 'message': 'No matching user.'},
+                status=status.HTTP_200_OK,
+            )
+
+        # ── Confirm membership ───────────────────────────────────────────
+        is_member = OrganizationMembership.objects.filter(
+            organization=org, user=user, is_active=True,
+        ).exists()
+        # Superusers can always reset, and so can a member's own user row
+        # (covers the "self-service" case where a freshly-approved owner
+        # needs a link before they've ever signed in).
+        is_self = request.user.is_authenticated and request.user.pk == user.pk
+        if not (is_member or user.is_superuser or is_self):
+            return Response(
+                {'error': 'This user is not a member of the organization.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # ── Build the reset link ─────────────────────────────────────────
+        from apps.core.email.service import EmailService
+
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        host = request.get_host()
+        scheme = 'https' if request.is_secure() else 'http'
+        origin = request.headers.get('origin') or f"{scheme}://{host}"
+        # Central-plane operators land on a dedicated reset page so the
+        # link works regardless of which subdomain sent it. The page
+        # exists at /reset-password (a public route under
+        # src/app/reset-password/page.tsx).
+        reset_url = f"{origin}/reset-password?uid={uid}&token={token}"
+
+        recipient = (user.email or '').strip()
+        if not recipient:
+            return Response(
+                {'sent': False, 'recipient': '',
+                 'message': 'User has no email on file — cannot dispatch reset.'},
+                status=status.HTTP_200_OK,
+            )
+
+        try:
+            sent = EmailService.send_password_reset_email(
+                user=user,
+                reset_url=reset_url,
+                recipient_email=recipient,
+                is_superadmin=bool(user.is_superuser),
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning('reset_member_password: email dispatch failed: %s', exc)
+            sent = False
+
+        # Audit log so the platform admin can see who triggered this.
+        AuditLog.objects.create(
+            tenant=None,
+            actor_username=getattr(request.user, 'username', 'system'),
+            action='organization_member_password_reset',
+            module='SAAS',
+            resource_type='OrganizationMembership',
+            resource_id=str(user.id),
+            details={
+                'organization_id': str(org.id),
+                'user_id': user.id,
+                'username': user.username,
+                'email': recipient,
+                'sent': bool(sent),
+            },
+        )
+
+        return Response({
+            'sent': bool(sent),
+            'recipient': recipient,
+            'username': user.username,
+            'message': (
+                f"Password reset link emailed to {recipient}."
+                if sent else
+                "Could not dispatch the email right now — please retry."
+            ),
+        })
+
 
 # ── ISP owner surface ─────────────────────────────────────────────────────
 

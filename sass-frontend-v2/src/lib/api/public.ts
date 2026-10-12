@@ -43,19 +43,22 @@ export interface PublicOnboardingResult {
 
 export const publicApi = {
     startOnboarding: (payload: PublicOnboardingInput) =>
-        fetchApi<PublicOnboardingResult>('/api/v1/public/onboarding/', {
+        fetchApi<PublicOnboardingResult>('/public/onboarding/', {
             method: 'POST',
             json: payload,
-            plane: 'central',
+            plane: 'public',
             skipAuth: true,
         }),
     getOnboardingStatus: (id: string) =>
         fetchApi<{ id: string; status: string; organization_name: string; plan: string; created_at?: string | null; updated_at?: string | null }>(
-            `/api/v1/public/onboarding/${id}/status/`,
-            { plane: 'central', skipAuth: true },
+            `/public/onboarding/${id}/status/`,
+            { plane: 'public', skipAuth: true },
         ),
-    // Reuse the central packages endpoint (it is currently open to anonymous
-    // users via the `PUBLIC_PATHS` allowlist in the tenancy middleware).
+    // Anonymous list of active public SaaS packages at
+    // `/api/v1/public/packages/`. Used by the marketing homepage pricing
+    // strip and the public onboarding wizard. (The auth-only
+    // `/api/v1/saas/packages/public/` endpoint exists for org admins but
+    // requires a session, so it can't be used here.)
     getPublicPackages: () =>
-        fetchApi<SaasPackage[]>(`/api/v1/saas/packages/public/`, { plane: 'central', skipAuth: true }),
+        fetchApi<SaasPackage[]>(`/public/packages/`, { plane: 'public', skipAuth: true }),
 };
