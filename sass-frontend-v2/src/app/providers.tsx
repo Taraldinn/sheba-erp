@@ -1,6 +1,6 @@
 'use client';
 
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@/lib/query/native';
 import type { PropsWithChildren } from 'react';
 import { PortalProvider } from '../lib/portal/portal-provider';
 import { AuthProvider } from '../lib/auth/auth-provider';

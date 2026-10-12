@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@/lib/query/native';
 import type { DataTableColumn } from '@/components/data-table/data-table';
 import { subscriptionApi, type CustomerSubscription } from '@/lib/api';
 import { queryKeys } from '@/lib/query/keys';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@/lib/query/native';
 import { Eye, Mail, Check, X, RotateCw } from 'lucide-react';
 import type { DataTableColumn } from '@/components/data-table/data-table';
 import { saasApi, type OnboardingRequest } from '@/lib/api';

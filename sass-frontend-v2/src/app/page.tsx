@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@/lib/query/native';
 import Link from 'next/link';
 import { Activity, Building2, Globe, KeyRound, Network, Users } from 'lucide-react';
 

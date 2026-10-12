@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@/lib/query/native';
 import { ArrowLeft, Building2, ExternalLink, KeyRound, Pencil, Plus, Save, Trash2, UserCog, Server } from 'lucide-react';
 
 import { saasApi } from '@/lib/api/saas';

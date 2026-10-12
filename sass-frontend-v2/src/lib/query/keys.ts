@@ -145,6 +145,49 @@ export const queryKeys = {
         list: (params?: Record<string, unknown>) => [...queryKeys.notifications.all(), 'list', params ?? {}] as const,
         unread: () => [...queryKeys.notifications.all(), 'unread'] as const,
     },
+    topology: {
+        all: () => [...queryKeys.tenant(), 'topology'] as const,
+        graph: () => [...queryKeys.topology.all(), 'graph'] as const,
+    },
+    hr: {
+        all: () => [...queryKeys.tenant(), 'hr'] as const,
+        employees: (params?: Record<string, unknown>) => [...queryKeys.hr.all(), 'employees', params ?? {}] as const,
+        attendance: (params?: Record<string, unknown>) => [...queryKeys.hr.all(), 'attendance', params ?? {}] as const,
+        leaves: (params?: Record<string, unknown>) => [...queryKeys.hr.all(), 'leaves', params ?? {}] as const,
+        payroll: (params?: Record<string, unknown>) => [...queryKeys.hr.all(), 'payroll', params ?? {}] as const,
+    },
+    store: {
+        all: () => [...queryKeys.tenant(), 'store'] as const,
+        items: (params?: Record<string, unknown>) => [...queryKeys.store.all(), 'items', params ?? {}] as const,
+        transactions: (params?: Record<string, unknown>) => [...queryKeys.store.all(), 'transactions', params ?? {}] as const,
+    },
+    agents: {
+        all: () => [...queryKeys.tenant(), 'agents'] as const,
+        mappings: (params?: Record<string, unknown>) => [...queryKeys.agents.all(), 'mappings', params ?? {}] as const,
+        voiceSettings: () => [...queryKeys.agents.all(), 'voice-settings'] as const,
+        voiceTemplates: () => [...queryKeys.agents.all(), 'voice-templates'] as const,
+        pbxConfig: () => [...queryKeys.agents.all(), 'pbx-config'] as const,
+        callLogs: (params?: Record<string, unknown>) => [...queryKeys.agents.all(), 'call-logs', params ?? {}] as const,
+    },
+    corporate: {
+        all: () => [...queryKeys.tenant(), 'corporate'] as const,
+        customers: (params?: Record<string, unknown>) => [...queryKeys.corporate.all(), 'customers', params ?? {}] as const,
+        connections: (params?: Record<string, unknown>) => [...queryKeys.corporate.all(), 'connections', params ?? {}] as const,
+        ipPools: (params?: Record<string, unknown>) => [...queryKeys.corporate.all(), 'ip-pools', params ?? {}] as const,
+        vlans: (params?: Record<string, unknown>) => [...queryKeys.corporate.all(), 'vlans', params ?? {}] as const,
+    },
+    staff: {
+        all: () => [...queryKeys.tenant(), 'staff'] as const,
+        list: (params?: Record<string, unknown>) => [...queryKeys.staff.all(), 'list', params ?? {}] as const,
+    },
+    tickets: {
+        all: () => [...queryKeys.tenant(), 'tickets'] as const,
+        list: (params?: Record<string, unknown>) => [...queryKeys.tickets.all(), 'list', params ?? {}] as const,
+    },
+    audit: {
+        all: () => [...queryKeys.tenant(), 'audit'] as const,
+        list: (params?: Record<string, unknown>) => [...queryKeys.audit.all(), 'list', params ?? {}] as const,
+    },
     search: (q: string) => [...queryKeys.tenant(), 'search', q] as const,
 
     reseller: {

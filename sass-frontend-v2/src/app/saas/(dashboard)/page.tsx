@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@/lib/query/native';
 import { Building2, ExternalLink } from 'lucide-react';
 
 import { saasApi } from '@/lib/api';

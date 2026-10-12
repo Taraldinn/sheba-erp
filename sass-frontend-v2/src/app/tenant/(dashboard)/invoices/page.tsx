@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams, useParams, usePathname } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@/lib/query/native';
 import { useState } from 'react';
 import { z } from 'zod';
 import { invoiceApi, type Invoice } from '@/lib/api';

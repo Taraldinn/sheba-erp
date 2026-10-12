@@ -237,12 +237,30 @@ def extract_session_token(request) -> Optional[str]:
     """Pull the opaque session token out of a Django request, checking
     the ``Authorization: Session <token>`` header first and the
     ``sheba_session`` cookie as a fallback (the latter is used by the
-    edge proxy / middleware)."""
+    edge proxy / middleware).
+
+    Also recognizes ``Authorization: Bearer <token>`` and ``Authorization: Token <token>``
+    when the key corresponds to an ``AuthSession`` row, ensuring modern and legacy
+    client Authorization conventions both resolve seamlessly.
+    """
     auth = request.META.get('HTTP_AUTHORIZATION', '')
     if auth.startswith(f'{SESSION_AUTH_SCHEME} '):
         token = auth[len(SESSION_AUTH_SCHEME) + 1:].strip()
         if token:
             return token
+
+    # Recognize Bearer or Token schemes if the token matches an AuthSession
+    auth_lower = auth.lower()
+    if auth_lower.startswith('bearer ') or auth_lower.startswith('token '):
+        parts = auth.split(' ', 1)
+        if len(parts) == 2:
+            candidate = parts[1].strip()
+            if candidate:
+                try:
+                    if AuthSession.objects.filter(session_token=candidate).exists():
+                        return candidate
+                except Exception:
+                    pass
 
     # Header literal ``X-Sheba-Session`` for edge proxies that strip
     # Authorization but want to forward a session id.

@@ -86,7 +86,12 @@ function buildHeaders(token: string | null, opts: FetchOptions): Headers {
         // Headers applied below; here we only set if not auth endpoint.
     }
     if (token && !opts.skipAuth && !isAuthEndpoint('')) {
-        h.set('Authorization', token.startsWith('Token ') || token.startsWith('Bearer ') ? token : `Token ${token}`);
+        h.set(
+            'Authorization',
+            token.startsWith('Token ') || token.startsWith('Bearer ') || token.startsWith('Session ')
+                ? token
+                : `Token ${token}`
+        );
     }
     const slug = readTenantSlug(opts);
     if (slug && (opts.plane ?? 'tenant') === 'tenant') {
@@ -99,9 +104,9 @@ function buildHeaders(token: string | null, opts: FetchOptions): Headers {
     return h;
 }
 
-function dispatchUnauthorized(): void {
+function dispatchUnauthorized(slot?: TokenSlot): void {
     if (typeof window === 'undefined') return;
-    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail: { slot } }));
 }
 
 async function parseErrorBody(res: Response): Promise<{ message: string; code?: string; controlPlaneUrl?: string; fieldErrors?: Record<string, string[]> }> {
@@ -208,7 +213,8 @@ export async function fetchApi<T = unknown>(endpoint: string, opts: FetchOptions
         const { message, code, controlPlaneUrl, fieldErrors } = await parseErrorBody(response);
         const apiErr = new ApiError(response.status, message, { code, controlPlaneUrl, fieldErrors });
         if (apiErr.isAuthError() && !skipAuth) {
-            dispatchUnauthorized();
+            storage.remove(STORAGE_KEY_BY_SLOT[slot]);
+            dispatchUnauthorized(slot);
         }
         throw apiErr;
     }

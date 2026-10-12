@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation } from '@/lib/query/native';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { saasApi } from '@/lib/api';
 import { Card } from '@/components/ui/card';

@@ -33,9 +33,19 @@ export interface PortalProviderProps {
 }
 
 export function PortalProvider({ children, forced }: PortalProviderProps) {
-    const [override, setOverride] = useState<{ portal: PortalType | null; tenant: string | null }>(() => readDevOverride());
+    // Start with no dev override so the first render matches the server render
+    // (server has no localStorage / window). Hydrate the override in an effect.
+    const [override, setOverride] = useState<{ portal: PortalType | null; tenant: string | null }>({
+        portal: null,
+        tenant: null,
+    });
     const [branding, setBranding] = useState<TenantBranding | null>(null);
     const [isLoadingBranding, setIsLoadingBranding] = useState(false);
+
+    // Pick up any previously stored dev override after mount.
+    useEffect(() => {
+        setOverride(readDevOverride());
+    }, []);
 
     const resolution = useMemo<PortalContextValue>(() => {
         if (forced) return forced;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@/lib/query/native';
 import { ispAdminApi } from '@/lib/api';
 import { queryKeys } from '@/lib/query/keys';
 import { ErrorAlert, KpiCard, PageHeader, StatusBadge } from '@/components/feedback';

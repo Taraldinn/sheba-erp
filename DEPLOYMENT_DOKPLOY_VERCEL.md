@@ -200,3 +200,34 @@ Once both backend and frontend are live:
    Visit: `https://app.yourdomain.com/` (auto-redirects to `/isp/login`)
 5. **Tenant Portal**:
    Visit: `https://<tenant_slug>.yourdomain.com/` (auto-redirects to `/tenant/login`)
+
+
+32/32 tests still pass.
+
+**Tenant login credentials** (latest `--reset` run, copy-paste friendly)
+
+| Tenant | Username | Password | URL |
+|---|---|---|---|
+| `northbeam-dhaka` | `northbeam-dhaka_admin` | `sl^rECP#aMy5%3` | `http://northbeam-dhaka.localhost:3000/login` |
+| `northbeam-chattogram` | `northbeam-chattogram_admin` | `cu%WQIryLJ88Y1` | `http://northbeam-chattogram.localhost:3000/login` |
+| `greensignal-mirpur` | `greensignal-mirpur_admin` | `mQq6xwqCN17*W8` | `http://greensignal-mirpur.localhost:3000/login` |
+| `greensignal-uttara` | `greensignal-uttara_admin` | `Qx9fjD0PpRUu#Y` | `http://greensignal-uttara.localhost:3000/login` |
+| `coxwave-coxsbazar` | `coxwave-coxsbazar_admin` | `dp?RdrHyE#Of5n` | `http://coxwave-coxsbazar.localhost:3000/login` |
+| `coxwave-teknaf` | `coxwave-teknaf_admin` | `xVOU1w3Z*sPc^s` | `http://coxwave-teknaf.localhost:3000/login` |
+
+> Passwords rotate on every `seed_demo_orgs` (no flag) or `seed_demo_orgs --reset` run. The seeder also prints a clean table at the end of every run with the current values, so re-run it to get fresh credentials.
+
+**What changed in the seeder**
+- Each demo tenant now gets a fully-provisioned ISP admin via the same `provision_tenant_admin` helper the SaaS approval flow uses (seeding roles, `StaffProfile`, `StaffMembership`, DRF token, etc.).
+- Tenant admin password is **always rotated** on every run (so the printed value is always the live one).
+- The seeder prints a tidy table of `(tenant, username, password, login URL)` at the end of every run.
+- `--reset` now also cleans up the per-tenant admin users (`<slug>_admin`).
+
+**Verified**
+- `POST /api/v1/auth/login/` with `northbeam-dhaka_admin` / `sl^rECP#aMy5%3` on `northbeam-dhaka.localhost` → 200, returns a `session_token` and the tenant correctly bound to the user.
+- 32/32 backend tests still pass.
+
+**Files changed**
+- `backend/apps/core/management/commands/seed_demo_orgs.py` — added tenant admin provisioning, login table, and reset cleanup for tenant admins.
+
+What next — A) reload one of the tenant URLs and try the login in the browser, B) extend the seeder to also seed a handful of demo customers + invoices per tenant, or C) move on?

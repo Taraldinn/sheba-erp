@@ -609,6 +609,43 @@ export interface Branch {
     created_at: string;
 }
 
+export interface Onu {
+    id: string;
+    serial_number?: string;
+    mac_address?: string;
+    olt?: string;
+    olt_name?: string;
+    pon_port?: number;
+    onu_index?: number;
+    customer?: string;
+    customer_name?: string;
+    status: string;
+    rx_signal_dbm?: number | string;
+    last_seen?: string;
+    created_at: string;
+}
+
+export interface TopologyNode {
+    id: string;
+    type: 'branch' | 'router' | 'olt' | 'onu' | 'customer';
+    name: string;
+    status?: string;
+    parent_id?: string | null;
+    metadata?: Record<string, unknown>;
+}
+
+export interface TopologyEdge {
+    source: string;
+    target: string;
+    kind: 'backhaul' | 'distribution' | 'access' | 'customer';
+    label?: string;
+}
+
+export interface Topology {
+    nodes: TopologyNode[];
+    edges: TopologyEdge[];
+}
+
 export interface CompanySetting {
     id: string;
     key: string;

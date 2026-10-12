@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams, useParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@/lib/query/native';
 import { useState } from 'react';
 import { ispAdminApi } from '@/lib/api';
 import { queryKeys } from '@/lib/query/keys';

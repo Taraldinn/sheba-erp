@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@/lib/query/native';
 import { saasApi, type SaasEmployee } from '@/lib/api';
 import { queryKeys } from '@/lib/query/keys';
 import { DataTable, type DataTableColumn } from '@/components/data-table/data-table';

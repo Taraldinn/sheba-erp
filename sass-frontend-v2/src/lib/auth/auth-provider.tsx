@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@/lib/query/native';
 import { usePortal } from '../portal/portal-provider';
 import { saasApi, tenantApi, STORAGE_KEYS, storage, UNAUTHORIZED_EVENT } from '../api';
 import { permissionsForRole, type Permission } from '../permissions/permissions';
@@ -161,8 +161,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
             setError('Your session has expired. Please sign in again.');
             try {
                 storage.remove(sessionKey);
+                storage.remove(STORAGE_KEYS.tenantToken);
+                storage.remove(STORAGE_KEYS.tenantUser);
+                storage.remove(STORAGE_KEYS.centralToken);
+                storage.remove(STORAGE_KEYS.centralUser);
+                storage.remove(STORAGE_KEYS.resellerToken);
+                storage.remove(STORAGE_KEYS.resellerUser);
             } catch {
                 /* ignore */
+            }
+
+            const pathname = window.location.pathname;
+            if (!pathname.includes('/login')) {
+                let targetLogin = '/login';
+                if (pathname.startsWith('/saas')) targetLogin = '/saas/login';
+                else if (pathname.startsWith('/isp')) targetLogin = '/isp/login';
+                else if (pathname.startsWith('/tenant')) targetLogin = '/tenant/login';
+
+                const search = window.location.search;
+                const nextUrl = encodeURIComponent(pathname + search);
+                window.location.href = `${targetLogin}?next=${nextUrl}`;
             }
         };
         window.addEventListener(UNAUTHORIZED_EVENT, handler);
@@ -280,7 +298,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
                     return { success: true };
                 }
                 const res = await tenantApi.login(credentials);
-                if (!res?.token) {
+                const receivedToken = res?.token || res?.session_token;
+                if (!receivedToken) {
                     setError('Login failed: no token returned');
                     return { success: false, error: 'Login failed' };
                 }
@@ -295,10 +314,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
                     tenant: tenant as AuthUser['tenant'],
                     permissions: (res.user as any)?.permissions ?? [],
                 };
-                setToken(res.token);
+                setToken(receivedToken);
                 setUser(userObj);
                 setActiveRole(userObj.role ?? 'ADMIN');
-                storage.setJSON(sessionKey, { token: res.token, user: userObj });
+                storage.setJSON(sessionKey, { token: receivedToken, user: userObj });
                 queryClient.invalidateQueries();
                 return { success: true };
             } catch (e) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams, useParams, usePathname } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@/lib/query/native';
 import { useState } from 'react';
 import { z } from 'zod';
 import { ispAdminApi, type IspAdminChildTenant, type IspAdminChildTenantCreatePayload } from '@/lib/api';

@@ -198,6 +198,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'apps.core.authentication.SessionAuthentication',
         'apps.core.authentication.TenantApiKeyAuthentication',
+        'apps.core.authentication.BearerOrTokenAuthentication',
         'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],

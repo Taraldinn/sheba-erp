@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@/lib/query/native';
 import { reportsApi } from '@/lib/api';
 import { queryKeys } from '@/lib/query/keys';
 import { ErrorAlert, PageHeader, KpiCard, StatusBadge, MoneyText } from '@/components/feedback';

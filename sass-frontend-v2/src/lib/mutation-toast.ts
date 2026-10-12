@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import type { UseMutationOptions } from '@tanstack/react-query';
+import type { UseMutationOptions } from '@/lib/query/native';
 
 /**
  * Wraps a TanStack Query mutation so success / error are surfaced as a
@@ -10,18 +10,20 @@ export function withMutationToast<TData, TError, TVariables, TContext>(
     opts: UseMutationOptions<TData, TError, TVariables, TContext>,
     messages: { success?: string | ((data: TData, vars: TVariables) => string); error?: string | ((err: TError) => string) } = {},
 ): UseMutationOptions<TData, TError, TVariables, TContext> {
+    const originalOnSuccess = opts.onSuccess;
+    const originalOnError = opts.onError;
     return {
         ...opts,
-        onSuccess: (data, vars, onMutateResult, context) => {
+        onSuccess: ((data, vars, onMutateResult, context) => {
             const msg = typeof messages.success === 'function' ? messages.success(data, vars) : messages.success;
             if (msg) toast.success(msg);
-            return opts.onSuccess?.(data, vars, onMutateResult, context);
-        },
-        onError: (err, vars, onMutateResult, context) => {
+            originalOnSuccess?.(data, vars, onMutateResult, context);
+        }) as UseMutationOptions<TData, TError, TVariables, TContext>['onSuccess'],
+        onError: ((err, vars, onMutateResult, context) => {
             const msg = typeof messages.error === 'function' ? messages.error(err) : (messages.error ?? friendlyError(err));
             toast.error(msg);
-            return opts.onError?.(err, vars, onMutateResult, context);
-        },
+            originalOnError?.(err, vars, onMutateResult, context);
+        }) as UseMutationOptions<TData, TError, TVariables, TContext>['onError'],
     };
 }
 

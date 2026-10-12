@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams, useParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@/lib/query/native';
 import { customerApi, subscriptionApi, invoiceApi } from '@/lib/api';
 import { queryKeys } from '@/lib/query/keys';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

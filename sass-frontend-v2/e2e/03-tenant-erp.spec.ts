@@ -55,6 +55,14 @@ test.describe('Tenant ERP — list and detail pages', () => {
 
     test('settings page renders', async ({ page }) => {
         await page.goto('/tenant/settings');
-        await expect(page.getByRole('heading', { name: /settings/i })).toBeVisible();
+        await expect(page.getByRole('heading', { name: /configuration/i })).toBeVisible();
+    });
+
+    test('sidebar exposes the new module groups', async ({ page }) => {
+        await page.goto('/tenant');
+        // Each grouped sidebar label should be visible.
+        for (const label of ['Operations', 'Network', 'Corporate Clients', 'People', 'Inventory', 'Call Center', 'Configuration']) {
+            await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
+        }
     });
 });

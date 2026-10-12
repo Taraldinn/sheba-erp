@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@/lib/query/native';
 import type { DataTableColumn } from '@/components/data-table/data-table';
 import { packageApi, type IspPackage } from '@/lib/api';
 import { queryKeys } from '@/lib/query/keys';

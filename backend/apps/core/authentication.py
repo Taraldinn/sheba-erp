@@ -140,14 +140,20 @@ class TenantApiKeyAuthentication(authentication.BaseAuthentication):
         request.api_scopes = set(matched_token.permissions or [])
 
         # Check for Staff User Credentials (Dual-Token / BFF Flow)
-        # 1. Authorization: Token <key> or Bearer <key>
+        # 1. Authorization: Token <key>, Bearer <key>, or Session <key>
         auth_header = authentication.get_authorization_header(request).split()
         if auth_header and len(auth_header) == 2:
             auth_scheme = auth_header[0].decode('utf-8', errors='ignore').lower()
-            if auth_scheme in ('token', 'bearer'):
+            if auth_scheme in ('token', 'bearer', 'session'):
                 token_key = auth_header[1].decode('utf-8', errors='ignore').strip()
-                token_auth = authentication.TokenAuthentication()
-                staff_user, token_obj = token_auth.authenticate_credentials(token_key)
+                from apps.authentication.sessions import resolve_session
+                session_obj = resolve_session(token_key)
+                if session_obj:
+                    staff_user = session_obj.user
+                    token_obj = session_obj
+                else:
+                    token_auth = authentication.TokenAuthentication()
+                    staff_user, token_obj = token_auth.authenticate_credentials(token_key)
 
                 # Cross-tenant check: staff user MUST belong to matched_token.tenant
                 from apps.authentication.models import StaffMembership
@@ -309,3 +315,31 @@ class SessionAuthentication(authentication.BaseAuthentication):
 
     def authenticate_header(self, request):
         return 'Session'
+
+
+class BearerOrTokenAuthentication(authentication.TokenAuthentication):
+    """
+    DRF Token Authentication accepting both ``Authorization: Token <key>``
+    and ``Authorization: Bearer <key>``.
+    """
+    def authenticate(self, request):
+        auth = authentication.get_authorization_header(request).split()
+        if not auth:
+            return None
+
+        keyword = auth[0].decode('utf-8', errors='ignore').lower()
+        if keyword not in ('token', 'bearer'):
+            return None
+
+        if len(auth) == 1:
+            raise exceptions.AuthenticationFailed('Invalid token header. No credentials provided.')
+        elif len(auth) > 2:
+            raise exceptions.AuthenticationFailed('Invalid token header. Token string should not contain spaces.')
+
+        try:
+            token_key = auth[1].decode()
+        except UnicodeError:
+            raise exceptions.AuthenticationFailed('Invalid token header. Token string should not contain invalid characters.')
+
+        return self.authenticate_credentials(token_key)
+

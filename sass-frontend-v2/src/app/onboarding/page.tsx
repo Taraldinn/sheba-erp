@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@/lib/query/native';
 import { ArrowLeft, ArrowRight, Building2, CheckCircle2, CircleDashed, Loader2, PartyPopper, ShieldCheck } from 'lucide-react';
 
 import { publicApi, type PublicOnboardingInput } from '@/lib/api/public';

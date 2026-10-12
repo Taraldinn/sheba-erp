@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, Box, Link2, CreditCard, Building, Settings, Server, Network, FolderKanban, ShieldAlert, BadgeCent, Shield, Activity, RefreshCw, UserCheck, HeartPulse, FileText, Database } from "lucide-react"
+import { LayoutDashboard, Users, Box, Link2, CreditCard, Building, Settings, Server, Network, FolderKanban, ShieldAlert, BadgeCent, Shield, Activity, RefreshCw, UserCheck, HeartPulse, FileText, Database, Briefcase, MapPin, Phone, Cpu, ShoppingBag, HardDrive, PhoneCall, Building2, Wrench, Radio } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -63,15 +63,96 @@ const portalConfigs = {
   tenant: {
     title: "Shebafi ERP",
     navMain: [
-      { title: "Overview", url: "/tenant", icon: LayoutDashboard },
-      { title: "Customers", url: "/tenant/customers", icon: Users },
-      { title: "Packages", url: "/tenant/packages", icon: Box },
-      { title: "Subscriptions", url: "/tenant/subscriptions", icon: BadgeCent },
-      { title: "Invoices", url: "/tenant/invoices", icon: CreditCard },
-      { title: "Payments", url: "/tenant/payments", icon: CreditCard },
-      { title: "Routers", url: "/tenant/routers", icon: Server },
-      { title: "Resellers", url: "/tenant/resellers", icon: Users },
-      { title: "Settings", url: "/tenant/settings", icon: Settings },
+      // ── Operations (CRM, billing, support) ──────────────────────────
+      {
+        title: "Operations",
+        url: "/tenant",
+        icon: LayoutDashboard,
+        isActive: true,
+        items: [
+          { title: "Overview", url: "/tenant" },
+          { title: "Customers", url: "/tenant/customers" },
+          { title: "Subscriptions", url: "/tenant/subscriptions" },
+          { title: "Invoices", url: "/tenant/invoices" },
+          { title: "Payments", url: "/tenant/payments" },
+          { title: "Packages", url: "/tenant/packages" },
+          { title: "Resellers", url: "/tenant/resellers" },
+          { title: "Tickets", url: "/tenant/tickets" },
+        ],
+      },
+      // ── Network (routers, OLTs, ONUs, branches, topology) ──────────
+      {
+        title: "Network",
+        url: "/tenant/network",
+        icon: Network,
+        items: [
+          { title: "Overview", url: "/tenant/network" },
+          { title: "POP / Branches", url: "/tenant/branches" },
+          { title: "Routers", url: "/tenant/routers" },
+          { title: "OLTs", url: "/tenant/olts" },
+          { title: "ONUs", url: "/tenant/onus" },
+          { title: "Live Topology", url: "/tenant/topology" },
+          { title: "PPPoE Accounts", url: "/tenant/pppoe" },
+        ],
+      },
+      // ── Corporate (B2B clients, VLANs, IP pools) ──────────────────
+      {
+        title: "Corporate Clients",
+        url: "/tenant/corporate",
+        icon: Briefcase,
+        items: [
+          { title: "Clients", url: "/tenant/corporate" },
+          { title: "Connections", url: "/tenant/corporate/connections" },
+          { title: "IP Pools", url: "/tenant/corporate/ip-pools" },
+          { title: "VLANs", url: "/tenant/corporate/vlans" },
+        ],
+      },
+      // ── People (HR, office staff, callcenter agents) ───────────────
+      {
+        title: "People",
+        url: "/tenant/hr",
+        icon: Users,
+        items: [
+          { title: "HR / Employees", url: "/tenant/hr" },
+          { title: "Attendance", url: "/tenant/hr/attendance" },
+          { title: "Leaves", url: "/tenant/hr/leaves" },
+          { title: "Payroll", url: "/tenant/hr/payroll" },
+          { title: "Office Staff", url: "/tenant/staff" },
+          { title: "Callcenter Agents", url: "/tenant/agents" },
+        ],
+      },
+      // ── Inventory (store, devices, hardware) ───────────────────────
+      {
+        title: "Inventory",
+        url: "/tenant/store",
+        icon: ShoppingBag,
+        items: [
+          { title: "Store Items", url: "/tenant/store" },
+          { title: "Stock Movements", url: "/tenant/store/transactions" },
+        ],
+      },
+      // ── Callcenter (PBX) ────────────────────────────────────────────
+      {
+        title: "Call Center",
+        url: "/tenant/callcenter",
+        icon: PhoneCall,
+        items: [
+          { title: "Calls", url: "/tenant/callcenter" },
+          { title: "Voice Templates", url: "/tenant/callcenter/templates" },
+          { title: "PBX Config", url: "/tenant/callcenter/pbx" },
+        ],
+      },
+      // ── Admin (settings, configuration) ────────────────────────────
+      {
+        title: "Configuration",
+        url: "/tenant/settings",
+        icon: Settings,
+        items: [
+          { title: "Tenant Settings", url: "/tenant/settings" },
+          { title: "Notifications", url: "/tenant/settings/notifications" },
+          { title: "Audit Logs", url: "/tenant/audit" },
+        ],
+      },
     ],
   },
 }

@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient } from '@/lib/query/native';
 import { ApiError } from '../lib/errors';
 
 const DEFAULT_STALE_TIME = 30_000;

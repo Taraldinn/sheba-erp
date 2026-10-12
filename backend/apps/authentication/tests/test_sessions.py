@@ -146,6 +146,33 @@ class StaffLoginEndToEndTests(TestCase):
         self.assertIsNone(resolve_session(first['token']))
         self.assertIsNotNone(resolve_session(second['session_token']))
 
+    def test_session_token_accepted_with_token_and_bearer_schemes(self):
+        login_res = self.client_.post(
+            '/api/v1/auth/login/',
+            data={'username': 'staff_alpha', 'password': 'StrongP@ss1'},
+            content_type='application/json', **self.headers,
+        ).json()
+        session_token = login_res['session_token']
+        drf_token = login_res['token']
+
+        # 1. Authorization: Token <session_token>
+        c1 = APIClient()
+        c1.credentials(HTTP_AUTHORIZATION=f'Token {session_token}', **self.headers)
+        r1 = c1.get('/api/v1/auth/me/')
+        self.assertEqual(r1.status_code, 200, r1.content)
+
+        # 2. Authorization: Bearer <session_token>
+        c2 = APIClient()
+        c2.credentials(HTTP_AUTHORIZATION=f'Bearer {session_token}', **self.headers)
+        r2 = c2.get('/api/v1/auth/me/')
+        self.assertEqual(r2.status_code, 200, r2.content)
+
+        # 3. Authorization: Bearer <drf_token>
+        c3 = APIClient()
+        c3.credentials(HTTP_AUTHORIZATION=f'Bearer {drf_token}', **self.headers)
+        r3 = c3.get('/api/v1/auth/me/')
+        self.assertEqual(r3.status_code, 200, r3.content)
+
 
 @override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
 class ResellerLoginTests(TestCase):

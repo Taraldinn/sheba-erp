@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams, useParams, usePathname } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@/lib/query/native';
 import { resellerApi, type ResellerProfile } from '@/lib/api';
 import { queryKeys } from '@/lib/query/keys';
 import { DataTable, type DataTableColumn } from '@/components/data-table/data-table';

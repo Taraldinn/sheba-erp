@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@/lib/query/native';
 import { platformAdminApi, type PlatformImpersonationSession } from '@/lib/api';
 import { DataTable, type DataTableColumn } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
