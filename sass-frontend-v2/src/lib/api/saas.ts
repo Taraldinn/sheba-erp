@@ -36,6 +36,22 @@ function normalizeOverview(raw: unknown): SaasDashboardOverview {
         total_revenue: financial.total_revenue_collected ?? r.total_revenue ?? 0,
         storage_used_bytes: backups.total_storage_mb ? backups.total_storage_mb * 1024 * 1024 : r.storage_used_bytes ?? 0,
         system_health: (String(platform.system_status ?? '').toLowerCase().includes('healthy') ? 'healthy' : 'warning') as 'healthy' | 'warning' | 'degraded',
+        suspended_tenants: kpis.suspended_tenants,
+        total_subscribers: kpis.total_subscribers,
+        active_subscribers: kpis.active_subscribers,
+        total_routers: kpis.total_routers,
+        online_routers: kpis.online_routers,
+        total_pops: kpis.total_pops,
+        active_pops: kpis.active_pops,
+        total_olts: kpis.total_olts,
+        total_onus: kpis.total_onus,
+        online_onus: kpis.online_onus,
+        total_staff: kpis.total_staff,
+        total_packages: kpis.total_packages,
+        annual_run_rate: financial.annual_run_rate,
+        cluster_status: r.cluster_status,
+        redis_latency_ms: r.redis_latency_ms,
+        sla_target: r.sla_target,
     };
 }
 

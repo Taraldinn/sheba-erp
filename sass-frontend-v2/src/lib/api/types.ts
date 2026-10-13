@@ -211,6 +211,22 @@ export interface SaasDashboardOverview {
     total_revenue?: number;
     storage_used_bytes?: number;
     system_health?: 'healthy' | 'warning' | 'degraded';
+    suspended_tenants?: number;
+    total_subscribers?: number;
+    active_subscribers?: number;
+    total_routers?: number;
+    online_routers?: number;
+    total_pops?: number;
+    active_pops?: number;
+    total_olts?: number;
+    total_onus?: number;
+    online_onus?: number;
+    total_staff?: number;
+    total_packages?: number;
+    annual_run_rate?: number;
+    cluster_status?: string;
+    redis_latency_ms?: number;
+    sla_target?: string;
 }
 
 export interface SaasEmployee {
@@ -345,7 +361,7 @@ export interface IspAdminChildTenantCreatePayload {
     plan?: string;
 }
 
-/* ── Tenant plane (staff) ──────────────────────────────────────────── */
+/* ── Tenant plane (staff) ─────────────��────────────────────────────── */
 
 export interface TenantLoginResponse {
     token?: string;
