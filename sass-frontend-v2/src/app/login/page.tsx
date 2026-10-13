@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { ArrowRight, Building2, Router, ShieldCheck } from 'lucide-react';
 import { usePortal } from '@/lib/portal/portal-provider';
+import { AuthShell } from '@/components/auth/auth-shell';
 
 /**
  * Generic "sign in" landing. Renders a portal picker instead of
@@ -16,48 +18,47 @@ export default function LoginRedirect() {
     return <LoginFallback preferPortal={portal.portal} />;
 }
 
+const PORTALS = [
+    { href: '/saas/login', key: 'SUPER_ADMIN', label: 'Super Admin', hint: 'Platform control plane', Icon: ShieldCheck },
+    { href: '/isp/login', key: 'ISP_ADMIN', label: 'ISP Admin', hint: 'Manage your ISP workspace', Icon: Building2 },
+    { href: '/tenant/login', key: 'TENANT', label: 'Tenant', hint: 'Daily operations & billing', Icon: Router },
+] as const;
+
 function LoginFallback({ preferPortal }: { preferPortal?: string }) {
     return (
-        <main className="container mx-auto max-w-md px-6 py-20">
-            <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
-                <h1 className="text-2xl font-semibold">Sign in</h1>
-                <p className="mt-2 text-sm text-muted-foreground">Choose the portal you&apos;d like to sign in to.</p>
-                <div className="mt-6 space-y-2">
-                    <Link
-                        href="/saas/login"
-                        className={
-                            'block w-full rounded-lg px-4 py-2 text-center text-sm font-semibold ' +
-                            (preferPortal === 'SUPER_ADMIN'
-                                ? 'bg-primary text-primary-foreground hover:opacity-90'
-                                : 'border border-border bg-background hover:bg-muted')
-                        }
-                    >
-                        Super Admin
-                    </Link>
-                    <Link
-                        href="/isp/login"
-                        className={
-                            'block w-full rounded-lg px-4 py-2 text-center text-sm font-semibold ' +
-                            (preferPortal === 'ISP_ADMIN'
-                                ? 'bg-primary text-primary-foreground hover:opacity-90'
-                                : 'border border-border bg-background hover:bg-muted')
-                        }
-                    >
-                        ISP Admin
-                    </Link>
-                    <Link
-                        href="/tenant/login"
-                        className={
-                            'block w-full rounded-lg px-4 py-2 text-center text-sm font-semibold ' +
-                            (preferPortal === 'TENANT'
-                                ? 'bg-primary text-primary-foreground hover:opacity-90'
-                                : 'border border-border bg-background hover:bg-muted')
-                        }
-                    >
-                        Tenant
-                    </Link>
-                </div>
-            </div>
-        </main>
+        <AuthShell
+            portalLabel="Shebafi"
+            title="Sign in"
+            description="Choose the portal you'd like to sign in to."
+            icon={<ShieldCheck className="size-4" aria-hidden="true" />}
+            panelTitle="One platform. Three purpose-built portals."
+            panelBody="Platform teams, ISP owners and tenant staff each get a workspace designed for the job they do."
+            highlights={['Strict per-tenant isolation', 'Branded domains & portals', 'Role-aware dashboards']}
+        >
+            <ul className="flex flex-col gap-3">
+                {PORTALS.map(({ href, key, label, hint, Icon }) => {
+                    const preferred = preferPortal === key;
+                    return (
+                        <li key={href}>
+                            <Link
+                                href={href}
+                                className={`group flex items-center gap-4 rounded-xl border p-4 transition-colors ${
+                                    preferred ? 'border-primary bg-accent' : 'border-border bg-card hover:border-primary/50 hover:bg-muted/50'
+                                }`}
+                            >
+                                <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                    <Icon className="size-5" aria-hidden="true" />
+                                </span>
+                                <span className="flex min-w-0 flex-1 flex-col">
+                                    <span className="text-sm font-semibold">{label}</span>
+                                    <span className="text-xs text-muted-foreground">{hint}</span>
+                                </span>
+                                <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                            </Link>
+                        </li>
+                    );
+                })}
+            </ul>
+        </AuthShell>
     );
 }

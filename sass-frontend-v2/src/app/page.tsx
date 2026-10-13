@@ -81,32 +81,32 @@ export default function Home() {
                 <Hero />
                 <FeatureGrid>
                     <FeatureCard
-                        icon={<Building2 className="h-4 w-4" />}
+                        icon={<Building2 className="size-5" />}
                         title="Organization-first control plane"
                         body="Every ISP you run is a child of a parent organization. Operators see a single list of orgs, not 200 scattered tenants."
                     />
                     <FeatureCard
-                        icon={<Users className="h-4 w-4" />}
+                        icon={<Users className="size-5" />}
                         title="Multi-tenant by design"
                         body="Strict per-tenant scoping enforced server-side. Never trust a hostname or a client-supplied ID."
                     />
                     <FeatureCard
-                        icon={<Network className="h-4 w-4" />}
+                        icon={<Network className="size-5" />}
                         title="Network ready"
                         body="MikroTik, OLT, ONU, and PPPoE workflows with polling, retries, and backoff out of the box."
                     />
                     <FeatureCard
-                        icon={<Globe className="h-4 w-4" />}
+                        icon={<Globe className="size-5" />}
                         title="Branded customer portal"
                         body="Each tenant gets its own domain and self-care portal. Branded invoices, branded login."
                     />
                     <FeatureCard
-                        icon={<KeyRound className="h-4 w-4" />}
+                        icon={<KeyRound className="size-5" />}
                         title="Reseller & staff"
                         body="Reseller wallet, idempotent purchases, renewals, and collections with server-confirmed balances."
                     />
                     <FeatureCard
-                        icon={<Activity className="h-4 w-4" />}
+                        icon={<Activity className="size-5" />}
                         title="Observability"
                         body="Health probes, audit log, impersonation log, and per-tenant kill switch for the platform team."
                     />
