@@ -2,6 +2,7 @@
 
 import { QueryClientProvider } from '@/lib/query/native';
 import type { PropsWithChildren } from 'react';
+import { ThemeProvider } from 'next-themes';
 import { PortalProvider } from '../lib/portal/portal-provider';
 import { AuthProvider } from '../lib/auth/auth-provider';
 import { DevPortalSwitcher } from '../lib/portal/dev-portal-switcher';
@@ -15,15 +16,17 @@ interface AppProvidersProps extends PropsWithChildren {
 export function AppProviders({ children, queryClient }: AppProvidersProps) {
     const client = queryClient ?? createQueryClient();
     return (
-        <QueryClientProvider client={client}>
-            <TooltipProvider>
-                <PortalProvider>
-                    <AuthProvider>
-                        {children}
-                        <DevPortalSwitcher />
-                    </AuthProvider>
-                </PortalProvider>
-            </TooltipProvider>
-        </QueryClientProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+            <QueryClientProvider client={client}>
+                <TooltipProvider>
+                    <PortalProvider>
+                        <AuthProvider>
+                            {children}
+                            <DevPortalSwitcher />
+                        </AuthProvider>
+                    </PortalProvider>
+                </TooltipProvider>
+            </QueryClientProvider>
+        </ThemeProvider>
     );
 }
