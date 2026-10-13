@@ -1,39 +1,46 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { ArrowRight, Check, Router, ShieldCheck, Wifi } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Check, Plus } from 'lucide-react';
+import { BrandMark } from '@/components/brand-mark';
+import { ThemeToggle } from '@/components/theme-toggle';
 
-function Logo() {
-    return (
-        <Link href="/" className="flex items-center gap-2">
-            <span className="inline-flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Wifi className="size-4" aria-hidden="true" />
-            </span>
-            <span className="text-lg font-semibold tracking-tight">Shebafi</span>
-        </Link>
-    );
-}
+const NAV = [
+    ['Platform', '#features'],
+    ['Workflow', '#how'],
+    ['Pricing', '#pricing'],
+    ['FAQ', '#faq'],
+] as const;
 
 export function MarketingHeader() {
     return (
-        <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-lg">
-            <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
-                <Logo />
-                <nav aria-label="Main" className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
-                    <a href="#features" className="transition-colors hover:text-foreground">Features</a>
-                    <a href="#how" className="transition-colors hover:text-foreground">How it works</a>
-                    <a href="#pricing" className="transition-colors hover:text-foreground">Pricing</a>
-                    <a href="#faq" className="transition-colors hover:text-foreground">FAQ</a>
+        <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-lg">
+            <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 lg:px-6">
+                <Link href="/" aria-label="Shebafi home">
+                    <BrandMark />
+                </Link>
+                <nav aria-label="Main" className="hidden items-center md:flex">
+                    {NAV.map(([label, href], i) => (
+                        <a
+                            key={href}
+                            href={href}
+                            className="group flex items-center gap-1.5 px-3.5 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                            <span className="font-mono text-[10px] text-muted-foreground/60 group-hover:text-primary">0{i + 1}</span>
+                            {label}
+                        </a>
+                    ))}
                 </nav>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                    <ThemeToggle />
                     <Link
                         href="/login"
-                        className="hidden rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+                        className="hidden rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
                     >
                         Sign in
                     </Link>
                     <Link
                         href="/onboarding"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+                        className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
                     >
                         Start free
                         <ArrowRight className="size-3.5" aria-hidden="true" />
@@ -46,29 +53,29 @@ export function MarketingHeader() {
 
 export function MarketingFooter() {
     const cols: Array<{ title: string; links: Array<[string, string]> }> = [
-        { title: 'Product', links: [['Features', '#features'], ['Pricing', '#pricing'], ['Sign up', '/onboarding']] },
-        { title: 'For operators', links: [['Super admin login', '/saas/login'], ['ISP admin login', '/isp/login'], ['Tenant login', '/tenant/login']] },
+        { title: 'Product', links: [['Platform', '#features'], ['Pricing', '#pricing'], ['Sign up', '/onboarding']] },
+        { title: 'Portals', links: [['Super admin', '/saas/login'], ['ISP admin', '/isp/login'], ['Tenant', '/tenant/login']] },
         { title: 'Resources', links: [['FAQ', '#faq'], ['Documentation', '/docs']] },
     ];
     return (
         <footer className="border-t border-border">
-            <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 text-sm md:grid-cols-5">
+            <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 text-sm md:grid-cols-5 lg:px-6">
                 <div className="md:col-span-2">
-                    <Logo />
+                    <BrandMark />
                     <p className="mt-4 max-w-xs text-pretty text-muted-foreground">
-                        ISP ERP and SaaS control plane for broadband businesses in emerging markets.
+                        ISP ERP and SaaS control plane for broadband operators in emerging markets.
                     </p>
                 </div>
                 {cols.map(c => (
                     <div key={c.title}>
-                        <p className="font-semibold">{c.title}</p>
-                        <ul className="mt-4 flex flex-col gap-2.5 text-muted-foreground">
+                        <p className="eyebrow text-muted-foreground">{c.title}</p>
+                        <ul className="mt-4 flex flex-col gap-2.5">
                             {c.links.map(([label, href]) => (
                                 <li key={label}>
                                     {href.startsWith('#') ? (
-                                        <a href={href} className="transition-colors hover:text-foreground">{label}</a>
+                                        <a href={href} className="transition-colors hover:text-primary">{label}</a>
                                     ) : (
-                                        <Link href={href as never} className="transition-colors hover:text-foreground">{label}</Link>
+                                        <Link href={href as never} className="transition-colors hover:text-primary">{label}</Link>
                                     )}
                                 </li>
                             ))}
@@ -77,9 +84,12 @@ export function MarketingFooter() {
                 ))}
             </div>
             <div className="border-t border-border">
-                <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-5 text-xs text-muted-foreground md:flex-row">
-                    <p>© {new Date().getFullYear()} Shebafi. All rights reserved.</p>
-                    <p>v1.0</p>
+                <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-5 font-mono text-[11px] uppercase tracking-wider text-muted-foreground md:flex-row lg:px-6">
+                    <p>© {new Date().getFullYear()} Shebafi</p>
+                    <p className="flex items-center gap-2">
+                        <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
+                        All systems operational · v1.0
+                    </p>
                 </div>
             </div>
         </footer>
@@ -88,56 +98,57 @@ export function MarketingFooter() {
 
 export function Hero() {
     return (
-        <section className="relative overflow-hidden">
-            <div
-                className="pointer-events-none absolute inset-x-0 -top-40 mx-auto h-[480px] max-w-4xl rounded-full bg-primary/15 blur-3xl"
-                aria-hidden="true"
-            />
-            <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-20 md:pb-24 md:pt-28">
-                <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs font-medium text-muted-foreground">
-                        <span className="relative inline-flex size-2 rounded-full bg-success">
-                            <span className="absolute inset-0 animate-ping rounded-full bg-success opacity-60" />
-                        </span>
-                        Multi-tenant SaaS control plane
-                    </span>
-                    <h1 className="mt-6 text-balance text-4xl font-semibold tracking-tight md:text-6xl">
-                        Run your broadband business on a single control plane.
-                    </h1>
-                    <p className="mt-5 max-w-2xl text-pretty text-base text-muted-foreground md:text-lg">
-                        Shebafi gives ISPs the ERP they need (subscribers, billing, network) and the platform team the
-                        org-aware control plane to manage many ISPs at once.
-                    </p>
-                    <div className="mt-8 flex flex-wrap justify-center gap-3">
-                        <Link
-                            href="/onboarding"
-                            className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-                        >
-                            Start your organization
-                            <ArrowRight className="size-4" aria-hidden="true" />
-                        </Link>
-                        <Link
-                            href="/login"
-                            className="inline-flex items-center rounded-lg border border-border bg-card px-5 py-2.5 text-sm font-semibold transition-colors hover:bg-muted"
-                        >
-                            Sign in to your portal
-                        </Link>
+        <section className="relative overflow-hidden border-b border-border">
+            <div className="bg-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_top,black_30%,transparent_75%)]" aria-hidden="true" />
+            <div className="relative mx-auto max-w-7xl px-4 pb-16 pt-16 md:pt-24 lg:px-6">
+                <div className="grid gap-12 lg:grid-cols-12 lg:items-end">
+                    <div className="lg:col-span-7">
+                        <p className="eyebrow inline-flex items-center gap-2 rounded-sm border border-border bg-card px-2.5 py-1 text-muted-foreground">
+                            <span className="relative inline-flex size-1.5 rounded-full bg-success">
+                                <span className="absolute inset-0 animate-ping rounded-full bg-success opacity-60" />
+                            </span>
+                            Multi-tenant ISP control plane
+                        </p>
+                        <h1 className="mt-6 text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+                            See every subscriber, invoice and router{' '}
+                            <span className="text-primary">before it becomes a ticket.</span>
+                        </h1>
+                    </div>
+                    <div className="flex flex-col gap-6 lg:col-span-5 lg:pb-2">
+                        <p className="text-pretty text-base leading-relaxed text-muted-foreground md:text-lg">
+                            Shebafi is the ERP broadband operators run on — billing, PPPoE, MikroTik and OLT telemetry
+                            in one console, with an org-aware control plane above it.
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                            <Link
+                                href="/onboarding"
+                                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                            >
+                                Start your organization
+                                <ArrowRight className="size-4" aria-hidden="true" />
+                            </Link>
+                            <Link
+                                href="/login"
+                                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-primary/50"
+                            >
+                                Sign in to a portal
+                            </Link>
+                        </div>
                     </div>
                 </div>
 
-                <HeroPreview />
+                <HeroConsole />
 
-                <dl className="mx-auto mt-14 grid max-w-4xl grid-cols-2 gap-6 text-center md:grid-cols-4">
+                <dl className="mt-10 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-4">
                     {[
-                        ['< 1 min', 'to provision an org'],
-                        ['99.9%', 'uptime SLA'],
-                        ['MikroTik + OLT', 'native integrations'],
+                        ['< 60s', 'Org provisioning'],
+                        ['99.9%', 'Uptime SLA'],
+                        ['MikroTik · OLT', 'Native integrations'],
                         ['3 portals', 'SaaS · ISP · Tenant'],
                     ].map(([v, l]) => (
-                        <div key={l}>
-                            <dt className="sr-only">{l}</dt>
-                            <dd className="text-2xl font-semibold tracking-tight">{v}</dd>
-                            <p className="mt-1 text-sm text-muted-foreground">{l}</p>
+                        <div key={l} className="flex flex-col gap-1 bg-card px-5 py-4">
+                            <dt className="eyebrow order-2 text-muted-foreground">{l}</dt>
+                            <dd className="order-1 font-mono text-xl font-semibold tracking-tight">{v}</dd>
                         </div>
                     ))}
                 </dl>
@@ -146,58 +157,77 @@ export function Hero() {
     );
 }
 
-function HeroPreview() {
-    const bars = [42, 58, 51, 66, 72, 64, 80, 86, 78, 92, 88, 96];
+function HeroConsole() {
+    const bars = [38, 52, 47, 61, 58, 70, 66, 74, 81, 77, 88, 94];
+    const nodes = [
+        ['CORE-BRAS-01', '10.0.0.1', 'UP', '2.4 Gb/s'],
+        ['POP-MIRPUR', '10.0.12.1', 'UP', '864 Mb/s'],
+        ['OLT-ZONE-A', '10.0.40.2', 'UP', '1.1 Gb/s'],
+        ['POP-UTTARA', '10.0.18.1', 'WARN', '412 Mb/s'],
+    ];
     return (
-        <div className="relative mx-auto mt-14 max-w-5xl" aria-hidden="true">
-            <div className="rounded-2xl border border-border bg-card/70 p-2 shadow-2xl shadow-primary/10 backdrop-blur">
-                <div className="rounded-xl border border-border bg-background">
-                    <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-                        <span className="size-2.5 rounded-full bg-muted-foreground/30" />
-                        <span className="size-2.5 rounded-full bg-muted-foreground/30" />
-                        <span className="size-2.5 rounded-full bg-muted-foreground/30" />
-                        <span className="ml-3 rounded-md bg-muted px-3 py-1 font-mono text-xs text-muted-foreground">
-                            acme.shebafi.app/tenant
+        <div className="relative mt-14" aria-hidden="true">
+            <div className="overflow-hidden rounded-lg border border-border bg-card shadow-2xl shadow-primary/5">
+                <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                    <div className="flex items-center gap-3 font-mono text-[11px] text-muted-foreground">
+                        <span className="flex gap-1.5">
+                            <span className="size-2 rounded-full bg-border" />
+                            <span className="size-2 rounded-full bg-border" />
+                            <span className="size-2 rounded-full bg-border" />
                         </span>
+                        acme.shebafi.app/tenant
                     </div>
-                    <div className="grid gap-4 p-4 md:grid-cols-4 md:p-6">
+                    <span className="eyebrow flex items-center gap-1.5 text-success">
+                        <span className="size-1.5 rounded-full bg-success" />
+                        Live
+                    </span>
+                </div>
+                <div className="grid lg:grid-cols-12">
+                    <div className="grid grid-cols-2 gap-px border-b border-border bg-border lg:col-span-12 lg:grid-cols-4">
                         {[
-                            ['Subscribers', '2,847', '+124 this month'],
-                            ['Collected', '৳4,85,200', '92% of target'],
-                            ['Routers online', '18 / 18', 'All healthy'],
-                            ['Open tickets', '7', '2 high priority'],
+                            ['Subscribers', '2,847', '+124 mtd'],
+                            ['Collected', '৳4.85L', '92% of target'],
+                            ['Routers online', '18/18', 'All healthy'],
+                            ['Open tickets', '07', '2 priority'],
                         ].map(([l, v, h]) => (
-                            <div key={l} className="rounded-xl border border-border p-4 text-left">
-                                <p className="text-xs text-muted-foreground">{l}</p>
-                                <p className="mt-2 text-xl font-semibold tabular-nums">{v}</p>
+                            <div key={l} className="bg-card p-4">
+                                <p className="eyebrow text-muted-foreground">{l}</p>
+                                <p className="mt-2 font-mono text-xl font-semibold tabular-nums">{v}</p>
                                 <p className="mt-1 text-xs text-muted-foreground">{h}</p>
                             </div>
                         ))}
-                        <div className="rounded-xl border border-border p-4 md:col-span-3">
-                            <p className="text-left text-xs text-muted-foreground">Monthly collection</p>
-                            <div className="mt-4 flex h-32 items-end gap-2">
-                                {bars.map((h, i) => (
-                                    <div key={i} className="flex-1 rounded-t-md bg-primary/80" style={{ height: `${h}%`, opacity: 0.4 + i * 0.05 }} />
-                                ))}
-                            </div>
+                    </div>
+                    <div className="border-b border-border p-5 lg:col-span-7 lg:border-b-0 lg:border-r">
+                        <div className="flex items-center justify-between">
+                            <p className="eyebrow text-muted-foreground">Collections · 12 mo</p>
+                            <p className="font-mono text-xs text-primary">+18.4%</p>
                         </div>
-                        <div className="flex flex-col gap-3 rounded-xl border border-border p-4 text-left">
-                            <p className="text-xs text-muted-foreground">Network</p>
-                            {[
-                                [Router, 'Core-BRAS-01', 'Online'],
-                                [Router, 'POP-Mirpur', 'Online'],
-                                [ShieldCheck, 'OLT-Zone-A', 'Synced'],
-                            ].map(([Icon, n, s]) => {
-                                const I = Icon as typeof Router;
-                                return (
-                                    <div key={n as string} className="flex items-center gap-2 text-xs">
-                                        <I className="size-3.5 text-primary" />
-                                        <span className="flex-1 truncate">{n as string}</span>
-                                        <span className="text-success">{s as string}</span>
-                                    </div>
-                                );
-                            })}
+                        <div className="mt-5 flex h-36 items-end gap-1.5">
+                            {bars.map((h, i) => (
+                                <div
+                                    key={i}
+                                    className={`flex-1 rounded-sm ${i === bars.length - 1 ? 'bg-primary' : 'bg-primary/25'}`}
+                                    style={{ height: `${h}%` }}
+                                />
+                            ))}
                         </div>
+                        <div className="mt-2 flex justify-between font-mono text-[10px] text-muted-foreground">
+                            <span>NOV</span>
+                            <span>OCT</span>
+                        </div>
+                    </div>
+                    <div className="p-5 lg:col-span-5">
+                        <p className="eyebrow text-muted-foreground">Network nodes</p>
+                        <ul className="mt-4 divide-y divide-border font-mono text-xs">
+                            {nodes.map(([name, ip, state, tput]) => (
+                                <li key={name} className="flex items-center gap-3 py-2.5">
+                                    <span className={`size-1.5 rounded-full ${state === 'UP' ? 'bg-success' : 'bg-warning'}`} />
+                                    <span className="flex-1 truncate">{name}</span>
+                                    <span className="hidden text-muted-foreground sm:inline">{ip}</span>
+                                    <span className="w-16 text-right tabular-nums text-muted-foreground">{tput}</span>
+                                </li>
+                            ))}
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -205,26 +235,33 @@ function HeroPreview() {
     );
 }
 
-function SectionHeading({ eyebrow, title, body }: { eyebrow: string; title: string; body: string }) {
+function SectionHeading({ index, eyebrow, title, body }: { index: string; eyebrow: string; title: string; body: string }) {
     return (
-        <div className="mx-auto max-w-2xl text-center">
-            <p className="text-sm font-semibold text-primary">{eyebrow}</p>
-            <h2 className="mt-2 text-balance text-3xl font-semibold tracking-tight md:text-4xl">{title}</h2>
-            <p className="mt-4 text-pretty text-muted-foreground">{body}</p>
+        <div className="grid gap-6 border-b border-border pb-10 lg:grid-cols-12">
+            <p className="eyebrow flex items-center gap-2 text-primary lg:col-span-3">
+                <span className="font-mono">{index}</span>
+                <span className="h-px w-6 bg-primary/50" aria-hidden="true" />
+                {eyebrow}
+            </p>
+            <div className="lg:col-span-9">
+                <h2 className="max-w-3xl text-balance text-3xl font-semibold tracking-tight md:text-4xl">{title}</h2>
+                <p className="mt-4 max-w-2xl text-pretty text-muted-foreground">{body}</p>
+            </div>
         </div>
     );
 }
 
 export function FeatureGrid({ children }: { children: ReactNode }) {
     return (
-        <section id="features" className="scroll-mt-20 border-t border-border/60 py-20 md:py-28">
-            <div className="mx-auto max-w-6xl px-4">
+        <section id="features" className="scroll-mt-16 py-20 md:py-28">
+            <div className="mx-auto max-w-7xl px-4 lg:px-6">
                 <SectionHeading
-                    eyebrow="Features"
+                    index="01"
+                    eyebrow="Platform"
                     title="Everything an ISP needs. Nothing it doesn't."
                     body="Six pillars that let you run the business end-to-end without gluing together five SaaS tools."
                 />
-                <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-10 grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
                     {children}
                 </div>
             </div>
@@ -234,9 +271,10 @@ export function FeatureGrid({ children }: { children: ReactNode }) {
 
 export function FeatureCard({ title, body, icon }: { title: string; body: string; icon?: ReactNode }) {
     return (
-        <div className="group bg-card p-6 transition-colors hover:bg-muted/40 md:p-8">
+        <div className="group relative flex flex-col bg-card p-6 transition-colors hover:bg-muted/40 md:p-8">
+            <span className="absolute inset-x-0 top-0 h-px bg-primary opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
             {icon && (
-                <div className="mb-5 inline-flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                <div className="mb-8 inline-flex size-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors group-hover:border-primary/50 group-hover:text-primary">
                     {icon}
                 </div>
             )}
@@ -248,23 +286,27 @@ export function FeatureCard({ title, body, icon }: { title: string; body: string
 
 export function HowItWorks() {
     const steps = [
-        { title: 'Sign up your organization', body: 'Provide your company name, contact info, and a slug. We provision the org in seconds.' },
-        { title: 'Set up your first tenant', body: 'Each tenant is an ISP. Pick a name, a hostname, and a plan. Provisioning is fully automated.' },
-        { title: 'Invite your team & go live', body: 'Add ISP admins, set branding, and start onboarding subscribers. We stay out of your way.' },
+        { title: 'Sign up your organization', body: 'Company name, contact and a slug. The org is provisioned in seconds.' },
+        { title: 'Provision your first tenant', body: 'Each tenant is an ISP. Pick a hostname and a plan — provisioning is automated.' },
+        { title: 'Invite your team & go live', body: 'Add ISP admins, set branding and start onboarding subscribers.' },
     ];
     return (
-        <section id="how" className="scroll-mt-20 border-t border-border/60 bg-muted/30 py-20 md:py-28">
-            <div className="mx-auto max-w-6xl px-4">
+        <section id="how" className="scroll-mt-16 border-y border-border bg-muted/30 py-20 md:py-28">
+            <div className="mx-auto max-w-7xl px-4 lg:px-6">
                 <SectionHeading
-                    eyebrow="How it works"
-                    title="From sign-up to live ISP in under an hour"
-                    body="The whole flow is built for first-time operators, not just seasoned SaaS teams."
+                    index="02"
+                    eyebrow="Workflow"
+                    title="From sign-up to a live ISP in under an hour"
+                    body="Built for first-time operators, not just seasoned SaaS teams."
                 />
-                <ol className="relative mt-14 grid gap-6 md:grid-cols-3">
+                <ol className="mt-10 grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
                     {steps.map((s, i) => (
-                        <li key={s.title} className="relative rounded-2xl border border-border bg-card p-6">
-                            <span className="font-mono text-sm font-semibold text-primary">0{i + 1}</span>
-                            <h3 className="mt-4 text-lg font-semibold">{s.title}</h3>
+                        <li key={s.title} className="flex flex-col bg-card p-6 md:p-8">
+                            <div className="flex items-center justify-between">
+                                <span className="font-mono text-xs text-primary">STEP_0{i + 1}</span>
+                                <span className="font-mono text-xs text-muted-foreground">{['T+0s', 'T+60s', 'T+1h'][i]}</span>
+                            </div>
+                            <h3 className="mt-10 text-lg font-semibold">{s.title}</h3>
                             <p className="mt-2 text-pretty text-sm leading-relaxed text-muted-foreground">{s.body}</p>
                         </li>
                     ))}
@@ -297,33 +339,35 @@ export function Pricing({ packages, loading }: { packages: import('@/lib/api/typ
     const featuredIndex = plans.length >= 3 ? 1 : -1;
 
     return (
-        <section id="pricing" className="scroll-mt-20 border-t border-border/60 py-20 md:py-28">
-            <div className="mx-auto max-w-6xl px-4">
+        <section id="pricing" className="scroll-mt-16 py-20 md:py-28">
+            <div className="mx-auto max-w-7xl px-4 lg:px-6">
                 <SectionHeading
+                    index="03"
                     eyebrow="Pricing"
-                    title="Simple, transparent pricing"
-                    body="Plans scale with your subscriber count, not your seat count. Switch or cancel any time."
+                    title="Priced by subscribers, not seats"
+                    body="Plans scale with the network you run. Switch or cancel any time."
                 />
-                <div className="mt-14 grid gap-6 md:grid-cols-3">
+                <div className="mt-10 grid gap-4 md:grid-cols-3">
                     {loading
                         ? Array.from({ length: 3 }).map((_, i) => (
-                            <div key={i} className="h-96 animate-pulse rounded-2xl border border-border bg-muted" />
+                            <div key={i} className="h-96 animate-pulse rounded-lg border border-border bg-muted" />
                         ))
                         : plans.map((p, i) => {
                             const featured = i === featuredIndex;
                             return (
                                 <div
                                     key={p.id}
-                                    className={`relative flex flex-col rounded-2xl border p-7 ${featured ? 'border-primary bg-card shadow-xl shadow-primary/10' : 'border-border bg-card'}`}
+                                    className={`relative flex flex-col overflow-hidden rounded-lg border bg-card p-7 ${featured ? 'border-primary' : 'border-border'}`}
                                 >
-                                    {featured && (
-                                        <span className="absolute -top-3 left-7 rounded-full bg-primary px-3 py-0.5 text-xs font-semibold text-primary-foreground">
-                                            Most popular
-                                        </span>
-                                    )}
-                                    <p className="text-sm font-semibold">{p.name}</p>
-                                    <p className="mt-4 flex items-baseline gap-1">
-                                        <span className="text-4xl font-semibold tracking-tight">৳{Number(p.price).toLocaleString()}</span>
+                                    {featured && <span className="absolute inset-x-0 top-0 h-0.5 bg-primary" aria-hidden="true" />}
+                                    <div className="flex items-center justify-between">
+                                        <p className="eyebrow text-muted-foreground">{p.name}</p>
+                                        {featured && (
+                                            <span className="eyebrow rounded-sm bg-primary/10 px-1.5 py-0.5 text-primary">Most popular</span>
+                                        )}
+                                    </div>
+                                    <p className="mt-6 flex items-baseline gap-1">
+                                        <span className="font-mono text-4xl font-semibold tracking-tight">৳{Number(p.price).toLocaleString()}</span>
                                         <span className="text-sm text-muted-foreground">/mo</span>
                                     </p>
                                     <p className="mt-3 min-h-10 text-pretty text-sm text-muted-foreground">{p.description}</p>
@@ -337,9 +381,10 @@ export function Pricing({ packages, loading }: { packages: import('@/lib/api/typ
                                     </ul>
                                     <Link
                                         href={p.href as never}
-                                        className={`mt-8 inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 ${featured ? 'bg-primary text-primary-foreground' : 'border border-border bg-background hover:bg-muted'}`}
+                                        className={`mt-8 inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-90 ${featured ? 'bg-primary text-primary-foreground' : 'border border-border bg-background hover:border-primary/50'}`}
                                     >
                                         Choose {p.name}
+                                        <ArrowUpRight className="size-3.5" aria-hidden="true" />
                                     </Link>
                                 </div>
                             );
@@ -360,42 +405,58 @@ export function Faq() {
     ];
     return (
         <>
-            <section id="faq" className="scroll-mt-20 border-t border-border/60 py-20 md:py-28">
-                <div className="mx-auto grid max-w-6xl gap-12 px-4 lg:grid-cols-3">
-                    <div>
-                        <p className="text-sm font-semibold text-primary">FAQ</p>
-                        <h2 className="mt-2 text-balance text-3xl font-semibold tracking-tight">Frequently asked questions</h2>
+            <section id="faq" className="scroll-mt-16 border-t border-border py-20 md:py-28">
+                <div className="mx-auto grid max-w-7xl gap-10 px-4 lg:grid-cols-12 lg:px-6">
+                    <div className="lg:col-span-4">
+                        <p className="eyebrow flex items-center gap-2 text-primary">
+                            <span className="font-mono">04</span>
+                            <span className="h-px w-6 bg-primary/50" aria-hidden="true" />
+                            FAQ
+                        </p>
+                        <h2 className="mt-6 text-balance text-3xl font-semibold tracking-tight">Questions operators ask first</h2>
                         <p className="mt-4 text-muted-foreground">
                             Can&apos;t find what you need?{' '}
-                            <Link href="/docs" className="font-medium text-foreground underline underline-offset-4">Read the docs</Link>.
+                            <Link href="/docs" className="font-medium text-foreground underline decoration-primary underline-offset-4">
+                                Read the docs
+                            </Link>
+                            .
                         </p>
                     </div>
-                    <div className="divide-y divide-border rounded-2xl border border-border bg-card lg:col-span-2">
-                        {faqs.map(f => (
-                            <details key={f.q} className="group px-6 py-5">
-                                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold">
-                                    {f.q}
-                                    <span className="text-lg leading-none text-muted-foreground transition-transform group-open:rotate-45" aria-hidden="true">+</span>
+                    <div className="divide-y divide-border border-y border-border lg:col-span-8">
+                        {faqs.map((f, i) => (
+                            <details key={f.q} className="group py-5">
+                                <summary className="flex cursor-pointer list-none items-center gap-4 text-sm font-medium [&::-webkit-details-marker]:hidden">
+                                    <span className="font-mono text-xs text-muted-foreground">Q.0{i + 1}</span>
+                                    <span className="flex-1">{f.q}</span>
+                                    <Plus className="size-4 text-muted-foreground transition-transform group-open:rotate-45 group-open:text-primary" aria-hidden="true" />
                                 </summary>
-                                <p className="mt-3 text-pretty text-sm leading-relaxed text-muted-foreground">{f.a}</p>
+                                <p className="mt-3 pl-12 text-pretty text-sm leading-relaxed text-muted-foreground">{f.a}</p>
                             </details>
                         ))}
                     </div>
                 </div>
             </section>
-            <section className="px-4 pb-20 md:pb-28">
-                <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl border border-border bg-primary px-6 py-14 text-center text-primary-foreground md:py-20">
-                    <h2 className="text-balance text-3xl font-semibold tracking-tight md:text-4xl">Ready to run your ISP on Shebafi?</h2>
-                    <p className="mx-auto mt-4 max-w-xl text-pretty opacity-80">
-                        Provision your organization in under a minute. No credit card, no installs.
-                    </p>
-                    <Link
-                        href="/onboarding"
-                        className="mt-8 inline-flex items-center gap-2 rounded-lg bg-background px-5 py-2.5 text-sm font-semibold text-foreground transition-opacity hover:opacity-90"
-                    >
-                        Start your organization
-                        <ArrowRight className="size-4" aria-hidden="true" />
-                    </Link>
+            <section className="px-4 pb-20 md:pb-28 lg:px-6">
+                <div className="relative mx-auto max-w-7xl overflow-hidden rounded-lg border border-border bg-card">
+                    <div className="bg-grid absolute inset-0 opacity-60" aria-hidden="true" />
+                    <div className="relative flex flex-col items-start gap-8 p-8 md:flex-row md:items-end md:justify-between md:p-14">
+                        <div>
+                            <p className="eyebrow text-primary">Ready when you are</p>
+                            <h2 className="mt-4 max-w-xl text-balance text-3xl font-semibold tracking-tight md:text-4xl">
+                                Put your network on one console.
+                            </h2>
+                            <p className="mt-3 max-w-md text-pretty text-muted-foreground">
+                                Provision your organization in under a minute. No credit card, no installs.
+                            </p>
+                        </div>
+                        <Link
+                            href="/onboarding"
+                            className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                        >
+                            Start your organization
+                            <ArrowRight className="size-4" aria-hidden="true" />
+                        </Link>
+                    </div>
                 </div>
             </section>
         </>
