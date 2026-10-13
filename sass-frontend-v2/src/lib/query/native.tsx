@@ -113,9 +113,20 @@ export interface UseQueryOptions<TData, TError = Error> {
     queryFn: () => Promise<TData>;
     enabled?: boolean;
     staleTime?: number;
+    /** Accepted for source-compat. Ignored by the native shim. */
     placeholderData?: (previous: TData | undefined) => TData | undefined;
+    /** Accepted for source-compat. Ignored by the native shim. */
     retry?: boolean | number;
+    /** Accepted for source-compat. Ignored by the native shim. */
     refetchOnWindowFocus?: boolean;
+    /** Polling interval in ms. Set to 0 / false to disable. */
+    refetchInterval?: number | false;
+    /** Accepted for source-compat. Ignored. */
+    refetchIntervalInBackground?: boolean;
+    /** Accepted for source-compat. Ignored. */
+    gcTime?: number;
+    /** Accepted for source-compat. Ignored. */
+    select?: (data: TData) => unknown;
     onSuccess?: (data: TData) => void;
     onError?: (err: TError) => void;
 }
@@ -133,7 +144,7 @@ export interface UseQueryResult<TData, TError = Error> {
 export function useQuery<TData = unknown, TError = Error>(
     options: UseQueryOptions<TData, TError>,
 ): UseQueryResult<TData, TError> {
-    const { queryKey, queryFn, enabled = true, placeholderData, onSuccess, onError } = options;
+    const { queryKey, queryFn, enabled = true, placeholderData, onSuccess, onError, refetchInterval } = options;
     const keyStr = useMemo(() => keyToString(queryKey), [queryKey]);
 
     const [data, setData] = useState<TData | undefined>(() => placeholderData?.(undefined));
@@ -222,8 +233,24 @@ export interface UseMutationOptions<TData, TError, TVariables, TContext = unknow
 }
 
 export interface UseMutationResult<TData, TError, TVariables> {
-    mutate: (variables: TVariables) => void;
-    mutateAsync: (variables: TVariables) => Promise<TData>;
+    /**
+     * Trigger the mutation. The argument is typed as `TVariables | void` so
+     * callers can safely invoke `mutate()` for no-arg mutations even when
+     * `TVariables` was inferred to a non-void value (which happens when the
+     * options object is built via `withMutationToast({...})` and the
+     * `TVariables` generic falls back to `unknown`).
+     *
+     * A second `opts` bag (TanStack-compatible) lets callers pass per-call
+     * `onSuccess` / `onError` handlers.
+     */
+    mutate: (
+        variables?: TVariables | void,
+        opts?: { onSuccess?: () => void; onError?: (e: TError) => void },
+    ) => void;
+    mutateAsync: (
+        variables?: TVariables | void,
+        opts?: { onSuccess?: () => void; onError?: (e: TError) => void },
+    ) => Promise<TData>;
     isPending: boolean;
     isError: boolean;
     isSuccess: boolean;
@@ -278,7 +305,7 @@ export function useMutation<TData = unknown, TError = Error, TVariables = void, 
     );
 
     const mutateAsync = useCallback(
-        (variables?: TVariables, opts?: { onSuccess?: () => void; onError?: (e: TError) => void }) =>
+        (variables?: TVariables | void, opts?: { onSuccess?: () => void; onError?: (e: TError) => void }) =>
             run(variables as TVariables).then(
                 result => {
                     opts?.onSuccess?.();
@@ -292,7 +319,7 @@ export function useMutation<TData = unknown, TError = Error, TVariables = void, 
         [run],
     );
     const mutate = useCallback(
-        (variables?: TVariables, opts?: { onSuccess?: () => void; onError?: (e: TError) => void }) => {
+        (variables?: TVariables | void, opts?: { onSuccess?: () => void; onError?: (e: TError) => void }) => {
             run(variables as TVariables)
                 .then(result => {
                     opts?.onSuccess?.();

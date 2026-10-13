@@ -49,9 +49,9 @@ function normalizeEndpoint(endpoint: string): string {
     return query ? `${cleanPath}?${query}` : cleanPath;
 }
 
-function readTokenFromCookies(slot: TokenSlot): string | null {
+async function readTokenFromCookies(slot: TokenSlot): Promise<string | null> {
     try {
-        const jar = cookies();
+        const jar = await cookies();
         const value = jar.get(SLOT_COOKIE[slot])?.value;
         return value || null;
     } catch {
@@ -59,10 +59,10 @@ function readTokenFromCookies(slot: TokenSlot): string | null {
     }
 }
 
-function readTenantSlug(opts: ServerFetchOptions): string | null {
+async function readTenantSlug(opts: ServerFetchOptions): Promise<string | null> {
     if (opts.tenantSlug) return opts.tenantSlug;
     try {
-        const jar = cookies();
+        const jar = await cookies();
         const slug = jar.get(STORAGE_KEYS.tenantSlug)?.value;
         return slug || null;
     } catch {
@@ -82,7 +82,7 @@ function isAuthEndpoint(endpoint: string): boolean {
     );
 }
 
-function buildHeaders(token: string | null, opts: ServerFetchOptions): Headers {
+function buildHeaders(token: string | null, opts: ServerFetchOptions, slug: string | null): Headers {
     const h = new Headers();
     h.set('Accept', 'application/json');
     if (opts.json !== undefined) {
@@ -98,7 +98,6 @@ function buildHeaders(token: string | null, opts: ServerFetchOptions): Headers {
                 : `Token ${token}`,
         );
     }
-    const slug = readTenantSlug(opts);
     if (slug && (opts.plane ?? 'tenant') === 'tenant') {
         h.set('X-Tenant-ID', slug);
     }
