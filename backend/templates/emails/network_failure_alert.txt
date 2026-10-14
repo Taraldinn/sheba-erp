@@ -1,0 +1,12 @@
+[NETWORK ALERT] Router / Hardware Connection Dropped
+======================================================
+Tenant: {{ tenant_name }}
+Router / NAS: {{ router_name }}
+IP Address: {{ router_ip }}
+State: UNREACHABLE / OFFLINE
+
+Failure Diagnostics:
+{{ error_details }}
+
+------------------------------------------------------
+ShebaFi Network Monitoring Engine (c) {{ current_year }}

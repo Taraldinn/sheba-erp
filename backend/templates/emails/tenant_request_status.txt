@@ -1,0 +1,9 @@
+Tenant Subscription Status: {{ status }}
+===========================================
+Tenant: {{ tenant_name }}
+Status: {{ status }}
+{% if notes %}Admin Notes: {{ notes }}{% endif %}
+{% if portal_url %}Portal URL: {{ portal_url }}{% endif %}
+
+-------------------------------------------
+ShebaFi SaaS Management (c) {{ current_year }}
