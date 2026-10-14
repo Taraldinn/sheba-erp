@@ -641,7 +641,7 @@ class MyAccessibleTenantsView(views.APIView):
                 'primary_hostname': primary_domain.hostname if primary_domain else None,
                 'tenant_url': (
                     f'https://{primary_domain.hostname}/'
-                    if primary_domain else f'/{tenant.schema_name}/'
+                    if primary_domain else f'/{tenant.slug}/'
                 ),
                 'role': role_label,
                 'plan': package_name,
@@ -658,6 +658,585 @@ class MyAccessibleTenantsView(views.APIView):
             'items': items,
             'is_isp_admin': len(items) > 0 and not user.is_superuser,
         }, status=status.HTTP_200_OK)
+
+
+class MyTenantRequestCreateView(views.APIView):
+    """
+    Allows authenticated ISP users to request/buy a new tenant with manual bKash payment.
+    The request is queued for SaaS Admin review & approval.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        data = request.data
+        tenant_name = (data.get('tenant_name') or data.get('organization_name') or '').strip()
+        slug = (data.get('tenant_slug') or data.get('requested_slug') or '').strip().lower()
+        if not slug and tenant_name:
+            from django.utils.text import slugify
+            slug = slugify(tenant_name)
+
+        if not tenant_name or not slug:
+            return Response({'error': 'Tenant name and slug are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.core.models import Tenant, TenantOnboardingRequest, SaaSPackage
+
+        if Tenant.objects.filter(slug__iexact=slug).exists():
+            return Response({'error': f'Subdomain "{slug}" is already registered. Please choose another.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if TenantOnboardingRequest.objects.filter(requested_slug__iexact=slug, status='pending').exists():
+            return Response({'error': f'A pending request for "{slug}" is already under review.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        package_id = data.get('package_id') or data.get('package')
+        package = None
+        if package_id:
+            try:
+                package = SaaSPackage.objects.filter(id=package_id).first()
+            except Exception:
+                pass
+
+        plan_name = package.name if package else (data.get('requested_plan') or 'Growth')
+        plan_price = 0.00
+        if package:
+            plan_price = float(package.monthly_price)
+        elif data.get('payment_amount'):
+            try:
+                plan_price = float(data.get('payment_amount'))
+            except (ValueError, TypeError):
+                pass
+
+        trx_id = (data.get('payment_trx_id') or data.get('trx_id') or '').strip()
+        sender_phone = (data.get('payment_sender') or data.get('sender_phone') or '').strip()
+
+        if not trx_id:
+            return Response({'error': 'bKash Transaction ID (TrxID) is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        contact_email = (data.get('contact_email') or user.email or '').strip()
+        contact_phone = (data.get('contact_phone') or sender_phone or '').strip()
+        contact_name = (data.get('contact_name') or f"{user.first_name} {user.last_name}".strip() or user.username)
+
+        req_obj = TenantOnboardingRequest.objects.create(
+            organization_name=tenant_name,
+            requested_slug=slug,
+            requested_domain=f"{slug}.shebafi.xyz",
+            contact_name=contact_name,
+            contact_email=contact_email,
+            contact_phone=contact_phone,
+            address=data.get('address', ''),
+            requested_plan=plan_name,
+            package=package,
+            requested_by=user,
+            payment_method=data.get('payment_method', 'bkash_manual'),
+            payment_sender=sender_phone,
+            payment_trx_id=trx_id,
+            payment_amount=plan_price,
+            admin_notes=f"Requested from ISP workspace by @{user.username}. bKash TrxID: {trx_id}, Sender: {sender_phone}",
+            status='pending',
+        )
+
+        return Response({
+            'message': 'Tenant creation request submitted! SaaS Administrator will verify your payment and activate your tenant.',
+            'request_id': str(req_obj.id),
+            'status': req_obj.status,
+            'tenant_name': req_obj.organization_name,
+            'requested_slug': req_obj.requested_slug,
+            'payment_trx_id': req_obj.payment_trx_id,
+            'payment_amount': float(req_obj.payment_amount),
+            'created_at': req_obj.created_at.isoformat(),
+        }, status=status.HTTP_201_CREATED)
+
+
+class MyTenantRequestsListView(views.APIView):
+    """
+    Lists tenant onboarding requests submitted by the current authenticated user.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from apps.core.models import TenantOnboardingRequest
+        requests = TenantOnboardingRequest.objects.filter(requested_by=request.user).order_by('-created_at')
+        items = []
+        for r in requests:
+            items.append({
+                'id': str(r.id),
+                'tenant_name': r.organization_name,
+                'requested_slug': r.requested_slug,
+                'requested_plan': r.requested_plan,
+                'status': r.status,
+                'payment_method': r.payment_method,
+                'payment_sender': r.payment_sender,
+                'payment_trx_id': r.payment_trx_id,
+                'payment_amount': float(r.payment_amount),
+                'admin_notes': r.admin_notes,
+                'created_at': r.created_at.isoformat() if r.created_at else None,
+            })
+        return Response({'count': len(items), 'items': items})
+
+
+def get_authorized_isp_tenant(user, tenant_id_or_slug):
+    """
+    Ensures the user has active StaffMembership or ownership in the specified tenant.
+    Superusers are also permitted.
+    """
+    import uuid
+
+    tenant = None
+    try:
+        t_uuid = uuid.UUID(str(tenant_id_or_slug))
+        tenant = Tenant.objects.filter(id=t_uuid).first()
+    except (ValueError, TypeError):
+        tenant = Tenant.objects.filter(slug__iexact=str(tenant_id_or_slug).strip()).first()
+
+    if not tenant:
+        return None, Response({'error': 'Tenant not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if user.is_superuser:
+        return tenant, None
+
+    has_membership = StaffMembership.objects.filter(
+        user=user, tenant=tenant, is_active=True
+    ).exists()
+    if not has_membership:
+        has_profile = StaffProfile.objects.filter(
+            user=user, tenant=tenant, is_active=True
+        ).exists()
+        if not has_profile:
+            return None, Response(
+                {'error': 'You do not have access to manage this tenant.', 'code': 'TENANT_ACCESS_DENIED'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    return tenant, None
+
+
+class MyTenantCredentialsView(views.APIView):
+    """
+    Returns tenant admin username and credentials info for the ISP owner.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, tenant_id):
+        tenant, err_resp = get_authorized_isp_tenant(request.user, tenant_id)
+        if err_resp:
+            return err_resp
+
+        # Prefer dedicated <slug>_admin user if it exists
+        admin_user = User.objects.filter(username=f"{tenant.slug}_admin").first()
+        if not admin_user:
+            admin_membership = StaffMembership.objects.filter(
+                tenant=tenant, is_active=True, role__name__in=['Admin', 'ADMIN', 'Super Admin', 'SUPER_ADMIN']
+            ).exclude(user=request.user).select_related('user').first()
+            if not admin_membership:
+                admin_membership = StaffMembership.objects.filter(
+                    tenant=tenant, is_active=True, role__name__in=['Admin', 'ADMIN', 'Super Admin', 'SUPER_ADMIN']
+                ).select_related('user').first()
+            admin_user = admin_membership.user if admin_membership else request.user
+
+        return Response({
+            'tenant_id': str(tenant.id),
+            'tenant_name': tenant.name,
+            'tenant_slug': tenant.slug,
+            'admin_username': admin_user.username,
+            'admin_user_id': admin_user.id,
+            'contact_email': tenant.contact_email or admin_user.email,
+            'default_password_hint': 'sheba1234',
+        })
+
+
+class MyTenantSetPasswordView(views.APIView):
+    """
+    Directly updates password for tenant admin so the ISP owner knows the password.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, tenant_id):
+        tenant, err_resp = get_authorized_isp_tenant(request.user, tenant_id)
+        if err_resp:
+            return err_resp
+
+        new_password = (request.data.get('new_password') or request.data.get('password') or '').strip()
+        if not new_password or len(new_password) < 6:
+            return Response({'error': 'Password must be at least 6 characters long.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user_id = request.data.get('user_id')
+        if user_id:
+            target_user = User.objects.filter(id=user_id).first()
+        else:
+            target_user = User.objects.filter(username=f"{tenant.slug}_admin").first()
+            if not target_user:
+                admin_membership = StaffMembership.objects.filter(
+                    tenant=tenant, is_active=True, role__name__in=['Admin', 'ADMIN', 'Super Admin', 'SUPER_ADMIN']
+                ).exclude(user=request.user).select_related('user').first()
+                if not admin_membership:
+                    admin_membership = StaffMembership.objects.filter(
+                        tenant=tenant, is_active=True, role__name__in=['Admin', 'ADMIN', 'Super Admin', 'SUPER_ADMIN']
+                    ).select_related('user').first()
+                target_user = admin_membership.user if admin_membership else request.user
+
+        if not target_user:
+            target_user = request.user
+
+        target_user.set_password(new_password)
+        target_user.save()
+
+        # Invalidate old tokens and issue new
+        Token.objects.filter(user=target_user).delete()
+        new_token, _ = Token.objects.get_or_create(user=target_user)
+
+        AuditLog.objects.create(
+            tenant=tenant,
+            actor_username=request.user.username,
+            action='tenant_admin_password_set',
+            module='authentication',
+            resource_type='User',
+            resource_id=str(target_user.id),
+            details={'tenant_slug': tenant.slug, 'target_username': target_user.username}
+        )
+
+        if target_user.email:
+            try:
+                from apps.core.email.service import EmailService
+                ip_addr = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR')
+                EmailService.send_password_changed_notification(
+                    user=target_user,
+                    tenant=tenant,
+                    ip_address=ip_addr,
+                    platform_name=tenant.name
+                )
+            except Exception:
+                pass
+
+        return Response({
+            'message': f'Password for {target_user.username} updated successfully.',
+            'username': target_user.username,
+            'token': new_token.key,
+        })
+
+
+class MyTenantAutoLoginTokenView(views.APIView):
+    """
+    Generates a secure 1-click launch URL and token for the ISP owner into the tenant dashboard.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, tenant_id):
+        tenant, err_resp = get_authorized_isp_tenant(request.user, tenant_id)
+        if err_resp:
+            return err_resp
+
+        membership = StaffMembership.objects.filter(user=request.user, tenant=tenant, is_active=True).first()
+        target_user = request.user if membership else None
+        if not target_user:
+            admin_membership = StaffMembership.objects.filter(
+                tenant=tenant, is_active=True, role__name__in=['Admin', 'ADMIN', 'Super Admin', 'SUPER_ADMIN']
+            ).select_related('user').first()
+            target_user = admin_membership.user if admin_membership else User.objects.filter(username=f"{tenant.slug}_admin").first()
+
+        if not target_user:
+            target_user = request.user
+
+        token, _ = Token.objects.get_or_create(user=target_user)
+
+        # Build launch URL
+        host = request.get_host().split(':')[0].lower()
+        is_local = 'localhost' in host or '127.0.0.1' in host
+        primary_domain = tenant.tenant_domains.filter(is_primary=True, is_active=True).first()
+        domain_host = primary_domain.hostname if primary_domain else tenant.domain or f"{tenant.slug}.localhost:3001"
+
+        if is_local:
+            target_origin = f"http://{tenant.slug}.localhost:3001"
+        else:
+            target_origin = f"https://{domain_host}"
+
+        launch_url = f"{target_origin}/login?auto_token={token.key}"
+
+        return Response({
+            'token': token.key,
+            'username': target_user.username,
+            'tenant_slug': tenant.slug,
+            'launch_url': launch_url,
+        })
+
+
+class MyTenantAccountsView(views.APIView):
+    """
+    List and create user accounts / staff for an ISP tenant.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, tenant_id):
+        tenant, err_resp = get_authorized_isp_tenant(request.user, tenant_id)
+        if err_resp:
+            return err_resp
+
+        memberships = StaffMembership.objects.filter(
+            tenant=tenant
+        ).select_related('user', 'role').order_by('-joined_at')
+
+        items = []
+        for m in memberships:
+            u = m.user
+            profile = StaffProfile.objects.filter(user=u, tenant=tenant).first()
+            items.append({
+                'id': str(m.id),
+                'user_id': u.id,
+                'username': u.username,
+                'email': u.email or '',
+                'first_name': u.first_name or '',
+                'last_name': u.last_name or '',
+                'full_name': f"{u.first_name} {u.last_name}".strip() or u.username,
+                'phone': profile.phone if profile else '',
+                'role_id': str(m.role.id) if m.role else None,
+                'role_name': m.role.name if m.role else (profile.role if profile else 'Staff'),
+                'is_active': u.is_active and m.is_active,
+                'last_login': u.last_login.isoformat() if u.last_login else None,
+                'created_at': m.joined_at.isoformat() if m.joined_at else None,
+            })
+        return Response({'count': len(items), 'items': items})
+
+    def post(self, request, tenant_id):
+        tenant, err_resp = get_authorized_isp_tenant(request.user, tenant_id)
+        if err_resp:
+            return err_resp
+
+        username = (request.data.get('username') or '').strip()
+        password = (request.data.get('password') or '').strip()
+        email = (request.data.get('email') or '').strip()
+        first_name = (request.data.get('first_name') or '').strip()
+        last_name = (request.data.get('last_name') or '').strip()
+        phone = (request.data.get('phone') or '').strip()
+        role_id = request.data.get('role_id')
+
+        if not username:
+            return Response({'error': 'Username is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not password or len(password) < 6:
+            return Response({'error': 'Password must be at least 6 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if User.objects.filter(username__iexact=username).exists():
+            return Response({'error': f'Username "{username}" is already taken.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        role_obj = None
+        if role_id:
+            role_obj = Role.objects.filter(id=role_id, tenant=tenant).first()
+        if not role_obj:
+            role_obj = Role.objects.filter(tenant=tenant, name__iexact='Staff').first() or Role.objects.filter(tenant=tenant).first()
+
+        user = User.objects.create_user(
+            username=username,
+            password=password,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            is_staff=True,
+            is_superuser=False
+        )
+
+        StaffProfile.objects.create(
+            user=user,
+            tenant=tenant,
+            role=UserRole.STAFF,
+            phone=phone,
+            is_active=True
+        )
+
+        membership, _ = StaffMembership.objects.update_or_create(
+            user=user,
+            tenant=tenant,
+            defaults={
+                'role': role_obj,
+                'scope': StaffMembership.Scope.TENANT,
+                'is_active': True,
+            }
+        )
+
+        Token.objects.get_or_create(user=user)
+
+        AuditLog.objects.create(
+            tenant=tenant,
+            actor_username=request.user.username,
+            action='tenant_account_created',
+            module='authentication',
+            resource_type='User',
+            resource_id=str(user.id),
+            details={'username': user.username, 'role': role_obj.name if role_obj else 'Staff'}
+        )
+
+        if user.email:
+            try:
+                from apps.core.email.service import EmailService
+                host = request.get_host().split(':')[0].lower()
+                is_local = 'localhost' in host or '127.0.0.1' in host
+                primary_domain = tenant.tenant_domains.filter(is_primary=True, is_active=True).first()
+                domain_host = primary_domain.hostname if primary_domain else tenant.domain or f"{tenant.slug}.localhost:3001"
+                portal_url = f"http://{tenant.slug}.localhost:3001/login" if is_local else f"https://{domain_host}/login"
+                EmailService.send_user_credentials_email(
+                    username=user.username,
+                    temporary_password=password,
+                    portal_url=portal_url,
+                    recipient_email=user.email,
+                    platform_name=tenant.name,
+                    role_name=role_obj.name if role_obj else 'Staff'
+                )
+            except Exception:
+                pass
+
+        return Response({
+            'message': f'Account "{username}" created successfully.',
+            'user_id': user.id,
+            'username': user.username,
+            'role': role_obj.name if role_obj else 'Staff',
+        }, status=status.HTTP_201_CREATED)
+
+
+class MyTenantAccountResetPasswordView(views.APIView):
+    """
+    Reset password for a specific account belonging to this tenant.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, tenant_id, user_id):
+        tenant, err_resp = get_authorized_isp_tenant(request.user, tenant_id)
+        if err_resp:
+            return err_resp
+
+        target_user = User.objects.filter(id=user_id).first()
+        if not target_user:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Ensure user belongs to this tenant
+        has_membership = StaffMembership.objects.filter(user=target_user, tenant=tenant).exists()
+        has_profile = StaffProfile.objects.filter(user=target_user, tenant=tenant).exists()
+        if not has_membership and not has_profile:
+            return Response({'error': 'User does not belong to this tenant.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        new_password = (request.data.get('new_password') or request.data.get('password') or '').strip()
+        if not new_password or len(new_password) < 6:
+            return Response({'error': 'Password must be at least 6 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        target_user.set_password(new_password)
+        target_user.save()
+        Token.objects.filter(user=target_user).delete()
+        new_token, _ = Token.objects.get_or_create(user=target_user)
+
+        AuditLog.objects.create(
+            tenant=tenant,
+            actor_username=request.user.username,
+            action='tenant_user_password_reset',
+            module='authentication',
+            resource_type='User',
+            resource_id=str(target_user.id),
+            details={'target_username': target_user.username}
+        )
+
+        if target_user.email:
+            try:
+                from apps.core.email.service import EmailService
+                ip_addr = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR')
+                EmailService.send_password_changed_notification(
+                    user=target_user,
+                    tenant=tenant,
+                    ip_address=ip_addr,
+                    platform_name=tenant.name
+                )
+            except Exception:
+                pass
+
+        return Response({'message': f'Password for "{target_user.username}" reset successfully.', 'token': new_token.key})
+
+
+class MyTenantRolesView(views.APIView):
+    """
+    List and create custom roles for an ISP tenant.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, tenant_id):
+        tenant, err_resp = get_authorized_isp_tenant(request.user, tenant_id)
+        if err_resp:
+            return err_resp
+
+        from apps.authentication.services.rbac import seed_default_roles_for_tenant
+        if not Role.objects.filter(tenant=tenant).exists():
+            seed_default_roles_for_tenant(tenant)
+
+        roles = Role.objects.filter(tenant=tenant).prefetch_related('permissions', 'memberships')
+        items = []
+        for r in roles:
+            items.append({
+                'id': str(r.id),
+                'name': r.name,
+                'description': r.description or '',
+                'is_active': r.is_active,
+                'members_count': r.memberships.filter(is_active=True).count(),
+                'permissions': [
+                    {'id': p.id, 'codename': p.codename, 'name': p.name, 'module': p.module}
+                    for p in r.permissions.all()
+                ],
+                'created_at': r.created_at.isoformat() if r.created_at else None,
+            })
+        return Response({'count': len(items), 'items': items})
+
+    def post(self, request, tenant_id):
+        tenant, err_resp = get_authorized_isp_tenant(request.user, tenant_id)
+        if err_resp:
+            return err_resp
+
+        name = (request.data.get('name') or '').strip()
+        description = (request.data.get('description') or '').strip()
+        permission_ids = request.data.get('permission_ids') or []
+
+        if not name:
+            return Response({'error': 'Role name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if Role.objects.filter(tenant=tenant, name__iexact=name).exists():
+            return Response({'error': f'Role "{name}" already exists for this tenant.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        role = Role.objects.create(
+            tenant=tenant,
+            name=name,
+            description=description,
+            is_active=True
+        )
+
+        if permission_ids:
+            perms = Permission.objects.filter(id__in=permission_ids)
+            role.permissions.set(perms)
+
+        AuditLog.objects.create(
+            tenant=tenant,
+            actor_username=request.user.username,
+            action='tenant_custom_role_created',
+            module='authentication',
+            resource_type='Role',
+            resource_id=str(role.id),
+            details={'role_name': role.name, 'permissions_count': role.permissions.count()}
+        )
+
+        return Response({
+            'message': f'Role "{role.name}" created successfully.',
+            'id': str(role.id),
+            'name': role.name,
+            'permissions_count': role.permissions.count()
+        }, status=status.HTTP_201_CREATED)
+
+
+class MyTenantPermissionsCatalogView(views.APIView):
+    """
+    Catalog of available permissions that can be granted when creating custom roles.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from apps.authentication.services.rbac import ensure_permission_catalog
+        ensure_permission_catalog()
+        perms = Permission.objects.all().order_by('module', 'codename')
+        items = [
+            {'id': p.id, 'codename': p.codename, 'name': p.name, 'module': p.module}
+            for p in perms
+        ]
+        return Response({'count': len(items), 'items': items})
+
+
 
 
 @extend_schema(
