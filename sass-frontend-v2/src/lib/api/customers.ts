@@ -7,6 +7,8 @@ export interface ListCustomersParams {
     page_size?: number;
     search?: string;
     status?: string;
+    billing_type?: string;
+    has_due?: boolean | string;
     package?: string;
     router?: string;
     area_zone?: string;
@@ -24,4 +26,9 @@ export const customerApi = {
     update: (id: string, data: Partial<CustomerCreatePayload>) =>
         fetchApi<Customer>(`/customers/${id}/`, { method: 'PATCH', json: data, plane: 'tenant' }),
     remove: (id: string) => fetchApi<void>(`/customers/${id}/`, { method: 'DELETE', plane: 'tenant' }),
+    checkUsername: (username: string) =>
+        fetchApi<{ available: boolean; username: string }>(
+            `/customers/check-username/?username=${encodeURIComponent(username)}`,
+            { plane: 'tenant' }
+        ),
 };

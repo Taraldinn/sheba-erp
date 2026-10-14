@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { Router } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Router, Loader2 } from 'lucide-react';
 import { useMutation } from '@/lib/query/native';
 import { tenantApi } from '@/lib/api';
+import { storage, STORAGE_KEYS } from '@/lib/api/storage';
 import { usePortal } from '@/lib/portal/portal-provider';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +18,23 @@ export default function TenantLogin() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [isAutoLoggingIn, setIsAutoLoggingIn] = useState(false);
     const inferredSlug = portal.tenantSlug ?? '';
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        const autoToken = params.get('auto_token');
+        if (autoToken) {
+            setIsAutoLoggingIn(true);
+            storage.set(STORAGE_KEYS.tenantToken, autoToken);
+            const sKey = inferredSlug ? `sheba_session_tenant_${inferredSlug}` : 'sheba_session_tenant';
+            storage.setJSON(sKey, { token: autoToken, user: null });
+            const nextParam = params.get('next');
+            const target = nextParam && nextParam.startsWith('/') ? nextParam : '/tenant';
+            window.location.href = target;
+        }
+    }, [inferredSlug]);
 
     const submit = useMutation({
         mutationFn: () => tenantApi.login({ username, password, tenant: inferredSlug || undefined }),
@@ -49,30 +66,37 @@ export default function TenantLogin() {
             panelBody="Onboard customers, collect payments and keep MikroTik, OLT and ONU fleets healthy without switching tools."
             highlights={['PPPoE & MikroTik provisioning', 'Invoices, payments & due tracking', 'Tickets, staff & branch operations']}
         >
-            <form
-                className="flex flex-col gap-5"
-                onSubmit={e => {
-                    e.preventDefault();
-                    submit.mutate();
-                }}
-            >
-                <div className="flex flex-col gap-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input id="username" autoComplete="username" placeholder="staff" className="h-11" value={username} onChange={e => setUsername(e.target.value)} required />
+            {isAutoLoggingIn ? (
+                <div className="flex flex-col items-center justify-center py-10 space-y-3">
+                    <Loader2 className="size-8 animate-spin text-primary" />
+                    <p className="text-sm font-medium text-muted-foreground">Authenticating session and entering workspace…</p>
                 </div>
-                <div className="flex flex-col gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <PasswordInput id="password" autoComplete="current-password" placeholder="••••••••" className="h-11" value={password} onChange={e => setPassword(e.target.value)} required />
-                </div>
-                {error && (
-                    <Alert variant="destructive">
-                        <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                )}
-                <Button type="submit" size="lg" className="h-11 w-full" disabled={submit.isPending || !username || !password}>
-                    {submit.isPending ? 'Signing in…' : 'Sign in'}
-                </Button>
-            </form>
+            ) : (
+                <form
+                    className="flex flex-col gap-5"
+                    onSubmit={e => {
+                        e.preventDefault();
+                        submit.mutate();
+                    }}
+                >
+                    <div className="flex flex-col gap-2">
+                        <Label htmlFor="username">Username</Label>
+                        <Input id="username" autoComplete="username" placeholder="staff" className="h-11" value={username} onChange={e => setUsername(e.target.value)} required />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        <Label htmlFor="password">Password</Label>
+                        <PasswordInput id="password" autoComplete="current-password" placeholder="••••••••" className="h-11" value={password} onChange={e => setPassword(e.target.value)} required />
+                    </div>
+                    {error && (
+                        <Alert variant="destructive">
+                            <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                    )}
+                    <Button type="submit" size="lg" className="h-11 w-full" disabled={submit.isPending || !username || !password}>
+                        {submit.isPending ? 'Signing in…' : 'Sign in'}
+                    </Button>
+                </form>
+            )}
         </AuthShell>
     );
 }

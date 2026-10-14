@@ -61,4 +61,14 @@ export const publicApi = {
     // requires a session, so it can't be used here.)
     getPublicPackages: () =>
         fetchApi<SaasPackage[]>(`/public/packages/`, { plane: 'public', skipAuth: true }),
+    getPaymentConfig: () =>
+        fetchApi<{ bkash_number: string; bkash_account_type: string; bkash_instructions: string; is_active: boolean }>(
+            '/public/payment-config/',
+            { plane: 'public', skipAuth: true }
+        ).catch(() => ({
+            bkash_number: '01700000000',
+            bkash_account_type: 'Personal',
+            bkash_instructions: 'Send Money to our bKash number using your tenant slug as Reference.',
+            is_active: true,
+        })),
 };

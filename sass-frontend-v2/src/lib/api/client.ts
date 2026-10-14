@@ -57,7 +57,7 @@ function readToken(slot: TokenSlot): string | null {
     return storage.get(STORAGE_KEY_BY_SLOT[slot]);
 }
 
-function readTenantSlug(opts: FetchOptions): string | null {
+function readTenantSlug(opts: FetchOptions, isAuth: boolean = false): string | null {
     if (opts.tenantSlug) return opts.tenantSlug;
     if (typeof window !== 'undefined') {
         const host = window.location.hostname.toLowerCase();
@@ -68,10 +68,13 @@ function readTenantSlug(opts: FetchOptions): string | null {
             }
         }
     }
+    if (isAuth) {
+        return null;
+    }
     return storage.get(STORAGE_KEYS.tenantSlug);
 }
 
-function buildHeaders(token: string | null, opts: FetchOptions): Headers {
+function buildHeaders(token: string | null, opts: FetchOptions, endpoint: string = ''): Headers {
     const h = new Headers();
     h.set('Accept', 'application/json');
     if (opts.json !== undefined) {
@@ -82,10 +85,7 @@ function buildHeaders(token: string | null, opts: FetchOptions): Headers {
     if (opts.idempotencyKey) {
         h.set('Idempotency-Key', opts.idempotencyKey);
     }
-    if (token && !opts.skipAuth && !isAuthEndpoint(opts.signal ? '' : '')) {
-        // Headers applied below; here we only set if not auth endpoint.
-    }
-    if (token && !opts.skipAuth && !isAuthEndpoint('')) {
+    if (token && !opts.skipAuth && !isAuthEndpoint(endpoint)) {
         h.set(
             'Authorization',
             token.startsWith('Token ') || token.startsWith('Bearer ') || token.startsWith('Session ')
@@ -93,7 +93,7 @@ function buildHeaders(token: string | null, opts: FetchOptions): Headers {
                 : `Token ${token}`
         );
     }
-    const slug = readTenantSlug(opts);
+    const slug = readTenantSlug(opts, isAuthEndpoint(endpoint));
     if (slug && (opts.plane ?? 'tenant') === 'tenant') {
         h.set('X-Tenant-ID', slug);
     }
@@ -187,7 +187,7 @@ export async function fetchApi<T = unknown>(endpoint: string, opts: FetchOptions
 
     const token = skipAuth ? null : readToken(slot);
 
-    const headers = buildHeaders(token, opts);
+    const headers = buildHeaders(token, opts, endpoint);
 
     const init: RequestInit = {
         method: opts.method ?? (opts.json !== undefined || opts.body ? 'POST' : 'GET'),

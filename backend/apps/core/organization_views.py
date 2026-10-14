@@ -683,6 +683,37 @@ class SaaSOrganizationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # 8) Dispatch Welcome Email with Initial Password
+        recipient_email = (v.get('owner_email') or v.get('org_contact_email') or user.email or '').strip()
+        if recipient_email:
+            try:
+                from apps.core.email.service import EmailService
+                domain = tenant.domain or f"{tenant.slug}.shebafi.xyz"
+                local_host = f"{tenant.slug}.localhost"
+                portal_url = (
+                    f"https://{domain}/login"
+                    if 'localhost' not in domain and '127.0.0.1' not in domain
+                    else f"http://{local_host}:3001/login"
+                )
+                api_base_url = (
+                    f"https://{domain}/api/v1/"
+                    if 'localhost' not in domain and '127.0.0.1' not in domain
+                    else f"http://{local_host}:8000/api/v1/"
+                )
+                EmailService.send_client_onboarding_email(
+                    tenant=tenant,
+                    admin_username=owner_username,
+                    temporary_password=owner_password,
+                    portal_url=portal_url,
+                    recipient_email=recipient_email,
+                    api_base_url=api_base_url,
+                    cname_target=domain,
+                    organization_name=org.name,
+                    role_name="Organization Owner & ISP Admin",
+                )
+            except Exception as mail_exc:
+                logger.warning(f"Failed to dispatch welcome email for organization {org.slug}: {mail_exc}")
+
         return Response(
             {
                 'organization': OrganizationSummarySerializer(org).data,

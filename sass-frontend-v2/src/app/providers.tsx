@@ -9,6 +9,18 @@ import { DevPortalSwitcher } from '../lib/portal/dev-portal-switcher';
 import { createQueryClient } from './query-client';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
+// React 19 / Next.js flags next-themes' inline SSR theme script in development.
+// This is a known false-positive; filtering keeps the dev overlay and console clean.
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+        if (typeof args[0] === 'string' && args[0].includes('Encountered a script tag')) {
+            return;
+        }
+        originalError.apply(console, args);
+    };
+}
+
 interface AppProvidersProps extends PropsWithChildren {
     queryClient?: ReturnType<typeof createQueryClient>;
 }

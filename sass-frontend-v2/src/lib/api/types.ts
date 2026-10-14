@@ -455,50 +455,104 @@ export interface TenantResolveResponse {
     enabled_modules: string[];
 }
 
+export interface BtrcInfo {
+    connectivity_type?: string;
+    allocated_ip_type?: string;
+    allocated_ip?: string;
+    house_no?: string;
+    road_no?: string;
+    area?: string;
+    distribution_point?: string;
+}
+
 export interface Customer {
     id: string;
     customer_code: string;
     full_name: string;
     mobile: string;
+    alternate_phone?: string;
     email?: string;
+    national_id?: string;
     address?: string;
+    district?: string;
+    thana?: string;
     area_zone?: string;
+    client_type?: string;
     connection_type?: string;
     pppoe_username: string;
+    static_ip?: string;
+    mac_address?: string;
+    onu_mac_or_sn?: string;
     package?: string;
     package_name?: string;
     package_speed?: number;
     router?: string;
     router_name?: string;
+    router_ip?: string;
+    router_protocol?: string;
+    router_status?: string;
+    tj_box?: string;
+    tj_box_name?: string;
+    billing_type?: string;
     monthly_bill: number | string;
     due_amount: number | string;
     advance_amount: number | string;
     discount: number | string;
+    billing_cycle_day?: string;
+    auto_recharge?: boolean;
+    auto_recharge_duration?: string;
+    sms_notifications?: boolean;
+    voice_notifications?: boolean;
     bill_date?: string;
     expiry_date?: string;
     promise_date?: string;
     status: string;
+    latitude?: number | string;
+    longitude?: number | string;
+    remarks?: string;
+    btrc_info?: BtrcInfo;
     services_count?: number;
-    live_session?: { is_online: boolean; ip_address?: string; uptime?: string };
+    live_session?: { is_online: boolean; ip_address?: string; uptime?: string; mac_address?: string };
     created_at: string;
+    updated_at?: string;
 }
 
 export interface CustomerCreatePayload {
     customer_code?: string;
     full_name: string;
     mobile: string;
+    alternate_phone?: string;
     email?: string;
+    national_id?: string;
     address?: string;
+    district?: string;
+    thana?: string;
     area_zone?: string;
+    client_type?: string;
     connection_type?: string;
     pppoe_username: string;
     pppoe_password?: string;
     package?: string;
     router?: string;
+    tj_box?: string;
     monthly_bill?: number | string;
     discount?: number | string;
+    billing_type?: string;
+    billing_cycle_day?: string;
+    auto_recharge?: boolean;
+    auto_recharge_duration?: string;
+    sms_notifications?: boolean;
+    voice_notifications?: boolean;
+    joining_date?: string;
+    bill_date?: string;
     status?: string;
+    static_ip?: string;
+    mac_address?: string;
+    onu_mac_or_sn?: string;
+    latitude?: number | string;
+    longitude?: number | string;
     remarks?: string;
+    btrc_info?: BtrcInfo;
 }
 
 export interface CustomerService {

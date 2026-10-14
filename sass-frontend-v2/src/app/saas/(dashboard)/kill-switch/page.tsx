@@ -48,7 +48,7 @@ export default function KillSwitchPage() {
     const handleConfirm = () => {
         toggleMutation.mutate({
             engaged: !isEngaged,
-            reason: reason.trim() || (isEngaged ? 'Manual release by Platform Owner' : 'Emergency incident lock'),
+            reason: (reason || '').trim() || (isEngaged ? 'Manual release by Platform Owner' : 'Emergency incident lock'),
         });
     };
 

@@ -127,6 +127,25 @@ export default function SaasOnboarding() {
         { id: 'plan_requested', header: 'Plan' },
         { id: 'requested_slug', header: 'Requested slug' },
         {
+            id: 'payment',
+            header: 'Payment / bKash',
+            cell: (r: OnboardingRequest) => {
+                if (!r.payment_trx_id && !r.payment_amount) {
+                    return <span className="text-xs text-muted-foreground">—</span>;
+                }
+                return (
+                    <div className="flex flex-col text-xs">
+                        <span className="font-mono font-medium text-pink-600 dark:text-pink-400">
+                            {r.payment_trx_id ? `Trx: ${r.payment_trx_id}` : 'bKash'}
+                        </span>
+                        <span className="text-muted-foreground">
+                            {r.payment_amount ? `৳${r.payment_amount}` : ''} {r.payment_sender ? `(${r.payment_sender})` : ''}
+                        </span>
+                    </div>
+                );
+            },
+        },
+        {
             id: 'status',
             header: 'Status',
             cell: (r: OnboardingRequest) => {
@@ -278,6 +297,15 @@ export default function SaasOnboarding() {
                             <DetailRow label="Requested domain" value={detail.requested_domain || '—'} />
                             <DetailRow label="Address" value={detail.address || '—'} />
                             <DetailRow label="Submitted" value={formatDate(detail.created_at)} />
+                            {(detail.payment_trx_id || detail.payment_amount) ? (
+                                <div className="mt-3 rounded-lg border border-pink-500/30 bg-pink-500/5 p-3 space-y-2">
+                                    <div className="text-xs font-semibold text-pink-600 dark:text-pink-400">bKash Manual Payment</div>
+                                    <DetailRow label="Transaction ID" value={<span className="font-mono font-semibold text-pink-600 dark:text-pink-400">{detail.payment_trx_id || '—'}</span>} />
+                                    <DetailRow label="Sender Mobile" value={detail.payment_sender || '—'} />
+                                    <DetailRow label="Amount" value={detail.payment_amount ? `৳${detail.payment_amount}` : '—'} />
+                                    <DetailRow label="Method" value={detail.payment_method || 'bkash_manual'} />
+                                </div>
+                            ) : null}
                             {detail.admin_notes && (
                                 <DetailRow label="Admin notes" value={detail.admin_notes} />
                             )}

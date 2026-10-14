@@ -34,12 +34,12 @@ function explainError(err: unknown): string {
 }
 
 export default async function SaasTenantsPage({ searchParams }: TenantsPageProps) {
-    const sp = await searchParams;
-    const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
-    const search = sp.search?.trim() ?? '';
-    const is_active = sp.is_active ?? '';
-    const plan = sp.plan ?? '';
-    const organization = sp.organization ?? '';
+    const sp = (await searchParams) || {};
+    const page = Math.max(1, Number.parseInt(typeof sp.page === 'string' ? sp.page : '1', 10) || 1);
+    const search = typeof sp.search === 'string' ? sp.search.trim() : '';
+    const is_active = typeof sp.is_active === 'string' ? sp.is_active : '';
+    const plan = typeof sp.plan === 'string' ? sp.plan : '';
+    const organization = typeof sp.organization === 'string' ? sp.organization : '';
 
     return (
         <Suspense

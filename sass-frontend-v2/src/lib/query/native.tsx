@@ -116,6 +116,7 @@ export interface UseQueryOptions<TData, TError = Error> {
     placeholderData?: (previous: TData | undefined) => TData | undefined;
     retry?: boolean | number;
     refetchOnWindowFocus?: boolean;
+    refetchInterval?: number | false;
     onSuccess?: (data: TData) => void;
     onError?: (err: TError) => void;
 }
@@ -133,7 +134,7 @@ export interface UseQueryResult<TData, TError = Error> {
 export function useQuery<TData = unknown, TError = Error>(
     options: UseQueryOptions<TData, TError>,
 ): UseQueryResult<TData, TError> {
-    const { queryKey, queryFn, enabled = true, placeholderData, onSuccess, onError } = options;
+    const { queryKey, queryFn, enabled = true, refetchInterval, placeholderData, onSuccess, onError } = options;
     const keyStr = useMemo(() => keyToString(queryKey), [queryKey]);
 
     const [data, setData] = useState<TData | undefined>(() => placeholderData?.(undefined));
@@ -221,9 +222,14 @@ export interface UseMutationOptions<TData, TError, TVariables, TContext = unknow
     onSettled?: (data: TData | undefined, err: TError | null, variables: TVariables) => void;
 }
 
+export interface MutationExecuteOptions<TError = Error> {
+    onSuccess?: () => void;
+    onError?: (e: TError) => void;
+}
+
 export interface UseMutationResult<TData, TError, TVariables> {
-    mutate: (variables: TVariables) => void;
-    mutateAsync: (variables: TVariables) => Promise<TData>;
+    mutate: (variables: TVariables, opts?: MutationExecuteOptions<TError>) => void;
+    mutateAsync: (variables: TVariables, opts?: MutationExecuteOptions<TError>) => Promise<TData>;
     isPending: boolean;
     isError: boolean;
     isSuccess: boolean;

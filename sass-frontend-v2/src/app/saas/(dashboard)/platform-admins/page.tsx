@@ -61,11 +61,13 @@ export default function PlatformAdminsPage() {
 
     const handleInviteSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!username.trim() || !email.trim()) {
+        const u = (username || '').trim();
+        const em = (email || '').trim();
+        if (!u || !em) {
             toast.error('Username and email are required');
             return;
         }
-        inviteMutation.mutate({ username: username.trim(), email: email.trim(), role });
+        inviteMutation.mutate({ username: u, email: em, role });
     };
 
     const columns: DataTableColumn<PlatformAdminUser>[] = [

@@ -17,12 +17,16 @@ import { ErrorAlert, PageHeader, ListToolbar, StatusBadge, MoneyText } from '@/c
 import { ConfirmDialog } from '@/components/feedback/confirm';
 import { withMutationToast } from '@/lib/mutation-toast';
 import { useCan } from '@/lib/permissions';
+import { Badge } from '@/components/ui/badge';
+import { UserPlus, X } from 'lucide-react';
 
 const searchSchema = z.object({
     page: z.number().int().min(1).optional().catch(1),
     page_size: z.number().int().min(1).max(100).optional().catch(20),
     search: z.string().optional(),
     status: z.string().optional(),
+    billing_type: z.string().optional(),
+    has_due: z.string().optional(),
 });
 export default function CustomersList() {
     const searchParams = useSearchParams();
@@ -33,7 +37,7 @@ export default function CustomersList() {
     if (search.page_size) search.page_size = parseInt(search.page_size, 10);
     if (search.customer) search.customer = parseInt(search.customer, 10);
 
-        const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
     const canCreate = useCan('customer.create');
     const canDelete = useCan('customer.delete');
     const [draftSearch, setDraftSearch] = useState(search.search ?? '');
@@ -45,6 +49,8 @@ export default function CustomersList() {
         page_size: search.page_size ?? 20,
         search: search.search,
         status: search.status,
+        billing_type: search.billing_type,
+        has_due: search.has_due,
     };
     const customers = useQuery({
         queryKey: queryKeys.customers.list(params),
@@ -140,7 +146,21 @@ export default function CustomersList() {
                 title="Customers"
                 description="Subscribers in this tenant."
                 actions={
-                    canCreate ? <Button onClick={() => setShowCreate(true)}>New customer</Button> : null
+                    canCreate ? (
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => setShowCreate(true)}>
+                                Quick Add
+                            </Button>
+                            <Button
+                                size="sm"
+                                onClick={() => router.push('/tenant/customers/new')}
+                                className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5"
+                            >
+                                <UserPlus className="size-4" />
+                                Add New Client
+                            </Button>
+                        </div>
+                    ) : null
                 }
             />
             <ListToolbar
@@ -149,16 +169,55 @@ export default function CustomersList() {
                 onSearchSubmit={v => updateSearch({ search: v || undefined })}
                 searchPlaceholder="Search by name, mobile, code…"
                 statusOptions={[
-                    { value: 'active', label: 'Active' },
-                    { value: 'inactive', label: 'Inactive' },
-                    { value: 'suspended', label: 'Suspended' },
-                    { value: 'expired', label: 'Expired' },
+                    { value: 'ACTIVE', label: 'Active' },
+                    { value: 'INACTIVE', label: 'Inactive' },
+                    { value: 'SUSPENDED', label: 'Suspended' },
+                    { value: 'EXPIRED', label: 'Expired' },
+                    { value: 'PROMISE', label: 'Promise Active' },
+                    { value: 'TERMINATED', label: 'Left Clients' },
                 ]}
                 status={search.status}
                 onStatusChange={v => updateSearch({ status: v })}
                 onRefresh={() => customers.refetch()}
                 isRefreshing={customers.isFetching}
             />
+            {(search.status || search.billing_type || search.has_due) && (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-muted-foreground font-medium">Active Filters:</span>
+                    {search.status && (
+                        <Badge variant="secondary" className="gap-1 font-mono">
+                            Status: {search.status}
+                            <button onClick={() => updateSearch({ status: undefined })} className="hover:text-foreground">
+                                <X className="size-3" />
+                            </button>
+                        </Badge>
+                    )}
+                    {search.billing_type && (
+                        <Badge variant="secondary" className="gap-1 font-mono">
+                            Billing: {search.billing_type}
+                            <button onClick={() => updateSearch({ billing_type: undefined })} className="hover:text-foreground">
+                                <X className="size-3" />
+                            </button>
+                        </Badge>
+                    )}
+                    {search.has_due && (
+                        <Badge variant="secondary" className="gap-1 font-mono">
+                            Due Clients
+                            <button onClick={() => updateSearch({ has_due: undefined })} className="hover:text-foreground">
+                                <X className="size-3" />
+                            </button>
+                        </Badge>
+                    )}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => updateSearch({ status: undefined, billing_type: undefined, has_due: undefined })}
+                    >
+                        Reset filters
+                    </Button>
+                </div>
+            )}
             {customers.error && <ErrorAlert title="Failed to load customers" error={customers.error} />}
             <DataTable<Customer>
                 data={customers.data}

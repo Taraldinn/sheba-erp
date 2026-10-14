@@ -36,7 +36,34 @@ export interface ServerFetchOptions extends Omit<RequestInit, 'signal' | 'body'>
     signal?: AbortSignal;
 }
 
+function isRunningInDocker(): boolean {
+    if (process.env.INTERNAL_API_URL || process.env.INTERNAL_API_BASE_URL || process.env.DOCKER_CONTAINER === 'true') {
+        return true;
+    }
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const fs = require('node:fs');
+        return fs.existsSync('/.dockerenv');
+    } catch {
+        return false;
+    }
+}
+
 function resolveBaseUrl(plane: Plane): string {
+    const internalUrl = process.env.INTERNAL_API_URL || process.env.INTERNAL_API_BASE_URL;
+    let base = internalUrl;
+    if (!base && isRunningInDocker()) {
+        base = 'http://backend:8000/api/v1';
+    }
+
+    if (base) {
+        const cleanBase = base.replace(/\/+$/, '');
+        if (plane === 'central') {
+            return cleanBase.endsWith('/saas') ? cleanBase : `${cleanBase}/saas`;
+        }
+        return cleanBase;
+    }
+
     const urls = getApiBaseUrls();
     if (plane === 'central') return urls.central;
     if (plane === 'public') return urls.public;
@@ -49,9 +76,9 @@ function normalizeEndpoint(endpoint: string): string {
     return query ? `${cleanPath}?${query}` : cleanPath;
 }
 
-function readTokenFromCookies(slot: TokenSlot): string | null {
+async function readTokenFromCookies(slot: TokenSlot): Promise<string | null> {
     try {
-        const jar = cookies();
+        const jar = await cookies();
         const value = jar.get(SLOT_COOKIE[slot])?.value;
         return value || null;
     } catch {
@@ -59,10 +86,10 @@ function readTokenFromCookies(slot: TokenSlot): string | null {
     }
 }
 
-function readTenantSlug(opts: ServerFetchOptions): string | null {
+async function readTenantSlug(opts: ServerFetchOptions): Promise<string | null> {
     if (opts.tenantSlug) return opts.tenantSlug;
     try {
-        const jar = cookies();
+        const jar = await cookies();
         const slug = jar.get(STORAGE_KEYS.tenantSlug)?.value;
         return slug || null;
     } catch {
@@ -82,7 +109,7 @@ function isAuthEndpoint(endpoint: string): boolean {
     );
 }
 
-function buildHeaders(token: string | null, opts: ServerFetchOptions): Headers {
+function buildHeaders(token: string | null, opts: ServerFetchOptions, slug: string | null = null): Headers {
     const h = new Headers();
     h.set('Accept', 'application/json');
     if (opts.json !== undefined) {
@@ -98,7 +125,6 @@ function buildHeaders(token: string | null, opts: ServerFetchOptions): Headers {
                 : `Token ${token}`,
         );
     }
-    const slug = readTenantSlug(opts);
     if (slug && (opts.plane ?? 'tenant') === 'tenant') {
         h.set('X-Tenant-ID', slug);
     }

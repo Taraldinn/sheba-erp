@@ -734,6 +734,19 @@ class TenantOnboardingRequest(models.Model):
     address = models.TextField(blank=True)
     requested_plan = models.CharField(max_length=50, default='Growth')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    requested_by = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='tenant_onboarding_requests',
+        help_text='User who initiated the request from the ISP portal'
+    )
+    payment_method = models.CharField(max_length=50, default='bkash_manual')
+    payment_sender = models.CharField(max_length=50, blank=True, help_text='Sender mobile/wallet number')
+    payment_trx_id = models.CharField(max_length=100, blank=True, help_text='Transaction ID / TrxID')
+    payment_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    package = models.ForeignKey(
+        'SaaSPackage', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='onboarding_requests'
+    )
     admin_notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -743,6 +756,43 @@ class TenantOnboardingRequest(models.Model):
 
     def __str__(self):
         return f"Request: {self.organization_name} ({self.status})"
+
+
+class PlatformPaymentConfig(models.Model):
+    """Central platform-wide payment collection configuration managed by SaaS Owner."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    bkash_number = models.CharField(max_length=50, default='01700000000', help_text="bKash Receiving Wallet Number")
+    bkash_account_type = models.CharField(
+        max_length=30,
+        default='Personal',
+        choices=[('Personal', 'Personal (Send Money)'), ('Merchant', 'Merchant Payment'), ('Agent', 'Agent Cash-in')]
+    )
+    bkash_instructions = models.TextField(
+        default='Send Money / Payment to this bKash number with your tenant slug as reference.',
+        blank=True
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Platform Payment Configuration'
+        verbose_name_plural = 'Platform Payment Configurations'
+
+    def __str__(self):
+        return f"bKash: {self.bkash_number} ({self.bkash_account_type})"
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(
+            id=uuid.UUID('00000000-0000-0000-0000-000000000001'),
+            defaults={
+                'bkash_number': '01700000000',
+                'bkash_account_type': 'Personal',
+                'bkash_instructions': 'Send Money to our bKash number using your tenant slug as Reference. Then submit your TrxID below.'
+            }
+        )
+        return obj
 
 
 class SaaSPackage(models.Model):

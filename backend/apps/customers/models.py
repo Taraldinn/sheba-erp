@@ -36,10 +36,14 @@ class Customer(models.Model):
     customer_code = models.CharField(max_length=50, blank=True, db_index=True)
     full_name = models.CharField(max_length=150)
     mobile = models.CharField(max_length=30, db_index=True)
+    alternate_phone = models.CharField(max_length=30, blank=True)
     email = models.EmailField(blank=True)
     national_id = models.CharField(max_length=50, blank=True)
     address = models.TextField(blank=True)
+    district = models.CharField(max_length=100, blank=True)
+    thana = models.CharField(max_length=100, blank=True)
     area_zone = models.CharField(max_length=100, blank=True, default='Main Zone')
+    client_type = models.CharField(max_length=50, blank=True, default='Home')
     
     # Network / Credentials
     connection_type = models.CharField(max_length=30, choices=ConnectionType.choices, default=ConnectionType.PPPOE)
@@ -66,6 +70,11 @@ class Customer(models.Model):
     due_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     advance_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     discount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    billing_cycle_day = models.CharField(max_length=50, blank=True, default='Standard 30 Days')
+    auto_recharge = models.BooleanField(default=False)
+    auto_recharge_duration = models.CharField(max_length=50, blank=True, default='30 Days')
+    sms_notifications = models.BooleanField(default=True)
+    voice_notifications = models.BooleanField(default=False)
     
     # CPE / Diagnostics (v4.2.2)
     cpe_management_ip = models.GenericIPAddressField(null=True, blank=True)
@@ -83,10 +92,14 @@ class Customer(models.Model):
     status = models.CharField(max_length=30, choices=CustomerStatus.choices, default=CustomerStatus.ACTIVE, db_index=True)
     auto_lock_enabled = models.BooleanField(default=True)
     
-    # Location & Notes
+    # Network & Physical Distribution
+    tj_box = models.ForeignKey('network.TJBox', on_delete=models.SET_NULL, null=True, blank=True, related_name='customers')
+
+    # Location & Regulatory Notes
     latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     remarks = models.TextField(blank=True)
+    btrc_info = models.JSONField(default=dict, blank=True, help_text="BTRC regulatory info: connectivity_type, allocated_ip_type, house_no, road_no, area, distribution_point")
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -100,6 +113,8 @@ class Customer(models.Model):
             raise ValidationError("Customer router must belong to the same tenant.")
         if self.reseller_id and self.tenant_id and self.reseller.tenant_id != self.tenant_id:
             raise ValidationError("Customer reseller must belong to the same tenant.")
+        if self.tj_box_id and self.tenant_id and self.tj_box.tenant_id != self.tenant_id:
+            raise ValidationError("Customer TJ Box must belong to the same tenant.")
 
     class Meta:
         unique_together = ('tenant', 'pppoe_username')

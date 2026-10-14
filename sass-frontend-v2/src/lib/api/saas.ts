@@ -19,6 +19,7 @@ import type {
     CreateOrganizationWithFirstTenantInput,
     CreateOrganizationWithFirstTenantResult,
     PaginatedList,
+    PlatformPaymentConfig,
 } from './types';
 import { asList } from './types';
 
@@ -141,6 +142,10 @@ function normalizeOnboarding(r: any): OnboardingRequest {
         requested_domain: r.requested_domain || '',
         address: r.address || '',
         admin_notes: r.admin_notes || '',
+        payment_method: r.payment_method || '',
+        payment_sender: r.payment_sender || '',
+        payment_trx_id: r.payment_trx_id || '',
+        payment_amount: Number(r.payment_amount || 0),
     };
 }
 
@@ -480,4 +485,14 @@ export const saasApi = {
 
     /* ISP owner surface */
     getMyOrganizations: () => fetchApi<{ count: number; items: any[] }>('/organizations/me/', { plane: 'central' }),
+
+    /* Platform Payment Config (bKash) */
+    getPaymentConfig: () =>
+        fetchApi<PlatformPaymentConfig>('/config/payment/', { plane: 'central' }),
+    updatePaymentConfig: (data: Partial<PlatformPaymentConfig>) =>
+        fetchApi<PlatformPaymentConfig>('/config/payment/', {
+            method: 'PUT',
+            json: data,
+            plane: 'central',
+        }),
 };

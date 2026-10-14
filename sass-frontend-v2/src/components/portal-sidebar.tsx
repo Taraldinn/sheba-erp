@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import {
   Activity,
   BadgeCent,
@@ -132,6 +132,28 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
     root: "/tenant",
     sections: [
       {
+        label: "Client Management",
+        items: [
+          {
+            title: "Client Management",
+            url: "/tenant/customers",
+            icon: Users,
+            items: [
+              { title: "Add New Client", url: "/tenant/customers/new" },
+              { title: "Active Clients", url: "/tenant/customers?status=ACTIVE" },
+              { title: "Free Clients", url: "/tenant/customers?billing_type=FREE" },
+              { title: "Promise Active Clients", url: "/tenant/customers?status=PROMISE" },
+              { title: "Due Clients", url: "/tenant/customers?has_due=true" },
+              { title: "Inactive Clients", url: "/tenant/customers?status=INACTIVE" },
+              { title: "Expire", url: "/tenant/customers?status=EXPIRED" },
+              { title: "Left Clients", url: "/tenant/customers?status=TERMINATED" },
+              { title: "Online Monitoring", url: "/tenant/pppoe" },
+              { title: "Tickets", url: "/tenant/tickets" },
+            ],
+          },
+        ],
+      },
+      {
         label: "Workspace",
         items: [
           {
@@ -140,13 +162,12 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
             icon: LayoutDashboard,
             items: [
               { title: "Overview", url: "/tenant" },
-              { title: "Customers", url: "/tenant/customers" },
+              { title: "All Customers", url: "/tenant/customers" },
               { title: "Subscriptions", url: "/tenant/subscriptions" },
               { title: "Invoices", url: "/tenant/invoices" },
               { title: "Payments", url: "/tenant/payments" },
               { title: "Packages", url: "/tenant/packages" },
               { title: "Resellers", url: "/tenant/resellers" },
-              { title: "Tickets", url: "/tenant/tickets" },
             ],
           },
           {
@@ -230,6 +251,19 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
   },
 }
 
+function SidebarNavSections({ config, pathname }: { config: { sections: NavSection[]; root: string }; pathname: string }) {
+  const searchParams = useSearchParams()
+  const currentSearch = searchParams ? searchParams.toString() : ""
+
+  return (
+    <>
+      {config.sections.map((section) => (
+        <NavMain key={section.label} section={section} pathname={pathname} rootUrl={config.root} currentSearch={currentSearch} />
+      ))}
+    </>
+  )
+}
+
 export function PortalSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const auth = useAuth()
   const pathname = usePathname() ?? "/"
@@ -264,9 +298,17 @@ export function PortalSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="gap-0 py-2">
-        {config.sections.map((section) => (
-          <NavMain key={section.label} section={section} pathname={pathname} rootUrl={config.root} />
-        ))}
+        <React.Suspense
+          fallback={
+            <>
+              {config.sections.map((section) => (
+                <NavMain key={section.label} section={section} pathname={pathname} rootUrl={config.root} />
+              ))}
+            </>
+          }
+        >
+          <SidebarNavSections config={config} pathname={pathname} />
+        </React.Suspense>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <div className="flex items-center gap-2 px-2 pb-1 pt-0.5 font-mono text-[10px] uppercase tracking-wider text-sidebar-foreground/50 group-data-[collapsible=icon]:hidden">

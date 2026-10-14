@@ -697,17 +697,22 @@ if 'test' in sys.argv:
         FIELD_ENCRYPTION_KEY = 'test-encryption-key-for-running-tests-cleanly-32chars!'
 
 # ─── Transactional Mailing Configuration ────────────────────────────────────
+email_host_env = env('EMAIL_HOST', default='mailhog' if IS_LOCAL else 'smtp.gmail.com')
+is_mailhog = email_host_env in ('mailhog', 'localhost', '127.0.0.1') and env.int('EMAIL_PORT', default=1025 if email_host_env in ('mailhog', 'localhost') else 587) == 1025
+
 if 'test' in sys.argv:
     default_email_backend = 'django.core.mail.backends.locmem.EmailBackend'
+elif is_mailhog:
+    default_email_backend = 'django.core.mail.backends.smtp.EmailBackend'
 elif IS_LOCAL and not env('EMAIL_HOST_USER', default=''):
     default_email_backend = 'django.core.mail.backends.console.EmailBackend'
 else:
     default_email_backend = 'django.core.mail.backends.smtp.EmailBackend'
 
 EMAIL_BACKEND = env('EMAIL_BACKEND', default=default_email_backend)
-EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
-EMAIL_PORT = env.int('EMAIL_PORT', default=587)
-EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_HOST = email_host_env
+EMAIL_PORT = env.int('EMAIL_PORT', default=1025 if is_mailhog else 587)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=False if is_mailhog else True)
 EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='ShebaFi Platform <noreply@shebafi.xyz>')

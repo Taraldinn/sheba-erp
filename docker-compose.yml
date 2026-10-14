@@ -1,0 +1,196 @@
+# ==============================================================================
+# Sheba ERP & SaaS — Local Development Docker Compose
+# Default compose file (`docker compose up`)
+# ==============================================================================
+# Services included:
+#   - postgres: PostgreSQL 16 (port 5432)
+#   - redis: Redis 7 (port 6379)
+#   - backend: Django API running manage.py runserver with live reload (port 8000)
+#   - celery-worker: Celery worker for async tasks
+#   - celery-beat: Celery beat for scheduled jobs
+#   - frontend: Next.js dev server with hot module reload (port 3000)
+# ==============================================================================
+
+services:
+  # ── PostgreSQL Database ───────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: sheba-dev-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5435}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sheba_erp_dev}
+      POSTGRES_USER: ${POSTGRES_USER:-sheba_dev_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sheba_dev_password}
+    volumes:
+      - dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sheba_dev_user} -d ${POSTGRES_DB:-sheba_erp_dev}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis Cache & Task Broker ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: sheba-dev-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - dev_redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── MailHog Local Email Testing & Capture ─────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: sheba-dev-mailhog
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_WEB_PORT:-8025}:8025"
+
+  # ── Django Backend API ────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: sheba-dev-backend
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo 'Waiting for postgres...' &&
+        while ! nc -z postgres 5432; do sleep 1; done &&
+        python manage.py migrate &&
+        python manage.py runserver 0.0.0.0:8000
+      "
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - ENVIRONMENT=local
+      - DEBUG=True
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-dev-local-secret-key-sheba-erp-1234567890}
+      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:-dev-local-field-encryption-key-32-chars-long!}
+      - ALLOWED_HOSTS=*
+      - CORS_ALLOW_ALL_ORIGINS=True
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,http://127.0.0.1:8000
+      - CSRF_TRUSTED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,http://127.0.0.1:8000
+      - DATABASE_URL=postgres://${POSTGRES_USER:-sheba_dev_user}:${POSTGRES_PASSWORD:-sheba_dev_password}@postgres:5432/${POSTGRES_DB:-sheba_erp_dev}
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+      - EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+      - EMAIL_HOST=mailhog
+      - EMAIL_PORT=1025
+      - EMAIL_USE_TLS=False
+      - EMAIL_HOST_USER=
+      - EMAIL_HOST_PASSWORD=
+      - DEFAULT_FROM_EMAIL=ShebaFi Platform <noreply@shebafi.xyz>
+    volumes:
+      - ./backend:/app
+      - dev_backend_media:/app/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+
+  # ── Celery Async Worker ───────────────────────────────────────────────────
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: sheba-dev-celery-worker
+    restart: unless-stopped
+    command: celery -A sheba_core worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-2} --queues=default,network,billing
+    environment:
+      - ENVIRONMENT=local
+      - DEBUG=True
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-dev-local-secret-key-sheba-erp-1234567890}
+      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:-dev-local-field-encryption-key-32-chars-long!}
+      - ALLOWED_HOSTS=*
+      - DATABASE_URL=postgres://${POSTGRES_USER:-sheba_dev_user}:${POSTGRES_PASSWORD:-sheba_dev_password}@postgres:5432/${POSTGRES_DB:-sheba_erp_dev}
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+      - EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+      - EMAIL_HOST=mailhog
+      - EMAIL_PORT=1025
+      - EMAIL_USE_TLS=False
+      - EMAIL_HOST_USER=
+      - EMAIL_HOST_PASSWORD=
+      - DEFAULT_FROM_EMAIL=ShebaFi Platform <noreply@shebafi.xyz>
+    volumes:
+      - ./backend:/app
+      - dev_backend_media:/app/media
+    depends_on:
+      backend:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+
+  # ── Celery Beat Scheduled Task Runner ─────────────────────────────────────
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: sheba-dev-celery-beat
+    restart: unless-stopped
+    command: celery -A sheba_core beat --loglevel=info --schedule=/app/media/celerybeat-schedule.db
+    environment:
+      - ENVIRONMENT=local
+      - DEBUG=True
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-dev-local-secret-key-sheba-erp-1234567890}
+      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:-dev-local-field-encryption-key-32-chars-long!}
+      - ALLOWED_HOSTS=*
+      - DATABASE_URL=postgres://${POSTGRES_USER:-sheba_dev_user}:${POSTGRES_PASSWORD:-sheba_dev_password}@postgres:5432/${POSTGRES_DB:-sheba_erp_dev}
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./backend:/app
+      - dev_backend_media:/app/media
+    depends_on:
+      celery-worker:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Frontend (Next.js 16) ─────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./sass-frontend-v2
+      dockerfile: Dockerfile.dev
+    container_name: sheba-dev-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3001}:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - VITE_API_BASE_URL=http://localhost:8000/api/v1/
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1/
+      - INTERNAL_API_URL=http://backend:8000/api/v1/
+      - INTERNAL_API_BASE_URL=http://backend:8000/api/v1/
+      - DOCKER_CONTAINER=true
+    volumes:
+      - ./sass-frontend-v2:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+
+volumes:
+  dev_postgres_data:
+  dev_redis_data:
+  dev_backend_media:
