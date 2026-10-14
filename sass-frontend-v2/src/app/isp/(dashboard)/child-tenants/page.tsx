@@ -79,7 +79,7 @@ function CreateChildDialog({ open, onOpenChange, onCreated }: { open: boolean; o
     const create = useMutation(
         withMutationToast(
             {
-                mutationFn: () => ispAdminApi.createChildTenant(form),
+                mutationFn: (_vars?: unknown) => ispAdminApi.createChildTenant(form),
                 onSuccess: () => onCreated(),
             },
             { success: 'Child tenant provisioned', error: 'Could not provision child tenant' },
@@ -117,7 +117,7 @@ function CreateChildDialog({ open, onOpenChange, onCreated }: { open: boolean; o
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
                     <Button
                         disabled={create.isPending || !form.name || !form.slug || !form.admin_username || !form.admin_password}
-                        onClick={() => create.mutate()}
+                        onClick={() => create.mutate(undefined)}
                     >
                         {create.isPending ? 'Provisioning…' : 'Provision'}
                     </Button>
