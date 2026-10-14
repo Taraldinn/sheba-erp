@@ -1,0 +1,18 @@
+[CRITICAL ALERT] System Failure Detected
+===========================================
+Error Type: {{ error_type }}
+Endpoint: {{ method }} {{ path }}
+{% if tenant_slug %}Tenant: {{ tenant_slug }}{% endif %}
+{% if user %}User: {{ user }}{% endif %}
+Timestamp: {{ timestamp }}
+
+Error Message:
+{{ error_message }}
+
+{% if traceback_str %}
+Stack Trace:
+{{ traceback_str }}
+{% endif %}
+
+-------------------------------------------
+ShebaFi Telemetry & Operations Control (c) {{ current_year }}

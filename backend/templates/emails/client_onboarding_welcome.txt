@@ -6,7 +6,13 @@ Hello {{ tenant_name }} Team,
 Your ISP tenant environment has been successfully provisioned on the ShebaFi Platform.
 
 Your administrative credentials:
+{% if organization_name %}
+- Organization: {{ organization_name }}
+{% endif %}
 - ISP Tenant: {{ tenant_name }} ({{ tenant_slug }})
+{% if role_name %}
+- Assigned Role: {{ role_name }}
+{% endif %}
 - Portal URL: {{ portal_url }}
 - Admin Username: {{ admin_username }}
 - Temporary Password: {{ temporary_password }}

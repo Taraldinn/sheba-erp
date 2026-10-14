@@ -37,10 +37,22 @@
       </p>
 
       <div class="card">
+        {% if organization_name %}
+        <div class="row">
+          <span class="label">Organization:</span>
+          <span class="value">{{ organization_name }}</span>
+        </div>
+        {% endif %}
         <div class="row">
           <span class="label">ISP Tenant:</span>
           <span class="value">{{ tenant_name }} ({{ tenant_slug }})</span>
         </div>
+        {% if role_name %}
+        <div class="row">
+          <span class="label">Assigned Role:</span>
+          <span class="value">{{ role_name }}</span>
+        </div>
+        {% endif %}
         <div class="row">
           <span class="label">Portal URL:</span>
           <span class="value">{{ portal_url }}</span>

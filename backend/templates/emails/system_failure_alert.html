@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>[CRITICAL ALERT] System Failure — ShebaFi</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 0; }
+    .container { max-width: 650px; margin: 40px auto; background-color: #1e293b; border-radius: 16px; border: 1px solid #dc2626; overflow: hidden; }
+    .header { background: linear-gradient(135deg, #b91c1c, #dc2626); padding: 28px 32px; text-align: left; }
+    .header h1 { margin: 0; color: #ffffff; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .header p { margin: 6px 0 0 0; color: #fecaca; font-size: 13px; }
+    .content { padding: 32px; }
+    .card { background-color: #0f172a; border-radius: 12px; border: 1px solid #334155; padding: 20px; margin: 20px 0; }
+    .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1e293b; font-size: 13px; }
+    .row:last-child { border-bottom: none; }
+    .label { color: #94a3b8; font-weight: 500; }
+    .value { color: #f8fafc; font-weight: 700; font-family: monospace; }
+    .code-box { background-color: #020617; border: 1px solid #450a0a; border-radius: 8px; padding: 16px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 12px; color: #fca5a5; overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin-top: 12px; }
+    .footer { padding: 20px 32px; background-color: #0f172a; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #334155; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>[CRITICAL ALERT] System Failure Detected</h1>
+      <p>Automated telemetry notification from ShebaFi Core Engine</p>
+    </div>
+    <div class="content">
+      <p style="font-size: 14px; line-height: 1.6; color: #cbd5e1;">
+        An unhandled server exception or critical task failure occurred that requires engineering attention:
+      </p>
+
+      <div class="card">
+        <div class="row">
+          <span class="label">Error Type:</span>
+          <span class="value" style="color: #ef4444;">{{ error_type }}</span>
+        </div>
+        <div class="row">
+          <span class="label">Endpoint / Path:</span>
+          <span class="value">{{ method }} {{ path }}</span>
+        </div>
+        {% if tenant_slug %}
+        <div class="row">
+          <span class="label">Tenant Slug:</span>
+          <span class="value">{{ tenant_slug }}</span>
+        </div>
+        {% endif %}
+        {% if user %}
+        <div class="row">
+          <span class="label">Triggered by User:</span>
+          <span class="value">{{ user }}</span>
+        </div>
+        {% endif %}
+        <div class="row">
+          <span class="label">Timestamp:</span>
+          <span class="value">{{ timestamp }}</span>
+        </div>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <span style="font-size: 13px; font-weight: 600; color: #cbd5e1;">Error Message:</span>
+        <div class="code-box" style="color: #f87171;">{{ error_message }}</div>
+      </div>
+
+      {% if traceback_str %}
+      <div style="margin-top: 20px;">
+        <span style="font-size: 13px; font-weight: 600; color: #cbd5e1;">Stack Trace:</span>
+        <div class="code-box">{{ traceback_str }}</div>
+      </div>
+      {% endif %}
+    </div>
+    <div class="footer">
+      ShebaFi Telemetry & Operations Control &bull; &copy; {{ current_year }} ShebaFi.
+    </div>
+  </div>
+</body>
+</html>
