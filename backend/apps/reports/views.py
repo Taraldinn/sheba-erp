@@ -6,7 +6,7 @@ from datetime import timedelta
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from apps.customers.models import Customer, CustomerStatus
 from apps.billing.models import Recharge, Invoice, Package
-from apps.payments.models import PaymentTransaction
+from apps.payments.models import PaymentTransaction, SmsLog
 from apps.network.models import Router, ONU, UserSession, POPBranch
 from apps.support.models import Ticket
 from apps.hr.models import Employee, Attendance, LeaveRequest
@@ -69,17 +69,22 @@ class DashboardAnalyticsView(views.APIView):
             role = allowed_dashboard_roles[0]
 
         today = timezone.now().date()
+        two_days_later = today + timedelta(days=2)
+        five_days_later = today + timedelta(days=5)
+        first_day_month = today.replace(day=1)
+
         tenant_id = str(request.tenant.id) if getattr(request, 'tenant', None) else 'main'
         user_id = str(request.user.id) if request.user.is_authenticated else 'anon'
         cache_key = f"tenant:{tenant_id}:dashboard:{role}:{user_id}:{today}"
-        cached = RedisService.get(cache_key)
-        if cached is not None:
-            res = Response(cached)
-            res['X-Cache'] = 'HIT'
-            return res
-
-        first_day_month = today.replace(day=1)
-
+        
+        # Bypass cache if nocache is requested
+        skip_cache = request.query_params.get('nocache') in ['1', 'true', 'True']
+        if not skip_cache:
+            cached = RedisService.get(cache_key)
+            if cached is not None:
+                res = Response(cached)
+                res['X-Cache'] = 'HIT'
+                return res
 
         # Tenant-scoped base querysets
         customer_qs = get_scoped_queryset(request, Customer)
@@ -95,18 +100,56 @@ class DashboardAnalyticsView(views.APIView):
         task_qs = get_scoped_queryset(request, Task)
         employee_qs = get_scoped_queryset(request, Employee)
         store_qs = get_scoped_queryset(request, StoreItem)
+        sms_qs = get_scoped_queryset(request, SmsLog)
 
-        # Baseline aggregates
-        total_customers = customer_qs.count()
-        active_customers = customer_qs.filter(status=CustomerStatus.ACTIVE).count()
-        expired_customers = customer_qs.filter(status=CustomerStatus.EXPIRED).count()
-        suspended_customers = customer_qs.filter(status=CustomerStatus.SUSPENDED).count()
+        # Baseline single-query customer aggregation
+        cust_stats = customer_qs.aggregate(
+            total=Count('id'),
+            active=Count('id', filter=Q(status=CustomerStatus.ACTIVE)),
+            expired=Count('id', filter=Q(status=CustomerStatus.EXPIRED)),
+            suspended=Count('id', filter=Q(status=CustomerStatus.SUSPENDED)),
+            left=Count('id', filter=Q(status=CustomerStatus.LEFT)),
+            inactive=Count('id', filter=~Q(status=CustomerStatus.ACTIVE)),
+            due_clients=Count('id', filter=Q(due_amount__gt=0)),
+            joined_this_month=Count('id', filter=Q(created_at__date__gte=first_day_month)),
+            expire_today=Count('id', filter=Q(status=CustomerStatus.ACTIVE, expiry_date=today)),
+            expire_in_2_days=Count('id', filter=Q(status=CustomerStatus.ACTIVE, expiry_date__gt=today, expiry_date__lte=two_days_later)),
+            expire_in_5_days=Count('id', filter=Q(status=CustomerStatus.ACTIVE, expiry_date__gt=today, expiry_date__lte=five_days_later)),
+            free_clients=Count('id', filter=Q(monthly_bill=0)),
+            promise_clients=Count('id', filter=Q(promise_date__isnull=False)),
+            active_client_bill=Sum('monthly_bill', filter=Q(status=CustomerStatus.ACTIVE)),
+            total_due=Sum('due_amount'),
+            total_advance=Sum('advance_amount'),
+        )
 
+        total_customers = cust_stats['total'] or 0
+        active_customers = cust_stats['active'] or 0
+        expired_customers = cust_stats['expired'] or 0
+        suspended_customers = cust_stats['suspended'] or 0
+        left_clients = cust_stats['left'] or 0
+        inactive_clients = cust_stats['inactive'] or 0
+        due_clients = cust_stats['due_clients'] or 0
+        joined_this_month = cust_stats['joined_this_month'] or 0
+        expire_today = cust_stats['expire_today'] or 0
+        expire_in_2_days = cust_stats['expire_in_2_days'] or 0
+        expire_in_5_days = cust_stats['expire_in_5_days'] or 0
+        free_clients = cust_stats['free_clients'] or 0
+        promise_clients = cust_stats['promise_clients'] or 0
+        active_client_bill = float(cust_stats['active_client_bill'] or 0.00)
+        total_due = float(cust_stats['total_due'] or 0.00)
+        total_advance = float(cust_stats['total_advance'] or 0.00)
+
+        # Network live sessions
+        online_now = session_qs.count()
+        offline_now = max(0, active_customers - online_now)
+
+        # Financial collections
         today_collection = payment_qs.filter(created_at__date=today).aggregate(total=Sum('amount'))['total'] or 0.00
         month_collection = payment_qs.filter(created_at__date__gte=first_day_month).aggregate(total=Sum('amount'))['total'] or 0.00
-        total_due = customer_qs.aggregate(total=Sum('due_amount'))['total'] or 0.00
-        total_advance = customer_qs.aggregate(total=Sum('advance_amount'))['total'] or 0.00
+        todays_revenue = float(today_collection)
+        outstanding_bill = total_due
 
+        # Network hardware status
         online_routers = router_qs.filter(status='Online').count()
         total_routers = router_qs.count()
         total_onus = onu_qs.count()
@@ -135,31 +178,193 @@ class DashboardAnalyticsView(views.APIView):
             {'time': '23:00', 'download': 780, 'upload': 210},
         ]
 
+        # Financial Communication History (recent SMS notifications / match logs)
+        financial_communication_history = [
+            {
+                'id': str(s.id),
+                'sender': s.sender,
+                'message': s.raw_message,
+                'amount': float(s.parsed_amount) if s.parsed_amount else None,
+                'trx_id': s.parsed_trx_id,
+                'provider': s.parsed_provider or 'SMS Gateway',
+                'is_matched': s.is_matched,
+                'customer_name': s.matched_customer.full_name if s.matched_customer else None,
+                'customer_mobile': s.matched_customer.mobile if s.matched_customer else s.sender,
+                'created_at': s.created_at.isoformat() if s.created_at else None,
+            }
+            for s in sms_qs.select_related('matched_customer')[:10]
+        ]
+
+        # Recent Payment Transactions
+        recent_payments = [
+            {
+                'id': str(p.id),
+                'customer_name': p.customer.full_name if p.customer else (p.customer_account or 'Direct Payment'),
+                'customer_id': str(p.customer.id) if p.customer else None,
+                'amount': float(p.amount),
+                'payment_method': p.payment_method,
+                'status': p.status,
+                'trx_id': p.trx_id,
+                'created_at': p.created_at.isoformat() if p.created_at else None,
+            }
+            for p in payment_qs.select_related('customer')[:10]
+        ]
+
+        # Client Distribution (By Status & By Top Packages)
+        top_packages = [
+            {'name': item['package__name'] or 'Standard Plan', 'count': item['count']}
+            for item in customer_qs.filter(package__isnull=False).values('package__name').annotate(count=Count('id')).order_by('-count')[:5]
+        ]
+        status_distribution = [
+            {'status': 'Active', 'count': active_customers, 'color': '#10b981'},
+            {'status': 'Expired', 'count': expired_customers, 'color': '#ef4444'},
+            {'status': 'Suspended', 'count': suspended_customers, 'color': '#f59e0b'},
+            {'status': 'Left', 'count': left_clients, 'color': '#6b7280'},
+        ]
+        client_distribution = {
+            'by_status': status_distribution,
+            'top_packages': top_packages,
+        }
+
+        # Action Required Items
+        broken_promise_count = customer_qs.filter(promise_date__lt=today, due_amount__gt=0).count()
+        offline_routers = max(0, total_routers - online_routers)
+        critical_tickets_count = ticket_qs.filter(priority='Critical', status__in=['Open', 'In_Progress']).count()
+
+        action_items = []
+        if expire_today > 0:
+            action_items.append({
+                'id': 'exp_today',
+                'type': 'expiry',
+                'severity': 'warning',
+                'title': f'{expire_today} clients expiring today',
+                'description': 'Billing accounts expire tonight unless renewed or extended.',
+                'count': expire_today,
+                'href': '/tenant/customers?expiry=today'
+            })
+        if expire_in_2_days > 0:
+            action_items.append({
+                'id': 'exp_2d',
+                'type': 'expiry',
+                'severity': 'info',
+                'title': f'{expire_in_2_days} clients expire in 2 days',
+                'description': 'Upcoming renewal deadline; automated payment notices active.',
+                'count': expire_in_2_days,
+                'href': '/tenant/customers?expiry=2days'
+            })
+        if broken_promise_count > 0:
+            action_items.append({
+                'id': 'broken_promise',
+                'type': 'promise',
+                'severity': 'danger',
+                'title': f'{broken_promise_count} overdue payment promises',
+                'description': 'Subscribers have passed committed promise date with unpaid due balance.',
+                'count': broken_promise_count,
+                'href': '/tenant/customers?status=promise_broken'
+            })
+        if critical_onus > 0:
+            action_items.append({
+                'id': 'crit_onu',
+                'type': 'network',
+                'severity': 'danger',
+                'title': f'{critical_onus} ONUs with critical optical attenuation',
+                'description': 'Rx power under -27 dBm. Urgent line inspection recommended.',
+                'count': critical_onus,
+                'href': '/tenant/network'
+            })
+        if critical_tickets_count > 0:
+            action_items.append({
+                'id': 'crit_ticket',
+                'type': 'support',
+                'severity': 'danger',
+                'title': f'{critical_tickets_count} critical priority tickets open',
+                'description': 'Customer service outage tickets awaiting technician dispatch.',
+                'count': critical_tickets_count,
+                'href': '/tenant/tickets'
+            })
+
+        action_required = {
+            'expire_today': expire_today,
+            'expire_in_2_days': expire_in_2_days,
+            'expire_in_5_days': expire_in_5_days,
+            'broken_promises': broken_promise_count,
+            'critical_onus': critical_onus,
+            'offline_routers': offline_routers,
+            'critical_tickets': critical_tickets_count,
+            'items': action_items,
+        }
+
+        # Unified Recent Activity Feed
+        recent_activity = []
+        for p in recent_payments[:5]:
+            recent_activity.append({
+                'id': f"pay_{p['id']}",
+                'type': 'payment',
+                'title': f"Payment received from {p['customer_name']}",
+                'amount': p['amount'],
+                'detail': f"{p['payment_method']} · Trx {p['trx_id']}",
+                'timestamp': p['created_at'],
+                'status': p['status'],
+            })
+        for t in ticket_qs.select_related('customer')[:4]:
+            recent_activity.append({
+                'id': f"ticket_{t.id}",
+                'type': 'ticket',
+                'title': f"#{t.ticket_no} - {t.subject}",
+                'amount': None,
+                'detail': f"{t.customer.full_name} · Priority: {t.priority}",
+                'timestamp': t.created_at.isoformat() if t.created_at else None,
+                'status': t.status,
+            })
+        recent_activity.sort(key=lambda x: x.get('timestamp') or '', reverse=True)
+
         base_data = {
             'role': role,
             'kpis': {
+                'total_clients': total_customers,
                 'total_customers': total_customers,
                 'total_subscribers': total_customers,
+                'active_clients': active_customers,
                 'active_customers': active_customers,
                 'active_subscribers': active_customers,
+                'online_now': online_now,
+                'offline_now': offline_now,
+                'due_clients': due_clients,
+                'expired_clients': expired_customers,
                 'expired_customers': expired_customers,
+                'inactive_clients': inactive_clients,
                 'suspended_customers': suspended_customers,
-                'today_collection': float(today_collection),
-                'today_collections': float(today_collection),
+                'joined_this_month': joined_this_month,
+                'expire_today': expire_today,
+                'expire_in_2_days': expire_in_2_days,
+                'expire_in_5_days': expire_in_5_days,
+                'left_clients': left_clients,
+                'free_clients': free_clients,
+                'promise_clients': promise_clients,
+                'open_tickets': open_tickets,
+                'todays_revenue': todays_revenue,
+                'today_collection': todays_revenue,
+                'today_collections': todays_revenue,
                 'month_collection': float(month_collection),
                 'monthly_revenue': float(month_collection),
-                'total_due': float(total_due),
-                'total_advance': float(total_advance),
+                'active_client_bill': active_client_bill,
+                'outstanding_bill': outstanding_bill,
+                'total_due': outstanding_bill,
+                'total_advance': total_advance,
                 'online_routers': online_routers,
                 'total_routers': total_routers,
                 'total_onus': total_onus,
                 'online_onus': online_onus,
                 'warning_onus': warning_onus,
                 'critical_onus': critical_onus,
-                'open_tickets': open_tickets,
             },
             'monthly_trend': monthly_trend,
             'traffic_distribution': traffic_distribution,
+            'financial_communication_history': financial_communication_history,
+            'client_distribution': client_distribution,
+            'action_required': action_required,
+            'recent_payments': recent_payments,
+            'recent_activity': recent_activity,
         }
 
         # ═══════════════════════ 1. BILLING DASHBOARD ═══════════════════════

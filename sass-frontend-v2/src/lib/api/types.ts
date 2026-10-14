@@ -735,12 +735,107 @@ export interface SearchResult {
     icon: string;
 }
 
+export interface TenantKpis {
+    total_clients?: number;
+    total_customers?: number;
+    total_subscribers?: number;
+    active_clients?: number;
+    active_customers?: number;
+    active_subscribers?: number;
+    online_now?: number;
+    offline_now?: number;
+    due_clients?: number;
+    expired_clients?: number;
+    expired_customers?: number;
+    inactive_clients?: number;
+    suspended_customers?: number;
+    joined_this_month?: number;
+    expire_today?: number;
+    expire_in_2_days?: number;
+    expire_in_5_days?: number;
+    left_clients?: number;
+    free_clients?: number;
+    promise_clients?: number;
+    open_tickets?: number;
+    todays_revenue?: number;
+    today_collection?: number;
+    month_collection?: number;
+    monthly_revenue?: number;
+    active_client_bill?: number;
+    outstanding_bill?: number;
+    total_due?: number;
+    total_advance?: number;
+    online_routers?: number;
+    total_routers?: number;
+    total_onus?: number;
+    online_onus?: number;
+    warning_onus?: number;
+    critical_onus?: number;
+}
+
+export interface FinancialCommunicationItem {
+    id: string;
+    sender: string;
+    message: string;
+    amount?: number | null;
+    trx_id?: string;
+    provider: string;
+    is_matched: boolean;
+    customer_name?: string | null;
+    customer_mobile?: string;
+    created_at?: string | null;
+}
+
+export interface ClientDistribution {
+    by_status?: Array<{ status: string; count: number; color?: string }>;
+    top_packages?: Array<{ name: string; count: number }>;
+}
+
+export interface ActionRequiredItem {
+    id: string;
+    type: 'expiry' | 'promise' | 'network' | 'support' | string;
+    severity: 'info' | 'warning' | 'danger';
+    title: string;
+    description: string;
+    count?: number;
+    href?: string;
+}
+
+export interface ActionRequired {
+    expire_today?: number;
+    expire_in_2_days?: number;
+    expire_in_5_days?: number;
+    broken_promises?: number;
+    critical_onus?: number;
+    offline_routers?: number;
+    critical_tickets?: number;
+    items?: ActionRequiredItem[];
+}
+
+export interface RecentActivityItem {
+    id: string;
+    type: 'payment' | 'ticket' | 'subscriber' | string;
+    title: string;
+    amount?: number | string | null;
+    detail?: string;
+    timestamp?: string | null;
+    status?: string;
+}
+
 export interface DashboardAnalytics {
+    role?: string;
     total_customers?: number;
     active_subscriptions?: number;
     total_due?: number | string;
     mrr?: number | string;
-    recent_payments?: Array<{ id: string; amount: number | string; customer_name?: string; created_at: string }>;
+    kpis?: TenantKpis;
+    monthly_trend?: Array<{ month: string; collection: number; target: number }>;
+    traffic_distribution?: Array<{ time: string; download: number; upload: number }>;
+    financial_communication_history?: FinancialCommunicationItem[];
+    client_distribution?: ClientDistribution;
+    action_required?: ActionRequired;
+    recent_payments?: Array<{ id: string; amount: number | string; customer_name?: string; payment_method?: string; status?: string; trx_id?: string; created_at: string }>;
+    recent_activity?: RecentActivityItem[];
     [key: string]: unknown;
 }
 
