@@ -171,7 +171,7 @@ export default function TenantTJBoxesPage() {
                 const cat = r.box_category || 'Master Box';
                 const tone =
                     cat === 'Master Box'
-                        ? 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                        ? 'border-primary/30 text-primary bg-primary/10'
                         : cat === 'Splitter Box'
                         ? 'border-indigo-500/30 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10'
                         : 'border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10';
@@ -273,7 +273,7 @@ export default function TenantTJBoxesPage() {
                 title="TJ Boxes / OLT Ports"
                 description="Optical Terminal Joint Boxes (TJ Boxes), fiber optic line terminations, and core configurations."
                 actions={
-                    <Button onClick={() => setCreating(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                    <Button onClick={() => setCreating(true)}>
                         <Plus className="size-4 mr-1" aria-hidden="true" />
                         Add TJ Box / OLT Port
                     </Button>
@@ -556,7 +556,7 @@ function TJBoxModal({ open, onOpenChange, zones, initial, pending, onSubmit }: T
                                 variant="outline"
                                 size="sm"
                                 onClick={handleAddLine}
-                                className="border-emerald-600 text-emerald-600 hover:bg-emerald-500/10 dark:border-emerald-500 dark:text-emerald-400"
+                                className="border-primary/40 text-primary hover:bg-primary/10 hover:text-primary dark:border-primary/50"
                             >
                                 <Plus className="size-3.5 mr-1" />
                                 Add Line
@@ -666,7 +666,7 @@ function TJBoxModal({ open, onOpenChange, zones, initial, pending, onSubmit }: T
                                                     return (
                                                         <div
                                                             key={core.index || coreIdx}
-                                                            className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-card p-1.5 text-xs shadow-xs"
+                                                            className="flex items-center gap-2 rounded-md border border-border/80 bg-card p-1.5 text-xs shadow-xs transition-colors focus-within:border-primary/60"
                                                         >
                                                             {/* Index */}
                                                             <span className="w-5 shrink-0 text-center font-bold text-foreground">
@@ -786,12 +786,12 @@ function TJBoxModal({ open, onOpenChange, zones, initial, pending, onSubmit }: T
                         </div>
                     </div>
 
-                    {/* 7. Save Box Button (Green) */}
+                    {/* 7. Save Box Button (Primary Accent) */}
                     <div className="pt-3">
                         <Button
                             type="submit"
                             disabled={pending}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium h-11 text-sm shadow-xs"
+                            className="w-full font-medium h-11 text-sm shadow-xs"
                         >
                             {pending ? 'Saving Box…' : 'Save Box'}
                         </Button>
