@@ -46,6 +46,46 @@ export interface OnboardingRequest {
     requested_domain?: string;
     address?: string;
     admin_notes?: string;
+    payment_method?: string;
+    payment_sender?: string;
+    payment_trx_id?: string;
+    payment_amount?: number;
+}
+
+export interface PlatformPaymentConfig {
+    id?: string;
+    bkash_number: string;
+    bkash_account_type: string;
+    bkash_instructions: string;
+    is_active: boolean;
+    updated_at?: string;
+}
+
+export interface TenantRequestInput {
+    tenant_name: string;
+    tenant_slug: string;
+    contact_email?: string;
+    contact_phone?: string;
+    address?: string;
+    package_id?: string;
+    requested_plan?: string;
+    payment_sender: string;
+    payment_trx_id: string;
+    payment_amount?: number;
+}
+
+export interface MyTenantRequestItem {
+    id: string;
+    tenant_name: string;
+    requested_slug: string;
+    requested_plan: string;
+    status: 'pending' | 'approved' | 'rejected';
+    payment_method: string;
+    payment_sender: string;
+    payment_trx_id: string;
+    payment_amount: number;
+    admin_notes?: string;
+    created_at?: string;
 }
 
 export interface OrganizationMember {
@@ -783,3 +823,70 @@ export function asList<T>(res: PaginatedList<T> | undefined | null): T[] {
     if (Array.isArray(res)) return res;
     return res.results ?? [];
 }
+
+export interface TenantCredentials {
+    tenant_id: string;
+    tenant_name: string;
+    tenant_slug: string;
+    admin_username: string;
+    admin_user_id?: number;
+    contact_email: string;
+    default_password_hint: string;
+}
+
+export interface TenantAccountItem {
+    id: string;
+    user_id: number;
+    username: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    full_name: string;
+    phone?: string;
+    role_id?: string | null;
+    role_name?: string;
+    is_active: boolean;
+    last_login?: string | null;
+    created_at?: string | null;
+}
+
+export interface CreateTenantAccountPayload {
+    username: string;
+    password: string;
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    role_id?: string;
+}
+
+export interface TenantPermissionItem {
+    id: string;
+    codename: string;
+    name: string;
+    module: string;
+    description?: string;
+}
+
+export interface TenantRoleItem {
+    id: string;
+    name: string;
+    description?: string;
+    is_default?: boolean;
+    members_count?: number;
+    permissions: TenantPermissionItem[];
+}
+
+export interface CreateTenantRolePayload {
+    name: string;
+    description?: string;
+    permission_ids: string[];
+}
+
+export interface AutoLoginResponse {
+    token: string;
+    username: string;
+    tenant_slug: string;
+    launch_url: string;
+}
+

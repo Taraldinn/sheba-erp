@@ -5,6 +5,13 @@ import type {
     IspAdminTenant,
     TenantResolveResponse,
     PaginatedList,
+    TenantCredentials,
+    TenantAccountItem,
+    CreateTenantAccountPayload,
+    TenantRoleItem,
+    CreateTenantRolePayload,
+    TenantPermissionItem,
+    AutoLoginResponse,
 } from './types';
 import { asList } from './types';
 
@@ -82,4 +89,57 @@ export const tenantApi = {
             plane: 'tenant',
         }),
     features: () => fetchApi<Record<string, unknown>>('/features/me/', { plane: 'tenant' }),
+    submitTenantRequest: (data: any) =>
+        fetchApi<{ message: string; request_id: string; status: string }>('/auth/my-tenants/request/', {
+            method: 'POST',
+            json: data,
+            plane: 'tenant',
+        }),
+    getMyTenantRequests: () =>
+        fetchApi<{ count: number; items: any[] }>('/auth/my-tenants/requests/', {
+            plane: 'tenant',
+        }).catch(() => ({ count: 0, items: [] })),
+    getTenantCredentials: (tenantId: string) =>
+        fetchApi<TenantCredentials>(`/auth/my-tenants/${tenantId}/credentials/`, { plane: 'tenant' }),
+    setTenantPassword: (tenantId: string, payload: { new_password: string; user_id?: number }) =>
+        fetchApi<{ message: string; username: string; token: string }>(`/auth/my-tenants/${tenantId}/set-password/`, {
+            method: 'POST',
+            json: payload,
+            plane: 'tenant',
+        }),
+    getAutoLoginToken: (tenantId: string) =>
+        fetchApi<AutoLoginResponse>(`/auth/my-tenants/${tenantId}/auto-login-token/`, {
+            method: 'POST',
+            plane: 'tenant',
+        }),
+    getTenantAccounts: (tenantId: string) =>
+        fetchApi<{ count: number; items: TenantAccountItem[] }>(`/auth/my-tenants/${tenantId}/accounts/`, {
+            plane: 'tenant',
+        }),
+    createTenantAccount: (tenantId: string, payload: CreateTenantAccountPayload) =>
+        fetchApi<{ message: string; user_id: number; username: string; role: string }>(`/auth/my-tenants/${tenantId}/accounts/`, {
+            method: 'POST',
+            json: payload,
+            plane: 'tenant',
+        }),
+    resetAccountPassword: (tenantId: string, userId: number, payload: { new_password: string }) =>
+        fetchApi<{ message: string; token: string }>(`/auth/my-tenants/${tenantId}/accounts/${userId}/reset-password/`, {
+            method: 'POST',
+            json: payload,
+            plane: 'tenant',
+        }),
+    getTenantRoles: (tenantId: string) =>
+        fetchApi<{ count: number; items: TenantRoleItem[] }>(`/auth/my-tenants/${tenantId}/roles/`, {
+            plane: 'tenant',
+        }),
+    createTenantRole: (tenantId: string, payload: CreateTenantRolePayload) =>
+        fetchApi<{ message: string; role_id: string; name: string }>(`/auth/my-tenants/${tenantId}/roles/`, {
+            method: 'POST',
+            json: payload,
+            plane: 'tenant',
+        }),
+    getTenantPermissions: () =>
+        fetchApi<{ count: number; items: TenantPermissionItem[] }>('/auth/my-tenants/permissions/', {
+            plane: 'tenant',
+        }),
 };
