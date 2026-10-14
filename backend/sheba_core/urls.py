@@ -307,6 +307,7 @@ urlpatterns = [
     path('api/v1/saas/feature-matrix/', SaaSFeatureMatrixView.as_view(), name='saas-feature-matrix'),
     path('api/v1/saas/auth/login/', SaaSLoginView.as_view(), name='saas-auth-login'),
     path('api/v1/saas/auth/me/', SaaSMeView.as_view(), name='saas-auth-me'),
+    path('api/v1/saas/auth/change-password/', ChangePasswordView.as_view(), name='saas-auth-change-password'),
     path('api/v1/saas/auth/logout/', SaaSLogoutView.as_view(), name='saas-auth-logout'),
     path('api/v1/saas/auth/password-reset/', SaaSPasswordResetView.as_view(), name='saas-auth-password-reset'),
     path('api/v1/saas/auth/password-reset-confirm/', SaaSPasswordResetConfirmView.as_view(), name='saas-auth-password-reset-confirm'),

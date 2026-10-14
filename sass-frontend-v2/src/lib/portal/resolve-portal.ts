@@ -2,6 +2,7 @@ import { PORTAL_CONFIG, RESERVED_SLUGS } from './config';
 import type { PortalResolution, PortalType } from './types';
 
 export interface ResolvePortalOptions {
+    pathname?: string;
     searchParams?: URLSearchParams | string;
     devOverridePortal?: string | null;
     devOverrideTenant?: string | null;
@@ -44,12 +45,27 @@ export function resolvePortal(rawHostname: string, options: ResolvePortalOptions
 
     // ── Dev overrides (local dev or explicit flag) ─────────────────────────
     if (isDevelopment || isLocalDevHost) {
-        let overridePortal = options.devOverridePortal;
+        let overridePortal: string | null | undefined = undefined;
         let overrideTenant = options.devOverrideTenant;
 
-        if (!overridePortal && options.searchParams) {
+        // On plain localhost or 127.0.0.1 without subdomain, route based on path if explicit
+        if (options.pathname && (hostname === 'localhost' || hostname === '127.0.0.1')) {
+            if (options.pathname.startsWith('/saas')) {
+                overridePortal = 'saas';
+            } else if (options.pathname.startsWith('/isp')) {
+                overridePortal = 'isp';
+            } else if (options.pathname.startsWith('/tenant')) {
+                overridePortal = 'tenant';
+            }
+        }
+
+        if (!overridePortal) {
+            overridePortal = options.devOverridePortal;
+        }
+
+        if (options.searchParams) {
             const params = typeof options.searchParams === 'string' ? new URLSearchParams(options.searchParams) : options.searchParams;
-            overridePortal = params.get('portal');
+            if (!overridePortal) overridePortal = params.get('portal');
             if (params.get('tenant')) overrideTenant = params.get('tenant');
         }
 

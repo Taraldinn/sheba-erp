@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@/lib/query/native';
+import Cookies from 'js-cookie';
 import { usePortal } from '../portal/portal-provider';
 import { saasApi, tenantApi, STORAGE_KEYS, storage, UNAUTHORIZED_EVENT } from '../api';
 import { permissionsForRole, type Permission } from '../permissions/permissions';
@@ -58,6 +59,7 @@ export interface AuthContextValue {
     error: string | null;
     login: (credentials: { username: string; password: string; tenant?: string }) => Promise<{ success: boolean; error?: string }>;
     logout: () => Promise<void>;
+    refreshUser: () => Promise<void>;
     roles: UserRoleKey[];
     membership: StaffMembershipInfo | null;
     dashboardUrl: string;
@@ -211,17 +213,57 @@ export function AuthProvider({ children }: AuthProviderProps) {
                     /* ignore */
                 }
             }
+
+            // Fallback: check portal-scoped tokens if sessionKey not initialized yet
+            const fallbackToken =
+                portal.portal === 'SUPER_ADMIN'
+                    ? storage.get(STORAGE_KEYS.centralToken)
+                    : storage.get(STORAGE_KEYS.tenantToken) || storage.get(STORAGE_KEYS.centralToken);
+
+            if (fallbackToken) {
+                const userKey = portal.portal === 'SUPER_ADMIN' ? STORAGE_KEYS.centralUser : STORAGE_KEYS.tenantUser;
+                const rawUser = storage.get(userKey);
+                let fallbackUser: AuthUser | null = null;
+                if (rawUser) {
+                    try {
+                        const parsedUser = JSON.parse(rawUser);
+                        const u = parsedUser.user || parsedUser;
+                        const role = asUserRoleKey(parsedUser.role || u.role || (portal.portal === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'ADMIN'));
+                        const fullName = u.name || u.full_name || (u.first_name ? `${u.first_name} ${u.last_name || ''}`.trim() : '') || u.username;
+                        fallbackUser = {
+                            id: String(u.id || 'staff'),
+                            username: u.username || 'user',
+                            email: u.email || '',
+                            name: fullName || u.username || 'User',
+                            role,
+                            roles: parsedUser.roles && parsedUser.roles.length > 0 ? parsedUser.roles.map(asUserRoleKey) : [role],
+                            tenant: parsedUser.tenant || null,
+                            permissions: Array.isArray(parsedUser.permissions) ? parsedUser.permissions : [],
+                        };
+                    } catch {
+                        /* ignore */
+                    }
+                }
+                setToken(fallbackToken);
+                setUser(fallbackUser);
+                if (fallbackUser?.role) setActiveRole(fallbackUser.role);
+                storage.setJSON(sessionKey, { token: fallbackToken, user: fallbackUser });
+                setIsLoading(false);
+                return;
+            }
+
             setToken(null);
             setUser(null);
             setActiveRole(null);
         } finally {
             setIsLoading(false);
         }
-    }, [sessionKey]);
+    }, [sessionKey, portal.portal]);
 
     // Hydrate /auth/me on token change.
     useEffect(() => {
-        if (!token) return;
+        const activeToken = token || (portal.portal === 'SUPER_ADMIN' ? storage.get(STORAGE_KEYS.centralToken) : storage.get(STORAGE_KEYS.tenantToken) || storage.get(STORAGE_KEYS.centralToken));
+        if (!activeToken) return;
         let cancelled = false;
         (async () => {
             try {
@@ -230,32 +272,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
                     if (cancelled || !me) return;
                     const role = asUserRoleKey(me.role || 'SUPER_ADMIN');
                     const explicitPerms = Array.isArray(me.permissions) ? me.permissions : undefined;
-                    setUser(prev => ({
-                        id: String(me.id || prev?.id || 'admin'),
-                        username: me.username || prev?.username || 'admin',
-                        email: me.email || prev?.email || 'admin@sheba.local',
-                        name: me.name || me.username || prev?.name || 'Platform Administrator',
+                    const fullName = me.name || me.full_name || (me.first_name ? `${me.first_name} ${me.last_name || ''}`.trim() : '') || me.username;
+                    const userObj: AuthUser = {
+                        id: String(me.id || 'admin'),
+                        username: me.username || 'admin',
+                        email: me.email || 'admin@sheba.local',
+                        name: fullName || 'Platform Administrator',
                         role,
                         roles: me.roles && me.roles.length > 0 ? me.roles.map(asUserRoleKey) : [role],
-                        permissions: explicitPerms ?? prev?.permissions ?? ['*'],
-                    }));
+                        permissions: explicitPerms ?? ['*'],
+                    };
+                    setUser(userObj);
                     setActiveRole(role);
+                    storage.setJSON(sessionKey, { token: activeToken, user: userObj });
                 } else {
                     const me = await tenantApi.me();
                     if (cancelled || !me) return;
                     const role = asUserRoleKey(me.role || 'ADMIN');
                     const explicitPerms = Array.isArray(me.permissions) ? me.permissions : undefined;
-                    setUser(prev => ({
-                        id: String(me.user?.id || me.id || prev?.id || 'staff'),
-                        username: me.user?.username || me.username || prev?.username || 'staff',
-                        email: me.user?.email || me.email || prev?.email || 'staff@isp.local',
-                        name: me.user?.name || me.user?.first_name || prev?.name || 'Staff User',
+                    const u = me.user || me;
+                    const fullName = u.name || u.full_name || (u.first_name ? `${u.first_name} ${u.last_name || ''}`.trim() : '') || u.username;
+                    const userObj: AuthUser = {
+                        id: String(u.id || 'staff'),
+                        username: u.username || 'staff',
+                        email: u.email || 'staff@isp.local',
+                        name: fullName || 'Staff User',
                         role,
                         roles: me.roles && me.roles.length > 0 ? me.roles.map(asUserRoleKey) : [role],
-                        tenant: me.tenant || prev?.tenant || (portal.tenantSlug ? { slug: portal.tenantSlug } : null),
-                        permissions: explicitPerms ?? prev?.permissions ?? [],
-                    }));
+                        tenant: me.tenant || (portal.tenantSlug ? { slug: portal.tenantSlug } : null),
+                        permissions: explicitPerms ?? [],
+                    };
+                    setUser(userObj);
                     setActiveRole(role);
+                    storage.setJSON(sessionKey, { token: activeToken, user: userObj });
                 }
             } catch (e) {
                 // 401 already handled by the global listener; surface other errors.
@@ -268,7 +317,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return () => {
             cancelled = true;
         };
-    }, [token, portal.portal, portal.tenantSlug]);
+    }, [token, portal.portal, portal.tenantSlug, sessionKey]);
 
     const login = useCallback<AuthContextValue['login']>(
         async credentials => {
@@ -329,6 +378,56 @@ export function AuthProvider({ children }: AuthProviderProps) {
         [portal.portal, portal.tenantSlug, queryClient, sessionKey],
     );
 
+    const refreshUser = useCallback(async () => {
+        const activeToken = token || (portal.portal === 'SUPER_ADMIN' ? storage.get(STORAGE_KEYS.centralToken) : storage.get(STORAGE_KEYS.tenantToken) || storage.get(STORAGE_KEYS.centralToken));
+        if (!activeToken) return;
+        try {
+            if (portal.portal === 'SUPER_ADMIN') {
+                const me = await saasApi.me();
+                if (!me) return;
+                const r = asUserRoleKey(me.role || 'SUPER_ADMIN');
+                const explicitPerms = Array.isArray(me.permissions) ? me.permissions : undefined;
+                const fullName = me.name || me.full_name || (me.first_name ? `${me.first_name} ${me.last_name || ''}`.trim() : '') || me.username;
+                const updatedUser: AuthUser = {
+                    id: String(me.id || user?.id || 'admin'),
+                    username: me.username || user?.username || 'admin',
+                    email: me.email || user?.email || 'admin@sheba.local',
+                    name: fullName || user?.name || 'Platform Administrator',
+                    role: r,
+                    roles: me.roles && me.roles.length > 0 ? me.roles.map(asUserRoleKey) : [r],
+                    permissions: explicitPerms ?? user?.permissions ?? ['*'],
+                };
+                setUser(updatedUser);
+                setActiveRole(r);
+                storage.setJSON(sessionKey, { token: activeToken, user: updatedUser });
+                storage.setJSON(STORAGE_KEYS.centralUser, me);
+            } else {
+                const me = await tenantApi.me();
+                if (!me) return;
+                const r = asUserRoleKey(me.role || 'ADMIN');
+                const explicitPerms = Array.isArray(me.permissions) ? me.permissions : undefined;
+                const u = me.user || me;
+                const fullName = u.name || u.full_name || (u.first_name ? `${u.first_name} ${u.last_name || ''}`.trim() : '') || u.username;
+                const updatedUser: AuthUser = {
+                    id: String(u.id || user?.id || 'staff'),
+                    username: u.username || user?.username || 'staff',
+                    email: u.email || user?.email || 'staff@isp.local',
+                    name: fullName || user?.name || 'Staff User',
+                    role: r,
+                    roles: me.roles && me.roles.length > 0 ? me.roles.map(asUserRoleKey) : [r],
+                    tenant: me.tenant || user?.tenant || (portal.tenantSlug ? { slug: portal.tenantSlug } : null),
+                    permissions: explicitPerms ?? user?.permissions ?? [],
+                };
+                setUser(updatedUser);
+                setActiveRole(r);
+                storage.setJSON(sessionKey, { token: activeToken, user: updatedUser });
+                storage.setJSON(STORAGE_KEYS.tenantUser, me);
+            }
+        } catch {
+            /* ignore */
+        }
+    }, [portal.portal, portal.tenantSlug, token, user, sessionKey]);
+
     const logout = useCallback(async () => {
         try {
             if (portal.portal === 'SUPER_ADMIN') {
@@ -345,13 +444,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setError(null);
         try {
             storage.remove(sessionKey);
+            storage.remove(STORAGE_KEYS.tenantToken);
+            storage.remove(STORAGE_KEYS.tenantUser);
+            storage.remove(STORAGE_KEYS.centralToken);
+            storage.remove(STORAGE_KEYS.centralUser);
+            storage.remove(STORAGE_KEYS.resellerToken);
+            storage.remove(STORAGE_KEYS.resellerUser);
             storage.remove(STORAGE_KEYS.tenantSlug);
             storage.remove(STORAGE_KEYS.tenantId);
+            storage.remove('sheba_session_tenant');
+            storage.remove('sheba_session_tenant_default');
+            Cookies.remove(STORAGE_KEYS.tenantToken, { path: '/' });
+            Cookies.remove(STORAGE_KEYS.centralToken, { path: '/' });
+            Cookies.remove(STORAGE_KEYS.tenantSlug, { path: '/' });
+            Cookies.remove('saas_tenant_token', { path: '/' });
+            Cookies.remove('saas_central_token', { path: '/' });
+            Cookies.remove('saas_tenant_slug', { path: '/' });
         } catch {
             /* ignore */
         }
-        // Clear tenant data on logout.
+        // Clear cached queries on logout.
         queryClient.clear();
+
+        if (typeof window !== 'undefined') {
+            let target = '/login';
+            if (portal.portal === 'SUPER_ADMIN') target = '/saas/login';
+            else if (portal.portal === 'ISP_ADMIN') target = '/isp/login';
+            else if (portal.portal === 'TENANT') target = '/tenant/login';
+            window.location.href = target;
+        }
     }, [portal.portal, queryClient, sessionKey]);
 
     // Persist session on every change.
@@ -387,6 +508,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         error,
         login,
         logout,
+        refreshUser,
         roles: user?.roles ?? [],
         membership,
         dashboardUrl,
@@ -413,6 +535,7 @@ export function useAuth(): AuthContextValue {
             error: null,
             login: async () => ({ success: false, error: 'AuthProvider not mounted' }),
             logout: async () => undefined,
+            refreshUser: async () => undefined,
             roles: [],
             membership: null,
             dashboardUrl: '/',

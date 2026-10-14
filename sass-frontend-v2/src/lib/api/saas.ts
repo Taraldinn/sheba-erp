@@ -273,6 +273,10 @@ export const saasApi = {
             role: res.role || 'Platform Super Admin',
             ...res,
         })),
+    updateProfile: (payload: { first_name?: string; last_name?: string; email?: string; phone?: string }) =>
+        fetchApi<any>('/auth/me/', { method: 'PATCH', json: payload, plane: 'central' }),
+    changePassword: (payload: { current_password: string; new_password: string }) =>
+        fetchApi<{ message: string; token?: string }>('/auth/change-password/', { method: 'POST', json: payload, plane: 'central' }),
     logout: async () => {
         try {
             await fetchApi('/auth/logout', { method: 'POST', plane: 'central' });

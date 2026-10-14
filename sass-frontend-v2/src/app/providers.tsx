@@ -21,20 +21,25 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
     };
 }
 
+import { Toaster } from '@/components/ui/sonner';
+
 interface AppProvidersProps extends PropsWithChildren {
     queryClient?: ReturnType<typeof createQueryClient>;
+    initialHost?: string;
+    initialTenant?: string | null;
 }
 
-export function AppProviders({ children, queryClient }: AppProvidersProps) {
+export function AppProviders({ children, queryClient, initialHost, initialTenant }: AppProvidersProps) {
     const client = queryClient ?? createQueryClient();
     return (
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             <QueryClientProvider client={client}>
                 <TooltipProvider>
-                    <PortalProvider>
+                    <PortalProvider initialHost={initialHost} initialTenant={initialTenant}>
                         <AuthProvider>
                             {children}
                             <DevPortalSwitcher />
+                            <Toaster position="top-right" richColors />
                         </AuthProvider>
                     </PortalProvider>
                 </TooltipProvider>

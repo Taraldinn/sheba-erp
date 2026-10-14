@@ -28,8 +28,13 @@ export default function TenantLogin() {
         if (autoToken) {
             setIsAutoLoggingIn(true);
             storage.set(STORAGE_KEYS.tenantToken, autoToken);
-            const sKey = inferredSlug ? `sheba_session_tenant_${inferredSlug}` : 'sheba_session_tenant';
-            storage.setJSON(sKey, { token: autoToken, user: null });
+            const slug = inferredSlug || params.get('tenant') || '';
+            if (slug) {
+                storage.set(STORAGE_KEYS.tenantSlug, slug);
+                storage.setJSON(`sheba_session_tenant_${slug}`, { token: autoToken, user: null });
+            }
+            storage.setJSON('sheba_session_tenant_default', { token: autoToken, user: null });
+            storage.setJSON('sheba_session_tenant', { token: autoToken, user: null });
             const nextParam = params.get('next');
             const target = nextParam && nextParam.startsWith('/') ? nextParam : '/tenant';
             window.location.href = target;
