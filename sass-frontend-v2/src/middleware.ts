@@ -24,7 +24,7 @@ export function middleware(request: NextRequest) {
 
     // SaaS Control Plane Protection: Only accessible from designated admin hostnames (admin.*, saas.*, control.*)
     if (pathname.startsWith('/saas')) {
-        const resolution = resolvePortal(hostname);
+        const resolution = resolvePortal(hostname, { pathname });
         if (resolution.portal !== 'SUPER_ADMIN') {
             return NextResponse.rewrite(new URL('/not-found', request.url), { status: 404 });
         }

@@ -2870,11 +2870,45 @@ class SaaSMeView(views.APIView):
             'id': user.id,
             'username': user.username,
             'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'name': user.get_full_name() or user.username,
             'is_superuser': user.is_superuser,
             'role': 'PLATFORM_SUPER_ADMIN',
             'platform': 'ShebaFi Global Control Plane (admin.shebafi.xyz)',
             'timestamp': timezone.now().isoformat(),
         })
+
+    def patch(self, request):
+        user = request.user
+        first_name = request.data.get('first_name')
+        last_name = request.data.get('last_name')
+        email = request.data.get('email')
+        phone = request.data.get('phone')
+
+        update_fields = []
+        if first_name is not None:
+            user.first_name = first_name.strip()
+            update_fields.append('first_name')
+        if last_name is not None:
+            user.last_name = last_name.strip()
+            update_fields.append('last_name')
+        if email is not None:
+            user.email = email.strip()
+            update_fields.append('email')
+        if update_fields:
+            user.save(update_fields=update_fields)
+
+        if phone is not None:
+            profile = getattr(user, 'profile', None)
+            if profile:
+                profile.phone = phone.strip()
+                profile.save(update_fields=['phone'])
+            else:
+                from apps.authentication.models import UserProfile
+                UserProfile.objects.update_or_create(user=user, defaults={'phone': phone.strip()})
+
+        return self.get(request)
 
 
 @extend_schema(

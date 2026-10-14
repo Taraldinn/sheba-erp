@@ -43,6 +43,18 @@ export const tenantApi = {
         }
         return { success: true };
     },
+    updateProfile: (payload: { first_name?: string; last_name?: string; email?: string; phone?: string }) =>
+        fetchApi<any>('/auth/me/', { method: 'PATCH', json: payload, plane: 'tenant' }),
+    changePassword: (payloadOrCurrent: { current_password: string; new_password: string } | string, newPassword?: string) => {
+        const payload = typeof payloadOrCurrent === 'string'
+            ? { current_password: payloadOrCurrent, new_password: newPassword || '' }
+            : payloadOrCurrent;
+        return fetchApi<{ message: string; token?: string }>('/auth/change-password/', {
+            method: 'POST',
+            json: payload,
+            plane: 'tenant',
+        });
+    },
     me: async () => {
         try {
             const res = await fetchApi<any>('/auth/me', { plane: 'tenant' });
@@ -59,12 +71,6 @@ export const tenantApi = {
             }
         }
     },
-    changePassword: (current_password: string, new_password: string) =>
-        fetchApi<{ message: string; token: string }>('/auth/change-password', {
-            method: 'POST',
-            json: { current_password, new_password },
-            plane: 'tenant',
-        }),
     requestPasswordReset: (email: string, tenant?: string) =>
         fetchApi<{ detail: string }>('/auth/password-reset', {
             method: 'POST',

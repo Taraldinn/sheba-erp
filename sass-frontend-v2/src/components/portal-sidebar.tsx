@@ -275,7 +275,7 @@ export function PortalSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
   const config = portalConfigs[key]
 
   const userData = {
-    name: auth.user?.username ?? "User",
+    name: auth.user?.name || auth.user?.username || "User",
     email: auth.user?.email ?? "",
     avatar: "",
   }

@@ -383,7 +383,7 @@ class CurrentUserView(views.APIView):
         ``tenant_id`` matches ``request.tenant`` (a LoginView-bound session
         can never serve a foreign tenant).
     """
-    permission_classes = [IsTenantMember, permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         base_data = UserDetailSerializer(request.user, context={'request': request}).data
@@ -509,6 +509,37 @@ class CurrentUserView(views.APIView):
             'capabilities': capabilities,
         }
         return Response(response_data, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        user = request.user
+        first_name = request.data.get('first_name')
+        last_name = request.data.get('last_name')
+        email = request.data.get('email')
+        phone = request.data.get('phone')
+
+        update_fields = []
+        if first_name is not None:
+            user.first_name = first_name.strip()
+            update_fields.append('first_name')
+        if last_name is not None:
+            user.last_name = last_name.strip()
+            update_fields.append('last_name')
+        if email is not None:
+            user.email = email.strip()
+            update_fields.append('email')
+        if update_fields:
+            user.save(update_fields=update_fields)
+
+        if phone is not None:
+            profile = getattr(user, 'profile', None)
+            if profile:
+                profile.phone = phone.strip()
+                profile.save(update_fields=['phone'])
+            else:
+                from apps.authentication.models import UserProfile
+                UserProfile.objects.update_or_create(user=user, defaults={'phone': phone.strip()})
+
+        return self.get(request)
 
 
 @extend_schema(
@@ -943,12 +974,23 @@ class MyTenantAutoLoginTokenView(views.APIView):
         primary_domain = tenant.tenant_domains.filter(is_primary=True, is_active=True).first()
         domain_host = primary_domain.hostname if primary_domain else tenant.domain or f"{tenant.slug}.localhost:3001"
 
+        port = '3001'
+        origin_header = request.headers.get('origin') or request.headers.get('referer') or ''
+        if origin_header:
+            try:
+                from urllib.parse import urlparse
+                p = urlparse(origin_header)
+                if p.port:
+                    port = str(p.port)
+            except Exception:
+                pass
+
         if is_local:
-            target_origin = f"http://{tenant.slug}.localhost:3001"
+            target_origin = f"http://{tenant.slug}.localhost:{port}"
         else:
             target_origin = f"https://{domain_host}"
 
-        launch_url = f"{target_origin}/login?auto_token={token.key}"
+        launch_url = f"{target_origin}/tenant/login?auto_token={token.key}"
 
         return Response({
             'token': token.key,
