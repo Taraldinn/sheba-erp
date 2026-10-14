@@ -6,6 +6,7 @@ import type {
     Olt,
     Onu,
     Branch,
+    TJBox,
     Topology,
     PaginatedList,
 } from './types';
@@ -51,6 +52,15 @@ export const branchesApi = {
     create: (data: Partial<Branch>) => fetchApi<Branch>('/branches/', { method: 'POST', json: data, plane: 'tenant' }),
     update: (id: string, data: Partial<Branch>) => fetchApi<Branch>(`/branches/${id}/`, { method: 'PATCH', json: data, plane: 'tenant' }),
     remove: (id: string) => fetchApi<void>(`/branches/${id}/`, { method: 'DELETE', plane: 'tenant' }),
+};
+
+export const tjBoxesApi = {
+    list: (params?: Record<string, unknown>) =>
+        fetchApi<PaginatedList<TJBox>>(`/tj-boxes/${toQuery(params)}`, { plane: 'tenant' }).then(r => asList(r)),
+    get: (id: string) => fetchApi<TJBox>(`/tj-boxes/${id}/`, { plane: 'tenant' }),
+    create: (data: Partial<TJBox>) => fetchApi<TJBox>('/tj-boxes/', { method: 'POST', json: data, plane: 'tenant' }),
+    update: (id: string, data: Partial<TJBox>) => fetchApi<TJBox>(`/tj-boxes/${id}/`, { method: 'PATCH', json: data, plane: 'tenant' }),
+    remove: (id: string) => fetchApi<void>(`/tj-boxes/${id}/`, { method: 'DELETE', plane: 'tenant' }),
 };
 
 /**

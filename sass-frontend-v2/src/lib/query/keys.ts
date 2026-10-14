@@ -135,6 +135,12 @@ export const queryKeys = {
     branches: {
         all: () => [...queryKeys.tenant(), 'branches'] as const,
         list: () => [...queryKeys.branches.all(), 'list'] as const,
+        detail: (id: string) => [...queryKeys.branches.all(), 'detail', id] as const,
+    },
+    tjBoxes: {
+        all: () => [...queryKeys.tenant(), 'tj-boxes'] as const,
+        list: (params?: Record<string, unknown>) => [...queryKeys.tjBoxes.all(), 'list', params ?? {}] as const,
+        detail: (id: string) => [...queryKeys.tjBoxes.all(), 'detail', id] as const,
     },
     settings: {
         all: () => [...queryKeys.tenant(), 'settings'] as const,

@@ -660,9 +660,51 @@ export interface Branch {
     name: string;
     code?: string;
     location?: string;
-    status: string;
+    in_charge?: string;
+    contact?: string;
     total_capacity?: number;
-    created_at: string;
+    power_backup?: string;
+    status: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export type FiberCoreStatus = 'Free' | 'Connected' | 'Damaged' | 'Reserved';
+
+export interface FiberCore {
+    index: number;
+    status: FiberCoreStatus;
+    color: string;
+    note?: string;
+}
+
+export interface FiberLine {
+    id?: string;
+    capacity: string;
+    direction: 'In' | 'Out';
+    brand?: string;
+    code?: string;
+    cores: FiberCore[];
+    is_expanded?: boolean;
+}
+
+export type TJBoxCategory = 'Master Box' | 'Splitter Box' | 'Zone/point Box';
+
+export interface TJBox {
+    id: string;
+    name: string;
+    zone?: string | null;
+    zone_name?: string | null;
+    box_category: TJBoxCategory;
+    fiber_code: FiberLine[];
+    lat_long?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    notes?: string;
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface Onu {

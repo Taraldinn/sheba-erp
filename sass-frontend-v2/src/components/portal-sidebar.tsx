@@ -156,6 +156,7 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
             items: [
               { title: "Overview", url: "/tenant/network" },
               { title: "POP / Branches", url: "/tenant/branches" },
+              { title: "TJ Boxes / Ports", url: "/tenant/tj-boxes" },
               { title: "Routers", url: "/tenant/routers" },
               { title: "OLTs", url: "/tenant/olts" },
               { title: "ONUs", url: "/tenant/onus" },
@@ -217,6 +218,8 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
             icon: Settings,
             items: [
               { title: "Tenant Settings", url: "/tenant/settings" },
+              { title: "Zones & POPs", url: "/tenant/zones" },
+              { title: "TJ Boxes / Ports", url: "/tenant/tj-boxes" },
               { title: "Notifications", url: "/tenant/settings/notifications" },
               { title: "Audit Logs", url: "/tenant/audit" },
             ],

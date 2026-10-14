@@ -6,7 +6,9 @@ import {
     CreditCard,
     Database,
     Globe,
+    MapPin,
     Network,
+    Radio,
     Server,
     Settings as SettingsIcon,
     Shield,
@@ -29,6 +31,18 @@ const CARDS: ConfigCard[] = [
         description: 'Tenant name, branding, contact info.',
         href: '/tenant/settings',
         icon: Building2,
+    },
+    {
+        title: 'Zones & POPs',
+        description: 'Add, edit, or delete operational distribution zones and POP branches.',
+        href: '/tenant/zones',
+        icon: MapPin,
+    },
+    {
+        title: 'TJ Boxes / OLT Ports',
+        description: 'Terminal Joint Boxes, fiber line cores, and splitter port configurations.',
+        href: '/tenant/tj-boxes',
+        icon: Radio,
     },
     {
         title: 'Network defaults',
