@@ -19,12 +19,14 @@ class CustomerListSerializer(serializers.ModelSerializer):
     router_status = serializers.CharField(source='router.status', read_only=True)
     reseller_name = serializers.CharField(source='reseller.user.username', read_only=True)
     services_count = serializers.IntegerField(source='services.count', read_only=True)
+    tj_box_name = serializers.CharField(source='tj_box.name', read_only=True)
     live_session = serializers.SerializerMethodField()
 
     class Meta:
         model = Customer
         fields = [
-            'id', 'customer_code', 'full_name', 'mobile', 'email', 'address', 'area_zone',
+            'id', 'customer_code', 'full_name', 'mobile', 'alternate_phone', 'email', 'address', 'area_zone',
+            'district', 'thana', 'client_type', 'tj_box', 'tj_box_name',
             'connection_type', 'router', 'router_name', 'router_ip', 'router_protocol', 'router_status',
             'pppoe_username', 'package', 'package_name', 'package_speed', 'billing_type',
             'monthly_bill', 'due_amount', 'advance_amount', 'discount',
@@ -58,12 +60,14 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
     Validates:
       - customer.package.tenant == request.tenant
       - customer.router.tenant  == request.tenant
+      - customer.tj_box.tenant  == request.tenant
     """
     package_name = serializers.CharField(source='package.name', read_only=True)
     router_name = serializers.CharField(source='router.name', read_only=True)
     router_ip = serializers.CharField(source='router.ip_address', read_only=True)
     router_protocol = serializers.CharField(source='router.api_protocol', read_only=True)
     router_status = serializers.CharField(source='router.status', read_only=True)
+    tj_box_name = serializers.CharField(source='tj_box.name', read_only=True)
     live_session = serializers.SerializerMethodField()
     welcome = serializers.SerializerMethodField()
 
@@ -163,6 +167,17 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
                 "Selected reseller does not belong to your ISP. Cross-tenant assignment is not allowed."
             )
         return reseller
+
+    def validate_tj_box(self, tj_box):
+        """Ensure the assigned TJ Box belongs to this tenant."""
+        if tj_box is None:
+            return tj_box
+        tenant = _tenant_from_context(self.context)
+        if tenant and tj_box.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                "Selected TJ Box does not belong to your ISP. Cross-tenant assignment is not allowed."
+            )
+        return tj_box
 
 
 class RechargeRequestSerializer(serializers.Serializer):

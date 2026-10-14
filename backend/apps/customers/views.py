@@ -57,6 +57,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
         'sync_router': 'customer.update',
         'disconnect_session': 'customer.update',
         'live_session': 'customer.view',
+        'check_username': 'customer.view',
     }
 
     def get_serializer_class(self):
@@ -78,7 +79,15 @@ class CustomerViewSet(viewsets.ModelViewSet):
         # Filters
         status_filter = self.request.query_params.get('status')
         if status_filter:
-            qs = qs.filter(status=status_filter)
+            qs = qs.filter(status__iexact=status_filter)
+
+        billing_type = self.request.query_params.get('billing_type')
+        if billing_type:
+            qs = qs.filter(billing_type__iexact=billing_type)
+
+        has_due = self.request.query_params.get('has_due')
+        if has_due in ('true', '1', 'True'):
+            qs = qs.filter(due_amount__gt=0)
 
         search = self.request.query_params.get('search')
         if search:
@@ -156,6 +165,18 @@ class CustomerViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Permission denied: customer.delete capability required.")
         sync_customer_to_router(instance, is_delete=True)
         super().perform_destroy(instance)
+
+    @action(detail=False, methods=['get'], url_path='check-username')
+    def check_username(self, request):
+        username = request.query_params.get('username', '').strip()
+        if not username:
+            return Response({'available': False, 'username': '', 'error': 'Username parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        tenant = get_tenant_for_request(request)
+        exists = Customer.objects.filter(tenant=tenant, pppoe_username__iexact=username).exists()
+        return Response({
+            'available': not exists,
+            'username': username,
+        })
 
     @action(detail=True, methods=['post'])
     def archive(self, request, pk=None):

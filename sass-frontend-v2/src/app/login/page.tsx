@@ -25,18 +25,25 @@ const PORTALS = [
 ] as const;
 
 function LoginFallback({ preferPortal }: { preferPortal?: string }) {
+    const visiblePortals = PORTALS.filter(p => {
+        if (p.key === 'SUPER_ADMIN') {
+            return preferPortal === 'SUPER_ADMIN';
+        }
+        return true;
+    });
+
     return (
         <AuthShell
             portalLabel="Shebafi"
             title="Sign in"
             description="Choose the portal you'd like to sign in to."
             icon={<ShieldCheck className="size-4" aria-hidden="true" />}
-            panelTitle="One platform. Three purpose-built portals."
-            panelBody="Platform teams, ISP owners and tenant staff each get a workspace designed for the job they do."
+            panelTitle="One platform. Dedicated workspaces."
+            panelBody="ISP owners and tenant staff each get a workspace designed for the job they do."
             highlights={['Strict per-tenant isolation', 'Branded domains & portals', 'Role-aware dashboards']}
         >
             <ul className="flex flex-col gap-3">
-                {PORTALS.map(({ href, key, label, hint, Icon }) => {
+                {visiblePortals.map(({ href, key, label, hint, Icon }) => {
                     const preferred = preferPortal === key;
                     return (
                         <li key={href}>

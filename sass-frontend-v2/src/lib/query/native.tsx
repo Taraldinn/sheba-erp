@@ -144,7 +144,7 @@ export interface UseQueryResult<TData, TError = Error> {
 export function useQuery<TData = unknown, TError = Error>(
     options: UseQueryOptions<TData, TError>,
 ): UseQueryResult<TData, TError> {
-    const { queryKey, queryFn, enabled = true, placeholderData, onSuccess, onError, refetchInterval } = options;
+    const { queryKey, queryFn, enabled = true, refetchInterval, placeholderData, onSuccess, onError } = options;
     const keyStr = useMemo(() => keyToString(queryKey), [queryKey]);
 
     const [data, setData] = useState<TData | undefined>(() => placeholderData?.(undefined));
@@ -232,6 +232,11 @@ export interface UseMutationOptions<TData, TError, TVariables, TContext = unknow
     onSettled?: (data: TData | undefined, err: TError | null, variables: TVariables) => void;
 }
 
+export interface MutationExecuteOptions<TError = Error> {
+    onSuccess?: () => void;
+    onError?: (e: TError) => void;
+}
+
 export interface UseMutationResult<TData, TError, TVariables> {
     /**
      * Trigger the mutation. The argument is typed as `TVariables | void` so
@@ -245,11 +250,11 @@ export interface UseMutationResult<TData, TError, TVariables> {
      */
     mutate: (
         variables?: TVariables | void,
-        opts?: { onSuccess?: () => void; onError?: (e: TError) => void },
+        opts?: MutationExecuteOptions<TError>,
     ) => void;
     mutateAsync: (
         variables?: TVariables | void,
-        opts?: { onSuccess?: () => void; onError?: (e: TError) => void },
+        opts?: MutationExecuteOptions<TError>,
     ) => Promise<TData>;
     isPending: boolean;
     isError: boolean;

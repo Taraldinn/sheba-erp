@@ -216,11 +216,11 @@ function EditNameDialog({
 }) {
     const [name, setName] = useState('');
     useEffect(() => {
-        if (target) setName(target.name);
+        if (target) setName(target.name || '');
     }, [target]);
     if (!target) return null;
-    const trimmed = name.trim();
-    const dirty = trimmed.length > 0 && trimmed !== target.name;
+    const trimmed = (name || '').trim();
+    const dirty = trimmed.length > 0 && trimmed !== (target.name || '');
     return (
         <Dialog
             open={!!target}
@@ -426,7 +426,7 @@ function TenantFormDialog({
 }) {
     const [form, setForm] = useState({
         name: tenant?.name ?? '',
-        schema_name: tenant?.schema_name ?? '',
+        schema_name: tenant?.schema_name ?? (tenant as any)?.slug ?? '',
         domain_url: tenant?.domain_url ?? '',
         plan: tenant?.plan || TENANT_PLAN_OPTIONS[1].value,
         contact_email: tenant?.contact_email ?? '',
@@ -439,8 +439,8 @@ function TenantFormDialog({
         if (!open) return;
         if (mode === 'edit' && tenant) {
             setForm({
-                name: tenant.name,
-                schema_name: tenant.schema_name,
+                name: tenant.name || '',
+                schema_name: tenant.schema_name || (tenant as any)?.slug || '',
                 domain_url: tenant.domain_url ?? '',
                 plan: tenant.plan || TENANT_PLAN_OPTIONS[1].value,
                 contact_email: tenant.contact_email ?? '',
@@ -450,8 +450,8 @@ function TenantFormDialog({
     }, [open, mode, tenant?.id]);
 
     const canSubmit =
-        form.name.trim().length > 1 &&
-        form.schema_name.trim().length > 1;
+        (form.name?.trim() || '').length > 1 &&
+        (form.schema_name?.trim() || '').length > 1;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -466,12 +466,12 @@ function TenantFormDialog({
                         e.preventDefault();
                         if (!canSubmit) return;
                         void onSubmit({
-                            name: form.name.trim(),
-                            schema_name: form.schema_name.trim(),
-                            domain_url: form.domain_url.trim(),
+                            name: (form.name?.trim() || ''),
+                            schema_name: (form.schema_name?.trim() || ''),
+                            domain_url: (form.domain_url?.trim() || ''),
                             plan: form.plan,
-                            contact_email: form.contact_email.trim() || undefined,
-                            contact_phone: form.contact_phone.trim() || undefined,
+                            contact_email: form.contact_email?.trim() || undefined,
+                            contact_phone: form.contact_phone?.trim() || undefined,
                         });
                     }}
                     className="space-y-3"
@@ -783,7 +783,7 @@ function AddMemberDialog({
                     </Button>
                     <Button
                         onClick={() => onSubmit(form)}
-                        disabled={pending || !form.username.trim()}
+                        disabled={pending || !(form.username || '').trim()}
                     >
                         {pending ? 'Saving…' : 'Save member'}
                     </Button>
@@ -795,13 +795,13 @@ function AddMemberDialog({
 
 function SettingsTab({ org, onSaved }: { org: OrganizationSummary; onSaved: () => void }) {
     const [form, setForm] = useState({
-        name: org.name,
-        contact_email: org.contact_email,
-        contact_phone: org.contact_phone,
-        address: org.address,
+        name: org.name || '',
+        contact_email: org.contact_email || '',
+        contact_phone: org.contact_phone || '',
+        address: org.address || '',
         max_tenants: org.max_tenants,
         is_active: org.is_active,
-        notes: org.notes,
+        notes: org.notes || '',
     });
     const [savedAt, setSavedAt] = useState<string | null>(null);
 

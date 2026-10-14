@@ -36,7 +36,34 @@ export interface ServerFetchOptions extends Omit<RequestInit, 'signal' | 'body'>
     signal?: AbortSignal;
 }
 
+function isRunningInDocker(): boolean {
+    if (process.env.INTERNAL_API_URL || process.env.INTERNAL_API_BASE_URL || process.env.DOCKER_CONTAINER === 'true') {
+        return true;
+    }
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const fs = require('node:fs');
+        return fs.existsSync('/.dockerenv');
+    } catch {
+        return false;
+    }
+}
+
 function resolveBaseUrl(plane: Plane): string {
+    const internalUrl = process.env.INTERNAL_API_URL || process.env.INTERNAL_API_BASE_URL;
+    let base = internalUrl;
+    if (!base && isRunningInDocker()) {
+        base = 'http://backend:8000/api/v1';
+    }
+
+    if (base) {
+        const cleanBase = base.replace(/\/+$/, '');
+        if (plane === 'central') {
+            return cleanBase.endsWith('/saas') ? cleanBase : `${cleanBase}/saas`;
+        }
+        return cleanBase;
+    }
+
     const urls = getApiBaseUrls();
     if (plane === 'central') return urls.central;
     if (plane === 'public') return urls.public;
@@ -82,7 +109,7 @@ function isAuthEndpoint(endpoint: string): boolean {
     );
 }
 
-function buildHeaders(token: string | null, opts: ServerFetchOptions, slug: string | null): Headers {
+function buildHeaders(token: string | null, opts: ServerFetchOptions, slug: string | null = null): Headers {
     const h = new Headers();
     h.set('Accept', 'application/json');
     if (opts.json !== undefined) {

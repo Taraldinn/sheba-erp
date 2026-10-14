@@ -270,9 +270,9 @@ function CreateOrganizationDialog({
         setForm(prev => ({ ...prev, [k]: v }));
 
     const canSubmit =
-        form.org_name.trim().length > 1 &&
-        form.tenant_name.trim().length > 1 &&
-        form.tenant_slug.trim().length > 1;
+        (form.org_name?.trim() || '').length > 1 &&
+        (form.tenant_name?.trim() || '').length > 1 &&
+        (form.tenant_slug?.trim() || '').length > 1;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -406,7 +406,11 @@ function CreateOrganizationDialog({
                         <Button
                             type="button"
                             onClick={() => setStep(step === 'org' ? 'tenant' : 'owner')}
-                            disabled={step === 'org' ? form.org_name.trim().length < 2 : form.tenant_name.trim().length < 2 || form.tenant_slug.trim().length < 1}
+                            disabled={
+                                step === 'org'
+                                    ? (form.org_name?.trim() || '').length < 2
+                                    : (form.tenant_name?.trim() || '').length < 2 || (form.tenant_slug?.trim() || '').length < 1
+                            }
                         >
                             Next
                         </Button>

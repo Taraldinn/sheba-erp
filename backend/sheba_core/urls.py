@@ -22,6 +22,7 @@ from apps.core.saas_views import (
     SaaSLoginView, SaaSMeView, SaaSLogoutView,
     SaaSPasswordResetView, SaaSPasswordResetConfirmView,
     SaaSEmployeeViewSet,
+    SaaSPlatformPaymentConfigView, PublicPlatformPaymentConfigView,
 )
 from apps.core.platform_admin_views import (
     PlatformAdminInviteView,
@@ -58,6 +59,10 @@ from apps.authentication.views import (
     ResellerLoginView,
     TenantPasswordResetView, TenantPasswordResetConfirmView,
     MyAccessibleTenantsView, ChangePasswordView,
+    MyTenantRequestCreateView, MyTenantRequestsListView,
+    MyTenantCredentialsView, MyTenantSetPasswordView, MyTenantAutoLoginTokenView,
+    MyTenantAccountsView, MyTenantAccountResetPasswordView,
+    MyTenantRolesView, MyTenantPermissionsCatalogView,
 )
 from apps.authentication.reseller_api import ResellerViewSet
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView, CustomerServiceViewSet, CustomerSubscriptionViewSet
@@ -222,6 +227,15 @@ urlpatterns = [
     path('api/v1/auth/reseller/login/', ResellerLoginView.as_view(), name='auth-reseller-login'),
     path('api/v1/auth/me/', CurrentUserView.as_view(), name='auth-me'),
     path('api/v1/auth/my-tenants/', MyAccessibleTenantsView.as_view(), name='auth-my-tenants'),
+    path('api/v1/auth/my-tenants/request/', MyTenantRequestCreateView.as_view(), name='auth-my-tenants-request'),
+    path('api/v1/auth/my-tenants/requests/', MyTenantRequestsListView.as_view(), name='auth-my-tenants-requests-list'),
+    path('api/v1/auth/my-tenants/permissions/', MyTenantPermissionsCatalogView.as_view(), name='auth-my-tenants-permissions'),
+    path('api/v1/auth/my-tenants/<str:tenant_id>/credentials/', MyTenantCredentialsView.as_view(), name='auth-my-tenants-credentials'),
+    path('api/v1/auth/my-tenants/<str:tenant_id>/set-password/', MyTenantSetPasswordView.as_view(), name='auth-my-tenants-set-password'),
+    path('api/v1/auth/my-tenants/<str:tenant_id>/auto-login-token/', MyTenantAutoLoginTokenView.as_view(), name='auth-my-tenants-auto-login-token'),
+    path('api/v1/auth/my-tenants/<str:tenant_id>/accounts/', MyTenantAccountsView.as_view(), name='auth-my-tenants-accounts'),
+    path('api/v1/auth/my-tenants/<str:tenant_id>/accounts/<int:user_id>/reset-password/', MyTenantAccountResetPasswordView.as_view(), name='auth-my-tenants-account-reset-password'),
+    path('api/v1/auth/my-tenants/<str:tenant_id>/roles/', MyTenantRolesView.as_view(), name='auth-my-tenants-roles'),
     path('api/v1/auth/change-password/', ChangePasswordView.as_view(), name='auth-change-password'),
     path('api/v1/auth/logout/', LogoutView.as_view(), name='auth-logout'),
     path('api/v1/auth/password-reset/', TenantPasswordResetView.as_view(), name='auth-password-reset'),
@@ -296,6 +310,8 @@ urlpatterns = [
     path('api/v1/saas/auth/logout/', SaaSLogoutView.as_view(), name='saas-auth-logout'),
     path('api/v1/saas/auth/password-reset/', SaaSPasswordResetView.as_view(), name='saas-auth-password-reset'),
     path('api/v1/saas/auth/password-reset-confirm/', SaaSPasswordResetConfirmView.as_view(), name='saas-auth-password-reset-confirm'),
+    path('api/v1/saas/config/payment/', SaaSPlatformPaymentConfigView.as_view(), name='saas-config-payment'),
+    path('api/v1/public/payment-config/', PublicPlatformPaymentConfigView.as_view(), name='public-payment-config'),
 
     # Stage 2: ISP owner portal — my organizations & my organization detail
     path('api/v1/organizations/me/', MyOrganizationsView.as_view(), name='orgs-me'),

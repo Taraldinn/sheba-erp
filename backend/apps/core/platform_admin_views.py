@@ -375,7 +375,33 @@ class PlatformAdminInviteView(views.APIView):
             username=username,
             defaults={'email': email, 'is_active': True},
         )
-        if not user_created and user.email != email:
+        temp_password = None
+        if user_created:
+            import secrets
+            temp_password = f"Admin@{secrets.token_urlsafe(8)}"
+            user.set_password(temp_password)
+            user.is_staff = True
+            user.save(update_fields=['password', 'is_staff'])
+
+            try:
+                from apps.core.email.service import EmailService
+                host = request.get_host().split(':')[0]
+                portal_url = (
+                    f"https://admin.shebafi.xyz/saas/login"
+                    if 'localhost' not in host and '127.0.0.1' not in host
+                    else "http://admin.localhost:3001/saas/login"
+                )
+                EmailService.send_user_credentials_email(
+                    username=user.username,
+                    temporary_password=temp_password,
+                    portal_url=portal_url,
+                    recipient_email=user.email,
+                    platform_name="ShebaFi SaaS Control Plane",
+                    role_name=f"Platform Administrator ({role})",
+                )
+            except Exception as mail_exc:
+                logger.warning(f"Failed to dispatch platform admin invitation email for {user.username}: {mail_exc}")
+        elif not user_created and user.email != email:
             user.email = email
             user.save(update_fields=['email'])
         pa, pa_created = PlatformAdmin.objects.get_or_create(

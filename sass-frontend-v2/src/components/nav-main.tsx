@@ -30,15 +30,19 @@ export type NavItem = {
 
 export type NavSection = { label: string; items: NavItem[] }
 
-function isRouteActive(pathname: string, url: string, rootUrl: string) {
-  if (url === rootUrl) return pathname === rootUrl
-  return pathname === url || pathname.startsWith(url + "/")
+function isRouteActive(pathname: string, url: string, rootUrl: string, currentSearch = "") {
+  const [urlPath, urlQuery] = url.split("?")
+  if (url === rootUrl) return pathname === rootUrl && !currentSearch
+  if (urlQuery) {
+    return pathname === urlPath && currentSearch.includes(urlQuery)
+  }
+  return pathname === url || (url !== rootUrl && pathname.startsWith(urlPath + "/"))
 }
 
 /** Picks the single most specific matching sub-route so sibling prefixes don't both highlight. */
-function activeLeaf(pathname: string, leaves: NavLeaf[], rootUrl: string) {
+function activeLeaf(pathname: string, leaves: NavLeaf[], rootUrl: string, currentSearch = "") {
   return leaves
-    .filter((l) => isRouteActive(pathname, l.url, rootUrl))
+    .filter((l) => isRouteActive(pathname, l.url, rootUrl, currentSearch))
     .sort((a, b) => b.url.length - a.url.length)[0]?.url
 }
 
@@ -46,10 +50,12 @@ export function NavMain({
   section,
   pathname,
   rootUrl,
+  currentSearch = "",
 }: {
   section: NavSection
   pathname: string
   rootUrl: string
+  currentSearch?: string
 }) {
   return (
     <SidebarGroup className="py-1">
@@ -59,7 +65,7 @@ export function NavMain({
           const Icon = item.icon
 
           if (!item.items?.length) {
-            const active = isRouteActive(pathname, item.url, rootUrl)
+            const active = isRouteActive(pathname, item.url, rootUrl, currentSearch)
             return (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton
@@ -77,7 +83,7 @@ export function NavMain({
             )
           }
 
-          const current = activeLeaf(pathname, item.items, rootUrl)
+          const current = activeLeaf(pathname, item.items, rootUrl, currentSearch)
           const groupActive = Boolean(current)
 
           return (
