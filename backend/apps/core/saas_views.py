@@ -5,6 +5,7 @@ import json
 import uuid
 import logging
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 from rest_framework import views, viewsets, permissions, status, serializers
@@ -23,7 +24,7 @@ from .models import (
     Tenant, TenantDomain, CompanySetting, AuditLog,
     TenantOnboardingRequest, SaaSPackage, TenantSubscription, SaaSPayment, DatabaseBackup,
     TenantApiToken, ApiApplication, TenantFeatureFlag,
-    Organization,
+    Organization, PlatformPaymentConfig,
 )
 from .permissions import IsCentralAdmin, IsCentralOrPlatformAdmin
 from .redis_service import RedisService
@@ -999,22 +1000,25 @@ class SaaSTenantViewSet(viewsets.ModelViewSet):
             )
 
         # 9. Dispatch Onboarding Welcome Email
-        portal_url = f"https://{domain}/login" if 'localhost' not in domain else f"http://{local_host}:3000/login"
-        api_base_url = f"https://{domain}/api/v1/" if 'localhost' not in domain else f"http://{local_host}:8000/api/v1/"
+        portal_url = f"https://{domain}/login" if 'localhost' not in domain and '127.0.0.1' not in domain else f"http://{local_host}:3001/login"
+        api_base_url = f"https://{domain}/api/v1/" if 'localhost' not in domain and '127.0.0.1' not in domain else f"http://{local_host}:8000/api/v1/"
         cname_target = domain
 
         try:
             from apps.core.email.service import EmailService
-            EmailService.send_client_onboarding_email(
-                tenant=tenant,
-                admin_username=admin_username,
-                temporary_password=admin_password,
-                portal_url=portal_url,
-                recipient_email=tenant.contact_email,
-                api_token=raw_api_key,
-                api_base_url=api_base_url,
-                cname_target=cname_target,
-            )
+            recipient_email = (tenant.contact_email or admin_email or '').strip()
+            if recipient_email:
+                EmailService.send_client_onboarding_email(
+                    tenant=tenant,
+                    admin_username=admin_username,
+                    temporary_password=admin_password,
+                    portal_url=portal_url,
+                    recipient_email=recipient_email,
+                    api_token=raw_api_key,
+                    api_base_url=api_base_url,
+                    cname_target=cname_target,
+                    organization_name=org.name if org else None,
+                )
         except Exception as mail_exc:
             logger.warning(f"Failed to dispatch onboarding email for tenant {slug}: {mail_exc}")
 
@@ -1613,9 +1617,79 @@ class SaaSTenantRequestViewSet(viewsets.ModelViewSet):
         )
         token, _ = Token.objects.get_or_create(user=user)
 
+        # 1. If requested by an authenticated ISP user, grant them StaffMembership to the new tenant
+        if req_obj.requested_by:
+            admin_role = Role.objects.filter(tenant=tenant, name__in=['Admin', 'ADMIN', 'Super Admin', 'SUPER_ADMIN']).first()
+            StaffMembership.objects.get_or_create(
+                user=req_obj.requested_by,
+                tenant=tenant,
+                defaults={'role': admin_role, 'is_active': True}
+            )
+
+        # 2. Setup subscription
+        package = req_obj.package or SaaSPackage.objects.filter(name__iexact=plan).first()
+        if package:
+            TenantSubscription.objects.create(
+                tenant=tenant,
+                package=package,
+                price=package.monthly_price,
+                billing_cycle='monthly',
+                status='active',
+                start_date=timezone.now().date(),
+                next_billing_date=timezone.now().date() + timedelta(days=30),
+            )
+
+        # 3. Record SaaSPayment if bKash TrxID is present
+        if req_obj.payment_trx_id:
+            try:
+                trx_id_val = req_obj.payment_trx_id.strip()
+                if SaaSPayment.objects.filter(trx_id=trx_id_val).exists():
+                    trx_id_val = f"{trx_id_val}-{uuid.uuid4().hex[:6]}"
+                SaaSPayment.objects.create(
+                    tenant=tenant,
+                    amount=req_obj.payment_amount or (package.monthly_price if package else Decimal('0.00')),
+                    payment_method='bKash',
+                    trx_id=trx_id_val,
+                    status='Completed',
+                    notes=f"bKash manual payment confirmed for Onboarding Request {req_obj.id}. Sender: {req_obj.payment_sender}"
+                )
+            except Exception as pay_err:
+                logger.warning(f"Could not create SaaSPayment on approve: {pay_err}")
+
         req_obj.status = 'approved'
         req_obj.admin_notes = f"Approved & provisioned tenant ID {tenant.id} by {request.user.username}"
         req_obj.save()
+
+        # 4. Dispatch Onboarding Welcome Email with Initial Password
+        recipient_email = (tenant.contact_email or req_obj.contact_email or getattr(req_obj.requested_by, 'email', '') or '').strip()
+        if recipient_email:
+            try:
+                from apps.core.email.service import EmailService
+                local_host = f"{slug}.localhost"
+                portal_url = (
+                    f"https://{domain}/login"
+                    if 'localhost' not in domain and '127.0.0.1' not in domain
+                    else f"http://{local_host}:3001/login"
+                )
+                api_base_url = (
+                    f"https://{domain}/api/v1/"
+                    if 'localhost' not in domain and '127.0.0.1' not in domain
+                    else f"http://{local_host}:8000/api/v1/"
+                )
+                EmailService.send_client_onboarding_email(
+                    tenant=tenant,
+                    admin_username=admin_username,
+                    temporary_password=admin_pass,
+                    portal_url=portal_url,
+                    recipient_email=recipient_email,
+                    api_token=token.key,
+                    api_base_url=api_base_url,
+                    cname_target=domain,
+                    organization_name=req_obj.company_name or (tenant.organization.name if tenant.organization else None),
+                    role_name="ISP Tenant Administrator",
+                )
+            except Exception as mail_exc:
+                logger.warning(f"Failed to dispatch approval email for tenant {slug}: {mail_exc}")
 
         tenant_serializer = SaaSTenantSerializer(tenant)
         return Response({
@@ -1634,6 +1708,20 @@ class SaaSTenantRequestViewSet(viewsets.ModelViewSet):
         reason = request.data.get('reason', 'Application rejected by platform administrator.')
         req_obj.admin_notes = reason
         req_obj.save()
+
+        recipient_email = (req_obj.contact_email or getattr(req_obj.requested_by, 'email', '') or '').strip()
+        if recipient_email:
+            try:
+                from apps.core.email.service import EmailService
+                EmailService.send_tenant_request_status_email(
+                    tenant_name=req_obj.organization_name,
+                    status='Rejected',
+                    recipient_email=recipient_email,
+                    notes=reason
+                )
+            except Exception as mail_exc:
+                logger.warning(f"Failed to dispatch rejection email: {mail_exc}")
+
         return Response({'message': f'Request rejected.', 'status': req_obj.status})
 
     @action(detail=True, methods=['post'], url_path='notify')
@@ -3895,3 +3983,45 @@ class SaaSEmployeeViewSet(viewsets.ModelViewSet):
         if 'role' in self.request.data:
             kwargs['designation'] = self.request.data['role']
         serializer.save(**kwargs)
+
+
+class PlatformPaymentConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PlatformPaymentConfig
+        fields = ['id', 'bkash_number', 'bkash_account_type', 'bkash_instructions', 'is_active', 'updated_at']
+        read_only_fields = ['id', 'updated_at']
+
+
+class SaaSPlatformPaymentConfigView(views.APIView):
+    """
+    SaaS Control Plane: Platform payment settings (bKash collection account).
+    """
+    permission_classes = [permissions.IsAuthenticated, IsCentralOrPlatformAdmin]
+
+    def get(self, request):
+        config = PlatformPaymentConfig.get_solo()
+        serializer = PlatformPaymentConfigSerializer(config)
+        return Response(serializer.data)
+
+    def put(self, request):
+        config = PlatformPaymentConfig.get_solo()
+        serializer = PlatformPaymentConfigSerializer(config, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+class PublicPlatformPaymentConfigView(views.APIView):
+    """
+    Public/Tenant endpoint to fetch current active bKash payment details.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        config = PlatformPaymentConfig.get_solo()
+        return Response({
+            'bkash_number': config.bkash_number,
+            'bkash_account_type': config.bkash_account_type,
+            'bkash_instructions': config.bkash_instructions,
+            'is_active': config.is_active,
+        })
