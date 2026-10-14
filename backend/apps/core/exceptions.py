@@ -26,6 +26,30 @@ def standardized_exception_handler(exc: Exception, context: dict[str, Any]) -> O
     """
     response = exception_handler(exc, context)
     if response is None:
+        # Unhandled server exception (results in HTTP 500)
+        import traceback
+        request = context.get('request') if isinstance(context, dict) else None
+        path = getattr(request, 'path', '') if request else ''
+        method = getattr(request, 'method', 'GET') if request else 'GET'
+        user = getattr(request, 'user', None)
+        username = getattr(user, 'username', 'anonymous') if user else 'anonymous'
+        tenant = getattr(request, 'tenant', None)
+        tenant_slug = getattr(tenant, 'slug', '') if tenant else ''
+
+        tb = traceback.format_exc()
+        try:
+            from apps.core.email.service import EmailService
+            EmailService.send_system_failure_alert(
+                error_type=exc.__class__.__name__,
+                error_message=str(exc),
+                traceback_str=tb,
+                path=path,
+                method=method,
+                tenant_slug=tenant_slug,
+                user=username,
+            )
+        except Exception:
+            pass
         return None
 
     # Derive canonical machine-readable error code and default description

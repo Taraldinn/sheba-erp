@@ -29,3 +29,27 @@ def debug_task(self):
     task_id = getattr(self.request, 'id', 'unknown')
     return {'status': 'healthy', 'task_id': str(task_id)}
 
+
+from celery.signals import task_failure
+
+
+@task_failure.connect
+def handle_task_failure(sender=None, task_id=None, exception=None, args=None, kwargs=None, traceback=None, einfo=None, **other):
+    """
+    Dispatches automated operational alert to tech team when a background Celery task crashes.
+    """
+    try:
+        from apps.core.email.service import EmailService
+        task_name = getattr(sender, 'name', str(sender))
+        EmailService.send_system_failure_alert(
+            error_type=f"CeleryTaskFailure: {task_name}",
+            error_message=str(exception),
+            traceback_str=str(einfo or traceback or ''),
+            path=f"celery://task/{task_name}",
+            method="ASYNC_TASK",
+            user=f"task_id={task_id}"
+        )
+    except Exception:
+        pass
+
+
