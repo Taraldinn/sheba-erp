@@ -72,3 +72,56 @@ export const agentsApi = {
     pbxConfig: () =>
         fetchApi<PbxConfig>(`/mikopbx-config/me/`, { plane: 'tenant' }),
 };
+
+export interface BusinessAgent {
+    id: string;
+    name: string;
+    phone: string;
+    email?: string;
+    address?: string;
+    bank_name?: string;
+    account_name?: string;
+    account_no?: string;
+    branch_name?: string;
+    routing_no?: string;
+    balance: number | string;
+    resellers_count?: number;
+    reseller_names?: string[];
+    resellers?: string[];
+    is_active: boolean;
+    created_at: string;
+    updated_at?: string;
+}
+
+export interface BusinessAgentCreatePayload {
+    name: string;
+    phone: string;
+    email?: string;
+    address?: string;
+    bank_name?: string;
+    account_name?: string;
+    account_no?: string;
+    branch_name?: string;
+    routing_no?: string;
+    balance?: number | string;
+    resellers?: string[];
+}
+
+export const businessAgentApi = {
+    list: (params?: Record<string, unknown>) =>
+        fetchApi<PaginatedList<BusinessAgent>>(`/agents/${toQuery(params)}`, { plane: 'tenant' }).then(r => asList(r)),
+    get: (id: string) =>
+        fetchApi<BusinessAgent>(`/agents/${id}/`, { plane: 'tenant' }),
+    create: (data: BusinessAgentCreatePayload) =>
+        fetchApi<BusinessAgent>('/agents/', { method: 'POST', json: data, plane: 'tenant' }),
+    update: (id: string, data: Partial<BusinessAgentCreatePayload>) =>
+        fetchApi<BusinessAgent>(`/agents/${id}/`, { method: 'PATCH', json: data, plane: 'tenant' }),
+    remove: (id: string) =>
+        fetchApi<void>(`/agents/${id}/`, { method: 'DELETE', plane: 'tenant' }),
+    adjustBalance: (id: string, data: { amount: number; action: 'ADD' | 'DEDUCT' | 'SET'; notes?: string }) =>
+        fetchApi<{ success: boolean; message: string; new_balance: number }>(`/agents/${id}/adjust-balance/`, { method: 'POST', json: data, plane: 'tenant' }),
+    assignResellers: (id: string, reseller_ids: string[]) =>
+        fetchApi<{ success: boolean; message: string; resellers_count: number }>(`/agents/${id}/assign-resellers/`, { method: 'POST', json: { reseller_ids }, plane: 'tenant' }),
+};
+
+export const agentApi = businessAgentApi;

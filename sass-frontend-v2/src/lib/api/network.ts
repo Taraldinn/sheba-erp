@@ -6,9 +6,11 @@ import type {
     Olt,
     Onu,
     Branch,
+    BranchMetrics,
     TJBox,
     Topology,
     PaginatedList,
+    PptpVpnConfig,
 } from './types';
 import { asList } from './types';
 
@@ -37,6 +39,17 @@ export const oltApi = {
     list: (params?: Record<string, unknown>) =>
         fetchApi<PaginatedList<Olt>>(`/olts/${toQuery(params)}`, { plane: 'tenant' }).then(r => asList(r)),
     get: (id: string) => fetchApi<Olt>(`/olts/${id}/`, { plane: 'tenant' }),
+    create: (data: Partial<Olt> & Record<string, any>) => fetchApi<Olt>('/olts/', { method: 'POST', json: data, plane: 'tenant' }),
+    update: (id: string, data: Partial<Olt> & Record<string, any>) => fetchApi<Olt>(`/olts/${id}/`, { method: 'PATCH', json: data, plane: 'tenant' }),
+    remove: (id: string) => fetchApi<void>(`/olts/${id}/`, { method: 'DELETE', plane: 'tenant' }),
+    test: (id: string) => fetchApi<{ ok: boolean; message?: string }>(`/olts/${id}/test-connection/`, { method: 'POST', plane: 'tenant' }),
+};
+
+export const pptpVpnApi = {
+    get: () => fetchApi<PptpVpnConfig>('/pptp-vpn/', { plane: 'tenant' }),
+    save: (data: Partial<PptpVpnConfig> & { password?: string }) => fetchApi<PptpVpnConfig>('/pptp-vpn/', { method: 'POST', json: data, plane: 'tenant' }),
+    connect: () => fetchApi<PptpVpnConfig>('/pptp-vpn/connect/', { method: 'POST', plane: 'tenant' }),
+    diagnostics: () => fetchApi<{ success: boolean; reachability: string; details: any }>('/pptp-vpn/diagnostics/', { method: 'POST', plane: 'tenant' }),
 };
 
 export const onuApi = {
@@ -48,10 +61,16 @@ export const onuApi = {
 export const branchesApi = {
     list: (params?: Record<string, unknown>) =>
         fetchApi<PaginatedList<Branch>>(`/branches/${toQuery(params)}`, { plane: 'tenant' }).then(r => asList(r)),
+    metrics: () =>
+        fetchApi<BranchMetrics>('/branches/metrics/', { plane: 'tenant' }),
     get: (id: string) => fetchApi<Branch>(`/branches/${id}/`, { plane: 'tenant' }),
     create: (data: Partial<Branch>) => fetchApi<Branch>('/branches/', { method: 'POST', json: data, plane: 'tenant' }),
     update: (id: string, data: Partial<Branch>) => fetchApi<Branch>(`/branches/${id}/`, { method: 'PATCH', json: data, plane: 'tenant' }),
     remove: (id: string) => fetchApi<void>(`/branches/${id}/`, { method: 'DELETE', plane: 'tenant' }),
+    markAsLeft: (id: string) =>
+        fetchApi<{ success: boolean; message: string }>(`/branches/${id}/mark-as-left/`, { method: 'POST', plane: 'tenant' }),
+    restoreActive: (id: string) =>
+        fetchApi<{ success: boolean; message: string }>(`/branches/${id}/restore-active/`, { method: 'POST', plane: 'tenant' }),
 };
 
 export const tjBoxesApi = {
@@ -158,4 +177,59 @@ export const topologyApi = {
 
         return { nodes, edges };
     },
+};
+
+export interface LiveUsageSession {
+    username: string;
+    name: string;
+    phone: string;
+    ip: string;
+    mac: string;
+    uptime: string;
+    upload_raw: number;
+    download_raw: number;
+    upload_formatted: string;
+    download_formatted: string;
+    rx_rate_mbps?: number;
+    tx_rate_mbps?: number;
+    package: string;
+    status: string;
+    router_name: string;
+    router_id?: string;
+}
+
+export interface LiveUsageData {
+    success: boolean;
+    count: number;
+    filtered_count: number;
+    down_speed: number;
+    up_speed: number;
+    sample_id?: string;
+    sample_time?: number;
+    rate_mode?: string;
+    page: number;
+    limit: number;
+    total_pages: number;
+    sessions: LiveUsageSession[];
+}
+
+export interface WeeklyTrafficData {
+    labels: string[];
+    upload: number[];
+    download: number[];
+}
+
+export const liveUsageApi = {
+    getLive: (params?: { router_id?: string; search?: string; page?: number; limit?: number; force_refresh?: boolean }) =>
+        fetchApi<LiveUsageData>(`/network/usage/live/${toQuery(params)}`, { plane: 'tenant' }),
+    getCharts: (range: '7days' | '30days' = '7days') =>
+        fetchApi<WeeklyTrafficData>(`/network/usage/charts/${toQuery({ range })}`, { plane: 'tenant' }),
+    syncNow: () =>
+        fetchApi<{ success: boolean; summary: string; details: any[] }>(`/network/usage/sync/`, { method: 'POST', plane: 'tenant' }),
+    checkRouterStatus: (router_id: string) =>
+        fetchApi<{ success: boolean; online: boolean; router_name: string; ip_address: string }>(`/network/usage/router-status/${toQuery({ router_id })}`, { plane: 'tenant' }),
+    getReports: (params?: { type?: 'history' | 'top_users' | 'router_wise'; range?: string; date_from?: string; date_to?: string; router_id?: string }) =>
+        fetchApi<any>(`/network/usage/reports/${toQuery(params)}`, { plane: 'tenant' }),
+    disconnectSession: (data: { username: string; router_id?: string }) =>
+        fetchApi<{ success: boolean; message: string }>(`/network/live-sessions/terminate/`, { method: 'POST', json: data, plane: 'tenant' }),
 };

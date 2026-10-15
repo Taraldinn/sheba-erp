@@ -361,6 +361,33 @@ class LoginView(views.APIView):
         }
 
 
+class IsTenantMemberOrSelf(permissions.BasePermission):
+    """
+    For user self-service (/api/v1/auth/me/):
+    - Caller must be authenticated.
+    - Superusers always allowed.
+    - If a specific tenant is on request (via host domain or X-Tenant-ID header),
+      caller must have an active membership in that tenant.
+    - If no tenant is on request (e.g. portal host app.localhost or global login),
+      caller is allowed to access their own user profile.
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+        tenant = getattr(request, 'tenant', None)
+        if tenant:
+            if not tenant.is_active:
+                return False
+            membership = StaffMembership.get_active_membership(request.user, tenant)
+            if membership and membership.is_active:
+                request.membership = membership
+                return True
+            return False
+        return True
+
+
 @extend_schema(
     tags=['1. Authentication & Users'],
     description='Get currently authenticated user details, roles, permissions, and portal eligibility.',
@@ -370,20 +397,11 @@ class CurrentUserView(views.APIView):
     """
     Authoritative 'who am I' for an authenticated caller.
 
-    Tenant-plane contract: the user must have an active StaffMembership in
-    ``request.tenant`` exactly. We do NOT fall through to "first active
-    membership" any more — that behaviour allowed a token issued in Tenant A
-    to be used against Tenant B and still get a 200 (see F-04 in
-    docs/AUDIT_AND_IMPLEMENTATION_PLAN.md).
-
-    The only callers that may skip the membership-in-tenant check are:
-      - superusers (the central platform admin);
-      - control-plane requests (which ``IsTenantMember`` short-circuits);
-      - callers authenticated with an active ``AuthSession`` whose
-        ``tenant_id`` matches ``request.tenant`` (a LoginView-bound session
-        can never serve a foreign tenant).
+    Strictly multi-tenant aware: if request is scoped to a tenant, ensures
+    caller belongs to that tenant; if served on portal host without a tenant,
+    allows user self-service.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsTenantMemberOrSelf]
 
     def get(self, request):
         base_data = UserDetailSerializer(request.user, context={'request': request}).data

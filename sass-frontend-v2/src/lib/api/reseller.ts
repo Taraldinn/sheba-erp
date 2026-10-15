@@ -57,6 +57,8 @@ export const resellerApi = {
         }
         return { success: true };
     },
+    list: (params?: Record<string, unknown>) =>
+        fetchApi<PaginatedList<ResellerProfile>>(`/resellers/${toQuery(params)}`, { plane: 'tenant' }).then(r => asList(r)),
     profile: () => fetchApi<ResellerProfile>('/resellers/me/', { plane: 'tenant', tokenSlot: 'resellerToken' }),
     get: (id: string) => fetchApi<ResellerProfile>(`/resellers/${id}/`, { plane: 'tenant' }),
     suspend: (id: string) => fetchApi<void>(`/resellers/${id}/suspend/`, { method: 'POST', plane: 'tenant' }),

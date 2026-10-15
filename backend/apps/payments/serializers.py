@@ -109,3 +109,23 @@ class ResolvePaymentEventSerializer(serializers.Serializer):
     customer_id = serializers.UUIDField(required=True)
     notes = serializers.CharField(required=False, allow_blank=True, default='')
 
+
+class SMSGatewayDeviceSerializer(serializers.ModelSerializer):
+    class Meta:
+        from .models import SMSGatewayDevice
+        model = SMSGatewayDevice
+        fields = '__all__'
+        read_only_fields = ('tenant', 'created_at', 'updated_at')
+
+
+class PaymentVerificationRequestSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.full_name', read_only=True, default='')
+    matched_sms_text = serializers.CharField(source='matched_sms.raw_message', read_only=True, default='')
+
+    class Meta:
+        from .models import PaymentVerificationRequest
+        model = PaymentVerificationRequest
+        fields = '__all__'
+        read_only_fields = ('tenant', 'submitted_at')
+
+

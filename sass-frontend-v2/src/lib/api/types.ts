@@ -699,14 +699,155 @@ export interface Olt {
     id: string;
     name: string;
     vendor?: string;
+    brand?: string;
+    access_mode?: string;
+    cli_access_mode?: string;
+    connection_path?: string;
     ip_address?: string;
     location?: string;
+    lat_long?: string;
+    latitude?: number | string | null;
+    longitude?: number | string | null;
     status: string;
     pon_ports?: number;
+    pon_ports_count?: number;
     online_onus?: number;
     total_onus?: number;
+    snmp_port?: number;
+    snmp_retries?: number;
+    snmp_timeout?: number;
+    poll_interval?: number;
+    cli_enabled?: boolean;
+    telnet_port?: number;
+    telnet_user?: string;
+    cli_timeout?: number;
     last_poll_at?: string;
+    last_sync?: string;
     created_at: string;
+}
+
+export interface PptpVpnConfig {
+    id?: string;
+    server_ip: string;
+    username: string;
+    lan_subnet: string;
+    require_mppe: boolean;
+    auto_connect: boolean;
+    route_metric: number;
+    status: 'Disabled' | 'Connecting' | 'Connected' | 'Failed';
+    active_interface: string;
+    tunnel_reachability: string;
+    last_health_check: string | null;
+    last_handshake: string | null;
+    last_olt_reachable: string | null;
+    has_password?: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface SMSGatewayDevice {
+    id: string;
+    provider: 'bKash' | 'Nagad' | 'Rocket' | 'Upay';
+    merchant_number?: string;
+    device_id: string;
+    api_token?: string;
+    checkout_enabled: boolean;
+    account_type: 'Personal' | 'Merchant' | 'Agent';
+    instruction_type: 'Send Money' | 'Payment' | 'Cash In';
+    checkout_expiry_minutes: number;
+    status: 'Active' | 'Inactive';
+    last_seen_at?: string | null;
+    created_at: string;
+    updated_at?: string;
+}
+
+export interface PaymentVerificationRequest {
+    id: string;
+    client_pppoe_id: string;
+    invoice_id?: string;
+    gateway: string;
+    amount: number | string;
+    transaction_id: string;
+    status: 'Pending' | 'Verified' | 'Rejected' | 'Matched';
+    submitted_at: string;
+    verified_at?: string | null;
+    customer_name?: string;
+    matched_sms_text?: string;
+    notes?: string;
+}
+
+export interface VerificationSmsLog {
+    id: string;
+    device_id?: string;
+    gateway?: string;
+    sender: string;
+    raw_message: string;
+    parsed_provider?: string;
+    parsed_amount?: number | string | null;
+    parsed_trx_id?: string;
+    parsed_account?: string;
+    is_matched: boolean;
+    matched_customer?: string | null;
+    matched_customer_name?: string | null;
+    created_at: string;
+}
+
+export interface PaymentVerificationStats {
+    active_devices: string;
+    active_devices_count: number;
+    total_devices_count: number;
+    pending_requests: number;
+    verified_payments: number;
+    success_match_rate: string;
+}
+
+export interface BranchUserStats {
+    total_clients: number;
+    active_clients: number;
+    inactive_clients: number;
+    expired_clients: number;
+    free_clients: number;
+    left_clients: number;
+    online_count: number;
+    offline_count: number;
+    bill: number;
+    cost: number;
+}
+
+export interface BranchMetrics {
+    total_clients: {
+        count: number;
+        active: number;
+        inactive: number;
+        free: number;
+        expired: number;
+    };
+    total_active: {
+        count: number;
+        bill: number;
+        cost: number;
+        online: number;
+        offline: number;
+    };
+    total_due: {
+        count: number;
+        bill: number;
+        cost: number;
+    };
+    total_inactive: {
+        count: number;
+        bill: number;
+        cost: number;
+    };
+    total_left: {
+        count: number;
+        bill: number;
+        cost: number;
+    };
+    branches_summary?: {
+        total_active: number;
+        total_left: number;
+    };
 }
 
 export interface Branch {
@@ -721,6 +862,30 @@ export interface Branch {
     status: string;
     latitude?: number | null;
     longitude?: number | null;
+
+    // ISP Billing & Reseller extensions
+    username?: string;
+    password?: string;
+    nid?: string;
+    advance_balance_limit?: number | string;
+    enable_undo_recharge?: boolean;
+    user_expire_time?: string;
+    enable_global_sms?: boolean;
+    role?: string;
+    upstream_router?: string | null;
+    upstream_router_name?: string;
+    allowed_packages?: string[];
+    allowed_package_names?: string[];
+    supervisor?: string | null;
+    supervisor_name?: string;
+    agent?: string | null;
+    agent_name?: string;
+    commission_type?: 'FIXED' | 'PACKAGE_WISE' | string;
+    fixed_commission_amount?: number | string;
+    balance?: number | string;
+    due?: number | string;
+    user_stats?: BranchUserStats;
+
     created_at?: string;
     updated_at?: string;
 }
@@ -867,6 +1032,16 @@ export interface TenantKpis {
     online_onus?: number;
     warning_onus?: number;
     critical_onus?: number;
+    total_olts?: number;
+    online_olts?: number;
+    offline_olts?: number;
+    total_branches?: number;
+    left_branches?: number;
+    total_agents?: number;
+    pending_verifications?: number;
+    verified_payments_count?: number;
+    active_gateway_devices?: number;
+    total_gateway_devices?: number;
 }
 
 export interface FinancialCommunicationItem {

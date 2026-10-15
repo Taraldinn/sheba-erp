@@ -30,11 +30,30 @@ class POPBranch(models.Model):
     power_backup = models.CharField(max_length=150, blank=True)
     status = models.CharField(max_length=30, default='Active', choices=[
         ('Active', 'Active'),
-        ('Decommissioned', 'Decommissioned / Left'),
+        ('Decommissioned', 'Decommissioned'),
+        ('Left', 'Left'),
     ])
     upstream_router = models.ForeignKey('network.Router', on_delete=models.SET_NULL, null=True, blank=True, related_name='downstream_pops')
     latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+
+    # ISP Billing / Account Extensions
+    username = models.CharField(max_length=100, blank=True, default='')
+    password = models.CharField(max_length=128, blank=True, default='')
+    nid = models.CharField(max_length=50, blank=True, default='')
+    advance_balance_limit = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    enable_undo_recharge = models.BooleanField(default=False)
+    user_expire_time = models.CharField(max_length=20, blank=True, default='11:59 PM')
+    enable_global_sms = models.BooleanField(default=False)
+    role = models.CharField(max_length=50, default='POP Manager')
+    allowed_packages = models.ManyToManyField('billing.Package', blank=True, related_name='allowed_branches')
+    supervisor = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='subordinates')
+    agent = models.ForeignKey('authentication.Agent', on_delete=models.SET_NULL, null=True, blank=True, related_name='branches')
+    commission_type = models.CharField(max_length=30, default='FIXED', choices=[('FIXED', 'Fixed Amount'), ('PACKAGE_WISE', 'Package Wise')])
+    fixed_commission_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    balance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    due = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -45,6 +64,7 @@ class POPBranch(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.code})"
+
 
 
 class Router(models.Model):
@@ -248,9 +268,12 @@ class OLT(models.Model):
     upstream_router = models.ForeignKey(Router, on_delete=models.SET_NULL, null=True, blank=True, related_name='downstream_olts')
     latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    connection_path = models.CharField(max_length=50, default='Direct OLT IP', blank=True)
+    cli_access_mode = models.CharField(max_length=50, default='Telnet Mode', blank=True)
     snmp_community = EncryptedCharField(max_length=500, default='public')
     snmp_port = models.PositiveIntegerField(default=161)
     snmp_retries = models.PositiveIntegerField(default=1)
+    snmp_timeout = models.PositiveIntegerField(default=10)
     poll_interval = models.PositiveIntegerField(default=600, help_text="Poll interval in seconds")
     
     cli_enabled = models.BooleanField(default=False, help_text="Enable CLI/Telnet fallback")
@@ -843,8 +866,34 @@ class TJBox(models.Model):
 
         super().save(*args, **kwargs)
 
+class PPTPVPNConfig(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name='pptp_vpn_config')
+    server_ip = models.CharField(max_length=128, blank=True, default='')
+    username = models.CharField(max_length=128, blank=True, default='')
+    password = EncryptedCharField(max_length=500, blank=True, default='')
+    lan_subnet = models.CharField(max_length=128, blank=True, default='172.25.31.0/24')
+    require_mppe = models.BooleanField(default=True)
+    auto_connect = models.BooleanField(default=True)
+    route_metric = models.PositiveIntegerField(default=50)
+
+    # Runtime status & telemetry
+    status = models.CharField(max_length=30, default='Disabled', choices=[
+        ('Disabled', 'Disabled'),
+        ('Connecting', 'Connecting'),
+        ('Connected', 'Connected'),
+        ('Failed', 'Failed'),
+    ])
+    active_interface = models.CharField(max_length=50, blank=True, default='None')
+    tunnel_reachability = models.CharField(max_length=50, default='Unknown')
+    last_health_check = models.DateTimeField(null=True, blank=True)
+    last_handshake = models.DateTimeField(null=True, blank=True)
+    last_olt_reachable = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     def __str__(self):
-        return f"{self.name} [{self.box_category}]"
+        return f"PPTP VPN Config for {self.tenant.name} ({self.server_ip or 'Unconfigured'})"
 
 
 class WireGuardConfig(models.Model):

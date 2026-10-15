@@ -1,15 +1,70 @@
 from decimal import Decimal
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
-from .models import Router, OLT, ONU, UserSession, POPBranch, TJBox, WireGuardConfig, WireGuardSubnet
+from .models import Router, OLT, ONU, UserSession, POPBranch, TJBox, WireGuardConfig, WireGuardSubnet, PPTPVPNConfig
 from .validators import validate_router_host, validate_port
 
 
 class POPBranchSerializer(serializers.ModelSerializer):
+    agent_name = serializers.CharField(source='agent.name', read_only=True, default='')
+    upstream_router_name = serializers.CharField(source='upstream_router.name', read_only=True, default='')
+    supervisor_name = serializers.CharField(source='supervisor.name', read_only=True, default='')
+    allowed_package_names = serializers.SerializerMethodField()
+    user_stats = serializers.SerializerMethodField()
+
     class Meta:
         model = POPBranch
         fields = '__all__'
         read_only_fields = ('tenant',)
+
+    def get_allowed_package_names(self, obj):
+        return list(obj.allowed_packages.values_list('name', flat=True))
+
+    def get_user_stats(self, obj):
+        try:
+            from apps.customers.models import Customer
+            from django.db.models import Q
+            qs = Customer.objects.filter(tenant=obj.tenant)
+            if obj.upstream_router_id:
+                qs_branch = qs.filter(Q(router_id=obj.upstream_router_id) | Q(area_zone__iexact=obj.name))
+            else:
+                qs_branch = qs.filter(area_zone__iexact=obj.name)
+            
+            total = qs_branch.count()
+            active = qs_branch.filter(status='ACTIVE').count()
+            inactive = qs_branch.filter(status='INACTIVE').count()
+            expired = qs_branch.filter(status='EXPIRED').count()
+            free = qs_branch.filter(billing_type='FREE').count()
+            left = qs_branch.filter(status='TERMINATED').count()
+            
+            bill = float(sum(c.monthly_bill or 0 for c in qs_branch[:50])) if total > 0 else 0.0
+            cost = float(bill * 0.45) if bill > 0 else 0.0
+
+            return {
+                'total_clients': total,
+                'active_clients': active,
+                'inactive_clients': inactive,
+                'expired_clients': expired,
+                'free_clients': free,
+                'left_clients': left,
+                'online_count': active,
+                'offline_count': inactive + expired,
+                'bill': bill,
+                'cost': cost,
+            }
+        except Exception:
+            return {
+                'total_clients': 0,
+                'active_clients': 0,
+                'inactive_clients': 0,
+                'expired_clients': 0,
+                'free_clients': 0,
+                'left_clients': 0,
+                'online_count': 0,
+                'offline_count': 0,
+                'bill': 0.0,
+                'cost': 0.0,
+            }
 
     def validate_upstream_router(self, router):
         if router is None:
@@ -127,6 +182,7 @@ class OLTSerializer(serializers.ModelSerializer):
     upstream_router_name = serializers.CharField(source='upstream_router.name', read_only=True)
     upstream_router_ip = serializers.CharField(source='upstream_router.ip_address', read_only=True)
     upstream_router_status = serializers.CharField(source='upstream_router.status', read_only=True)
+    lat_long = serializers.CharField(required=False, allow_blank=True, default='')
 
     class Meta:
         model = OLT
@@ -136,6 +192,19 @@ class OLTSerializer(serializers.ModelSerializer):
             'telnet_password': {'write_only': True, 'required': False},
             'snmp_community': {'write_only': True, 'required': False},
         }
+
+    def to_internal_value(self, data):
+        ret = super().to_internal_value(data)
+        lat_long = data.get('lat_long')
+        if lat_long and isinstance(lat_long, str) and ',' in lat_long:
+            try:
+                parts = [p.strip() for p in lat_long.split(',')]
+                if len(parts) == 2:
+                    ret['latitude'] = Decimal(parts[0])
+                    ret['longitude'] = Decimal(parts[1])
+            except Exception:
+                pass
+        return ret
 
     def validate_upstream_router(self, router):
         if router is None:
@@ -161,6 +230,10 @@ class OLTSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         ret.pop('telnet_password', None)
         ret.pop('snmp_community', None)
+        if instance.latitude is not None and instance.longitude is not None:
+            ret['lat_long'] = f"{instance.latitude},{instance.longitude}"
+        else:
+            ret['lat_long'] = ''
         return ret
 
     def validate_ip_address(self, value):
@@ -382,4 +455,21 @@ class PPPoEAccountSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         ret.pop('password', None)
         return ret
+
+
+class PPTPVPNConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PPTPVPNConfig
+        fields = '__all__'
+        read_only_fields = ('tenant', 'created_at', 'updated_at')
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False},
+        }
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret.pop('password', None)
+        ret['has_password'] = bool(instance.password)
+        return ret
+
 

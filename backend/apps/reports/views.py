@@ -6,8 +6,9 @@ from datetime import timedelta
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from apps.customers.models import Customer, CustomerStatus
 from apps.billing.models import Recharge, Invoice, Package
-from apps.payments.models import PaymentTransaction, SmsLog
-from apps.network.models import Router, ONU, UserSession, POPBranch
+from apps.payments.models import PaymentTransaction, SmsLog, PaymentVerificationRequest, SMSGatewayDevice
+from apps.network.models import Router, ONU, UserSession, POPBranch, OLT
+from apps.authentication.models import Agent
 from apps.support.models import Ticket
 from apps.hr.models import Employee, Attendance, LeaveRequest
 from apps.store.models import StoreItem, StockTransaction
@@ -101,6 +102,10 @@ class DashboardAnalyticsView(views.APIView):
         employee_qs = get_scoped_queryset(request, Employee)
         store_qs = get_scoped_queryset(request, StoreItem)
         sms_qs = get_scoped_queryset(request, SmsLog)
+        olt_qs = get_scoped_queryset(request, OLT)
+        agent_qs = get_scoped_queryset(request, Agent)
+        pvr_qs = get_scoped_queryset(request, PaymentVerificationRequest)
+        sms_device_qs = get_scoped_queryset(request, SMSGatewayDevice)
 
         # Baseline single-query customer aggregation
         cust_stats = customer_qs.aggregate(
@@ -157,6 +162,18 @@ class DashboardAnalyticsView(views.APIView):
         warning_onus = onu_qs.filter(rx_power__lt=-25.0, rx_power__gte=-27.0).count()
         critical_onus = onu_qs.filter(rx_power__lt=-27.0).count()
         open_tickets = ticket_qs.filter(status__in=['Open', 'In_Progress']).count()
+
+        # ISP Operational Hubs: OLTs, POP Branches, Agents, Payment Verification & SMS Gateways
+        total_olts = olt_qs.count()
+        online_olts = olt_qs.filter(status='Online').count()
+        offline_olts = max(0, total_olts - online_olts)
+        total_branches = branch_qs.filter(status='Active').count()
+        left_branches = branch_qs.filter(status__in=['Left', 'Decommissioned']).count()
+        total_agents = agent_qs.filter(is_active=True).count()
+        pending_verifications = pvr_qs.filter(status='Pending').count()
+        verified_payments_count = pvr_qs.filter(status__in=['Verified', 'Matched']).count()
+        active_gateway_devices = sms_device_qs.filter(status='Active').count()
+        total_gateway_devices = sms_device_qs.count()
 
         # Shared Default Traffic & Monthly Trend
         monthly_trend = [
@@ -282,6 +299,26 @@ class DashboardAnalyticsView(views.APIView):
                 'count': critical_tickets_count,
                 'href': '/tenant/tickets'
             })
+        if pending_verifications > 0:
+            action_items.append({
+                'id': 'pending_verifications',
+                'type': 'payment',
+                'severity': 'warning',
+                'title': f'{pending_verifications} pending payment verifications',
+                'description': 'Customer payments awaiting SMS match or manual confirmation.',
+                'count': pending_verifications,
+                'href': '/tenant/payments/verification'
+            })
+        if offline_olts > 0:
+            action_items.append({
+                'id': 'offline_olts',
+                'type': 'network',
+                'severity': 'danger',
+                'title': f'{offline_olts} OLT unreachable',
+                'description': 'Check PPTP VPN tunnel or local OLT connectivity.',
+                'count': offline_olts,
+                'href': '/tenant/olts'
+            })
 
         action_required = {
             'expire_today': expire_today,
@@ -291,6 +328,8 @@ class DashboardAnalyticsView(views.APIView):
             'critical_onus': critical_onus,
             'offline_routers': offline_routers,
             'critical_tickets': critical_tickets_count,
+            'pending_verifications': pending_verifications,
+            'offline_olts': offline_olts,
             'items': action_items,
         }
 
@@ -357,6 +396,16 @@ class DashboardAnalyticsView(views.APIView):
                 'online_onus': online_onus,
                 'warning_onus': warning_onus,
                 'critical_onus': critical_onus,
+                'total_olts': total_olts,
+                'online_olts': online_olts,
+                'offline_olts': offline_olts,
+                'total_branches': total_branches,
+                'left_branches': left_branches,
+                'total_agents': total_agents,
+                'pending_verifications': pending_verifications,
+                'verified_payments_count': verified_payments_count,
+                'active_gateway_devices': active_gateway_devices,
+                'total_gateway_devices': total_gateway_devices,
             },
             'monthly_trend': monthly_trend,
             'traffic_distribution': traffic_distribution,

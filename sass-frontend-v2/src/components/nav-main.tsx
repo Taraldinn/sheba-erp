@@ -59,7 +59,9 @@ export function NavMain({
 }) {
   return (
     <SidebarGroup className="py-1">
-      <SidebarGroupLabel className="eyebrow h-7 text-sidebar-foreground/50">{section.label}</SidebarGroupLabel>
+      {section.label ? (
+        <SidebarGroupLabel className="eyebrow h-7 text-sidebar-foreground/50">{section.label}</SidebarGroupLabel>
+      ) : null}
       <SidebarMenu className="gap-0.5">
         {section.items.map((item) => {
           const Icon = item.icon

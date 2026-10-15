@@ -1,357 +1,497 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@/lib/query/native';
-import { branchesApi, type Branch } from '@/lib/api';
+import { branchesApi, type Branch, type BranchMetrics } from '@/lib/api';
 import { queryKeys } from '@/lib/query/keys';
-import { DataTable, type DataTableColumn } from '@/components/data-table/data-table';
-import { ErrorAlert, PageHeader, StatusBadge } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/feedback/confirm';
-import { Plus, Pencil, Trash2, MapPin } from 'lucide-react';
+import { PopBranchModal } from './pop-branch-modal';
+import {
+    Users,
+    Plus,
+    Search,
+    Pencil,
+    Trash2,
+    LogOut,
+    Phone,
+    MapPin,
+    Network,
+    RefreshCw,
+    ArrowRight,
+    UserCheck,
+    CreditCard,
+    TrendingUp,
+    Shield,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
-interface ZoneForm {
-    name: string;
-    code: string;
-    location: string;
-    in_charge: string;
-    contact: string;
-    total_capacity: number;
-    status: string;
-}
-
-const EMPTY_ZONE_FORM: ZoneForm = {
-    name: '',
-    code: '',
-    location: '',
-    in_charge: '',
-    contact: '',
-    total_capacity: 1000,
-    status: 'Active',
-};
-
-export default function TenantBranches() {
-    const list = useQuery({ queryKey: queryKeys.branches.list(), queryFn: () => branchesApi.list() });
-    const [creating, setCreating] = useState(false);
-    const [editing, setEditing] = useState<Branch | null>(null);
+export default function PopBranchListPage() {
+    const router = useRouter();
+    const [searchQuery, setSearchQuery] = useState('');
+    const [modalOpen, setModalOpen] = useState(false);
+    const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
     const [pendingDelete, setPendingDelete] = useState<Branch | null>(null);
+    const [pendingMarkLeft, setPendingMarkLeft] = useState<Branch | null>(null);
 
-    const create = useMutation({
-        mutationFn: (data: Partial<Branch>) => branchesApi.create(data),
-        onSuccess: () => {
-            list.refetch();
-            setCreating(false);
-            toast.success('Zone created successfully');
-        },
-        onError: (err: any) => {
-            toast.error(err?.message || 'Failed to create zone');
-        },
+    // Queries
+    const listQuery = useQuery({
+        queryKey: queryKeys.branches.list({ status: 'Active' }),
+        queryFn: () => branchesApi.list({ status: 'Active' }),
     });
 
-    const update = useMutation({
-        mutationFn: ({ id, data }: { id: string; data: Partial<Branch> }) => branchesApi.update(id, data),
-        onSuccess: () => {
-            list.refetch();
-            setEditing(null);
-            toast.success('Zone updated successfully');
-        },
-        onError: (err: any) => {
-            toast.error(err?.message || 'Failed to update zone');
-        },
+    const metricsQuery = useQuery({
+        queryKey: queryKeys.branches.metrics(),
+        queryFn: () => branchesApi.metrics(),
     });
 
-    const remove = useMutation({
+    const branches: Branch[] = listQuery.data ?? [];
+    const metrics: BranchMetrics | undefined = metricsQuery.data;
+
+    // Filtered branches by search
+    const filteredBranches = useMemo(() => {
+        if (!searchQuery.trim()) return branches;
+        const q = searchQuery.toLowerCase().trim();
+        return branches.filter((b) =>
+            b.name.toLowerCase().includes(q) ||
+            (b.username && b.username.toLowerCase().includes(q)) ||
+            (b.contact && b.contact.toLowerCase().includes(q)) ||
+            (b.location && b.location.toLowerCase().includes(q)) ||
+            (b.in_charge && b.in_charge.toLowerCase().includes(q)) ||
+            (b.role && b.role.toLowerCase().includes(q))
+        );
+    }, [branches, searchQuery]);
+
+    // Mutations
+    const deleteMutation = useMutation({
         mutationFn: (id: string) => branchesApi.remove(id),
         onSuccess: () => {
-            list.refetch();
+            toast.success('POP/Branch deleted successfully');
             setPendingDelete(null);
-            toast.success('Zone deleted successfully');
+            listQuery.refetch();
+            metricsQuery.refetch();
         },
         onError: (err: any) => {
-            toast.error(err?.message || 'Failed to delete zone');
+            toast.error(err?.message || 'Failed to delete POP/Branch');
         },
     });
 
-    const columns: DataTableColumn<Branch>[] = [
-        {
-            id: 'name',
-            header: 'Zone / POP Name',
-            sortable: true,
-            cell: r => (
-                <div className="flex flex-col">
-                    <span className="font-semibold text-foreground">{r.name}</span>
-                    {r.code && <span className="font-mono text-xs text-muted-foreground">{r.code}</span>}
-                </div>
-            ),
+    const markLeftMutation = useMutation({
+        mutationFn: (id: string) => branchesApi.markAsLeft(id),
+        onSuccess: (data) => {
+            toast.success(data.message || 'POP/Branch moved to Left POP/Branch List');
+            setPendingMarkLeft(null);
+            listQuery.refetch();
+            metricsQuery.refetch();
         },
-        {
-            id: 'location',
-            header: 'Location',
-            cell: r => (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <MapPin className="size-3.5 shrink-0 text-muted-foreground/70" />
-                    <span>{r.location || '—'}</span>
-                </div>
-            ),
+        onError: (err: any) => {
+            toast.error(err?.message || 'Failed to mark POP/Branch as left');
         },
-        {
-            id: 'in_charge',
-            header: 'In-Charge & Contact',
-            cell: r => (
-                <div className="flex flex-col text-xs">
-                    <span className="font-medium text-foreground">{r.in_charge || '—'}</span>
-                    <span className="text-muted-foreground">{r.contact || ''}</span>
-                </div>
-            ),
-        },
-        {
-            id: 'total_capacity',
-            header: 'Capacity',
-            align: 'right',
-            cell: r => <span className="font-mono text-xs tabular-nums">{(r.total_capacity ?? 1000).toLocaleString()} lines</span>,
-        },
-        {
-            id: 'status',
-            header: 'Status',
-            cell: r => <StatusBadge status={r.status} />,
-        },
-        {
-            id: 'actions',
-            header: '',
-            align: 'right',
-            cell: r => (
-                <div className="flex items-center justify-end gap-1">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={e => {
-                            e.stopPropagation();
-                            setEditing(r);
-                        }}
-                        title="Edit Zone"
-                    >
-                        <Pencil className="size-3.5" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        onClick={e => {
-                            e.stopPropagation();
-                            setPendingDelete(r);
-                        }}
-                        title="Delete Zone"
-                    >
-                        <Trash2 className="size-3.5" />
-                    </Button>
-                </div>
-            ),
-        },
-    ];
+    });
 
-    return (
-        <div className="space-y-6">
-            <PageHeader
-                title="Zones & POP Branches"
-                description="Manage operational distribution zones, physical POPs, and coverage sectors."
-                actions={
-                    <Button onClick={() => setCreating(true)}>
-                        <Plus className="size-4" aria-hidden="true" />
-                        Add Zone
-                    </Button>
-                }
-            />
+    const handleCreateNew = () => {
+        setEditingBranch(null);
+        setModalOpen(true);
+    };
 
-            {list.error && <ErrorAlert title="Failed to load zones" error={list.error as Error} />}
+    const handleEdit = (branch: Branch) => {
+        setEditingBranch(branch);
+        setModalOpen(true);
+    };
 
-            <DataTable<Branch>
-                data={list.data ?? []}
-                columns={columns}
-                isLoading={list.isLoading}
-                error={list.error}
-                emptyState="No distribution zones configured yet. Click 'Add Zone' to create one."
-                testId="branches-table"
-                rowKey={r => r.id}
-            />
-
-            {(creating || editing) && (
-                <ZoneFormDialog
-                    open={Boolean(creating || editing)}
-                    onOpenChange={o => {
-                        if (!o) {
-                            setCreating(false);
-                            setEditing(null);
-                        }
-                    }}
-                    title={editing ? `Edit Zone: ${editing.name}` : 'Add Distribution Zone'}
-                    initial={
-                        editing
-                            ? {
-                                  name: editing.name,
-                                  code: editing.code || '',
-                                  location: editing.location || '',
-                                  in_charge: editing.in_charge || '',
-                                  contact: editing.contact || '',
-                                  total_capacity: editing.total_capacity ?? 1000,
-                                  status: editing.status || 'Active',
-                              }
-                            : EMPTY_ZONE_FORM
-                    }
-                    pending={create.isPending || update.isPending}
-                    onSubmit={async form => {
-                        if (editing) {
-                            await update.mutateAsync({ id: editing.id, data: form });
-                        } else {
-                            await create.mutateAsync(form);
-                        }
-                    }}
-                />
-            )}
-
-            <ConfirmDialog
-                open={Boolean(pendingDelete)}
-                onOpenChange={o => !o && setPendingDelete(null)}
-                title="Delete Distribution Zone"
-                description={
-                    pendingDelete
-                        ? `Are you sure you want to permanently delete "${pendingDelete.name}"? This may affect linked TJ boxes and subscribers.`
-                        : ''
-                }
-                confirmLabel="Delete Zone"
-                destructive
-                onConfirm={async () => {
-                    if (pendingDelete) await remove.mutateAsync(pendingDelete.id);
-                }}
-            />
-        </div>
-    );
-}
-
-function ZoneFormDialog({
-    open,
-    onOpenChange,
-    title,
-    initial,
-    pending,
-    onSubmit,
-}: {
-    open: boolean;
-    onOpenChange: (o: boolean) => void;
-    title: string;
-    initial: ZoneForm;
-    pending: boolean;
-    onSubmit: (form: ZoneForm) => Promise<unknown>;
-}) {
-    const [form, setForm] = useState<ZoneForm>(initial);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!form.name.trim()) {
-            toast.error('Zone Name is required.');
-            return;
-        }
-        await onSubmit(form);
+    const formatMoney = (val: number | string | undefined) => {
+        const num = Number(val) || 0;
+        return `৳${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>{title}</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-                    <div className="space-y-1.5">
-                        <Label htmlFor="zone-name">Zone / POP Name *</Label>
+        <div className="space-y-6 pb-12">
+            {/* Header matching Screenshot 1 */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-600/20 shadow-xs">
+                        <Users className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                            POP/Branch List
+                        </h1>
+                        <p className="text-xs text-muted-foreground">
+                            Manage network distribution points, POP managers, and sub-resellers.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <div className="relative w-64 sm:w-72">
                         <Input
-                            id="zone-name"
-                            value={form.name}
-                            onChange={e => setForm({ ...form, name: e.target.value })}
-                            placeholder="e.g. Uttara Sector 3 Main Hub"
-                            required
+                            placeholder="Search POP/Branch..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="h-9 pr-9 text-xs"
                         />
+                        <button
+                            type="button"
+                            className="absolute right-0 top-0 h-9 w-9 flex items-center justify-center text-white bg-blue-600 hover:bg-blue-700 rounded-r-md transition-colors"
+                        >
+                            <Search className="h-3.5 w-3.5" />
+                        </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="zone-code">Zone Code</Label>
-                            <Input
-                                id="zone-code"
-                                value={form.code}
-                                onChange={e => setForm({ ...form, code: e.target.value })}
-                                placeholder="e.g. ZN-UT-01"
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label htmlFor="zone-capacity">Capacity (Lines)</Label>
-                            <Input
-                                id="zone-capacity"
-                                type="number"
-                                min={1}
-                                value={form.total_capacity}
-                                onChange={e => setForm({ ...form, total_capacity: Number(e.target.value) || 1000 })}
-                            />
-                        </div>
-                    </div>
+                    <Button
+                        onClick={handleCreateNew}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-xs gap-1.5 h-9 text-xs"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Create New
+                    </Button>
+                </div>
+            </div>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="zone-location">Location / Address</Label>
-                        <Input
-                            id="zone-location"
-                            value={form.location}
-                            onChange={e => setForm({ ...form, location: e.target.value })}
-                            placeholder="e.g. Road 12, Sector 3, Uttara, Dhaka"
-                        />
+            {/* 5 Distinct Colored Summary Metric Cards (Strictly matching Screenshot 1) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+                {/* Card 1: Total Clients (Blue) */}
+                <div className="rounded-xl p-4 bg-blue-600 text-white shadow-sm flex flex-col justify-between min-h-[110px]">
+                    <div className="text-xs font-medium text-blue-100">
+                        Total Clients
                     </div>
+                    <div className="text-3xl font-extrabold tracking-tight">
+                        {metrics?.total_clients.count ?? 0}
+                    </div>
+                    <div className="text-[11px] text-blue-100/90 font-medium truncate">
+                        {metrics?.total_clients.active ?? 0} Active • {metrics?.total_clients.inactive ?? 0} Inactive • {metrics?.total_clients.free ?? 0} Free • {metrics?.total_clients.expired ?? 0} Expire
+                    </div>
+                </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="zone-in-charge">In-Charge Officer</Label>
-                            <Input
-                                id="zone-in-charge"
-                                value={form.in_charge}
-                                onChange={e => setForm({ ...form, in_charge: e.target.value })}
-                                placeholder="e.g. Engr. Tanvir Ahmed"
-                            />
+                {/* Card 2: Total Active (Green) */}
+                <div className="rounded-xl p-4 bg-emerald-600 text-white shadow-sm flex flex-col justify-between min-h-[110px]">
+                    <div className="text-xs font-medium text-emerald-100">
+                        Total Active
+                    </div>
+                    <div className="text-3xl font-extrabold tracking-tight">
+                        {metrics?.total_active.count ?? 0}
+                    </div>
+                    <div className="space-y-0.5 text-[11px] text-emerald-100/90">
+                        <div className="truncate">
+                            Bill: {formatMoney(metrics?.total_active.bill)} | Cost: {formatMoney(metrics?.total_active.cost)}
                         </div>
-                        <div className="space-y-1.5">
-                            <Label htmlFor="zone-contact">Contact Phone</Label>
-                            <Input
-                                id="zone-contact"
-                                value={form.contact}
-                                onChange={e => setForm({ ...form, contact: e.target.value })}
-                                placeholder="e.g. 01712345678"
-                            />
+                        <div className="flex items-center gap-2 font-medium text-[10px]">
+                            <span>• {metrics?.total_active.online ?? 0} Online</span>
+                            <span>|</span>
+                            <span>• {metrics?.total_active.offline ?? 0} Offline</span>
                         </div>
                     </div>
+                </div>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="zone-status">Status</Label>
-                        <Select value={form.status} onValueChange={status => setForm({ ...form, status })}>
-                            <SelectTrigger id="zone-status">
-                                <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="Active">Active</SelectItem>
-                                <SelectItem value="Decommissioned">Decommissioned / Inactive</SelectItem>
-                            </SelectContent>
-                        </Select>
+                {/* Card 3: Total Due (Red) */}
+                <div className="rounded-xl p-4 bg-red-600 text-white shadow-sm flex flex-col justify-between min-h-[110px]">
+                    <div className="text-xs font-medium text-red-100">
+                        Total Due
                     </div>
+                    <div className="text-3xl font-extrabold tracking-tight">
+                        {metrics?.total_due.count ?? 0}
+                    </div>
+                    <div className="text-[11px] text-red-100/90 font-medium truncate">
+                        Bill: {formatMoney(metrics?.total_due.bill)} | Cost: {formatMoney(metrics?.total_due.cost)}
+                    </div>
+                </div>
 
-                    <DialogFooter className="pt-2">
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                            Cancel
-                        </Button>
-                        <Button type="submit" disabled={pending}>
-                            {pending ? 'Saving…' : 'Save Zone'}
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
+                {/* Card 4: Total Inactive (Amber/Orange) */}
+                <div className="rounded-xl p-4 bg-amber-500 text-white shadow-sm flex flex-col justify-between min-h-[110px]">
+                    <div className="text-xs font-medium text-amber-100">
+                        Total Inactive
+                    </div>
+                    <div className="text-3xl font-extrabold tracking-tight">
+                        {metrics?.total_inactive.count ?? 0}
+                    </div>
+                    <div className="text-[11px] text-amber-100/90 font-medium truncate">
+                        Bill: {formatMoney(metrics?.total_inactive.bill)} | Cost: {formatMoney(metrics?.total_inactive.cost)}
+                    </div>
+                </div>
+
+                {/* Card 5: Total Left (Slate/Gray) */}
+                <div className="rounded-xl p-4 bg-slate-600 text-white shadow-sm flex flex-col justify-between min-h-[110px]">
+                    <div className="flex items-center justify-between text-xs font-medium text-slate-200">
+                        <span>Total Left</span>
+                        <button
+                            onClick={() => router.push('/tenant/branches/left')}
+                            className="text-[10px] text-slate-200 hover:text-white underline flex items-center gap-0.5"
+                        >
+                            View All <ArrowRight className="h-2.5 w-2.5" />
+                        </button>
+                    </div>
+                    <div className="text-3xl font-extrabold tracking-tight">
+                        {metrics?.total_left.count ?? 0}
+                    </div>
+                    <div className="text-[11px] text-slate-200/90 font-medium truncate">
+                        Bill: {formatMoney(metrics?.total_left.bill)} | Cost: {formatMoney(metrics?.total_left.cost)}
+                    </div>
+                </div>
+            </div>
+
+            {/* Table View (Strictly matching Screenshot 1) */}
+            <div className="rounded-2xl border bg-card shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr className="border-b bg-muted/40 font-semibold text-muted-foreground">
+                                <th className="p-4 w-[28%]">POP/Branch Info</th>
+                                <th className="p-4 w-[14%]">Username</th>
+                                <th className="p-4 w-[12%]">Role</th>
+                                <th className="p-4 w-[20%]">User Stats</th>
+                                <th className="p-4 w-[10%]">Balance</th>
+                                <th className="p-4 w-[8%]">Due</th>
+                                <th className="p-4 w-[8%] text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/60">
+                            {listQuery.isLoading ? (
+                                <tr>
+                                    <td colSpan={7} className="p-12 text-center text-muted-foreground">
+                                        <div className="flex flex-col items-center justify-center gap-2">
+                                            <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+                                            <span>Loading POP/Branches...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : filteredBranches.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="py-20 text-center">
+                                        <div className="max-w-xs mx-auto flex flex-col items-center justify-center text-center space-y-3">
+                                            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                                                <Users className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-semibold text-base text-foreground">No POP/Branch found</h3>
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    {searchQuery
+                                                        ? 'No branches matched your search query.'
+                                                        : 'No active POPs or branches registered yet.'}
+                                                </p>
+                                            </div>
+                                            {!searchQuery && (
+                                                <Button
+                                                    onClick={handleCreateNew}
+                                                    size="sm"
+                                                    className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+                                                >
+                                                    <Plus className="w-3.5 h-3.5" />
+                                                    Create New
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : (
+                                filteredBranches.map((branch) => {
+                                    const stats = branch.user_stats || {
+                                        total_clients: 0,
+                                        active_clients: 0,
+                                        inactive_clients: 0,
+                                        expired_clients: 0,
+                                        free_clients: 0,
+                                        online_count: 0,
+                                        offline_count: 0,
+                                    };
+                                    return (
+                                        <tr
+                                            key={branch.id}
+                                            className="hover:bg-muted/30 transition-colors group"
+                                        >
+                                            {/* 1. POP/Branch Info */}
+                                            <td className="p-4 align-top">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-sm text-foreground">
+                                                            {branch.name}
+                                                        </span>
+                                                        {branch.code && (
+                                                            <Badge variant="outline" className="text-[10px] font-mono h-4 px-1.5">
+                                                                {branch.code}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="text-[11px] text-muted-foreground flex flex-col gap-0.5">
+                                                        {branch.in_charge && (
+                                                            <div>In-Charge: <strong className="text-foreground">{branch.in_charge}</strong></div>
+                                                        )}
+                                                        {branch.contact && (
+                                                            <div className="flex items-center gap-1 font-mono">
+                                                                <Phone className="w-3 h-3 text-primary" />
+                                                                <span>{branch.contact}</span>
+                                                            </div>
+                                                        )}
+                                                        {branch.location && (
+                                                            <div className="flex items-start gap-1">
+                                                                <MapPin className="w-3 h-3 text-muted-foreground shrink-0 mt-0.5" />
+                                                                <span className="line-clamp-1">{branch.location}</span>
+                                                            </div>
+                                                        )}
+                                                        {branch.upstream_router_name && (
+                                                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                                <Network className="w-3 h-3 text-blue-500" />
+                                                                <span>Router: {branch.upstream_router_name}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            {/* 2. Username */}
+                                            <td className="p-4 align-top">
+                                                <span className="font-mono text-xs font-semibold text-foreground/90">
+                                                    {branch.username || '—'}
+                                                </span>
+                                            </td>
+
+                                            {/* 3. Role */}
+                                            <td className="p-4 align-top">
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="text-[10px] font-medium bg-primary/10 text-primary border border-primary/20"
+                                                >
+                                                    {branch.role || 'POP Manager'}
+                                                </Badge>
+                                            </td>
+
+                                            {/* 4. User Stats */}
+                                            <td className="p-4 align-top">
+                                                <div className="space-y-1 text-[11px]">
+                                                    <div className="flex items-center gap-2 font-medium">
+                                                        <span className="text-emerald-600 dark:text-emerald-400">
+                                                            {stats.active_clients} Active
+                                                        </span>
+                                                        <span>•</span>
+                                                        <span className="text-amber-600 dark:text-amber-400">
+                                                            {stats.inactive_clients} Inactive
+                                                        </span>
+                                                        <span>•</span>
+                                                        <span className="text-muted-foreground">
+                                                            {stats.expired_clients} Expired
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                                                        <span>Online: {stats.online_count}</span>
+                                                        <span>|</span>
+                                                        <span>Offline: {stats.offline_count}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            {/* 5. Balance */}
+                                            <td className="p-4 align-top font-mono font-bold text-foreground">
+                                                {formatMoney(branch.balance)}
+                                            </td>
+
+                                            {/* 6. Due */}
+                                            <td className="p-4 align-top font-mono">
+                                                <span className={Number(branch.due) > 0 ? 'text-destructive font-bold' : 'text-muted-foreground'}>
+                                                    {formatMoney(branch.due)}
+                                                </span>
+                                            </td>
+
+                                            {/* 7. Actions */}
+                                            <td className="p-4 align-top text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon-sm"
+                                                        className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                                        onClick={() => handleEdit(branch)}
+                                                        title="Edit POP/Branch"
+                                                    >
+                                                        <Pencil className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon-sm"
+                                                        className="h-7 w-7 text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
+                                                        onClick={() => setPendingMarkLeft(branch)}
+                                                        title="Mark as Left"
+                                                    >
+                                                        <LogOut className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon-sm"
+                                                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                        onClick={() => setPendingDelete(branch)}
+                                                        title="Delete POP/Branch"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Create / Edit Modal (Matching Screenshot 2) */}
+            <PopBranchModal
+                open={modalOpen}
+                onOpenChange={setModalOpen}
+                branchToEdit={editingBranch}
+                onSuccess={() => {
+                    listQuery.refetch();
+                    metricsQuery.refetch();
+                }}
+            />
+
+            {/* Mark as Left Confirmation */}
+            <ConfirmDialog
+                open={!!pendingMarkLeft}
+                onOpenChange={(open) => !open && setPendingMarkLeft(null)}
+                title={`Move ${pendingMarkLeft?.name} to Left List?`}
+                description={
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                        <p>
+                            This will move <strong>{pendingMarkLeft?.name}</strong> to the <strong>Left POP/Branch List</strong>.
+                        </p>
+                        <p>
+                            Outstanding due is {formatMoney(pendingMarkLeft?.due)}. You can reactivate this branch anytime from the Left List.
+                        </p>
+                    </div>
+                }
+                confirmLabel="Move to Left List"
+                onConfirm={() => {
+                    if (pendingMarkLeft) {
+                        markLeftMutation.mutate(pendingMarkLeft.id);
+                    }
+                }}
+            />
+
+            {/* Delete Confirmation */}
+            <ConfirmDialog
+                open={!!pendingDelete}
+                onOpenChange={(open) => !open && setPendingDelete(null)}
+                title={`Delete ${pendingDelete?.name}?`}
+                description={
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                        <p>
+                            Are you sure you want to permanently delete <strong>{pendingDelete?.name}</strong>?
+                        </p>
+                        <p className="text-destructive font-medium">
+                            This action cannot be undone. All assigned configuration will be cleared.
+                        </p>
+                    </div>
+                }
+                confirmLabel="Delete"
+                destructive
+                onConfirm={() => {
+                    if (pendingDelete) {
+                        deleteMutation.mutate(pendingDelete.id);
+                    }
+                }}
+            />
+        </div>
     );
 }
