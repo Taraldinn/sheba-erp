@@ -85,9 +85,56 @@ class PaymentGateway(models.Model):
         return mask_credential(self.app_key)
 
 
+class MFSProvider(models.TextChoices):
+    BKASH = 'bKash', 'bKash'
+    NAGAD = 'Nagad', 'Nagad'
+    ROCKET = 'Rocket', 'Rocket'
+    UPAY = 'Upay', 'Upay'
+
+
+class SMSGatewayDevice(models.Model):
+    class AccountType(models.TextChoices):
+        PERSONAL = 'Personal', 'Personal'
+        MERCHANT = 'Merchant', 'Merchant'
+        AGENT = 'Agent', 'Agent'
+
+    class InstructionType(models.TextChoices):
+        SEND_MONEY = 'Send Money', 'Send Money'
+        PAYMENT = 'Payment', 'Payment'
+        CASH_IN = 'Cash In', 'Cash In'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='sms_gateway_devices')
+    provider = models.CharField(max_length=50, choices=MFSProvider.choices, default=MFSProvider.BKASH)
+    merchant_number = models.CharField(max_length=50, blank=True, default='')
+    device_id = models.CharField(max_length=100, help_text="Unique identifier matching Android forwarding app settings")
+    api_token = models.CharField(max_length=255, blank=True, default='', help_text="Webhook authorization token")
+
+    checkout_enabled = models.BooleanField(default=True)
+    account_type = models.CharField(max_length=30, choices=AccountType.choices, default=AccountType.PERSONAL)
+    instruction_type = models.CharField(max_length=30, choices=InstructionType.choices, default=InstructionType.SEND_MONEY)
+    checkout_expiry_minutes = models.PositiveIntegerField(default=10)
+    status = models.CharField(max_length=20, choices=[('Active', 'Active'), ('Inactive', 'Inactive')], default='Active')
+
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'device_id'], name='unique_tenant_sms_device'),
+        ]
+
+    def __str__(self):
+        return f"{self.provider} [{self.merchant_number or 'No Num'}] ({self.device_id}) - {self.status}"
+
+
 class SmsLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='sms_logs')
+    device_id = models.CharField(max_length=100, blank=True, default='')
+    gateway = models.CharField(max_length=50, blank=True, default='')
     sender = models.CharField(max_length=50)
     raw_message = models.TextField()
     parsed_provider = models.CharField(max_length=50, blank=True)
@@ -103,6 +150,38 @@ class SmsLog(models.Model):
 
     def __str__(self):
         return f"SMS from {self.sender}: Trx {self.parsed_trx_id} (৳{self.parsed_amount}) - {'Matched' if self.is_matched else 'Unmatched'}"
+
+
+class PaymentVerificationRequest(models.Model):
+    class RequestStatus(models.TextChoices):
+        PENDING = 'Pending', 'Pending'
+        VERIFIED = 'Verified', 'Verified'
+        REJECTED = 'Rejected', 'Rejected'
+        MATCHED = 'Matched', 'Matched'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='verification_requests')
+    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True, blank=True, related_name='verification_requests')
+    client_pppoe_id = models.CharField(max_length=150, help_text="Customer code or PPPoE username")
+    invoice_id = models.CharField(max_length=100, blank=True, default='')
+    gateway = models.CharField(max_length=50, choices=MFSProvider.choices, default=MFSProvider.BKASH)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    transaction_id = models.CharField(max_length=100, db_index=True)
+    status = models.CharField(max_length=30, choices=RequestStatus.choices, default=RequestStatus.PENDING)
+    matched_sms = models.ForeignKey(SmsLog, on_delete=models.SET_NULL, null=True, blank=True, related_name='verified_requests')
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-submitted_at']
+        indexes = [
+            models.Index(fields=['tenant', 'status'], name='pvr_tenant_status_idx'),
+            models.Index(fields=['tenant', 'transaction_id'], name='pvr_tenant_trx_idx'),
+        ]
+
+    def __str__(self):
+        return f"Verify {self.client_pppoe_id} - {self.gateway} ৳{self.amount} ({self.transaction_id}) [{self.status}]"
 
 
 class PaymentTransaction(models.Model):

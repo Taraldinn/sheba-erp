@@ -80,8 +80,10 @@ class TenantResolutionMiddleware(MiddlewareMixin):
     TENANT_NOT_FOUND_BYPASS_PATHS = (
         '/api/v1/customer/query/',
         '/api/v1/customers/query/',
+        '/api/v1/payment/sms',
         '/api/v1/payments/sms/webhook/',
         '/api/v1/payments/webhook/sms/',
+        '/api/v1/payments/sms-webhook/',
         '/api/v1/payments/bkash/paybill/',
         '/api/v1/network/reconciliation/report/',
         # Stage 2: ISP Owner SaaS Portal (app.example.com) — these endpoints

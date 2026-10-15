@@ -201,10 +201,10 @@ def _sample_cache_key(tenant_slug: str) -> str:
 def _physical_session_id(session: dict) -> str:
     """Build a stable identity key for a session — caller-id + address, or
     the username as a fallback. Mirrors the PHP rate calculation's de-dupe."""
-    router_id = int(session.get('router_id') or 0)
+    router_id = str(session.get('router_id') or '0')
     caller = (session.get('caller-id') or '').strip().lower()
     address = (session.get('address') or '').strip()
-    user = (session.get('name') or '').strip().lower()
+    user = (session.get('name') or session.get('username') or '').strip().lower()
     physical = f'{caller}|{address}' if caller or address else user
     return f'{router_id}|{physical}' if physical else f'{router_id}|user|{user}'
 
@@ -277,7 +277,7 @@ def compute_live_rates(router_id: str, tenant_slug: str, *,
 
     return {
         'success': True,
-        'count': sum(1 for s in sessions if int(s.get('router_id') or 0) == int(router_id) or router_id == '0'),
+        'count': sum(1 for s in sessions if str(s.get('router_id') or '') == str(router_id) or str(router_id) in ('0', 'all', '', 'None')),
         'down_speed': round(down_speed, 2),
         'up_speed': round(up_speed, 2),
         'sample_id': sample_id,

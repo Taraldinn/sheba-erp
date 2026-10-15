@@ -114,10 +114,22 @@ export const queryKeys = {
         all: () => [...queryKeys.tenant(), 'payments'] as const,
         list: (params?: Record<string, unknown>) => [...queryKeys.payments.all(), 'list', params ?? {}] as const,
     },
+    paymentVerification: {
+        all: () => [...queryKeys.tenant(), 'payment-verification'] as const,
+        stats: () => [...queryKeys.paymentVerification.all(), 'stats'] as const,
+        requests: (params?: Record<string, unknown>) => [...queryKeys.paymentVerification.all(), 'requests', params ?? {}] as const,
+        devices: () => [...queryKeys.paymentVerification.all(), 'devices'] as const,
+        smsLogs: (params?: Record<string, unknown>) => [...queryKeys.paymentVerification.all(), 'sms-logs', params ?? {}] as const,
+    },
     routers: {
         all: () => [...queryKeys.tenant(), 'routers'] as const,
         list: (params?: Record<string, unknown>) => [...queryKeys.routers.all(), 'list', params ?? {}] as const,
         detail: (id: string) => [...queryKeys.routers.all(), 'detail', id] as const,
+    },
+    bandwidth: {
+        all: () => [...queryKeys.tenant(), 'bandwidth'] as const,
+        live: (params?: Record<string, unknown>) => [...queryKeys.bandwidth.all(), 'live', params ?? {}] as const,
+        charts: (range?: string) => [...queryKeys.bandwidth.all(), 'charts', range ?? '7days'] as const,
     },
     networkProfiles: {
         all: () => [...queryKeys.tenant(), 'network-profiles'] as const,
@@ -132,9 +144,15 @@ export const queryKeys = {
         list: (params?: Record<string, unknown>) => [...queryKeys.olts.all(), 'list', params ?? {}] as const,
         detail: (id: string) => [...queryKeys.olts.all(), 'detail', id] as const,
     },
+    pptpVpn: {
+        all: () => [...queryKeys.tenant(), 'pptp-vpn'] as const,
+        config: () => [...queryKeys.pptpVpn.all(), 'config'] as const,
+    },
     branches: {
         all: () => [...queryKeys.tenant(), 'branches'] as const,
-        list: () => [...queryKeys.branches.all(), 'list'] as const,
+        list: (params?: Record<string, unknown>) => [...queryKeys.branches.all(), 'list', params ?? {}] as const,
+        leftList: (params?: Record<string, unknown>) => [...queryKeys.branches.all(), 'left-list', params ?? {}] as const,
+        metrics: () => [...queryKeys.branches.all(), 'metrics'] as const,
         detail: (id: string) => [...queryKeys.branches.all(), 'detail', id] as const,
     },
     tjBoxes: {
@@ -169,6 +187,9 @@ export const queryKeys = {
     },
     agents: {
         all: () => [...queryKeys.tenant(), 'agents'] as const,
+        list: (params?: Record<string, unknown>) => [...queryKeys.agents.all(), 'list', params ?? {}] as const,
+        businessList: (params?: Record<string, unknown>) => [...queryKeys.agents.all(), 'business-list', params ?? {}] as const,
+        detail: (id: string) => [...queryKeys.agents.all(), 'detail', id] as const,
         mappings: (params?: Record<string, unknown>) => [...queryKeys.agents.all(), 'mappings', params ?? {}] as const,
         voiceSettings: () => [...queryKeys.agents.all(), 'voice-settings'] as const,
         voiceTemplates: () => [...queryKeys.agents.all(), 'voice-templates'] as const,
@@ -198,6 +219,7 @@ export const queryKeys = {
 
     reseller: {
         all: () => [...queryKeys.all, 'reseller'] as const,
+        list: (params?: Record<string, unknown>) => [...queryKeys.all, 'resellers', params ?? {}] as const,
         profile: () => [...queryKeys.reseller.all(), 'profile'] as const,
         wallet: (id: string) => [...queryKeys.reseller.all(), id, 'wallet'] as const,
         ledger: (id: string) => [...queryKeys.reseller.all(), id, 'ledger'] as const,

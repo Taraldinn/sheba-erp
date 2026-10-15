@@ -65,6 +65,7 @@ from apps.authentication.views import (
     MyTenantRolesView, MyTenantPermissionsCatalogView,
 )
 from apps.authentication.reseller_api import ResellerViewSet
+from apps.authentication.agent_api import AgentViewSet
 from apps.customers.views import CustomerViewSet, CustomerQueryApiView, CustomerServiceViewSet, CustomerSubscriptionViewSet
 from apps.billing.views import PackageViewSet, ResellerPricingViewSet, InvoiceViewSet, RechargeViewSet, OfferViewSet
 from apps.finance.views import BillingAccountViewSet, LedgerEntryViewSet, PaymentAllocationViewSet, AdjustmentViewSet, InvoiceLineViewSet
@@ -80,7 +81,9 @@ from apps.finance.views_phase24 import (
 )
 from apps.payments.views import (
     PaymentGatewayViewSet, PaymentTransactionViewSet, SmsLogViewSet,
-    SmsWebhookView, InboundPaymentEventViewSet
+    SmsWebhookView, InboundPaymentEventViewSet,
+    SMSGatewayDeviceViewSet, PaymentVerificationRequestViewSet,
+    PaymentVerificationStatsView, AndroidSMSForwarderWebhookView
 )
 from apps.payments.bkash_views import (
     BKashPayBillQueryView, BKashPayBillPayView, BKashPayBillSearchView, ManualSMSForwarderView,
@@ -88,7 +91,7 @@ from apps.payments.bkash_views import (
 )
 from apps.network.views import (
     RouterViewSet, OLTViewSet, ONUViewSet, UserSessionViewSet, POPBranchViewSet, TJBoxViewSet,
-    NetworkProfileViewSet, PPPoEAccountViewSet
+    NetworkProfileViewSet, PPPoEAccountViewSet, PPTPVPNConfigViewSet
 )
 from apps.support.views import TicketViewSet
 from apps.hr.views import EmployeeViewSet, AttendanceViewSet, LeaveRequestViewSet, AdvanceSalaryViewSet, PayrollRecordViewSet
@@ -129,6 +132,7 @@ router.register(r'saas/api-credentials', SaaSApiCredentialViewSet, basename='saa
 router.register(r'saas/applications', SaaSApplicationViewSet, basename='saas-application')
 router.register(r'saas/organizations', SaaSOrganizationViewSet, basename='saas-organization')
 router.register(r'resellers', ResellerViewSet, basename='reseller')
+router.register(r'agents', AgentViewSet, basename='agent')
 router.register(r'saas/wireguard', SaaSWireGuardViewSet, basename='saas-wireguard')
 router.register(r'saas/feature-flags', TenantFeatureFlagViewSet, basename='saas-feature-flag')
 router.register(r'settings', CompanySettingViewSet, basename='setting')
@@ -164,6 +168,10 @@ router.register(r'gateways', PaymentGatewayViewSet, basename='gateway')
 router.register(r'transactions', PaymentTransactionViewSet, basename='transaction')
 router.register(r'payments/transactions', PaymentTransactionViewSet, basename='payment-transaction')
 router.register(r'sms-logs', SmsLogViewSet, basename='sms-log')
+router.register(r'payment-devices', SMSGatewayDeviceViewSet, basename='payment-device')
+router.register(r'payments/devices', SMSGatewayDeviceViewSet, basename='payment-device-alias')
+router.register(r'payment-verification-requests', PaymentVerificationRequestViewSet, basename='payment-verification-request')
+router.register(r'payments/verification-requests', PaymentVerificationRequestViewSet, basename='payment-verification-request-alias')
 router.register(r'payments/events', InboundPaymentEventViewSet, basename='inbound-payment-event')
 router.register(r'payment-events', InboundPaymentEventViewSet, basename='payment-event')
 router.register(r'routers', RouterViewSet, basename='router')
@@ -173,6 +181,8 @@ router.register(r'olts', OLTViewSet, basename='olt')
 router.register(r'onus', ONUViewSet, basename='onu')
 router.register(r'branches', POPBranchViewSet, basename='branch')
 router.register(r'tj-boxes', TJBoxViewSet, basename='tj-box')
+router.register(r'pptp-vpn', PPTPVPNConfigViewSet, basename='pptp-vpn')
+router.register(r'network/pptp-vpn', PPTPVPNConfigViewSet, basename='network-pptp-vpn')
 router.register(r'user-sessions', UserSessionViewSet, basename='user-session')
 router.register(r'tickets', TicketViewSet, basename='ticket')
 router.register(r'employees', EmployeeViewSet, basename='employee')
@@ -275,6 +285,13 @@ urlpatterns = [
     path('api/v1/payments/forwarder/webhook/', ManualSMSForwarderView.as_view(), name='manual-sms-forwarder-webhook'),
     path('api/v1/payments/checkout-status/', CheckoutStatusView.as_view(), name='checkout-status'),
     path('ajax/checkout_status.php', CheckoutStatusView.as_view(), name='legacy-checkout-status'),
+
+    # Phase 24: Payment Verification & Android SMS Forwarder Integration
+    path('api/v1/payments/verification/stats/', PaymentVerificationStatsView.as_view(), name='payment-verification-stats'),
+    path('api/v1/payment/sms', AndroidSMSForwarderWebhookView.as_view(), name='payment-sms-webhook-direct'),
+    path('api/v1/payment/sms/', AndroidSMSForwarderWebhookView.as_view(), name='payment-sms-webhook-direct-slash'),
+    path('api/v1/payments/sms-webhook/', AndroidSMSForwarderWebhookView.as_view(), name='payment-sms-webhook-named'),
+    path('api/v1/payments/sms-webhook', AndroidSMSForwarderWebhookView.as_view(), name='payment-sms-webhook-named-noslash'),
     
     # Analytics & Reports
     path('api/v1/reports/dashboard/', DashboardAnalyticsView.as_view(), name='reports-dashboard'),

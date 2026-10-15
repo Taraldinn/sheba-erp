@@ -2,16 +2,21 @@ import re
 import json
 import uuid
 import datetime
+import secrets
 from rest_framework import viewsets, permissions, views, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction, IntegrityError
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from .models import PaymentGateway, PaymentTransaction, SmsLog, InboundPaymentEvent, TransactionStatus
+from .models import (
+    PaymentGateway, PaymentTransaction, SmsLog, InboundPaymentEvent, TransactionStatus,
+    SMSGatewayDevice, PaymentVerificationRequest
+)
 from .serializers import (
     PaymentGatewaySerializer, PaymentTransactionSerializer, SmsLogSerializer,
-    InboundPaymentEventSerializer, ResolvePaymentEventSerializer, PaymentRequestSerializer
+    InboundPaymentEventSerializer, ResolvePaymentEventSerializer, PaymentRequestSerializer,
+    SMSGatewayDeviceSerializer, PaymentVerificationRequestSerializer
 )
 from apps.customers.models import Customer, CustomerStatus
 from apps.billing.models import Recharge
@@ -556,3 +561,210 @@ class InboundPaymentEventViewSet(viewsets.ModelViewSet):
             'matched_customer_username': customer.pppoe_username,
             'result': result
         }, status=status.HTTP_200_OK)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['7. Payments & SMS Gateways']),
+    retrieve=extend_schema(tags=['7. Payments & SMS Gateways']),
+    create=extend_schema(tags=['7. Payments & SMS Gateways']),
+    update=extend_schema(tags=['7. Payments & SMS Gateways']),
+    partial_update=extend_schema(tags=['7. Payments & SMS Gateways']),
+    destroy=extend_schema(tags=['7. Payments & SMS Gateways']),
+)
+class SMSGatewayDeviceViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsBillingStaff]
+    serializer_class = SMSGatewayDeviceSerializer
+
+    def get_queryset(self):
+        return get_scoped_queryset(self.request, SMSGatewayDevice)
+
+    def perform_create(self, serializer):
+        serializer.save(tenant=get_tenant_for_request(self.request))
+
+    @action(detail=False, methods=['post'], url_path='generate-token')
+    def generate_token(self, request):
+        """Generates a secure random 32-character hex API token."""
+        token = secrets.token_hex(16)
+        return Response({'api_token': token})
+
+    @action(detail=True, methods=['post'], url_path='toggle-status')
+    def toggle_status(self, request, pk=None):
+        device = self.get_object()
+        device.status = 'Inactive' if device.status == 'Active' else 'Active'
+        device.save(update_fields=['status', 'updated_at'])
+        return Response({'status': device.status, 'device_id': device.device_id})
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['7. Payments & SMS Gateways']),
+    retrieve=extend_schema(tags=['7. Payments & SMS Gateways']),
+    create=extend_schema(tags=['7. Payments & SMS Gateways']),
+    update=extend_schema(tags=['7. Payments & SMS Gateways']),
+    partial_update=extend_schema(tags=['7. Payments & SMS Gateways']),
+    destroy=extend_schema(tags=['7. Payments & SMS Gateways']),
+)
+class PaymentVerificationRequestViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsBillingStaff]
+    serializer_class = PaymentVerificationRequestSerializer
+
+    def get_queryset(self):
+        qs = get_scoped_queryset(self.request, PaymentVerificationRequest).select_related('customer', 'matched_sms')
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        if self.action == 'list':
+            return qs[:50]
+        return qs
+
+    def perform_create(self, serializer):
+        tenant = get_tenant_for_request(self.request)
+        client_pppoe_id = self.request.data.get('client_pppoe_id', '').strip()
+        customer = Customer.objects.filter(tenant=tenant, pppoe_username__iexact=client_pppoe_id).first()
+        if not customer:
+            customer = Customer.objects.filter(tenant=tenant, customer_code__iexact=client_pppoe_id).first()
+        serializer.save(tenant=tenant, customer=customer)
+
+    @action(detail=True, methods=['post'], url_path='verify')
+    def verify(self, request, pk=None):
+        ver_req = self.get_object()
+        ver_req.status = PaymentVerificationRequest.RequestStatus.VERIFIED
+        ver_req.verified_at = timezone.now()
+        ver_req.save(update_fields=['status', 'verified_at'])
+        return Response({
+            'success': True,
+            'status': ver_req.status,
+            'verified_at': ver_req.verified_at,
+            'message': f"Request for {ver_req.client_pppoe_id} marked as Verified."
+        })
+
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject(self, request, pk=None):
+        ver_req = self.get_object()
+        ver_req.status = PaymentVerificationRequest.RequestStatus.REJECTED
+        ver_req.save(update_fields=['status'])
+        return Response({
+            'success': True,
+            'status': ver_req.status,
+            'message': f"Request for {ver_req.client_pppoe_id} rejected."
+        })
+
+
+class PaymentVerificationStatsView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated, IsTenantMember, IsBillingStaff]
+
+    def get(self, request):
+        tenant = get_tenant_for_request(request)
+        total_devices = SMSGatewayDevice.objects.filter(tenant=tenant).count()
+        active_devices = SMSGatewayDevice.objects.filter(tenant=tenant, status='Active').count()
+
+        pending_requests = PaymentVerificationRequest.objects.filter(tenant=tenant, status='Pending').count()
+        verified_payments = PaymentVerificationRequest.objects.filter(
+            tenant=tenant, status__in=['Verified', 'Matched']
+        ).count()
+        total_requests = PaymentVerificationRequest.objects.filter(tenant=tenant).count()
+
+        if total_requests > 0:
+            rate = round((verified_payments / total_requests) * 100)
+            success_match_rate = f"{rate}%"
+        else:
+            success_match_rate = "0%"
+
+        return Response({
+            'active_devices': f"{active_devices} / {total_devices}",
+            'active_devices_count': active_devices,
+            'total_devices_count': total_devices,
+            'pending_requests': pending_requests,
+            'verified_payments': verified_payments,
+            'success_match_rate': success_match_rate,
+        })
+
+
+class AndroidSMSForwarderWebhookView(views.APIView):
+    """
+    Direct Android SMS Forwarder Webhook matching Screenshot 2.
+    URL: /api/v1/payment/sms and /api/v1/payments/sms-webhook/
+    Expected JSON:
+    {
+      "device_id": "Pixel_5_A12",
+      "api_token": "API_TOKEN",
+      "gateway": "bKash",
+      "sms_text": "...",
+      "received_at": "..."
+    }
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        data = request.data or {}
+        device_id = str(data.get('device_id', '')).strip()
+        api_token = str(data.get('api_token', '')).strip()
+        gateway = str(data.get('gateway', 'bKash')).strip()
+        sms_text = str(data.get('sms_text', '')).strip()
+
+        if not device_id or not api_token:
+            return Response({'error': 'device_id and api_token are required'}, status=status.HTTP_401_UNAUTHORIZED)
+        if not sms_text:
+            return Response({'error': 'sms_text is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        device = SMSGatewayDevice.objects.filter(device_id=device_id, api_token=api_token).first()
+        if not device:
+            return Response({'error': 'Unauthorized device or invalid API token'}, status=status.HTTP_403_FORBIDDEN)
+
+        tenant = device.tenant
+        device.last_seen_at = timezone.now()
+        device.save(update_fields=['last_seen_at'])
+
+        # Parse SMS using Regex
+        trx_match = re.search(r'(?:TrxID|TxnId|Txn\s*ID|TxID)[:\s]+([A-Za-z0-9_-]+)', sms_text, re.IGNORECASE)
+        amount_match = re.search(r'(?:Tk\.?|BDT|Amount\s*[:\s]*Tk?\.?)\s*([\d,]+\.?\d*)', sms_text, re.IGNORECASE)
+        account_match = re.search(r'(?:from|account)[:\s]+([0-9+]+)', sms_text, re.IGNORECASE)
+
+        parsed_trx = trx_match.group(1) if trx_match else ''
+        parsed_amount = None
+        if amount_match:
+            try:
+                parsed_amount = Decimal(amount_match.group(1).replace(',', ''))
+            except Exception:
+                pass
+        parsed_account = account_match.group(1) if account_match else ''
+
+        # Create SmsLog
+        sms_log = SmsLog.objects.create(
+            tenant=tenant,
+            device_id=device_id,
+            gateway=gateway or device.provider,
+            sender=parsed_account or device_id,
+            raw_message=sms_text,
+            parsed_provider=gateway or device.provider,
+            parsed_amount=parsed_amount,
+            parsed_trx_id=parsed_trx,
+            parsed_account=parsed_account,
+        )
+
+        # Automatic Match against pending verification requests
+        matched = False
+        if parsed_trx:
+            pending_req = PaymentVerificationRequest.objects.filter(
+                tenant=tenant,
+                transaction_id__iexact=parsed_trx,
+                status=PaymentVerificationRequest.RequestStatus.PENDING
+            ).first()
+            if pending_req:
+                pending_req.status = PaymentVerificationRequest.RequestStatus.MATCHED
+                pending_req.matched_sms = sms_log
+                pending_req.verified_at = timezone.now()
+                pending_req.save(update_fields=['status', 'matched_sms', 'verified_at'])
+                sms_log.is_matched = True
+                sms_log.matched_customer = pending_req.customer
+                sms_log.save(update_fields=['is_matched', 'matched_customer'])
+                matched = True
+
+        return Response({
+            'success': True,
+            'sms_id': str(sms_log.id),
+            'matched': matched,
+            'parsed_trx_id': parsed_trx,
+            'parsed_amount': str(parsed_amount) if parsed_amount else None,
+            'gateway': gateway or device.provider,
+        }, status=status.HTTP_201_CREATED)
+

@@ -253,6 +253,43 @@ class ResellerLedgerEntry(models.Model):
         return f"{self.entry_type} ৳{self.amount} → {self.reseller.business_name}"
 
 
+class Agent(models.Model):
+    """
+    Business Agent representing an ISP area collection or reseller management agent.
+    Agents can oversee multiple Resellers, hold a wallet/collection balance,
+    and have bank details for payouts/settlements.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='agents')
+    name = models.CharField(max_length=200)
+    phone = models.CharField(max_length=30)
+    email = models.EmailField(blank=True, default='')
+    address = models.TextField(blank=True, default='')
+
+    # Bank Information (Optional)
+    bank_name = models.CharField(max_length=150, blank=True, default='')
+    account_name = models.CharField(max_length=150, blank=True, default='')
+    account_no = models.CharField(max_length=100, blank=True, default='')
+    branch_name = models.CharField(max_length=150, blank=True, default='')
+    routing_no = models.CharField(max_length=50, blank=True, default='')
+
+    # Financial Balance & Association
+    balance = models.DecimalField(max_digits=14, decimal_places=2, default=0.00)
+    resellers = models.ManyToManyField(Reseller, blank=True, related_name='agents')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'is_active'], name='agent_tenant_active_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.phone})"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2: StaffProfile -> StaffMembership Synchronization
 # ─────────────────────────────────────────────────────────────────────────────
