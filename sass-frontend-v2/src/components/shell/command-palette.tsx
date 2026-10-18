@@ -221,28 +221,28 @@ export function CommandPalette({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="top-[25%] p-0 overflow-hidden max-w-xl border-border bg-card shadow-2xl rounded-xl"
+        className="top-[25%] p-0 overflow-hidden max-w-xl border border-border/80 bg-card/90 backdrop-blur-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)] rounded-2xl luxury-sheen"
       >
         <DialogTitle className="sr-only">Command Palette</DialogTitle>
-        <div className="flex items-center gap-2.5 border-b border-border px-3.5 py-3">
-          <Search className="size-4 shrink-0 text-muted-foreground" />
+        <div className="flex items-center gap-3 border-b border-border/60 px-4 py-3.5 bg-muted/10">
+          <Search className="size-4 shrink-0 text-muted-foreground/80" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a command or search (e.g. clients, routers, theme)..."
-            className="h-7 border-0 bg-transparent p-0 text-sm focus-visible:ring-0 focus-visible:outline-none placeholder:text-muted-foreground"
+            placeholder="Type a command or search..."
+            className="h-7 border-0 bg-transparent p-0 text-sm tracking-tight focus-visible:ring-0 focus-visible:outline-none placeholder:text-muted-foreground/60"
             autoFocus
           />
-          <kbd className="hidden sm:inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+          <kbd className="hidden sm:inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
             ESC
           </kbd>
         </div>
 
         <div className="max-h-[340px] overflow-y-auto p-2" tabIndex={-1}>
           {filteredItems.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted-foreground">
-              No matching commands or routes found for &quot;{query}&quot;.
+            <div className="py-12 text-center text-xs text-muted-foreground font-normal">
+              No matching commands found for &quot;{query}&quot;.
             </div>
           ) : (
             <div className="space-y-1">
@@ -256,32 +256,32 @@ export function CommandPalette({
                     onClick={() => runAndClose(item.perform)}
                     onMouseEnter={() => setSelectedIndex(index)}
                     className={cn(
-                      'flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-xs transition-colors',
+                      'flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-xs transition-all duration-150',
                       isSelected
-                        ? 'bg-accent text-accent-foreground font-medium'
-                        : 'text-foreground hover:bg-muted/60'
+                        ? 'bg-accent/70 text-foreground font-medium shadow-xs border border-primary/20'
+                        : 'text-foreground/90 hover:bg-muted/40 border border-transparent'
                     )}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div
                         className={cn(
-                          'flex size-6 shrink-0 items-center justify-center rounded-md border',
+                          'flex size-6 shrink-0 items-center justify-center rounded-lg border transition-colors',
                           isSelected
-                            ? 'border-primary/40 bg-primary/10 text-primary'
-                            : 'border-border bg-muted/30 text-muted-foreground'
+                            ? 'border-primary/50 bg-primary/15 text-primary'
+                            : 'border-border/60 bg-muted/20 text-muted-foreground'
                         )}
                       >
                         <Icon className="size-3.5" />
                       </div>
-                      <span className="truncate">{item.title}</span>
+                      <span className="truncate tracking-tight">{item.title}</span>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">
                         {item.category}
                       </span>
                       {item.shortcut && (
-                        <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
+                        <kbd className="rounded border border-border/60 bg-muted/40 px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
                           {item.shortcut}
                         </kbd>
                       )}
@@ -293,16 +293,16 @@ export function CommandPalette({
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border bg-muted/20 px-3.5 py-2 text-[11px] text-muted-foreground">
+        <div className="flex items-center justify-between border-t border-border/50 bg-muted/15 px-4 py-2.5 text-[11px] text-muted-foreground/80">
           <div className="flex items-center gap-3">
             <span>
-              <kbd className="font-mono">↑↓</kbd> navigate
+              <kbd className="font-mono text-[10px] bg-muted/50 px-1 py-0.5 rounded border border-border/40">↑↓</kbd> navigate
             </span>
             <span>
-              <kbd className="font-mono">↵</kbd> select
+              <kbd className="font-mono text-[10px] bg-muted/50 px-1 py-0.5 rounded border border-border/40">↵</kbd> select
             </span>
           </div>
-          <span className="font-mono text-[10px]">Shebafi Universal Shell</span>
+          <span className="font-mono text-[10px] text-muted-foreground/60 tracking-wider">SHEBAFI COMMAND</span>
         </div>
       </DialogContent>
     </Dialog>

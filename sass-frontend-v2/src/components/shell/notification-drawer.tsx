@@ -108,28 +108,34 @@ export function NotificationDrawer({
 
     if (items.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
-          <Bell className="size-8 stroke-1 text-muted-foreground/50 mb-2" />
-          <p className="text-xs font-medium">All clear! No notifications here.</p>
+        <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
+          <div className="size-10 rounded-full border border-border/60 bg-muted/20 flex items-center justify-center mb-3">
+            <Bell className="size-4 stroke-1 text-muted-foreground/60" />
+          </div>
+          <p className="text-xs font-medium tracking-tight">All caught up</p>
+          <p className="text-[11px] text-muted-foreground/60 mt-0.5">No new notifications in this category</p>
         </div>
       );
     }
 
     return (
-      <div className="divide-y divide-border overflow-y-auto">
+      <div className="divide-y divide-border/40 overflow-y-auto">
         {items.map((item) => (
           <div
             key={item.id}
             onClick={() => markSingleAsRead(item.id)}
             className={cn(
-              'group relative flex flex-col gap-1.5 p-4 text-xs transition-colors hover:bg-muted/40 cursor-pointer',
-              !item.read && 'bg-accent/15'
+              'group relative flex flex-col gap-1.5 p-4 text-xs transition-all duration-150 hover:bg-muted/30 cursor-pointer',
+              !item.read && 'bg-primary/[0.03]'
             )}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
                 {!item.read && (
-                  <span className="size-1.5 rounded-full bg-primary shrink-0" />
+                  <span className="relative flex size-2 shrink-0">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-60" />
+                    <span className="relative inline-flex size-2 rounded-full bg-primary" />
+                  </span>
                 )}
                 {item.category === 'alerts' && (
                   <AlertTriangle
@@ -145,25 +151,25 @@ export function NotificationDrawer({
                 {item.category === 'system' && (
                   <Info className="size-3.5 shrink-0 text-muted-foreground" />
                 )}
-                <span className={cn('font-medium leading-none', !item.read && 'text-foreground font-semibold')}>
+                <span className={cn('font-medium leading-none tracking-tight', !item.read ? 'text-foreground font-semibold' : 'text-foreground/80')}>
                   {item.title}
                 </span>
               </div>
-              <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+              <span className="font-mono text-[10px] text-muted-foreground/70 shrink-0">
                 {item.timestamp}
               </span>
             </div>
 
-            <p className="text-muted-foreground pl-3.5 text-[11px] leading-relaxed">
+            <p className="text-muted-foreground/80 pl-4 text-[11px] leading-relaxed">
               {item.description}
             </p>
 
             {item.href && (
-              <div className="pl-3.5 pt-1">
+              <div className="pl-4 pt-1">
                 <Link
                   href={item.href as never}
                   onClick={() => onOpenChange(false)}
-                  className="inline-flex items-center gap-1 font-mono text-[10px] text-primary hover:underline"
+                  className="inline-flex items-center gap-1 font-mono text-[10px] text-primary/90 hover:text-primary transition-colors hover:underline"
                 >
                   View Details <ExternalLink className="size-2.5" />
                 </Link>
@@ -179,14 +185,14 @@ export function NotificationDrawer({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex flex-col p-0 w-full sm:max-w-md border-l border-border bg-card"
+        className="flex flex-col p-0 w-full sm:max-w-md border-l border-border/70 bg-card/90 backdrop-blur-2xl shadow-2xl luxury-sheen"
       >
-        <SheetHeader className="border-b border-border p-4 pb-3">
+        <SheetHeader className="border-b border-border/50 p-4 pb-3 bg-muted/10">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <SheetTitle className="text-sm font-semibold">Notifications & Alerts</SheetTitle>
+            <div className="flex items-center gap-2.5">
+              <SheetTitle className="text-sm font-semibold tracking-tight">Notifications & Alerts</SheetTitle>
               {activeUnreadCount > 0 && (
-                <Badge variant="secondary" className="font-mono text-[10px] px-1.5 py-0 h-4">
+                <Badge variant="secondary" className="font-mono text-[10px] px-1.5 py-0 h-4 rounded-full border border-primary/20 bg-primary/10 text-primary">
                   {activeUnreadCount} new
                 </Badge>
               )}
@@ -196,9 +202,9 @@ export function NotificationDrawer({
                 variant="ghost"
                 size="sm"
                 onClick={markAllAsRead}
-                className="h-7 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                className="h-6 gap-1 px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground"
               >
-                <CheckCheck className="size-3.5" />
+                <CheckCheck className="size-3" />
                 Mark all read
               </Button>
             )}
@@ -206,15 +212,15 @@ export function NotificationDrawer({
         </SheetHeader>
 
         <Tabs defaultValue="all" className="flex flex-col flex-1 overflow-hidden">
-          <div className="border-b border-border px-4 py-2 bg-muted/20">
-            <TabsList className="grid w-full grid-cols-3 h-8">
-              <TabsTrigger value="all" className="text-xs">
+          <div className="border-b border-border/40 px-4 py-2 bg-muted/15">
+            <TabsList className="grid w-full grid-cols-3 h-8 bg-muted/30 p-0.5 rounded-lg border border-border/40">
+              <TabsTrigger value="all" className="text-xs rounded-md data-[state=active]:bg-card data-[state=active]:shadow-xs">
                 All
               </TabsTrigger>
-              <TabsTrigger value="alerts" className="text-xs">
+              <TabsTrigger value="alerts" className="text-xs rounded-md data-[state=active]:bg-card data-[state=active]:shadow-xs">
                 Alerts
               </TabsTrigger>
-              <TabsTrigger value="billing" className="text-xs">
+              <TabsTrigger value="billing" className="text-xs rounded-md data-[state=active]:bg-card data-[state=active]:shadow-xs">
                 Billing
               </TabsTrigger>
             </TabsList>

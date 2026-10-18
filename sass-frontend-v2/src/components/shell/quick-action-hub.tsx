@@ -22,7 +22,8 @@ export function QuickActionHub() {
     {
       label: 'Quick Pay',
       icon: Zap,
-      color: 'bg-emerald-500 hover:bg-emerald-600 text-white',
+      iconColor: 'text-emerald-400',
+      tagColor: 'hover:border-emerald-500/40 hover:bg-emerald-500/10',
       onClick: () => {
         setIsOpen(false);
         router.push('/tenant/payments' as never);
@@ -31,7 +32,8 @@ export function QuickActionHub() {
     {
       label: 'Add Client',
       icon: UserPlus,
-      color: 'bg-primary hover:bg-primary/90 text-primary-foreground',
+      iconColor: 'text-primary',
+      tagColor: 'hover:border-primary/40 hover:bg-primary/10',
       onClick: () => {
         setIsOpen(false);
         router.push('/tenant/customers/new' as never);
@@ -40,7 +42,8 @@ export function QuickActionHub() {
     {
       label: 'Ping Router',
       icon: Server,
-      color: 'bg-amber-500 hover:bg-amber-600 text-white',
+      iconColor: 'text-amber-400',
+      tagColor: 'hover:border-amber-500/40 hover:bg-amber-500/10',
       onClick: () => {
         setIsOpen(false);
         router.push('/tenant/routers' as never);
@@ -49,7 +52,8 @@ export function QuickActionHub() {
     {
       label: 'New Ticket',
       icon: LifeBuoy,
-      color: 'bg-indigo-500 hover:bg-indigo-600 text-white',
+      iconColor: 'text-indigo-400',
+      tagColor: 'hover:border-indigo-500/40 hover:bg-indigo-500/10',
       onClick: () => {
         setIsOpen(false);
         router.push('/tenant/tickets' as never);
@@ -61,7 +65,7 @@ export function QuickActionHub() {
     <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2.5">
       {isOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/20 backdrop-blur-[1px] animate-in fade-in-0 duration-150"
+          className="fixed inset-0 z-30 bg-black/30 backdrop-blur-xs animate-in fade-in-0 duration-150"
           onClick={() => setIsOpen(false)}
         />
       )}
@@ -71,18 +75,22 @@ export function QuickActionHub() {
           {actions.map((act) => {
             const Icon = act.icon;
             return (
-              <div key={act.label} className="flex items-center gap-2">
-                <span className="rounded-md border border-border bg-card px-2 py-0.5 font-mono text-[11px] font-medium text-foreground shadow-sm">
+              <button
+                key={act.label}
+                type="button"
+                onClick={act.onClick}
+                className={cn(
+                  'group flex items-center gap-2.5 rounded-full border border-border/80 bg-card/90 px-3 py-1.5 shadow-lg backdrop-blur-xl transition-all duration-150 hover:scale-[1.02] focus:outline-none focus:ring-1 focus:ring-ring',
+                  act.tagColor
+                )}
+              >
+                <span className="font-mono text-xs font-medium text-foreground tracking-tight">
                   {act.label}
                 </span>
-                <Button
-                  size="icon"
-                  onClick={act.onClick}
-                  className={cn('size-10 rounded-full shadow-md transition-transform hover:scale-105', act.color)}
-                >
-                  <Icon className="size-4" />
-                </Button>
-              </div>
+                <div className="flex size-6 items-center justify-center rounded-full bg-muted/40 border border-border/50">
+                  <Icon className={cn('size-3.5', act.iconColor)} />
+                </div>
+              </button>
             );
           })}
         </div>
@@ -91,17 +99,17 @@ export function QuickActionHub() {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              size="icon"
+            <button
+              type="button"
               onClick={() => setIsOpen(!isOpen)}
               aria-label="Quick Actions Hub"
               className={cn(
-                'relative z-40 size-12 rounded-full shadow-lg transition-transform duration-200',
-                isOpen ? 'bg-muted-foreground text-card rotate-45' : 'bg-primary text-primary-foreground hover:scale-105'
+                'relative z-40 flex size-11 items-center justify-center rounded-full border border-border/80 bg-card/85 text-foreground backdrop-blur-xl shadow-[0_8px_30px_rgb(0_0_0/0.12)] transition-all duration-200 hover:scale-105 hover:border-primary/50 hover:shadow-[0_0_24px_-4px_var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                isOpen && 'rotate-45 bg-muted text-muted-foreground border-border'
               )}
             >
-              <Plus className="size-6 transition-transform" />
-            </Button>
+              <Plus className="size-5 transition-transform" />
+            </button>
           </TooltipTrigger>
           {!isOpen && (
             <TooltipContent side="left" className="font-mono text-xs">
