@@ -264,11 +264,10 @@
 
 @utility glow-hover {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-@utility glow-hover:hover {
-  border-color: color-mix(in oklch, var(--primary) 45%, transparent);
-  box-shadow: 0 0 25px -4px color-mix(in oklch, var(--primary) 22%, transparent);
+  &:hover {
+    border-color: color-mix(in oklch, var(--primary) 45%, transparent);
+    box-shadow: 0 0 25px -4px color-mix(in oklch, var(--primary) 22%, transparent);
+  }
 }
 
 @utility luxury-sheen {
