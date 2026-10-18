@@ -52,6 +52,9 @@
     "node_modules",
     ".next",
     ".open-next",
-    "dist"
+    "dist",
+    "open-next.config.ts",
+    "cloudflare.config.ts",
+    "eslint.config.js"
   ]
 }
