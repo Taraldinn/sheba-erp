@@ -39,14 +39,22 @@ export function KpiCard({ label, value, hint, subtext, trend, danger, icon, test
     const body = (
         <div
             data-testid={testId}
-            className={`relative flex h-full flex-col gap-3 overflow-hidden rounded-lg border bg-card p-5 ${
+            className={`group relative flex h-full flex-col gap-3 overflow-hidden rounded-lg border bg-card p-5 ${
                 danger ? 'border-destructive/40' : 'border-border'
-            } ${href ? 'transition-colors hover:border-primary/50' : ''}`}
+            } ${href ? 'transition-colors hover:bg-muted/40 hover:border-primary/50' : ''}`}
         >
+            <span
+                className={`absolute inset-x-0 top-0 h-px ${danger ? 'bg-destructive' : 'bg-primary'} opacity-0 transition-opacity group-hover:opacity-100`}
+                aria-hidden="true"
+            />
             {danger && <span className="absolute inset-y-0 left-0 w-0.5 bg-destructive" aria-hidden="true" />}
             <div className="flex items-center justify-between gap-2">
                 <span className="eyebrow text-muted-foreground">{label}</span>
-                {renderedIcon && <span className={danger ? 'text-destructive' : 'text-muted-foreground'}>{renderedIcon}</span>}
+                {renderedIcon && (
+                    <div className="inline-flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors group-hover:border-primary/50 group-hover:text-primary">
+                        <span className={danger ? 'text-destructive' : 'text-muted-foreground'}>{renderedIcon}</span>
+                    </div>
+                )}
             </div>
             <div
                 className={`font-mono text-2xl font-semibold tracking-tight tabular-nums ${danger ? 'text-destructive' : 'text-foreground'}`}

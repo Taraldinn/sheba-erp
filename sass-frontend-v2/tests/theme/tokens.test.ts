@@ -12,6 +12,7 @@ describe("Theme Tokens CSS", () => {
     expect(content).toContain('[data-density="compact"]');
     expect(content).toContain('[data-density="comfortable"]');
     expect(content).toContain("--status-online");
+    expect(content).toContain("--font-space-grotesk");
     expect(content).toContain("@utility glow-hover");
     expect(content).toContain("@utility luxury-sheen");
 

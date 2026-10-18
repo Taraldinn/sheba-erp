@@ -22,7 +22,7 @@ import { ErrorAlert, MoneyText, StatusBadge } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DashboardHero, EmptyState, Meter, Panel, PanelLink, QuickAction, StatTile, StatusDot } from '@/components/dashboard/primitives';
+import { DashboardHero, EmptyState, Meter, Panel, PanelLink, QuickAction, StatGrid, StatTile, StatusDot } from '@/components/dashboard/primitives';
 
 export default function SaasOverview() {
     const { data: overview, error: overviewError, isLoading } = useQuery({
@@ -95,7 +95,7 @@ export default function SaasOverview() {
 
             {error && <ErrorAlert title="Failed to load platform overview" error={error as Error} />}
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatGrid>
                 <StatTile
                     label="Monthly recurring revenue"
                     icon={CircleDollarSign}
@@ -130,7 +130,7 @@ export default function SaasOverview() {
                     value={isLoading ? sk : (overview?.total_subscribers ?? 0).toLocaleString()}
                     hint={`${(overview?.active_subscribers ?? 0).toLocaleString()} active end-users`}
                 />
-            </div>
+            </StatGrid>
 
             <div className="grid gap-4 xl:grid-cols-5">
                 <Panel

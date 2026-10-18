@@ -8,7 +8,7 @@ import { queryKeys } from '@/lib/query/keys';
 import { ErrorAlert, StatusBadge } from '@/components/feedback';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DashboardHero, Meter, Panel, PanelLink, QuickAction, StatTile } from '@/components/dashboard/primitives';
+import { DashboardHero, Meter, Panel, PanelLink, QuickAction, StatGrid, StatTile } from '@/components/dashboard/primitives';
 
 export default function IspOverview() {
     const overview = useQuery({ queryKey: queryKeys.ispAdminOverview(), queryFn: () => ispAdminApi.getOverview() });
@@ -53,7 +53,7 @@ export default function IspOverview() {
 
             {overview.error && <ErrorAlert title="Failed to load ISP overview" error={overview.error} />}
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatGrid>
                 <StatTile
                     label="Aggregate subscribers"
                     icon={Users}
@@ -84,7 +84,7 @@ export default function IspOverview() {
                     hint={expires ? `Expires ${expires.toLocaleDateString()}` : 'No expiry set'}
                     href="/isp/subscriptions"
                 />
-            </div>
+            </StatGrid>
 
             <div className="grid gap-4 lg:grid-cols-2">
                 <Panel title="Workspace setup" description="Domains and modules configured for your brand">

@@ -1,8 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import { headers, cookies } from "next/headers";
 import "./globals.css";
 import { AppProviders } from "./providers";
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
+});
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -48,7 +53,7 @@ export default async function RootLayout({
       suppressHydrationWarning
       data-theme={initialPreset}
       data-density={initialDensity}
-      className={`${geistSans.variable} ${geistMono.variable}`}
+      className={`${spaceGrotesk.variable} ${geistSans.variable} ${geistMono.variable}`}
     >
       <body className="bg-background font-sans text-foreground antialiased">
         <AppProviders
