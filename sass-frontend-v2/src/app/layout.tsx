@@ -39,11 +39,26 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const host = headerList.get("host") || "localhost";
   const initialTenant = cookieStore.get("saas_tenant_slug")?.value || null;
+  const initialPreset = (cookieStore.get("sheba_theme_preset")?.value as "signal" | "indigo") || "signal";
+  const initialDensity = (cookieStore.get("sheba_density")?.value as "comfortable" | "compact") || "comfortable";
 
   return (
-    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      data-theme={initialPreset}
+      data-density={initialDensity}
+      className={`${geistSans.variable} ${geistMono.variable}`}
+    >
       <body className="bg-background font-sans text-foreground antialiased">
-        <AppProviders initialHost={host} initialTenant={initialTenant}>{children}</AppProviders>
+        <AppProviders
+          initialHost={host}
+          initialTenant={initialTenant}
+          initialPreset={initialPreset}
+          initialDensity={initialDensity}
+        >
+          {children}
+        </AppProviders>
       </body>
     </html>
   );

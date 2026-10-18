@@ -22,28 +22,40 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
 }
 
 import { Toaster } from '@/components/ui/sonner';
+import { ThemePresetProvider, type ThemePreset, type DisplayDensity } from '@/hooks/use-theme-preset';
 
 interface AppProvidersProps extends PropsWithChildren {
     queryClient?: ReturnType<typeof createQueryClient>;
     initialHost?: string;
     initialTenant?: string | null;
+    initialPreset?: ThemePreset;
+    initialDensity?: DisplayDensity;
 }
 
-export function AppProviders({ children, queryClient, initialHost, initialTenant }: AppProvidersProps) {
+export function AppProviders({
+    children,
+    queryClient,
+    initialHost,
+    initialTenant,
+    initialPreset = 'signal',
+    initialDensity = 'comfortable',
+}: AppProvidersProps) {
     const client = queryClient ?? createQueryClient();
     return (
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            <QueryClientProvider client={client}>
-                <TooltipProvider>
-                    <PortalProvider initialHost={initialHost} initialTenant={initialTenant}>
-                        <AuthProvider>
-                            {children}
-                            <DevPortalSwitcher />
-                            <Toaster position="top-right" richColors />
-                        </AuthProvider>
-                    </PortalProvider>
-                </TooltipProvider>
-            </QueryClientProvider>
+            <ThemePresetProvider initialPreset={initialPreset} initialDensity={initialDensity}>
+                <QueryClientProvider client={client}>
+                    <TooltipProvider>
+                        <PortalProvider initialHost={initialHost} initialTenant={initialTenant}>
+                            <AuthProvider>
+                                {children}
+                                <DevPortalSwitcher />
+                                <Toaster position="top-right" richColors />
+                            </AuthProvider>
+                        </PortalProvider>
+                    </TooltipProvider>
+                </QueryClientProvider>
+            </ThemePresetProvider>
         </ThemeProvider>
     );
 }
