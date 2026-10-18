@@ -122,21 +122,22 @@ class MikroTikSystemService:
             disk_pct = max(0, min(100, int(((total_disk - free_disk) / max(1, total_disk)) * 100)))
 
             # Update router state in DB
-            self.router.status = 'Online'
-            self.router.last_ping = timezone.now()
-            self.router.cpu_usage = cpu
-            self.router.memory_usage = mem_pct
-            self.router.disk_usage = disk_pct
-            self.router.uptime = uptime
-            if version:
-                self.router.routeros_version = version
-            self.router.save(update_fields=[
-                'status', 'last_ping', 'cpu_usage', 'memory_usage',
-                'disk_usage', 'uptime', 'routeros_version'
-            ])
+            if self.router.pk:
+                self.router.status = 'Online'
+                self.router.last_ping = timezone.now()
+                self.router.cpu_usage = cpu
+                self.router.memory_usage = mem_pct
+                self.router.disk_usage = disk_pct
+                self.router.uptime = uptime
+                if version:
+                    self.router.routeros_version = version
+                self.router.save(update_fields=[
+                    'status', 'last_ping', 'cpu_usage', 'memory_usage',
+                    'disk_usage', 'uptime', 'routeros_version'
+                ])
 
             details = {
-                'router_id': str(self.router.id),
+                'router_id': str(self.router.id) if self.router.pk else '',
                 'name': self.router.name,
                 'identity': identity,
                 'version': version,
@@ -150,27 +151,31 @@ class MikroTikSystemService:
             return True, f"Successfully connected to {identity} (RouterOS {version})", details
 
         except MikroTikAuthError as exc:
-            self.router.status = 'Error'
-            self.router.save(update_fields=['status'])
-            logger.warning("Auth failure for router %s: %s", self.router.id, exc)
+            if self.router.pk:
+                self.router.status = 'Error'
+                self.router.save(update_fields=['status'])
+            logger.warning("Auth failure for router %s: %s", getattr(self.router, 'id', 'adhoc'), exc)
             return False, "Authentication failed. Verify router username and password.", {'error': 'AUTHENTICATION_FAILED'}
 
         except MikroTikTimeoutError as exc:
-            self.router.status = 'Offline'
-            self.router.save(update_fields=['status'])
-            logger.warning("Timeout connecting to router %s: %s", self.router.id, exc)
+            if self.router.pk:
+                self.router.status = 'Offline'
+                self.router.save(update_fields=['status'])
+            logger.warning("Timeout connecting to router %s: %s", getattr(self.router, 'id', 'adhoc'), exc)
             return False, "Connection timed out. Router is unreachable or port is blocked.", {'error': 'TIMEOUT'}
 
         except MikroTikConnectionError as exc:
-            self.router.status = 'Offline'
-            self.router.save(update_fields=['status'])
-            logger.warning("Connection failure for router %s: %s", self.router.id, exc)
+            if self.router.pk:
+                self.router.status = 'Offline'
+                self.router.save(update_fields=['status'])
+            logger.warning("Connection failure for router %s: %s", getattr(self.router, 'id', 'adhoc'), exc)
             return False, "Unable to establish connection to router.", {'error': 'CONNECTION_REFUSED'}
 
         except MikroTikClientError as exc:
-            self.router.status = 'Error'
-            self.router.save(update_fields=['status'])
-            logger.error("MikroTik client error for router %s: %s", self.router.id, exc)
+            if self.router.pk:
+                self.router.status = 'Error'
+                self.router.save(update_fields=['status'])
+            logger.error("MikroTik client error for router %s: %s", getattr(self.router, 'id', 'adhoc'), exc)
             return False, str(exc), {'error': 'ROUTER_ERROR'}
 
     def get_full_health(self) -> dict[str, Any]:

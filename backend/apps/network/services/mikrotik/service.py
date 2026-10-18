@@ -98,14 +98,27 @@ class MikroTikService:
         Returns: (success: bool, message: str, details: dict)
         """
         if self.is_rest:
-            return self.system.test_connection()
+            ok, msg, details = self.system.test_connection()
+            if not ok and details.get('error') in ('CONNECTION_REFUSED', 'TIMEOUT'):
+                # Diagnostic probe: check if standard binary API port is open
+                import socket
+                try:
+                    s = socket.socket()
+                    s.settimeout(1.5)
+                    port = self.router.api_port or 8728
+                    if s.connect_ex((self.router.effective_host, port)) == 0:
+                        msg += f" (Notice: RouterOS API port {port} is open on this device. If this router uses the RouterOS binary API instead of REST, please switch Protocol to 'API')."
+                    s.close()
+                except Exception:
+                    pass
+            return ok, msg, details
 
         if self.is_radius:
             try:
                 probe_ok = self.probe_radius_coa(timeout=2.0)
                 api_ok = False
                 details: dict[str, Any] = {
-                    'router_id': str(self.router.id),
+                    'router_id': str(self.router.id) if self.router.pk else '',
                     'name': self.router.name,
                     'protocol': 'RADIUS',
                     'auth_port': self.router.radius_auth_port,
@@ -132,21 +145,24 @@ class MikroTikService:
 
                 is_online = probe_ok or api_ok
                 if is_online:
-                    self.router.status = 'Online'
-                    self.router.last_ping = timezone.now()
-                    self.router.save()
+                    if self.router.pk:
+                        self.router.status = 'Online'
+                        self.router.last_ping = timezone.now()
+                        self.router.save()
 
                     msg = f"RADIUS AAA operational for '{self.router.name}' (CoA port {self.router.radius_coa_port})"
                     if api_ok:
                         msg += " + Live Telemetry linked"
                     return True, msg, details
                 else:
-                    self.router.status = 'Offline'
-                    self.router.save(update_fields=['status'])
+                    if self.router.pk:
+                        self.router.status = 'Offline'
+                        self.router.save(update_fields=['status'])
                     return False, f"RADIUS probe to '{self.router.name}' failed: no response from router.", details
             except Exception as exc:
-                self.router.status = 'Error'
-                self.router.save(update_fields=['status'])
+                if self.router.pk:
+                    self.router.status = 'Error'
+                    self.router.save(update_fields=['status'])
                 return False, f"RADIUS connection test failed: {exc}", {'error': 'RADIUS_ERROR'}
 
         # Legacy binary API fallback
@@ -166,18 +182,19 @@ class MikroTikService:
                 version = r.get('version', '')
                 uptime = r.get('uptime', '')
 
-            self.router.status = 'Online'
-            self.router.last_ping = timezone.now()
-            self.router.cpu_usage = cpu
-            self.router.memory_usage = mem_pct
-            self.router.disk_usage = disk_pct
-            self.router.uptime = uptime
-            if version:
-                self.router.routeros_version = version
-            self.router.save(update_fields=[
-                'status', 'last_ping', 'cpu_usage', 'memory_usage',
-                'disk_usage', 'uptime', 'routeros_version'
-            ])
+            if self.router.pk:
+                self.router.status = 'Online'
+                self.router.last_ping = timezone.now()
+                self.router.cpu_usage = cpu
+                self.router.memory_usage = mem_pct
+                self.router.disk_usage = disk_pct
+                self.router.uptime = uptime
+                if version:
+                    self.router.routeros_version = version
+                self.router.save(update_fields=[
+                    'status', 'last_ping', 'cpu_usage', 'memory_usage',
+                    'disk_usage', 'uptime', 'routeros_version'
+                ])
             return True, f"Connected to {identity} (RouterOS {version})", {
                 'identity': identity,
                 'version': version,
@@ -187,9 +204,17 @@ class MikroTikService:
                 'uptime': uptime,
             }
         except (RouterConnectionError, RouterCommandError) as exc:
-            self.router.status = 'Error'
-            self.router.save(update_fields=['status'])
-            return False, str(exc), {'error': 'ROUTER_ERROR'}
+            if self.router.pk:
+                self.router.status = 'Error'
+                self.router.save(update_fields=['status'])
+            err_str = str(exc)
+            if 'invalid user name or password' in err_str.lower():
+                return False, f"Authentication failed for user '{self.router.username}'. Verify router username and password.", {'error': 'AUTHENTICATION_FAILED'}
+            if 'connection refused' in err_str.lower():
+                return False, f"Connection refused to {self.router.effective_host}:{self.router.api_port}. Verify that the RouterOS API service is enabled on this port in /ip service.", {'error': 'CONNECTION_REFUSED'}
+            if 'timed out' in err_str.lower() or 'timeout' in err_str.lower():
+                return False, f"Connection timed out to {self.router.effective_host}:{self.router.api_port}. Verify IP address and firewall rules.", {'error': 'TIMEOUT'}
+            return False, err_str, {'error': 'ROUTER_ERROR'}
 
     # ─── System Health ────────────────────────────────────────────────────────
 
@@ -301,6 +326,13 @@ class MikroTikService:
                 'active_pppoe_count', 'routeros_version', 'status', 'last_ping'
             ])
 
+            interfaces = []
+            try:
+                from .traffic import MikroTikTrafficService
+                interfaces = MikroTikTrafficService(self.router).get_all_interfaces()
+            except Exception:
+                pass
+
             return {
                 'is_online': True,
                 'status': 'Online',
@@ -314,6 +346,7 @@ class MikroTikService:
                 'routeros_version': version,
                 'board': r.get('board-name', ''),
                 'active_pppoe_count': active_count,
+                'interfaces': interfaces,
                 'last_ping': self.router.last_ping.isoformat() if self.router.last_ping else None,
             }
         except Exception as exc:

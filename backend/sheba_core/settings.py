@@ -56,6 +56,7 @@ else:
 
 # ─── Installed apps ──────────────────────────────────────────────────────────
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -64,6 +65,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # Third-party packages
+    'channels',
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
@@ -129,6 +131,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'sheba_core.wsgi.application'
+ASGI_APPLICATION = 'sheba_core.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 # In production set DATABASE_URL=postgres://user:pass@host:5432/dbname

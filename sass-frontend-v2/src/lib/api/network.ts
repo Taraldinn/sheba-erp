@@ -100,7 +100,18 @@ export const routerApi = {
     update: (id: string, data: Partial<Router>) => fetchApi<Router>(`/routers/${id}/`, { method: 'PATCH', json: data, plane: 'tenant' }),
     remove: (id: string) => fetchApi<void>(`/routers/${id}/`, { method: 'DELETE', plane: 'tenant' }),
     syncNow: (id: string) => fetchApi<{ ok: boolean; job_id?: string }>(`/network/usage/sync/`, { method: 'POST', json: { router_id: id }, plane: 'tenant' }),
-    test: (id: string) => fetchApi<{ ok: boolean; latency_ms?: number }>(`/routers/${id}/test-connection/`, { method: 'POST', plane: 'tenant' }),
+    test: (id?: string, data?: Record<string, unknown>) =>
+        id
+            ? fetchApi<{ ok?: boolean; success?: boolean; message?: string; details?: unknown; latency_ms?: number }>(`/routers/${id}/test-connection/`, {
+                  method: 'POST',
+                  json: data,
+                  plane: 'tenant',
+              })
+            : fetchApi<{ ok?: boolean; success?: boolean; message?: string; details?: unknown; latency_ms?: number }>(`/routers/test-connection/`, {
+                  method: 'POST',
+                  json: data,
+                  plane: 'tenant',
+              }),
     workspace: (id: string, iface?: string) =>
         fetchApi<RouterWorkspaceData>(`/routers/${id}/workspace/${toQuery(iface ? { interface: iface } : {})}`, { plane: 'tenant' }),
     unregisteredSecrets: (id: string) =>

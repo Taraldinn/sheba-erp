@@ -143,26 +143,27 @@ export function RegisterRouterModal({
 
         setTestStatus({ testing: true });
         try {
-            if (routerToEdit?.id) {
-                const res = await routerApi.test(routerToEdit.id);
-                setTestStatus({
-                    testing: false,
-                    result: {
-                        ok: res.ok,
-                        message: res.ok ? `Connection OK (${res.latency_ms || 25}ms)` : 'Connection failed',
-                    },
-                });
-            } else {
-                // If new router, quick simulation / test
-                await new Promise(r => setTimeout(r, 600));
-                setTestStatus({
-                    testing: false,
-                    result: {
-                        ok: true,
-                        message: 'IP syntax valid. Device will be verified upon registration.',
-                    },
-                });
+            const payload: Record<string, any> = {
+                ip_address: ipAddress.trim(),
+                hostname: hostname.trim() || undefined,
+                api_protocol: protocol,
+                https_port: parseInt(httpsPort, 10) || 443,
+                api_port: parseInt(apiPort, 10) || 8728,
+                username: username.trim() || 'admin',
+            };
+            if (password) {
+                payload.password = password;
             }
+
+            const res = await routerApi.test(routerToEdit?.id, payload);
+            const isOk = res.ok ?? res.success ?? false;
+            setTestStatus({
+                testing: false,
+                result: {
+                    ok: isOk,
+                    message: res.message || (isOk ? `Connection OK (${res.latency_ms || 25}ms)` : 'Connection failed'),
+                },
+            });
         } catch (err: any) {
             setTestStatus({
                 testing: false,

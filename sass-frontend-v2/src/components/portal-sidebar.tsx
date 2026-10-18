@@ -50,17 +50,27 @@ import { useAuth } from "@/lib/auth/auth-provider"
 
 type PortalKey = "super_admin" | "isp" | "tenant"
 
-const portalConfigs: Record<PortalKey, { title: string; tag: string; root: string; sections: NavSection[] }> = {
+const portalConfigs: Record<
+  PortalKey,
+  { title: string; tag: string; root: string; sections: NavSection[] }
+> = {
   super_admin: {
     title: "Shebafi Platform",
     tag: "Super admin",
     root: "/saas",
     sections: [
-      { label: "Platform", items: [{ title: "Overview", url: "/saas", icon: LayoutDashboard }] },
+      {
+        label: "Platform",
+        items: [{ title: "Overview", url: "/saas", icon: LayoutDashboard }],
+      },
       {
         label: "Tenancy",
         items: [
-          { title: "Organizations", url: "/saas/organizations", icon: Building2 },
+          {
+            title: "Organizations",
+            url: "/saas/organizations",
+            icon: Building2,
+          },
           { title: "Tenants", url: "/saas/tenants", icon: Building },
           { title: "Onboarding", url: "/saas/onboarding", icon: UserPlus },
           { title: "Domains", url: "/saas/domains", icon: Link2 },
@@ -70,9 +80,17 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
         label: "Billing",
         items: [
           { title: "Packages", url: "/saas/packages", icon: Package },
-          { title: "Subscriptions", url: "/saas/subscriptions", icon: CreditCard },
+          {
+            title: "Subscriptions",
+            url: "/saas/subscriptions",
+            icon: CreditCard,
+          },
           { title: "Payments", url: "/saas/payments", icon: Wallet },
-          { title: "Reconciliation", url: "/saas/billing-reconcile", icon: BadgeCent },
+          {
+            title: "Reconciliation",
+            url: "/saas/billing-reconcile",
+            icon: BadgeCent,
+          },
         ],
       },
       {
@@ -87,8 +105,16 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
       {
         label: "Security",
         items: [
-          { title: "Platform Admins", url: "/saas/platform-admins", icon: Shield },
-          { title: "Impersonation Log", url: "/saas/impersonation-log", icon: UserCheck },
+          {
+            title: "Platform Admins",
+            url: "/saas/platform-admins",
+            icon: Shield,
+          },
+          {
+            title: "Impersonation Log",
+            url: "/saas/impersonation-log",
+            icon: UserCheck,
+          },
           { title: "Audit Logs", url: "/saas/audit", icon: FileText },
         ],
       },
@@ -99,12 +125,19 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
     tag: "Operator",
     root: "/isp",
     sections: [
-      { label: "Operator", items: [{ title: "Overview", url: "/isp", icon: LayoutDashboard }] },
+      {
+        label: "Operator",
+        items: [{ title: "Overview", url: "/isp", icon: LayoutDashboard }],
+      },
       {
         label: "Tenancy",
         items: [
           { title: "My Tenants", url: "/isp/tenants", icon: Building },
-          { title: "Child Tenants", url: "/isp/child-tenants", icon: Building2 },
+          {
+            title: "Child Tenants",
+            url: "/isp/child-tenants",
+            icon: Building2,
+          },
           { title: "Domains", url: "/isp/domains", icon: Link2 },
           { title: "Modules", url: "/isp/modules", icon: Box },
         ],
@@ -114,7 +147,11 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
         items: [
           { title: "Customers", url: "/isp/customers", icon: Users },
           { title: "Packages", url: "/isp/packages", icon: Package },
-          { title: "Subscriptions", url: "/isp/subscriptions", icon: BadgeCent },
+          {
+            title: "Subscriptions",
+            url: "/isp/subscriptions",
+            icon: BadgeCent,
+          },
           { title: "Resellers", url: "/isp/resellers", icon: Briefcase },
         ],
       },
@@ -144,7 +181,7 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
         ],
       },
       {
-        label: "Subscribers",
+        label: "Subscribers & CRM",
         items: [
           {
             title: "Clients",
@@ -153,9 +190,15 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
             items: [
               { title: "All Clients", url: "/tenant/customers" },
               { title: "Add New Client", url: "/tenant/customers/new" },
-              { title: "Active Clients", url: "/tenant/customers?status=ACTIVE" },
+              {
+                title: "Active Clients",
+                url: "/tenant/customers?status=ACTIVE",
+              },
               { title: "Due / Pending", url: "/tenant/customers?has_due=true" },
-              { title: "Inactive / Expired", url: "/tenant/customers?status=INACTIVE" },
+              {
+                title: "Inactive / Expired",
+                url: "/tenant/customers?status=INACTIVE",
+              },
             ],
           },
           {
@@ -192,16 +235,14 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
             title: "Payments",
             url: "/tenant/payments",
             icon: Wallet,
-          },
-          {
-            title: "Verification",
-            url: "/tenant/payments/verification",
-            icon: CreditCard,
-          },
-          {
-            title: "SMS Gateways",
-            url: "/tenant/payments/verification/devices",
-            icon: Activity,
+            items: [
+              { title: "Payment History", url: "/tenant/payments" },
+              { title: "Verification", url: "/tenant/payments/verification" },
+              {
+                title: "SMS Gateways",
+                url: "/tenant/payments/verification/devices",
+              },
+            ],
           },
           {
             title: "Packages & Pricing",
@@ -218,53 +259,41 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
         label: "Network & NOC",
         items: [
           {
-            title: "MikroTik Routers",
+            title: "MikroTik & Core",
             url: "/tenant/routers",
             icon: Server,
-          },
-          {
-            title: "OLT Devices",
-            url: "/tenant/olts",
-            icon: Network,
-          },
-          {
-            title: "ONU Monitoring",
-            url: "/tenant/onus",
-            icon: Radio,
-          },
-          {
-            title: "Live Topology",
-            url: "/tenant/topology",
-            icon: Link2,
-          },
-          {
-            title: "PPPoE Sessions",
-            url: "/tenant/pppoe",
-            icon: Wifi,
-          },
-          {
-            title: "Bandwidth Usage",
-            url: "/tenant/bandwidth",
-            icon: Activity,
             items: [
+              { title: "MikroTik Routers", url: "/tenant/routers" },
+              { title: "PPPoE Sessions", url: "/tenant/pppoe" },
               { title: "Live Bandwidth", url: "/tenant/bandwidth" },
               { title: "Traffic Reports", url: "/tenant/bandwidth/reports" },
+            ],
+          },
+          {
+            title: "Fiber & PON",
+            url: "/tenant/olts",
+            icon: Network,
+            items: [
+              { title: "OLT Devices", url: "/tenant/olts" },
+              { title: "ONU Monitoring", url: "/tenant/onus" },
+              { title: "Live Topology", url: "/tenant/topology" },
+              { title: "TJ Distribution", url: "/tenant/tj-boxes" },
             ],
           },
           {
             title: "Zones & POPs",
             url: "/tenant/zones",
             icon: Building,
-          },
-          {
-            title: "TJ Distribution",
-            url: "/tenant/tj-boxes",
-            icon: Box,
+            items: [
+              { title: "Zones & Areas", url: "/tenant/zones" },
+              { title: "Active POP/Branches", url: "/tenant/branches" },
+              { title: "Left POP/Branches", url: "/tenant/branches/left" },
+            ],
           },
         ],
       },
       {
-        label: "Corporate & POPs",
+        label: "Enterprise & Inventory",
         items: [
           {
             title: "Corporate Leased",
@@ -272,69 +301,56 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
             icon: Building2,
             items: [
               { title: "Corporate Dashboard", url: "/tenant/corporate" },
-              { title: "Dedicated Connections", url: "/tenant/corporate/connections" },
+              {
+                title: "Dedicated Connections",
+                url: "/tenant/corporate/connections",
+              },
               { title: "IP Pools", url: "/tenant/corporate/ip-pools" },
               { title: "VLAN Networks", url: "/tenant/corporate/vlans" },
             ],
           },
-          {
-            title: "POP / Branches",
-            url: "/tenant/branches",
-            icon: Building2,
-            items: [
-              { title: "Active POP/Branches", url: "/tenant/branches" },
-              { title: "Left POP/Branches", url: "/tenant/branches/left" },
-            ],
-          },
-          {
-            title: "Manage Agents",
-            url: "/tenant/agents",
-            icon: UserCheck,
-          },
-        ],
-      },
-      {
-        label: "Operations & HR",
-        items: [
           {
             title: "Store & Inventory",
             url: "/tenant/store",
             icon: ShoppingBag,
             items: [
               { title: "Store Inventory", url: "/tenant/store" },
-              { title: "Stock Transactions", url: "/tenant/store/transactions" },
+              {
+                title: "Stock Transactions",
+                url: "/tenant/store/transactions",
+              },
             ],
           },
           {
-            title: "Office Staff",
-            url: "/tenant/staff",
-            icon: Users,
+            title: "Resellers & Agents",
+            url: "/tenant/agents",
+            icon: UserCheck,
           },
+        ],
+      },
+      {
+        label: "System & Administration",
+        items: [
           {
-            title: "HR & Payroll",
+            title: "HR & Staff",
             url: "/tenant/hr",
             icon: Briefcase,
             items: [
-              { title: "Employees", url: "/tenant/hr" },
+              { title: "Office Staff", url: "/tenant/staff" },
+              { title: "Employee Directory", url: "/tenant/hr" },
               { title: "Attendance", url: "/tenant/hr/attendance" },
               { title: "Leaves", url: "/tenant/hr/leaves" },
               { title: "Payroll", url: "/tenant/hr/payroll" },
             ],
           },
-        ],
-      },
-      {
-        label: "System",
-        items: [
           {
-            title: "Tenant Settings",
+            title: "Settings & Audit",
             url: "/tenant/settings",
             icon: Settings,
-          },
-          {
-            title: "Audit Logs",
-            url: "/tenant/audit",
-            icon: FileText,
+            items: [
+              { title: "Tenant Settings", url: "/tenant/settings" },
+              { title: "Audit Logs", url: "/tenant/audit" },
+            ],
           },
         ],
       },
@@ -342,20 +358,34 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
   },
 }
 
-function SidebarNavSections({ config, pathname }: { config: { sections: NavSection[]; root: string }; pathname: string }) {
+function SidebarNavSections({
+  config,
+  pathname,
+}: {
+  config: { sections: NavSection[]; root: string }
+  pathname: string
+}) {
   const searchParams = useSearchParams()
   const currentSearch = searchParams ? searchParams.toString() : ""
 
   return (
     <>
       {config.sections.map((section) => (
-        <NavMain key={section.label} section={section} pathname={pathname} rootUrl={config.root} currentSearch={currentSearch} />
+        <NavMain
+          key={section.label}
+          section={section}
+          pathname={pathname}
+          rootUrl={config.root}
+          currentSearch={currentSearch}
+        />
       ))}
     </>
   )
 }
 
-export function PortalSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function PortalSidebar({
+  ...props
+}: React.ComponentProps<typeof Sidebar>) {
   const auth = useAuth()
   const pathname = usePathname() ?? "/"
 
@@ -376,11 +406,16 @@ export function PortalSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
       <SidebarHeader className="h-14 justify-center border-b border-sidebar-border py-0">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="h-10 hover:bg-transparent active:bg-transparent">
-              <BrandGlyph className="size-7" />
-              <div className="grid flex-1 text-left leading-tight">
-                <span className="truncate text-sm font-semibold text-sidebar-accent-foreground">{config.title}</span>
-                <span className="truncate font-mono text-[10px] uppercase tracking-wider text-sidebar-foreground/60">
+            <SidebarMenuButton
+              size="lg"
+              className="h-10 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0! hover:bg-transparent active:bg-transparent"
+            >
+              <BrandGlyph className="size-7 shrink-0" />
+              <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+                <span className="truncate text-sm font-semibold text-sidebar-accent-foreground">
+                  {config.title}
+                </span>
+                <span className="truncate font-mono text-[10px] tracking-wider text-sidebar-foreground/60 uppercase">
                   {auth.user?.tenant?.name || config.tag}
                 </span>
               </div>
@@ -393,7 +428,12 @@ export function PortalSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
           fallback={
             <>
               {config.sections.map((section) => (
-                <NavMain key={section.label} section={section} pathname={pathname} rootUrl={config.root} />
+                <NavMain
+                  key={section.label}
+                  section={section}
+                  pathname={pathname}
+                  rootUrl={config.root}
+                />
               ))}
             </>
           }
@@ -402,8 +442,8 @@ export function PortalSidebar({ ...props }: React.ComponentProps<typeof Sidebar>
         </React.Suspense>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
-        <div className="flex items-center gap-2 px-2 pb-1 pt-0.5 font-mono text-[10px] uppercase tracking-wider text-sidebar-foreground/50 group-data-[collapsible=icon]:hidden">
-          <Activity className="size-3 text-success" aria-hidden="true" />
+        <div className="flex items-center gap-2 px-2 pt-0.5 pb-1 font-mono text-[10px] tracking-wider text-sidebar-foreground/50 uppercase group-data-[collapsible=icon]:hidden">
+          <Activity className="text-success size-3" aria-hidden="true" />
           All systems nominal
         </div>
         <NavUser user={userData} />

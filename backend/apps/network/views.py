@@ -290,10 +290,24 @@ class RouterViewSet(viewsets.ModelViewSet):
     def test_connection(self, request, pk=None):
         """
         Tests connectivity and credentials to the router (RouterOS v7 REST or API).
+        Supports payload overrides from request body (e.g. testing unsaved form changes).
         """
         router = self.get_object()
         if not can(request.user, request.tenant, 'router.manage', router):
             return Response({'error': 'Permission denied: router.manage capability required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if request.data and isinstance(request.data, dict):
+            for field in ['ip_address', 'hostname', 'api_protocol', 'api_port', 'https_port', 'username', 'password', 'api_ssl']:
+                if field in request.data and request.data[field] is not None:
+                    if field == 'password' and not str(request.data['password']).strip():
+                        continue
+                    setattr(router, field, request.data[field])
+
+        logger.info(
+            "TEST_CONNECTION CALLED for %s (id: %s) -> data: %s | effective protocol: %s, effective api_port: %s, effective https_port: %s",
+            router.name, router.id, request.data, router.api_protocol, router.api_port, router.https_port
+        )
+
         svc = MikroTikService(router)
         ok, msg, details = svc.test_connection()
 
@@ -310,10 +324,46 @@ class RouterViewSet(viewsets.ModelViewSet):
         status_code = status.HTTP_200_OK if ok else status.HTTP_502_BAD_GATEWAY
         return Response({
             'success': ok,
+            'ok': ok,
             'message': msg,
             'details': details,
             'status': router.status,
             'last_ping': router.last_ping.isoformat() if router.last_ping else None,
+        }, status=status_code)
+
+    @action(detail=False, methods=['post'], url_path='test-connection', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
+    def test_connection_adhoc(self, request):
+        """
+        Tests connectivity and credentials for newly configured or unregistered routers.
+        """
+        tenant = request.tenant
+        data = request.data or {}
+        ip_address = (data.get('ip_address') or '').strip()
+        if not ip_address:
+            return Response({'error': 'Management IP address is required to test connectivity.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        temp_router = Router(
+            tenant=tenant,
+            name=data.get('name') or 'Test-Router',
+            ip_address=ip_address,
+            hostname=data.get('hostname') or '',
+            api_protocol=data.get('api_protocol') or 'API',
+            https_port=int(data.get('https_port') or 443),
+            api_port=int(data.get('api_port') or 8728),
+            api_ssl=bool(data.get('api_ssl', False)),
+            username=data.get('username') or 'admin',
+            password=data.get('password') or '',
+            connection_timeout=5,
+        )
+        svc = MikroTikService(temp_router)
+        ok, msg, details = svc.test_connection()
+
+        status_code = status.HTTP_200_OK if ok else status.HTTP_502_BAD_GATEWAY
+        return Response({
+            'success': ok,
+            'ok': ok,
+            'message': msg,
+            'details': details,
         }, status=status_code)
 
     @action(detail=True, methods=['get'], url_path='radius-script', permission_classes=[permissions.IsAuthenticated, IsTenantMember, IsTechnicalStaff])
@@ -817,7 +867,32 @@ class RouterViewSet(viewsets.ModelViewSet):
 
         interfaces_list = []
         if live_data and live_data.get('interfaces'):
-            interfaces_list = live_data['interfaces']
+            raw_interfaces = live_data['interfaces']
+            for idx, iface in enumerate(raw_interfaces, start=1):
+                pname = iface.get('name', f'ether{idx}')
+                ptype = iface.get('type', 'ether')
+                is_running = str(iface.get('running', '')).lower() in ('true', 'yes', '1')
+                is_disabled = str(iface.get('disabled', '')).lower() in ('true', 'yes', '1')
+                is_physical = ptype in ('ether', 'sfp', 'sfp-plus', 'wlan', 'lte')
+
+                interfaces_list.append({
+                    'id': iface.get('id', iface.get('.id', f"*{idx}")),
+                    'name': pname,
+                    'type': ptype,
+                    'physical': is_physical,
+                    'running': is_running,
+                    'disabled': is_disabled,
+                    'mtu': str(iface.get('mtu', '1500')),
+                    'mac_address': iface.get('mac-address') or iface.get('mac_address', ''),
+                    'rx_byte': int(iface.get('rx-byte') or iface.get('rx_byte') or 0),
+                    'tx_byte': int(iface.get('tx-byte') or iface.get('tx_byte') or 0),
+                    'rx_packet': int(iface.get('rx-packet') or iface.get('rx_packet') or 0),
+                    'tx_packet': int(iface.get('tx-packet') or iface.get('tx_packet') or 0),
+                    'rx_error': int(iface.get('rx-error') or 0),
+                    'tx_error': int(iface.get('tx-error') or 0),
+                    'link_downs': int(iface.get('link-downs') or 0),
+                    'comment': iface.get('comment', ''),
+                })
         else:
             phys_ports = [
                 ('ether1', True, 45200000, 120500000),
@@ -915,26 +990,52 @@ class RouterViewSet(viewsets.ModelViewSet):
         total_interfaces = max(len(interfaces_list), 256)
         active_interfaces = max(sum(1 for i in interfaces_list if i.get('running') and not i.get('disabled')), 248)
 
-        target_iface_data = next((i for i in interfaces_list if i.get('name') == selected_interface), None)
-        if target_iface_data and target_iface_data.get('running'):
-            rx_bps = float(target_iface_data.get('rx_byte', 0) % 80000000) or round(random.uniform(40.0, 75.0) * 1_000_000, 2)
-            tx_bps = float(target_iface_data.get('tx_byte', 0) % 900000000) or round(random.uniform(500.0, 750.0) * 1_000_000, 2)
+        # Auto-detect best interface if selected is not active
+        running_phys = [i for i in interfaces_list if i.get('physical') and i.get('running')]
+        if not any(i.get('name') == selected_interface and i.get('running') for i in interfaces_list):
+            if running_phys:
+                selected_interface = running_phys[0]['name']
+            elif interfaces_list:
+                selected_interface = interfaces_list[0]['name']
+
+        live_traffic = None
+        if is_online:
+            try:
+                from .services.mikrotik.traffic import MikroTikTrafficService
+                traffic_svc = MikroTikTrafficService(router)
+                live_traffic = traffic_svc.get_interface_traffic(selected_interface)
+            except Exception as e:
+                logger.debug("Failed to query live traffic for %s: %s", selected_interface, e)
+
+        if live_traffic:
+            rx_bps = float(live_traffic.get('rx-bits-per-second') or live_traffic.get('rx_bps') or 0)
+            tx_bps = float(live_traffic.get('tx-bits-per-second') or live_traffic.get('tx_bps') or 0)
+            rx_pps = int(live_traffic.get('rx-packets-per-second') or live_traffic.get('rx_pps') or (int(rx_bps / 8 / 650) if rx_bps else 0))
+            tx_pps = int(live_traffic.get('tx-packets-per-second') or live_traffic.get('tx_pps') or (int(tx_bps / 8 / 1400) if tx_bps else 0))
         else:
-            rx_bps = round(random.uniform(45.0, 75.0) * 1_000_000, 2)
-            tx_bps = round(random.uniform(550.0, 720.0) * 1_000_000, 2)
+            target_iface_data = next((i for i in interfaces_list if i.get('name') == selected_interface), None)
+            if target_iface_data and target_iface_data.get('running'):
+                rx_bps = float(target_iface_data.get('rx_byte', 0) % 80000000) or 0.0
+                tx_bps = float(target_iface_data.get('tx_byte', 0) % 900000000) or 0.0
+            else:
+                rx_bps = 0.0
+                tx_bps = 0.0
+            rx_pps = int(rx_bps / 8 / 650) if rx_bps else 0
+            tx_pps = int(tx_bps / 8 / 1400) if tx_bps else 0
 
         traffic = {
             'interface': selected_interface,
             'rx_bps': rx_bps,
             'tx_bps': tx_bps,
-            'rx_pps': int(rx_bps / 8 / 650),
-            'tx_pps': int(tx_bps / 8 / 1400),
+            'rx_pps': rx_pps,
+            'tx_pps': tx_pps,
         }
 
-        cpu_load = float(router.cpu_usage or (live_data.get('cpu_load') if live_data else 0.0) or 0.0)
-        mem_pct = float(router.memory_usage or (live_data.get('memory_pct') if live_data else 12.8) or 12.8)
-        uptime = router.uptime or (live_data.get('uptime') if live_data else '3d41m28s') or '3d41m28s'
-        version = router.routeros_version or (live_data.get('version') if live_data else '7.23.5 (long-term)') or '7.23.5 (long-term)'
+        board_name = (live_data.get('board') if live_data else '') or router.model or 'CCR1036-8G-2S+'
+        cpu_load = float(live_data.get('cpu_load', 0.0) if live_data else (router.cpu_usage or 0.0))
+        mem_pct = float(live_data.get('memory_pct', 0.0) if live_data else (router.memory_usage or 0.0))
+        uptime = (live_data.get('uptime') if live_data else '') or router.uptime or '3d41m28s'
+        version = (live_data.get('version') if live_data else '') or router.routeros_version or '7.23.5 (long-term)'
 
         response_payload = {
             'success': True,
@@ -943,34 +1044,34 @@ class RouterViewSet(viewsets.ModelViewSet):
                 'id': str(router.id),
                 'name': router.name,
                 'ip': router.ip_address,
-                'port': router.https_port or router.api_port or 7824,
-                'model': router.model or 'CCR1036-8G-2S+',
+                'port': router.api_port if router.api_protocol == 'API' else (router.https_port or 443),
+                'model': board_name,
                 'hostname': router.hostname or router.name,
             },
-            'identity': router.name,
+            'identity': (live_data.get('identity') if live_data else '') or router.name,
             'resource': {
                 'uptime': uptime,
                 'version': version,
-                'build_time': 'Oct/16/2026 12:00:00',
-                'cpu': 'tile',
-                'cpu_count': 36,
-                'cpu_frequency': '1200MHz',
+                'build_time': live_data.get('build_time', 'Oct/16/2026 12:00:00') if live_data else 'Oct/16/2026 12:00:00',
+                'cpu': live_data.get('cpu', 'MIPS') if live_data else 'tile',
+                'cpu_count': live_data.get('cpu_count', 1) if live_data else 36,
+                'cpu_frequency': f"{live_data.get('cpu_frequency', 650)}MHz" if live_data and live_data.get('cpu_frequency') else '1200MHz',
                 'cpu_load': cpu_load,
-                'free_memory': 14500000000,
-                'total_memory': 16600000000,
+                'free_memory': live_data.get('free_memory', 14500000000) if live_data else 14500000000,
+                'total_memory': live_data.get('total_memory', 16600000000) if live_data else 16600000000,
                 'memory_percent': mem_pct,
-                'free_hdd_space': 100000000,
-                'total_hdd_space': 128000000,
-                'architecture': 'tile',
-                'board_name': router.model or 'CCR1036-8G-2S+',
+                'free_hdd_space': live_data.get('free_hdd_space', 100000000) if live_data else 100000000,
+                'total_hdd_space': live_data.get('total_hdd_space', 128000000) if live_data else 128000000,
+                'architecture': live_data.get('architecture', 'smips') if live_data else 'tile',
+                'board_name': board_name,
                 'platform': 'MikroTik',
             },
             'routerboard': {
-                'model': router.model or 'CCR1036-8G-2S+',
+                'model': board_name,
                 'serial_number': getattr(router, 'serial_number', None) or 'D83B0E32591C',
                 'current_firmware': version,
                 'upgrade_firmware': version,
-                'factory_firmware': '3.33',
+                'factory_firmware': live_data.get('factory_software', '3.33') if live_data else '3.33',
             },
             'health': {
                 'temperature': live_data.get('health', {}).get('temperature', 57) if (live_data and isinstance(live_data.get('health'), dict)) else 57,
