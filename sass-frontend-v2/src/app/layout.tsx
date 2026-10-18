@@ -55,7 +55,7 @@ export default async function RootLayout({
       data-density={initialDensity}
       className={`${spaceGrotesk.variable} ${geistSans.variable} ${geistMono.variable}`}
     >
-      <body className="bg-background font-sans text-foreground antialiased">
+      <body className="bg-background font-sans text-foreground antialiased text-[15px] sm:text-base">
         <AppProviders
           initialHost={host}
           initialTenant={initialTenant}

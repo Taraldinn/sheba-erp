@@ -208,7 +208,7 @@ export default function TenantDashboard() {
                 />
                 Payment Verify
                 {pendingVerifications > 0 && (
-                  <span className="py-0.2 ml-1.5 rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white">
+                  <span className="ml-1.5 rounded-md bg-amber-500 px-1.5 py-0.5 text-xs font-bold text-white">
                     {pendingVerifications}
                   </span>
                 )}
@@ -512,7 +512,7 @@ export default function TenantDashboard() {
               <Clock className="size-3.5" />
               Activity Stream
               {recentActivity.length > 0 && (
-                <span className="py-0.2 ml-1 rounded-full bg-primary/20 px-1.5 font-mono text-[9px] text-primary">
+                <span className="ml-1 rounded-md bg-primary/20 px-1.5 py-0.5 font-mono text-xs text-primary">
                   {recentActivity.length}
                 </span>
               )}
@@ -709,11 +709,11 @@ export default function TenantDashboard() {
                               comm.customer_mobile ||
                               comm.sender}
                           </span>
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                             {comm.provider}
                           </span>
                           {comm.is_matched && (
-                            <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-500">
+                            <span className="flex items-center gap-1 text-xs font-medium text-emerald-500">
                               <CheckCircle2 className="size-3" /> Matched
                             </span>
                           )}
@@ -722,7 +722,7 @@ export default function TenantDashboard() {
                           {comm.message}
                         </p>
                         {comm.created_at && (
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-xs text-muted-foreground">
                             {new Date(comm.created_at).toLocaleString()}
                           </span>
                         )}
@@ -735,7 +735,7 @@ export default function TenantDashboard() {
                           className="text-xs font-bold text-emerald-500"
                         />
                         {comm.trx_id && (
-                          <p className="font-mono text-[10px] text-muted-foreground">
+                          <p className="font-mono text-xs text-muted-foreground">
                             {comm.trx_id}
                           </p>
                         )}
@@ -959,7 +959,7 @@ export default function TenantDashboard() {
                       className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold uppercase">
+                        <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold uppercase">
                           {item.type === "payment" ? (
                             <CircleDollarSign className="size-4 text-emerald-500" />
                           ) : (
@@ -976,7 +976,7 @@ export default function TenantDashboard() {
                             </p>
                           )}
                           {item.timestamp && (
-                            <p className="text-[10px] text-muted-foreground">
+                            <p className="text-xs text-muted-foreground">
                               {new Date(item.timestamp).toLocaleString()}
                             </p>
                           )}

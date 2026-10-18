@@ -187,10 +187,10 @@
   --density-row-px: 1rem;
   --density-card-p: 1.5rem;
   --density-gap: 1rem;
-  --density-table-font: 0.875rem;
+  --density-table-font: 0.9375rem;
   --density-badge-px: 0.625rem;
   --density-badge-py: 0.125rem;
-  --density-badge-font: 0.75rem;
+  --density-badge-font: 0.8125rem;
 }
 
 [data-density="compact"] {
@@ -199,10 +199,10 @@
   --density-row-px: 0.75rem;
   --density-card-p: 0.875rem;
   --density-gap: 0.625rem;
-  --density-table-font: 0.8125rem;
+  --density-table-font: 0.875rem;
   --density-badge-px: 0.5rem;
   --density-badge-py: 0rem;
-  --density-badge-font: 0.6875rem;
+  --density-badge-font: 0.75rem;
 }
 
 @theme inline {
@@ -230,10 +230,10 @@
 
 @utility eyebrow {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  line-height: 1rem;
+  font-size: 0.75rem;
+  line-height: 1.125rem;
   font-weight: 500;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 

@@ -80,14 +80,14 @@ export function QuickActionHub() {
                 type="button"
                 onClick={act.onClick}
                 className={cn(
-                  'group flex items-center gap-2.5 rounded-full border border-border/80 bg-card/90 px-3 py-1.5 shadow-lg backdrop-blur-xl transition-all duration-150 hover:scale-[1.02] focus:outline-none focus:ring-1 focus:ring-ring',
+                  'group flex items-center gap-2.5 rounded-md border border-border/80 bg-card/90 px-3 py-2 shadow-lg backdrop-blur-xl transition-all duration-150 hover:scale-[1.02] focus:outline-none focus:ring-1 focus:ring-ring',
                   act.tagColor
                 )}
               >
                 <span className="font-mono text-xs font-medium text-foreground tracking-tight">
                   {act.label}
                 </span>
-                <div className="flex size-6 items-center justify-center rounded-full bg-muted/40 border border-border/50">
+                <div className="flex size-6 items-center justify-center rounded-sm bg-muted/40 border border-border/50">
                   <Icon className={cn('size-3.5', act.iconColor)} />
                 </div>
               </button>
@@ -104,7 +104,7 @@ export function QuickActionHub() {
               onClick={() => setIsOpen(!isOpen)}
               aria-label="Quick Actions Hub"
               className={cn(
-                'relative z-40 flex size-11 items-center justify-center rounded-full border border-border/80 bg-card/85 text-foreground backdrop-blur-xl shadow-[0_8px_30px_rgb(0_0_0/0.12)] transition-all duration-200 hover:scale-105 hover:border-primary/50 hover:shadow-[0_0_24px_-4px_var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'relative z-40 flex size-11 items-center justify-center rounded-md border border-border/80 bg-card/85 text-foreground backdrop-blur-xl shadow-[0_8px_30px_rgb(0_0_0/0.12)] transition-all duration-200 hover:scale-105 hover:border-primary/50 hover:shadow-[0_0_24px_-4px_var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isOpen && 'rotate-45 bg-muted text-muted-foreground border-border'
               )}
             >

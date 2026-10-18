@@ -221,7 +221,7 @@ export function CommandPalette({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="top-[25%] p-0 overflow-hidden max-w-xl border border-border/80 bg-card/90 backdrop-blur-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)] rounded-2xl luxury-sheen"
+        className="top-[25%] p-0 overflow-hidden max-w-xl border border-border/80 bg-card/90 backdrop-blur-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)] rounded-lg luxury-sheen"
       >
         <DialogTitle className="sr-only">Command Palette</DialogTitle>
         <div className="flex items-center gap-3 border-b border-border/60 px-4 py-3.5 bg-muted/10">
@@ -234,7 +234,7 @@ export function CommandPalette({
             className="h-7 border-0 bg-transparent p-0 text-sm tracking-tight focus-visible:ring-0 focus-visible:outline-none placeholder:text-muted-foreground/60"
             autoFocus
           />
-          <kbd className="hidden sm:inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+          <kbd className="hidden sm:inline-flex items-center gap-1 rounded-sm border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
             ESC
           </kbd>
         </div>
@@ -256,7 +256,7 @@ export function CommandPalette({
                     onClick={() => runAndClose(item.perform)}
                     onMouseEnter={() => setSelectedIndex(index)}
                     className={cn(
-                      'flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-xs transition-all duration-150',
+                      'flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-xs transition-all duration-150',
                       isSelected
                         ? 'bg-accent/70 text-foreground font-medium shadow-xs border border-primary/20'
                         : 'text-foreground/90 hover:bg-muted/40 border border-transparent'
@@ -265,7 +265,7 @@ export function CommandPalette({
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div
                         className={cn(
-                          'flex size-6 shrink-0 items-center justify-center rounded-lg border transition-colors',
+                          'flex size-6 shrink-0 items-center justify-center rounded-sm border transition-colors',
                           isSelected
                             ? 'border-primary/50 bg-primary/15 text-primary'
                             : 'border-border/60 bg-muted/20 text-muted-foreground'
@@ -273,15 +273,15 @@ export function CommandPalette({
                       >
                         <Icon className="size-3.5" />
                       </div>
-                      <span className="truncate tracking-tight">{item.title}</span>
+                      <span className="truncate tracking-tight font-medium">{item.title}</span>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                      <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground/80">
                         {item.category}
                       </span>
                       {item.shortcut && (
-                        <kbd className="rounded border border-border/60 bg-muted/40 px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
+                        <kbd className="rounded-sm border border-border/60 bg-muted/40 px-1 py-0.5 font-mono text-xs text-muted-foreground">
                           {item.shortcut}
                         </kbd>
                       )}
@@ -293,16 +293,16 @@ export function CommandPalette({
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border/50 bg-muted/15 px-4 py-2.5 text-[11px] text-muted-foreground/80">
+        <div className="flex items-center justify-between border-t border-border/50 bg-muted/15 px-4 py-2.5 text-xs text-muted-foreground/80">
           <div className="flex items-center gap-3">
             <span>
-              <kbd className="font-mono text-[10px] bg-muted/50 px-1 py-0.5 rounded border border-border/40">↑↓</kbd> navigate
+              <kbd className="font-mono text-xs bg-muted/50 px-1.5 py-0.5 rounded-sm border border-border/40">↑↓</kbd> navigate
             </span>
             <span>
-              <kbd className="font-mono text-[10px] bg-muted/50 px-1 py-0.5 rounded border border-border/40">↵</kbd> select
+              <kbd className="font-mono text-xs bg-muted/50 px-1.5 py-0.5 rounded-sm border border-border/40">↵</kbd> select
             </span>
           </div>
-          <span className="font-mono text-[10px] text-muted-foreground/60 tracking-wider">SHEBAFI COMMAND</span>
+          <span className="font-mono text-xs text-muted-foreground/60 tracking-wider">SHEBAFI COMMAND</span>
         </div>
       </DialogContent>
     </Dialog>

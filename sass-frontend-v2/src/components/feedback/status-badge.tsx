@@ -43,7 +43,7 @@ export function StatusBadge({ status, label }: { status: string | null | undefin
     const text = label ?? status?.replace(/_/g, ' ') ?? '—';
     return (
         <span
-            className={`inline-flex h-5 items-center gap-1.5 whitespace-nowrap rounded-sm border px-1.5 font-mono text-[10px] font-medium uppercase tracking-wider ${tone.wrap}`}
+            className={`inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-0.5 font-mono text-xs font-semibold uppercase tracking-wider ${tone.wrap}`}
         >
             <span className={`size-1.5 rounded-full ${tone.dot}`} aria-hidden="true" />
             {text}

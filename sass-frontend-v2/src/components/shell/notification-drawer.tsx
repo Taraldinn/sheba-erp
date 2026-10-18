@@ -155,12 +155,12 @@ export function NotificationDrawer({
                   {item.title}
                 </span>
               </div>
-              <span className="font-mono text-[10px] text-muted-foreground/70 shrink-0">
+              <span className="font-mono text-xs text-muted-foreground/70 shrink-0">
                 {item.timestamp}
               </span>
             </div>
 
-            <p className="text-muted-foreground/80 pl-4 text-[11px] leading-relaxed">
+            <p className="text-muted-foreground/80 pl-4 text-xs leading-relaxed">
               {item.description}
             </p>
 
@@ -169,7 +169,7 @@ export function NotificationDrawer({
                 <Link
                   href={item.href as never}
                   onClick={() => onOpenChange(false)}
-                  className="inline-flex items-center gap-1 font-mono text-[10px] text-primary/90 hover:text-primary transition-colors hover:underline"
+                  className="inline-flex items-center gap-1 font-mono text-xs text-primary/90 hover:text-primary transition-colors hover:underline"
                 >
                   View Details <ExternalLink className="size-2.5" />
                 </Link>
@@ -192,7 +192,7 @@ export function NotificationDrawer({
             <div className="flex items-center gap-2.5">
               <SheetTitle className="text-sm font-semibold tracking-tight">Notifications & Alerts</SheetTitle>
               {activeUnreadCount > 0 && (
-                <Badge variant="secondary" className="font-mono text-[10px] px-1.5 py-0 h-4 rounded-full border border-primary/20 bg-primary/10 text-primary">
+                <Badge variant="secondary" className="font-mono text-xs px-2 py-0.5 h-5 rounded-md border border-primary/20 bg-primary/10 text-primary">
                   {activeUnreadCount} new
                 </Badge>
               )}
@@ -202,9 +202,9 @@ export function NotificationDrawer({
                 variant="ghost"
                 size="sm"
                 onClick={markAllAsRead}
-                className="h-6 gap-1 px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground"
+                className="h-7 gap-1 px-2.5 text-xs font-mono text-muted-foreground hover:text-foreground rounded-md"
               >
-                <CheckCheck className="size-3" />
+                <CheckCheck className="size-3.5" />
                 Mark all read
               </Button>
             )}
@@ -213,14 +213,14 @@ export function NotificationDrawer({
 
         <Tabs defaultValue="all" className="flex flex-col flex-1 overflow-hidden">
           <div className="border-b border-border/40 px-4 py-2 bg-muted/15">
-            <TabsList className="grid w-full grid-cols-3 h-8 bg-muted/30 p-0.5 rounded-lg border border-border/40">
-              <TabsTrigger value="all" className="text-xs rounded-md data-[state=active]:bg-card data-[state=active]:shadow-xs">
+            <TabsList className="grid w-full grid-cols-3 h-8 bg-muted/30 p-0.5 rounded-md border border-border/40">
+              <TabsTrigger value="all" className="text-xs rounded-sm data-[state=active]:bg-card data-[state=active]:shadow-xs">
                 All
               </TabsTrigger>
-              <TabsTrigger value="alerts" className="text-xs rounded-md data-[state=active]:bg-card data-[state=active]:shadow-xs">
+              <TabsTrigger value="alerts" className="text-xs rounded-sm data-[state=active]:bg-card data-[state=active]:shadow-xs">
                 Alerts
               </TabsTrigger>
-              <TabsTrigger value="billing" className="text-xs rounded-md data-[state=active]:bg-card data-[state=active]:shadow-xs">
+              <TabsTrigger value="billing" className="text-xs rounded-sm data-[state=active]:bg-card data-[state=active]:shadow-xs">
                 Billing
               </TabsTrigger>
             </TabsList>

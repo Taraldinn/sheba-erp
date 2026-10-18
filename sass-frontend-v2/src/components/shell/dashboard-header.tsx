@@ -73,12 +73,12 @@ export function DashboardHeader({
         <button
           type="button"
           onClick={onOpenCommandPalette}
-          className="group flex h-8 items-center gap-2.5 rounded-full border border-border/70 bg-card/40 px-3 text-xs text-muted-foreground backdrop-blur-md transition-all duration-200 hover:border-primary/40 hover:bg-card/70 hover:text-foreground hover:shadow-[0_0_20px_-4px_var(--primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="group flex h-8 items-center gap-2.5 rounded-md border border-border/70 bg-card/40 px-3 text-xs text-muted-foreground backdrop-blur-md transition-all duration-200 hover:border-primary/40 hover:bg-card/70 hover:text-foreground hover:shadow-[0_0_20px_-4px_var(--primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           <Search className="size-3.5 text-muted-foreground/80 transition-colors group-hover:text-primary" />
           <span className="hidden sm:inline-block font-normal tracking-tight">Search or jump to...</span>
-          <kbd className="pointer-events-none hidden sm:inline-flex h-4.5 select-none items-center gap-0.5 rounded-full border border-border/80 bg-muted/60 px-1.5 font-mono text-[10px] text-muted-foreground group-hover:border-primary/30 group-hover:text-foreground transition-colors">
-            <span className="text-[10px]">⌘</span>K
+          <kbd className="pointer-events-none hidden sm:inline-flex h-4.5 select-none items-center gap-0.5 rounded-sm border border-border/80 bg-muted/60 px-1.5 font-mono text-[11px] text-muted-foreground group-hover:border-primary/30 group-hover:text-foreground transition-colors">
+            <span className="text-[11px]">⌘</span>K
           </kbd>
         </button>
 
@@ -93,7 +93,7 @@ export function DashboardHeader({
                 variant="ghost"
                 size="icon"
                 onClick={onOpenNotifications}
-                className="relative size-8 rounded-full text-muted-foreground transition-colors hover:text-foreground hover:bg-card/60"
+                className="relative size-8 rounded-md text-muted-foreground transition-colors hover:text-foreground hover:bg-card/60"
                 aria-label="Open notifications"
               >
                 <Bell className="size-3.5" />
@@ -112,7 +112,7 @@ export function DashboardHeader({
         </TooltipProvider>
 
         {/* Telemetry Status Pill */}
-        <span className="hidden items-center gap-2 rounded-full border border-border/60 bg-card/40 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground sm:inline-flex backdrop-blur-md">
+        <span className="hidden items-center gap-2 rounded-md border border-border/60 bg-card/40 px-2.5 py-1 font-mono text-xs uppercase tracking-wider text-muted-foreground sm:inline-flex backdrop-blur-md">
           <span className="relative flex size-1.5">
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-status-online opacity-60" />
             <span className="relative inline-flex size-1.5 rounded-full bg-status-online" />
