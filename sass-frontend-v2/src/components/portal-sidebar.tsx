@@ -403,19 +403,19 @@ export function PortalSidebar({
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border py-0">
+      <SidebarHeader className="h-14 justify-center border-b border-border/60 px-2.5 py-0">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
-              className="h-10 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0! hover:bg-transparent active:bg-transparent"
+              className="h-10 group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:p-0! hover:bg-transparent active:bg-transparent rounded-md"
             >
-              <BrandGlyph className="size-7 shrink-0" />
+              <BrandGlyph className="size-7 shrink-0 group-data-[collapsible=icon]:size-8 transition-transform" />
               <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="truncate text-sm font-semibold text-sidebar-accent-foreground">
+                <span className="truncate text-sm font-semibold text-sidebar-accent-foreground tracking-tight">
                   {config.title}
                 </span>
-                <span className="truncate font-mono text-[10px] tracking-wider text-sidebar-foreground/60 uppercase">
+                <span className="truncate font-mono text-xs tracking-wider text-sidebar-foreground/70 uppercase">
                   {auth.user?.tenant?.name || config.tag}
                 </span>
               </div>
@@ -441,9 +441,9 @@ export function PortalSidebar({
           <SidebarNavSections config={config} pathname={pathname} />
         </React.Suspense>
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border">
-        <div className="flex items-center gap-2 px-2 pt-0.5 pb-1 font-mono text-[10px] tracking-wider text-sidebar-foreground/50 uppercase group-data-[collapsible=icon]:hidden">
-          <Activity className="text-success size-3" aria-hidden="true" />
+      <SidebarFooter className="border-t border-border/60 p-2">
+        <div className="flex items-center gap-2 px-2 pt-0.5 pb-1 font-mono text-xs tracking-wider text-sidebar-foreground/60 uppercase group-data-[collapsible=icon]:hidden">
+          <Activity className="text-success size-3.5" aria-hidden="true" />
           All systems nominal
         </div>
         <NavUser user={userData} />

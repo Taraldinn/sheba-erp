@@ -96,7 +96,7 @@ function NavCollapsibleItem({
           <SidebarMenuButton
             tooltip={item.title}
             className={cn(
-              "group/trigger relative flex h-8.5 w-full items-center gap-2.5 rounded-lg px-2.5 text-xs font-medium transition-all select-none group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!",
+              "group/trigger relative flex h-10 w-full items-center gap-3 rounded-md px-3 text-[14px] font-medium transition-all select-none group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:p-0!",
               groupActive
                 ? "bg-sidebar-accent/60 font-semibold text-sidebar-accent-foreground"
                 : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -105,7 +105,7 @@ function NavCollapsibleItem({
             {Icon && (
               <Icon
                 className={cn(
-                  "size-4 shrink-0 transition-colors",
+                  "size-5 shrink-0 transition-colors group-data-[collapsible=icon]:size-6",
                   groupActive
                     ? "text-primary"
                     : "text-sidebar-foreground/60 group-hover/trigger:text-sidebar-foreground"
@@ -117,14 +117,14 @@ function NavCollapsibleItem({
             </span>
             <ChevronRight
               className={cn(
-                "size-3.5 shrink-0 opacity-50 transition-transform duration-200 group-hover/trigger:opacity-90 group-data-[collapsible=icon]:hidden group-data-[state=open]/collapsible:rotate-90",
+                "size-4 shrink-0 opacity-50 transition-transform duration-200 group-hover/trigger:opacity-90 group-data-[collapsible=icon]:hidden group-data-[state=open]/collapsible:rotate-90",
                 groupActive && "text-primary opacity-80"
               )}
             />
           </SidebarMenuButton>
         </CollapsibleTrigger>
         <CollapsibleContent className="overflow-hidden group-data-[collapsible=icon]:hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-          <div className="relative my-1 ml-4 space-y-0.5 border-l border-border/60 pl-3">
+          <div className="relative my-1 ml-4.5 space-y-0.5 border-l border-border/60 pl-3">
             {item.items?.map((sub) => {
               const isSubActive = sub.url === current
               return (
@@ -132,7 +132,7 @@ function NavCollapsibleItem({
                   key={sub.url}
                   href={sub.url as never}
                   className={cn(
-                    "group/sub relative flex h-7 items-center gap-2 rounded-md px-2 text-[12px] transition-all",
+                    "group/sub relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium transition-all",
                     isSubActive
                       ? "bg-primary/10 font-semibold text-primary shadow-2xs"
                       : "text-muted-foreground hover:bg-sidebar-accent/40 hover:text-foreground"
@@ -140,7 +140,7 @@ function NavCollapsibleItem({
                 >
                   <span
                     className={cn(
-                      "size-1 shrink-0 rounded-full transition-all",
+                      "size-1.5 shrink-0 rounded-full transition-all",
                       isSubActive
                         ? "scale-125 bg-primary"
                         : "bg-muted-foreground/40 group-hover/sub:bg-foreground/60"
@@ -178,13 +178,13 @@ export function NavMain({
   const isCollapsed = mounted && state === "collapsed" && !isMobile
 
   return (
-    <SidebarGroup className="px-2 py-1">
+    <SidebarGroup className="px-2.5 py-1">
       {section.label ? (
-        <SidebarGroupLabel className="h-6 px-2 font-mono text-[10px] font-bold tracking-wider text-muted-foreground/60 uppercase select-none group-data-[collapsible=icon]:hidden">
+        <SidebarGroupLabel className="h-7 px-3 font-mono text-xs font-semibold tracking-wider text-muted-foreground/75 uppercase select-none group-data-[collapsible=icon]:hidden">
           {section.label}
         </SidebarGroupLabel>
       ) : null}
-      <SidebarMenu className="gap-0.5">
+      <SidebarMenu className="gap-1">
         {section.items.map((item) => {
           const Icon = item.icon
 
@@ -203,7 +203,7 @@ export function NavMain({
                   isActive={active}
                   tooltip={item.title}
                   className={cn(
-                    "relative flex h-8.5 w-full items-center gap-2.5 rounded-lg px-2.5 text-xs font-medium transition-all group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!",
+                    "relative flex h-10 w-full items-center gap-3 rounded-md px-3 text-[14px] font-medium transition-all group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:p-0!",
                     active
                       ? "bg-primary/10 font-semibold text-primary shadow-2xs ring-1 ring-primary/20 before:absolute before:top-2 before:bottom-2 before:left-0 before:w-1 before:rounded-r-full before:bg-primary group-data-[collapsible=icon]:before:hidden"
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -213,7 +213,7 @@ export function NavMain({
                     {Icon && (
                       <Icon
                         className={cn(
-                          "size-4 shrink-0 transition-colors",
+                          "size-5 shrink-0 transition-colors group-data-[collapsible=icon]:size-6",
                           active
                             ? "text-primary"
                             : "text-sidebar-foreground/60 group-hover/menu-button:text-sidebar-foreground"
@@ -247,7 +247,7 @@ export function NavMain({
                       title={item.title}
                       isActive={groupActive}
                       className={cn(
-                        "relative size-8 cursor-pointer justify-center rounded-lg transition-colors group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-0!",
+                        "relative size-11 cursor-pointer justify-center rounded-md transition-colors group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:p-0!",
                         groupActive
                           ? "bg-primary/10 font-semibold text-primary ring-1 ring-primary/20"
                           : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -256,7 +256,7 @@ export function NavMain({
                       {Icon && (
                         <Icon
                           className={cn(
-                            "size-4 shrink-0",
+                            "size-5.5 shrink-0",
                             groupActive ? "text-primary" : undefined
                           )}
                         />
@@ -267,12 +267,12 @@ export function NavMain({
                   <DropdownMenuContent
                     side="right"
                     align="start"
-                    sideOffset={8}
-                    className="z-50 min-w-56 rounded-xl border border-border bg-popover/95 p-1.5 shadow-xl backdrop-blur-md"
+                    sideOffset={10}
+                    className="z-50 min-w-60 rounded-lg border border-border/80 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-xl"
                   >
-                    <DropdownMenuLabel className="flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-foreground">
-                      {Icon && <Icon className="size-4 text-primary" />}
-                      <span>{item.title}</span>
+                    <DropdownMenuLabel className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-foreground">
+                      {Icon && <Icon className="size-4.5 text-primary" />}
+                      <span className="tracking-tight">{item.title}</span>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator className="my-1 bg-border/60" />
                     <DropdownMenuGroup className="space-y-0.5">
@@ -283,7 +283,7 @@ export function NavMain({
                             key={sub.url}
                             asChild
                             className={cn(
-                              "cursor-pointer rounded-lg px-2.5 py-1.5 text-xs transition-colors",
+                              "cursor-pointer rounded-md px-3 py-2 text-xs transition-colors",
                               subActive
                                 ? "bg-primary/10 font-semibold text-primary"
                                 : "text-muted-foreground hover:bg-accent hover:text-foreground"

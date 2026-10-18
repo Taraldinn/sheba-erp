@@ -36,9 +36,9 @@ export function DashboardHeader({
   unreadNotificationsCount?: number;
 }) {
   return (
-    <header className="sticky top-0 z-20 flex h-13 shrink-0 items-center gap-3 border-b border-border/60 bg-background/70 px-4 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 lg:px-6 luxury-sheen transition-colors">
-      <SidebarTrigger className="-ml-1.5 size-7 text-muted-foreground transition-colors hover:text-foreground" />
-      <Separator orientation="vertical" className="mr-1 opacity-40 data-[orientation=vertical]:h-3.5" />
+    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border/60 bg-background/70 px-4 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 lg:px-6 luxury-sheen transition-colors">
+      <SidebarTrigger className="-ml-1.5 size-8 text-muted-foreground transition-colors hover:text-foreground rounded-md" />
+      <Separator orientation="vertical" className="mr-1 opacity-40 data-[orientation=vertical]:h-4" />
 
       {/* Breadcrumbs */}
       <Breadcrumb className="min-w-0">

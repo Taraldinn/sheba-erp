@@ -94,9 +94,9 @@ export function NavUser({
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton
                 size="lg"
-                className="group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0! data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                className="h-12 rounded-md group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:p-0! data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
-                <Avatar className="size-8 shrink-0 rounded-md">
+                <Avatar className="size-8.5 shrink-0 rounded-md">
                   <AvatarImage src={user.avatar} alt={effectiveName} />
                   <AvatarFallback className="rounded-md bg-primary/15 font-mono text-xs font-semibold text-primary">
                     {initials}
@@ -112,10 +112,10 @@ export function NavUser({
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              className="w-64 p-1.5"
+              className="w-64 rounded-lg border border-border/80 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-xl"
               side={isMobile ? "bottom" : "right"}
               align="end"
-              sideOffset={4}
+              sideOffset={8}
             >
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2.5 px-2 py-2 text-left text-sm">
@@ -135,7 +135,7 @@ export function NavUser({
                       {effectiveEmail || `@${auth.user?.username || "user"}`}
                     </span>
                     {roleDisplay && (
-                      <span className="py-0.2 mt-1 inline-flex w-fit items-center rounded-sm bg-muted px-1.5 font-mono text-[9px] tracking-wider text-muted-foreground uppercase">
+                      <span className="mt-1 inline-flex w-fit items-center rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs tracking-wider text-muted-foreground uppercase">
                         {roleDisplay}
                       </span>
                     )}
