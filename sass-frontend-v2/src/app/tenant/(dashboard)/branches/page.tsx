@@ -112,7 +112,7 @@ export default function PopBranchListPage() {
             {/* Header matching Screenshot 1 */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-600/20 shadow-xs">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 shadow-xs">
                         <Users className="h-5 w-5" />
                     </div>
                     <div>
@@ -135,7 +135,7 @@ export default function PopBranchListPage() {
                         />
                         <button
                             type="button"
-                            className="absolute right-0 top-0 h-9 w-9 flex items-center justify-center text-white bg-blue-600 hover:bg-blue-700 rounded-r-md transition-colors"
+                            className="absolute right-0 top-0 h-9 w-9 flex items-center justify-center text-primary-foreground bg-primary hover:bg-primary/90 rounded-r-md transition-colors"
                         >
                             <Search className="h-3.5 w-3.5" />
                         </button>
@@ -143,7 +143,7 @@ export default function PopBranchListPage() {
 
                     <Button
                         onClick={handleCreateNew}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-xs gap-1.5 h-9 text-xs"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-xs gap-1.5 h-9 text-xs"
                     >
                         <Plus className="h-4 w-4" />
                         Create New
@@ -153,15 +153,15 @@ export default function PopBranchListPage() {
 
             {/* 5 Distinct Colored Summary Metric Cards (Strictly matching Screenshot 1) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-                {/* Card 1: Total Clients (Blue) */}
-                <div className="rounded-xl p-4 bg-blue-600 text-white shadow-sm flex flex-col justify-between min-h-[110px]">
-                    <div className="text-xs font-medium text-blue-100">
+                {/* Card 1: Total Clients (Global Orange Primary) */}
+                <div className="rounded-xl p-4 bg-primary text-primary-foreground shadow-sm flex flex-col justify-between min-h-[110px]">
+                    <div className="text-xs font-medium text-primary-foreground/90">
                         Total Clients
                     </div>
                     <div className="text-3xl font-extrabold tracking-tight">
                         {metrics?.total_clients.count ?? 0}
                     </div>
-                    <div className="text-[11px] text-blue-100/90 font-medium truncate">
+                    <div className="text-[11px] text-primary-foreground/85 font-medium truncate">
                         {metrics?.total_clients.active ?? 0} Active • {metrics?.total_clients.inactive ?? 0} Inactive • {metrics?.total_clients.free ?? 0} Free • {metrics?.total_clients.expired ?? 0} Expire
                     </div>
                 </div>
@@ -212,13 +212,13 @@ export default function PopBranchListPage() {
                     </div>
                 </div>
 
-                {/* Card 5: Total Left (Slate/Gray) */}
-                <div className="rounded-xl p-4 bg-slate-600 text-white shadow-sm flex flex-col justify-between min-h-[110px]">
-                    <div className="flex items-center justify-between text-xs font-medium text-slate-200">
+                {/* Card 5: Total Left (Neutral Graphite) */}
+                <div className="rounded-xl p-4 bg-neutral-700 dark:bg-neutral-800 text-white shadow-sm flex flex-col justify-between min-h-[110px]">
+                    <div className="flex items-center justify-between text-xs font-medium text-neutral-200">
                         <span>Total Left</span>
                         <button
                             onClick={() => router.push('/tenant/branches/left')}
-                            className="text-[10px] text-slate-200 hover:text-white underline flex items-center gap-0.5"
+                            className="text-[10px] text-neutral-200 hover:text-white underline flex items-center gap-0.5"
                         >
                             View All <ArrowRight className="h-2.5 w-2.5" />
                         </button>
@@ -226,7 +226,7 @@ export default function PopBranchListPage() {
                     <div className="text-3xl font-extrabold tracking-tight">
                         {metrics?.total_left.count ?? 0}
                     </div>
-                    <div className="text-[11px] text-slate-200/90 font-medium truncate">
+                    <div className="text-[11px] text-neutral-200/90 font-medium truncate">
                         Bill: {formatMoney(metrics?.total_left.bill)} | Cost: {formatMoney(metrics?.total_left.cost)}
                     </div>
                 </div>
@@ -276,7 +276,7 @@ export default function PopBranchListPage() {
                                                 <Button
                                                     onClick={handleCreateNew}
                                                     size="sm"
-                                                    className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+                                                    className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
                                                 >
                                                     <Plus className="w-3.5 h-3.5" />
                                                     Create New
@@ -333,7 +333,7 @@ export default function PopBranchListPage() {
                                                         )}
                                                         {branch.upstream_router_name && (
                                                             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                                                                <Network className="w-3 h-3 text-blue-500" />
+                                                                <Network className="w-3 h-3 text-primary" />
                                                                 <span>Router: {branch.upstream_router_name}</span>
                                                             </div>
                                                         )}

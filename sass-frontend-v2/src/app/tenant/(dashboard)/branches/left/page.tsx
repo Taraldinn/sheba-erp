@@ -121,7 +121,7 @@ export default function LeftPopBranchListPage() {
                     <Button
                         variant="outline"
                         onClick={() => router.push('/tenant/branches')}
-                        className="text-blue-600 border-blue-600/30 hover:bg-blue-500/10 hover:text-blue-700 font-medium gap-1.5 h-9 text-xs"
+                        className="text-primary border-primary/30 hover:bg-primary/10 hover:text-primary font-medium gap-1.5 h-9 text-xs"
                     >
                         <ArrowLeft className="h-4 w-4" />
                         Back to POP/Branch List

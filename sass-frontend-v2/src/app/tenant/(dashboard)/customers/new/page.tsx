@@ -142,7 +142,7 @@ export default function AddNewClientPage() {
     const [discount, setDiscount] = useState<number | string>(0);
     const [billAmount, setBillAmount] = useState<number | string>(0);
     const [billingPosition, setBillingPosition] = useState('Active (Billable)');
-    const [clientStatus, setClientStatus] = useState('ACTIVE');
+    const [clientStatus, setClientStatus] = useState('Active');
     const [joiningDate, setJoiningDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [billingCycleDay, setBillingCycleDay] = useState('Standard 30 Days');
     const [autoRecharge, setAutoRecharge] = useState('Disabled');
@@ -303,7 +303,7 @@ export default function AddNewClientPage() {
             thana: thana || undefined,
             area_zone: zoneConfig === 'Default / No Zone' ? 'Main Zone' : zoneConfig,
             client_type: clientType,
-            connection_type: connectionType.toLowerCase().includes('fiber') ? 'pppoe' : 'static',
+            connection_type: connectionType === 'Static / Dedicated IP' ? 'Static_IP' : connectionType.toLowerCase().includes('dhcp') ? 'DHCP' : 'PPPoE',
             pppoe_username: pppoeUsername.trim(),
             pppoe_password: pppoePassword || undefined,
             package: selectedPackageId || undefined,
@@ -311,7 +311,7 @@ export default function AddNewClientPage() {
             tj_box: tjBoxId || undefined,
             monthly_bill: billAmount,
             discount: discount,
-            billing_type: billingPosition.toLowerCase().includes('free') ? 'FREE' : 'PREPAID',
+            billing_type: billingPosition.toLowerCase().includes('free') ? 'Free' : billingPosition.toLowerCase().includes('post') ? 'Postpaid' : 'Prepaid',
             billing_cycle_day: billingCycleDay,
             auto_recharge: autoRecharge === 'Enabled',
             auto_recharge_duration: autoRechargeDuration,
@@ -669,10 +669,10 @@ export default function AddNewClientPage() {
                                 onChange={e => setClientStatus(e.target.value)}
                                 className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                             >
-                                <option value="ACTIVE">Active</option>
-                                <option value="INACTIVE">Inactive</option>
-                                <option value="SUSPENDED">Suspended</option>
-                                <option value="EXPIRED">Expired</option>
+                                <option value="Active">Active</option>
+                                <option value="Suspended">Suspended</option>
+                                <option value="Expired">Expired</option>
+                                <option value="Left">Terminated / Left</option>
                             </select>
                         </div>
 
@@ -825,10 +825,11 @@ export default function AddNewClientPage() {
                                 onChange={e => setConnectionType(e.target.value)}
                                 className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                             >
-                                <option value="Fiber (FTTH)">Fiber (FTTH)</option>
-                                <option value="Cat5 / Cat6 Cable">Cat5 / Cat6 Cable</option>
-                                <option value="Wireless (PtP / PtMP)">Wireless (PtP / PtMP)</option>
+                                <option value="Fiber (FTTH)">Fiber / PPPoE (FTTH)</option>
+                                <option value="Cat5 / Cat6 Cable">Cat5 / Cat6 (PPPoE)</option>
+                                <option value="Wireless (PtP / PtMP)">Wireless PtP / PtMP (PPPoE)</option>
                                 <option value="Static / Dedicated IP">Static / Dedicated IP</option>
+                                <option value="DHCP / IPoE">DHCP / IPoE</option>
                             </select>
                         </div>
 

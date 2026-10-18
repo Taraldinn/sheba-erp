@@ -161,14 +161,14 @@ export function RegisterOltModal({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto p-0 rounded-xl bg-white border border-slate-200 shadow-2xl">
+            <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto p-0 rounded-xl bg-card border border-border shadow-2xl">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/60 sticky top-0 z-10">
-                    <div className="flex items-center gap-2 text-slate-800 font-semibold text-lg">
-                        <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white">
-                            <PlusCircle className="w-5 h-5" />
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30 sticky top-0 z-10">
+                    <div className="flex items-center gap-2.5 font-semibold text-lg">
+                        <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 flex items-center justify-center">
+                            <PlusCircle className="w-4 h-4" />
                         </div>
-                        <DialogTitle className="text-base font-semibold text-slate-800">
+                        <DialogTitle className="text-base font-semibold text-foreground">
                             {oltToEdit ? 'Edit OLT Device' : 'Register New OLT'}
                         </DialogTitle>
                     </div>
@@ -178,36 +178,36 @@ export function RegisterOltModal({
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {/* OLT Name */}
                     <div>
-                        <Label className="text-xs font-semibold text-slate-700">OLT Name</Label>
+                        <Label className="text-xs font-semibold text-foreground">OLT Name</Label>
                         <Input
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="e.g. Core OLT 1"
-                            className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                            className="mt-1 text-sm h-10"
                             required
                         />
                     </div>
 
                     {/* OLT Latlong */}
                     <div>
-                        <Label className="text-xs font-semibold text-slate-700">OLT Latlong</Label>
+                        <Label className="text-xs font-semibold text-foreground">OLT Latlong</Label>
                         <Input
                             value={latlong}
                             onChange={(e) => setLatlong(e.target.value)}
                             placeholder="e.g. 23.8103,90.4125"
-                            className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                            className="mt-1 text-sm h-10"
                         />
                     </div>
 
                     {/* Row: Brand & Tech + Access Mode */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <Label className="text-xs font-semibold text-slate-700">OLT Brand & Technology Type</Label>
+                            <Label className="text-xs font-semibold text-foreground">OLT Brand & Technology Type</Label>
                             <Select value={brandTech} onValueChange={setBrandTech}>
-                                <SelectTrigger className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10">
+                                <SelectTrigger className="mt-1 text-sm h-10">
                                     <SelectValue placeholder="Select Brand & Tech" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-white border border-slate-200">
+                                <SelectContent>
                                     <SelectItem value="BDCOM EPON">BDCOM EPON</SelectItem>
                                     <SelectItem value="BDCOM GPON">BDCOM GPON</SelectItem>
                                     <SelectItem value="VSOL EPON">VSOL EPON</SelectItem>
@@ -220,12 +220,12 @@ export function RegisterOltModal({
                             </Select>
                         </div>
                         <div>
-                            <Label className="text-xs font-semibold text-slate-700">Access Mode</Label>
+                            <Label className="text-xs font-semibold text-foreground">Access Mode</Label>
                             <Select value={accessMode} onValueChange={setAccessMode}>
-                                <SelectTrigger className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10">
+                                <SelectTrigger className="mt-1 text-sm h-10">
                                     <SelectValue placeholder="Select Access Mode" />
                                 </SelectTrigger>
-                                <SelectContent className="bg-white border border-slate-200">
+                                <SelectContent>
                                     <SelectItem value="Telnet Mode">Telnet Mode</SelectItem>
                                     <SelectItem value="SNMP Only">SNMP Only</SelectItem>
                                     <SelectItem value="SNMP + Telnet Dual Mode">SNMP + Telnet Dual Mode</SelectItem>
@@ -236,12 +236,12 @@ export function RegisterOltModal({
 
                     {/* Connection Path */}
                     <div>
-                        <Label className="text-xs font-semibold text-slate-700">Connection Path</Label>
+                        <Label className="text-xs font-semibold text-foreground">Connection Path</Label>
                         <Select value={connectionPath} onValueChange={setConnectionPath}>
-                            <SelectTrigger className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10">
+                            <SelectTrigger className="mt-1 text-sm h-10">
                                 <SelectValue placeholder="Select Connection Path" />
                             </SelectTrigger>
-                            <SelectContent className="bg-white border border-slate-200">
+                            <SelectContent>
                                 <SelectItem value="Direct OLT IP">Direct OLT IP</SelectItem>
                                 <SelectItem value="Via PPTP VPN">Via PPTP VPN</SelectItem>
                                 <SelectItem value="Via WireGuard">Via WireGuard</SelectItem>
@@ -252,130 +252,130 @@ export function RegisterOltModal({
                     {/* Row: OLT IP Address + Telnet Port */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="md:col-span-2">
-                            <Label className="text-xs font-semibold text-slate-700">OLT IP Address</Label>
+                            <Label className="text-xs font-semibold text-foreground">OLT IP Address</Label>
                             <Input
                                 value={ipAddress}
                                 onChange={(e) => setIpAddress(e.target.value)}
                                 placeholder="e.g. 192.168.1.100"
-                                className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                                className="mt-1 text-sm h-10"
                                 required
                             />
                         </div>
                         <div>
-                            <Label className="text-xs font-semibold text-slate-700">Telnet Port</Label>
+                            <Label className="text-xs font-semibold text-foreground">Telnet Port</Label>
                             <Input
                                 type="number"
                                 value={telnetPort}
                                 onChange={(e) => setTelnetPort(e.target.value)}
                                 placeholder="23"
-                                className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                                className="mt-1 text-sm h-10"
                             />
                         </div>
                     </div>
 
                     {/* Info Alert Banner */}
-                    <div className="p-3 bg-blue-50/80 border border-blue-200/80 rounded-lg flex items-start gap-2.5 text-xs text-blue-900 leading-relaxed">
-                        <Globe className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                    <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-start gap-2.5 text-xs text-foreground leading-relaxed">
+                        <Globe className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                         <div>
-                            <span className="font-medium">C-DATA V2 / BDCOM runs in SNMP + Telnet dual mode.</span> SNMP reads ONU/status/optics; Telnet validates CLI access and adds Caller-ID/MAC plus supported fallback/enrichment.
+                            <span className="font-medium text-primary">C-DATA V2 / BDCOM runs in SNMP + Telnet dual mode.</span> SNMP reads ONU/status/optics; Telnet validates CLI access and adds Caller-ID/MAC plus supported fallback/enrichment.
                         </div>
                     </div>
 
                     {/* Section: Access Credentials */}
                     <div className="pt-2">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                            <KeyRound className="w-3.5 h-3.5 text-amber-500" />
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-foreground uppercase tracking-wider mb-2">
+                            <KeyRound className="w-3.5 h-3.5 text-primary" />
                             <span>Access Credentials</span>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <Label className="text-xs font-semibold text-slate-700">Telnet/CLI User (Optional)</Label>
+                                <Label className="text-xs font-semibold text-foreground">Telnet/CLI User (Optional)</Label>
                                 <Input
                                     value={telnetUser}
                                     onChange={(e) => setTelnetUser(e.target.value)}
                                     placeholder="admin"
-                                    className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                                    className="mt-1 text-sm h-10"
                                 />
                             </div>
                             <div>
-                                <Label className="text-xs font-semibold text-slate-700">Telnet/CLI Password (Optional)</Label>
+                                <Label className="text-xs font-semibold text-foreground">Telnet/CLI Password (Optional)</Label>
                                 <Input
                                     type="password"
                                     value={telnetPassword}
                                     onChange={(e) => setTelnetPassword(e.target.value)}
                                     placeholder={oltToEdit ? '•••••••• (leave blank to keep unchanged)' : 'password'}
-                                    className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                                    className="mt-1 text-sm h-10"
                                 />
                             </div>
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
                             <div>
-                                <Label className="text-xs font-semibold text-slate-700">SNMP Read Community</Label>
+                                <Label className="text-xs font-semibold text-foreground">SNMP Read Community</Label>
                                 <Input
                                     value={snmpCommunity}
                                     onChange={(e) => setSnmpCommunity(e.target.value)}
                                     placeholder="public"
-                                    className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                                    className="mt-1 text-sm h-10"
                                 />
                             </div>
                             <div>
-                                <Label className="text-xs font-semibold text-slate-700">SNMP Port</Label>
+                                <Label className="text-xs font-semibold text-foreground">SNMP Port</Label>
                                 <Input
                                     type="number"
                                     value={snmpPort}
                                     onChange={(e) => setSnmpPort(e.target.value)}
                                     placeholder="161"
-                                    className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                                    className="mt-1 text-sm h-10"
                                 />
                             </div>
                             <div>
-                                <Label className="text-xs font-semibold text-slate-700">Retries</Label>
+                                <Label className="text-xs font-semibold text-foreground">Retries</Label>
                                 <Input
                                     type="number"
                                     value={retries}
                                     onChange={(e) => setRetries(e.target.value)}
                                     placeholder="1"
-                                    className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                                    className="mt-1 text-sm h-10"
                                 />
                             </div>
                             <div>
-                                <Label className="text-xs font-semibold text-slate-700">Timeout</Label>
+                                <Label className="text-xs font-semibold text-foreground">Timeout</Label>
                                 <Input
                                     type="number"
                                     value={timeoutVal}
                                     onChange={(e) => setTimeoutVal(e.target.value)}
                                     placeholder="10"
-                                    className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                                    className="mt-1 text-sm h-10"
                                 />
                             </div>
                         </div>
 
                         <div className="mt-3">
-                            <Label className="text-xs font-semibold text-slate-700">Poll Interval (seconds)</Label>
+                            <Label className="text-xs font-semibold text-foreground">Poll Interval (seconds)</Label>
                             <Input
                                 type="number"
                                 value={pollInterval}
                                 onChange={(e) => setPollInterval(e.target.value)}
                                 placeholder="600"
-                                className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10 max-w-xs"
+                                className="mt-1 text-sm h-10 max-w-xs"
                             />
-                            <p className="text-[11px] text-slate-500 mt-1">Default 600 seconds (10 minutes).</p>
+                            <p className="text-[11px] text-muted-foreground mt-1">Default 600 seconds (10 minutes).</p>
                         </div>
                     </div>
 
                     {/* Dual Mode Card */}
-                    <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-lg space-y-3">
+                    <div className="p-4 bg-muted/30 border border-border rounded-lg space-y-3">
                         <div className="flex items-center gap-2">
                             <input
                                 type="checkbox"
                                 id="dual_mode_check"
                                 checked={dualMode}
                                 onChange={(e) => setDualMode(e.target.checked)}
-                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                                className="w-4 h-4 rounded text-primary focus:ring-primary border-input accent-primary"
                             />
-                            <label htmlFor="dual_mode_check" className="text-xs font-medium text-slate-800 cursor-pointer select-none">
+                            <label htmlFor="dual_mode_check" className="text-xs font-medium text-foreground cursor-pointer select-none">
                                 Use SNMP + Telnet Dual Mode / Caller-ID MAC collection
                             </label>
                         </div>
@@ -383,23 +383,23 @@ export function RegisterOltModal({
                         {dualMode && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                                 <div>
-                                    <Label className="text-xs font-semibold text-slate-700">Enable Password (optional)</Label>
+                                    <Label className="text-xs font-semibold text-foreground">Enable Password (optional)</Label>
                                     <Input
                                         type="password"
                                         value={enablePassword}
                                         onChange={(e) => setEnablePassword(e.target.value)}
                                         placeholder="••••••••"
-                                        className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                                        className="mt-1 text-sm h-10"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-xs font-semibold text-slate-700">CLI Timeout (s)</Label>
+                                    <Label className="text-xs font-semibold text-foreground">CLI Timeout (s)</Label>
                                     <Input
                                         type="number"
                                         value={cliTimeout}
                                         onChange={(e) => setCliTimeout(e.target.value)}
                                         placeholder="5"
-                                        className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                                        className="mt-1 text-sm h-10"
                                     />
                                 </div>
                             </div>
@@ -407,19 +407,19 @@ export function RegisterOltModal({
                     </div>
 
                     {/* Footer Buttons */}
-                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
                         <Button
                             type="button"
                             variant="outline"
                             onClick={() => onOpenChange(false)}
-                            className="border-slate-200 text-slate-700 hover:bg-slate-100 h-10 px-5"
+                            className="border-border text-foreground hover:bg-muted h-10 px-5"
                         >
                             Close
                         </Button>
                         <Button
                             type="submit"
                             disabled={saveMutation.isPending}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-medium h-10 px-6"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-10 px-6 shadow-xs"
                         >
                             {saveMutation.isPending ? 'Saving...' : (oltToEdit ? 'Update OLT' : 'Add OLT')}
                         </Button>

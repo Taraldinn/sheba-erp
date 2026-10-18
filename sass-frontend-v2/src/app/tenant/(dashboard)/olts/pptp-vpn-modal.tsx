@@ -88,13 +88,15 @@ export function PptpVpnModal({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto p-0 rounded-xl bg-white border border-slate-200 shadow-2xl">
+            <DialogContent className="max-w-xl max-h-[92vh] overflow-y-auto p-0 rounded-xl bg-card border border-border shadow-2xl">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/60 sticky top-0 z-10">
-                    <div className="flex items-center gap-2 text-slate-800 font-semibold text-lg">
-                        <Settings className="w-5 h-5 text-blue-600" />
-                        <DialogTitle className="text-base font-semibold text-slate-800">
-                            Configure PPTP VPN settings
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30 sticky top-0 z-10">
+                    <div className="flex items-center gap-2.5 font-semibold text-lg">
+                        <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 flex items-center justify-center">
+                            <Settings className="w-4 h-4 text-primary" />
+                        </div>
+                        <DialogTitle className="text-base font-semibold text-foreground">
+                            Configure PPTP VPN Settings
                         </DialogTitle>
                     </div>
                 </div>
@@ -103,33 +105,33 @@ export function PptpVpnModal({
                 <form onSubmit={handleSubmit} className="p-6 space-y-5">
                     {/* PPTP VPN Server Address / IP */}
                     <div>
-                        <Label className="text-xs font-semibold text-slate-700">
+                        <Label className="text-xs font-semibold text-foreground">
                             PPTP VPN Server Address / IP
                         </Label>
                         <Input
                             value={serverIp}
                             onChange={(e) => setServerIp(e.target.value)}
                             placeholder="e.g. 163.61.217.81"
-                            className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                            className="mt-1 text-sm h-10"
                         />
                     </div>
 
                     {/* VPN Username */}
                     <div>
-                        <Label className="text-xs font-semibold text-slate-700">
+                        <Label className="text-xs font-semibold text-foreground">
                             VPN Username
                         </Label>
                         <Input
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             placeholder="e.g. ashik"
-                            className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                            className="mt-1 text-sm h-10"
                         />
                     </div>
 
                     {/* VPN Password */}
                     <div>
-                        <Label className="text-xs font-semibold text-slate-700">
+                        <Label className="text-xs font-semibold text-foreground">
                             VPN Password
                         </Label>
                         <Input
@@ -137,33 +139,33 @@ export function PptpVpnModal({
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder={currentConfig?.has_password ? '•••••••• (leave blank to keep current)' : 'Enter PPTP password'}
-                            className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                            className="mt-1 text-sm h-10"
                         />
                     </div>
 
                     {/* Bangladeshi OLT LAN Subnet */}
                     <div>
-                        <Label className="text-xs font-semibold text-slate-700">
+                        <Label className="text-xs font-semibold text-foreground">
                             Bangladeshi OLT LAN Subnet
                         </Label>
                         <Input
                             value={lanSubnet}
                             onChange={(e) => setLanSubnet(e.target.value)}
                             placeholder="e.g. 172.25.31.0/24"
-                            className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                            className="mt-1 text-sm h-10"
                         />
-                        <p className="text-[11px] text-slate-500 mt-1">
+                        <p className="text-[11px] text-muted-foreground mt-1">
                             The LAN subnet where the remote OLT devices reside in Bangladesh.
                         </p>
                     </div>
 
                     {/* Toggle: Require MPPE Encryption */}
-                    <div className="flex items-start justify-between gap-4 py-2 border-t border-slate-100">
+                    <div className="flex items-start justify-between gap-4 py-2 border-t border-border">
                         <div className="space-y-0.5">
-                            <span className="text-xs font-semibold text-slate-800 block">
+                            <span className="text-xs font-semibold text-foreground block">
                                 Require MPPE Encryption
                             </span>
-                            <p className="text-[11px] text-slate-500">
+                            <p className="text-[11px] text-muted-foreground">
                                 Disable this if your VPN server refuses MPPE encryption or fails to negotiate.
                             </p>
                         </div>
@@ -174,18 +176,18 @@ export function PptpVpnModal({
                                 onChange={(e) => setRequireMppe(e.target.checked)}
                                 className="sr-only peer"
                             />
-                            <div className="w-10 h-5.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
+                            <div className="w-10 h-5.5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-border after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-primary border border-border"></div>
                         </label>
                     </div>
 
                     {/* Row: Auto-connect / Auto-reconnect + Route Metric */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center py-2 border-t border-slate-100">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center py-2 border-t border-border">
                         <div className="md:col-span-2 flex items-start justify-between gap-3">
                             <div className="space-y-0.5">
-                                <span className="text-xs font-semibold text-slate-800 block">
+                                <span className="text-xs font-semibold text-foreground block">
                                     Auto-connect / Auto-reconnect
                                 </span>
-                                <p className="text-[11px] text-slate-500">
+                                <p className="text-[11px] text-muted-foreground">
                                     The master VPN cron keeps this tenant tunnel available for OLT polling.
                                 </p>
                             </div>
@@ -196,35 +198,35 @@ export function PptpVpnModal({
                                     onChange={(e) => setAutoConnect(e.target.checked)}
                                     className="sr-only peer"
                                 />
-                                <div className="w-10 h-5.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-blue-600"></div>
+                                <div className="w-10 h-5.5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-border after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-primary border border-border"></div>
                             </label>
                         </div>
                         <div>
-                            <Label className="text-xs font-semibold text-slate-700">Route Metric</Label>
+                            <Label className="text-xs font-semibold text-foreground">Route Metric</Label>
                             <Input
                                 type="number"
                                 value={routeMetric}
                                 onChange={(e) => setRouteMetric(e.target.value)}
                                 placeholder="50"
-                                className="mt-1 bg-white border-slate-200 text-slate-800 text-sm h-10"
+                                className="mt-1 text-sm h-10"
                             />
                         </div>
                     </div>
 
                     {/* Footer Buttons */}
-                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
                         <Button
                             type="button"
                             variant="outline"
                             onClick={() => onOpenChange(false)}
-                            className="border-slate-200 text-slate-700 hover:bg-slate-100 h-10 px-5"
+                            className="border-border text-foreground hover:bg-muted h-10 px-5"
                         >
                             Cancel
                         </Button>
                         <Button
                             type="submit"
                             disabled={saveMutation.isPending}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-medium h-10 px-6"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-10 px-6 shadow-xs"
                         >
                             {saveMutation.isPending ? 'Saving...' : 'Save Settings'}
                         </Button>

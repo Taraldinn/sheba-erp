@@ -478,7 +478,7 @@ export interface Customer {
     thana?: string;
     area_zone?: string;
     client_type?: string;
-    connection_type?: string;
+    connection_type?: CustomerConnectionType;
     pppoe_username: string;
     static_ip?: string;
     mac_address?: string;
@@ -493,7 +493,7 @@ export interface Customer {
     router_status?: string;
     tj_box?: string;
     tj_box_name?: string;
-    billing_type?: string;
+    billing_type?: CustomerBillingType;
     monthly_bill: number | string;
     due_amount: number | string;
     advance_amount: number | string;
@@ -506,7 +506,7 @@ export interface Customer {
     bill_date?: string;
     expiry_date?: string;
     promise_date?: string;
-    status: string;
+    status: CustomerStatusType;
     latitude?: number | string;
     longitude?: number | string;
     remarks?: string;
@@ -516,6 +516,10 @@ export interface Customer {
     created_at: string;
     updated_at?: string;
 }
+
+export type CustomerConnectionType = 'PPPoE' | 'Static_IP' | 'DHCP' | (string & {});
+export type CustomerBillingType = 'Prepaid' | 'Postpaid' | 'Free' | (string & {});
+export type CustomerStatusType = 'Active' | 'Expired' | 'Suspended' | 'Left' | 'Archived' | (string & {});
 
 export interface CustomerCreatePayload {
     customer_code?: string;
@@ -529,7 +533,7 @@ export interface CustomerCreatePayload {
     thana?: string;
     area_zone?: string;
     client_type?: string;
-    connection_type?: string;
+    connection_type?: CustomerConnectionType;
     pppoe_username: string;
     pppoe_password?: string;
     package?: string;
@@ -537,7 +541,7 @@ export interface CustomerCreatePayload {
     tj_box?: string;
     monthly_bill?: number | string;
     discount?: number | string;
-    billing_type?: string;
+    billing_type?: CustomerBillingType;
     billing_cycle_day?: string;
     auto_recharge?: boolean;
     auto_recharge_duration?: string;
@@ -545,7 +549,7 @@ export interface CustomerCreatePayload {
     voice_notifications?: boolean;
     joining_date?: string;
     bill_date?: string;
-    status?: string;
+    status?: CustomerStatusType;
     static_ip?: string;
     mac_address?: string;
     onu_mac_or_sn?: string;

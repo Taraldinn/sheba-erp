@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Customer, CustomerService, CustomerSubscription, ServiceStatus, SubscriptionStatus, CustomerStatus
+from .models import Customer, CustomerService, CustomerSubscription, ServiceStatus, SubscriptionStatus, CustomerStatus, ConnectionType, BillingType
 from apps.billing.models import Package
 from apps.network.models import Router
 
@@ -76,13 +76,72 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('tenant',)
         extra_kwargs = {
-            'pppoe_password': {'write_only': True, 'required': False}
+            'pppoe_password': {'write_only': True, 'required': False},
+            'customer_code': {'required': False, 'allow_blank': True, 'allow_null': True, 'default': ''},
         }
+
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+
+        # Normalize connection_type case-insensitively and handle common aliases
+        conn = data.get('connection_type')
+        if isinstance(conn, str) and conn.strip():
+            conn_clean = conn.strip().lower()
+            if conn_clean in ('pppoe', 'fiber', 'fiber (ftth)', 'ftth'):
+                data['connection_type'] = ConnectionType.PPPOE
+            elif conn_clean in ('static', 'static_ip', 'static ip', 'dedicated', 'static / dedicated ip'):
+                data['connection_type'] = ConnectionType.STATIC
+            elif conn_clean in ('dhcp', 'ipoe', 'dhcp / ipoe'):
+                data['connection_type'] = ConnectionType.DHCP
+            else:
+                for choice in ConnectionType.values:
+                    if choice.lower() == conn_clean:
+                        data['connection_type'] = choice
+                        break
+
+        # Normalize billing_type case-insensitively
+        btype = data.get('billing_type')
+        if isinstance(btype, str) and btype.strip():
+            btype_clean = btype.strip().lower()
+            if btype_clean in ('prepaid', 'pre-paid'):
+                data['billing_type'] = BillingType.PREPAID
+            elif btype_clean in ('postpaid', 'post-paid'):
+                data['billing_type'] = BillingType.POSTPAID
+            elif btype_clean in ('free', 'complimentary', 'staff', 'vip'):
+                data['billing_type'] = BillingType.FREE
+            else:
+                for choice in BillingType.values:
+                    if choice.lower() == btype_clean:
+                        data['billing_type'] = choice
+                        break
+
+        # Normalize status case-insensitively
+        stat = data.get('status')
+        if isinstance(stat, str) and stat.strip():
+            stat_clean = stat.strip().lower()
+            if stat_clean == 'active':
+                data['status'] = CustomerStatus.ACTIVE
+            elif stat_clean == 'expired':
+                data['status'] = CustomerStatus.EXPIRED
+            elif stat_clean in ('suspended', 'inactive', 'locked'):
+                data['status'] = CustomerStatus.SUSPENDED
+            elif stat_clean in ('left', 'terminated'):
+                data['status'] = CustomerStatus.LEFT
+            elif stat_clean == 'archived':
+                data['status'] = CustomerStatus.ARCHIVED
+            else:
+                for choice in CustomerStatus.values:
+                    if choice.lower() == stat_clean:
+                        data['status'] = choice
+                        break
+
+        return super().to_internal_value(data)
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         ret.pop('pppoe_password', None)
         return ret
+
 
     def get_welcome(self, obj):
         """Returns the welcome-credential dispatch info stashed on
@@ -178,6 +237,26 @@ class CustomerDetailSerializer(serializers.ModelSerializer):
                 "Selected TJ Box does not belong to your ISP. Cross-tenant assignment is not allowed."
             )
         return tj_box
+
+    def validate_customer_code(self, value):
+        if not value:
+            return ''
+        return str(value).strip()
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        customer_code = attrs.get('customer_code')
+        if customer_code:
+            tenant = _tenant_from_context(self.context)
+            if tenant:
+                qs = Customer.objects.filter(tenant=tenant, customer_code__iexact=customer_code)
+                if self.instance:
+                    qs = qs.exclude(pk=self.instance.pk)
+                if qs.exists():
+                    raise serializers.ValidationError({
+                        'customer_code': 'A customer with this customer code already exists in your ISP.'
+                    })
+        return attrs
 
 
 class RechargeRequestSerializer(serializers.Serializer):

@@ -154,3 +154,74 @@ class CustomerExtendedFormTests(TestCase):
         self.assertEqual(get_res.data['client_type'], 'Home')
         self.assertEqual(str(get_res.data['tj_box']), str(self.tj_box.id))
         self.assertEqual(get_res.data['btrc_info']['house_no'], 'House 12')
+
+    def test_create_customer_without_customer_code_auto_generates(self, mock_sync):
+        payload = {
+            'full_name': 'No Code Customer',
+            'mobile': '01755667788',
+            'pppoe_username': 'no_code_customer',
+            'pppoe_password': 'pass12345Secure',
+        }
+        res = self.client.post('/api/v1/customers/', payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+        self.assertTrue(bool(res.data['customer_code']))
+        created = Customer.objects.get(id=res.data['id'])
+        self.assertTrue(bool(created.customer_code))
+        self.assertTrue(created.customer_code.startswith('SI-') or created.customer_code.startswith('CUST-'))
+
+    def test_create_customer_duplicate_customer_code_fails(self, mock_sync):
+        payload = {
+            'full_name': 'Duplicate Code Customer',
+            'mobile': '01799887766',
+            'pppoe_username': 'dup_code_customer',
+            'pppoe_password': 'pass12345Secure',
+            'customer_code': 'CUST-EXISTING',
+        }
+        res = self.client.post('/api/v1/customers/', payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('customer_code', res.data.get('field_errors', res.data))
+
+    def test_create_customer_normalizes_connection_type_billing_type_and_status(self, mock_sync):
+        # Testing case-insensitive and common frontend variations:
+        # 'pppoe' -> 'PPPoE', 'PREPAID' -> 'Prepaid', 'ACTIVE' -> 'Active'
+        payload = {
+            'full_name': 'Flexible Inputs Customer',
+            'mobile': '01788776655',
+            'pppoe_username': 'flex_user',
+            'pppoe_password': 'pass12345Secure',
+            'connection_type': 'pppoe',
+            'billing_type': 'PREPAID',
+            'status': 'ACTIVE',
+        }
+        res = self.client.post('/api/v1/customers/', payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+        created = Customer.objects.get(id=res.data['id'])
+        self.assertEqual(created.connection_type, 'PPPoE')
+        self.assertEqual(created.billing_type, 'Prepaid')
+        self.assertEqual(created.status, 'Active')
+
+    def test_create_customer_normalizes_static_and_dhcp_connection_types(self, mock_sync):
+        payload_static = {
+            'full_name': 'Static Customer',
+            'mobile': '01711112222',
+            'pppoe_username': 'static_user',
+            'pppoe_password': 'pass12345Secure',
+            'connection_type': 'static',
+        }
+        res_static = self.client.post('/api/v1/customers/', payload_static, format='json')
+        self.assertEqual(res_static.status_code, status.HTTP_201_CREATED, res_static.data)
+        created_static = Customer.objects.get(id=res_static.data['id'])
+        self.assertEqual(created_static.connection_type, 'Static_IP')
+
+        payload_dhcp = {
+            'full_name': 'DHCP Customer',
+            'mobile': '01733334444',
+            'pppoe_username': 'dhcp_user',
+            'pppoe_password': 'pass12345Secure',
+            'connection_type': 'dhcp',
+        }
+        res_dhcp = self.client.post('/api/v1/customers/', payload_dhcp, format='json')
+        self.assertEqual(res_dhcp.status_code, status.HTTP_201_CREATED, res_dhcp.data)
+        created_dhcp = Customer.objects.get(id=res_dhcp.data['id'])
+        self.assertEqual(created_dhcp.connection_type, 'DHCP')
+

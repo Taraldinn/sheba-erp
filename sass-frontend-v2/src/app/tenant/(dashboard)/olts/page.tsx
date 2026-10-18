@@ -131,13 +131,13 @@ export default function TenantOltsPage() {
             {/* Top Header matching Screenshot 1 */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-200">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 shadow-xs flex items-center justify-center">
                         <Server className="w-5 h-5" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                        <h1 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
                             OLT Monitoring System
-                            <span className="text-sm font-normal text-slate-500">
+                            <span className="text-sm font-normal text-muted-foreground">
                                 (Total: {olts.length})
                             </span>
                         </h1>
@@ -162,7 +162,7 @@ export default function TenantOltsPage() {
                             setEditingOlt(null);
                             setOltModalOpen(true);
                         }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-9 px-4 gap-1.5 shadow-sm shadow-blue-200 w-full sm:w-auto"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs h-9 px-4 gap-1.5 shadow-xs w-full sm:w-auto"
                     >
                         <Plus className="w-4 h-4" />
                         Add New OLT
@@ -171,13 +171,13 @@ export default function TenantOltsPage() {
             </div>
 
             {/* Tabs matching Screenshot 1 & 4 */}
-            <div className="flex items-center gap-2 border-b border-slate-200">
+            <div className="flex items-center gap-2 border-b border-border">
                 <button
                     onClick={() => setActiveTab('devices')}
                     className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 -mb-[2px] ${
                         activeTab === 'devices'
-                            ? 'border-blue-600 text-blue-600 bg-white shadow-2xs'
-                            : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                            ? 'border-primary text-primary bg-card shadow-2xs'
+                            : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
                     }`}
                 >
                     <Layers className="w-4 h-4" />
@@ -187,8 +187,8 @@ export default function TenantOltsPage() {
                     onClick={() => setActiveTab('map')}
                     className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 -mb-[2px] ${
                         activeTab === 'map'
-                            ? 'border-blue-600 text-blue-600 bg-white shadow-2xs'
-                            : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                            ? 'border-primary text-primary bg-card shadow-2xs'
+                            : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
                     }`}
                 >
                     <MapIcon className="w-4 h-4" />
@@ -201,19 +201,19 @@ export default function TenantOltsPage() {
                 <div className="space-y-6">
                     {/* Empty Info Banner matching Screenshot 1 */}
                     {olts.length === 0 ? (
-                        <div className="p-4 bg-sky-50 border border-sky-200 rounded-lg flex items-center gap-3 text-xs text-sky-800">
-                            <Info className="w-4 h-4 text-sky-600 shrink-0" />
+                        <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg flex items-center gap-3 text-xs text-foreground">
+                            <Info className="w-4 h-4 text-primary shrink-0" />
                             <span>
                                 No OLTs found in the system. Use the &apos;Add New OLT&apos; button above to register your first device.
                             </span>
                         </div>
                     ) : (
                         /* OLT Devices Table */
-                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="bg-card rounded-xl border border-border shadow-xs overflow-hidden">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
-                                        <tr className="border-b border-slate-100 bg-slate-50/60 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                                        <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                                             <th className="py-3 px-4">OLT Name & Brand</th>
                                             <th className="py-3 px-4">IP Address & Port</th>
                                             <th className="py-3 px-4">Access Mode & Path</th>
@@ -224,49 +224,49 @@ export default function TenantOltsPage() {
                                             <th className="py-3 px-4 text-right">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100 text-xs">
+                                    <tbody className="divide-y divide-border text-xs">
                                         {olts.map((olt) => (
-                                            <tr key={olt.id} className="hover:bg-slate-50/80 transition-colors">
-                                                <td className="py-3 px-4 font-semibold text-slate-900">
+                                            <tr key={olt.id} className="hover:bg-muted/40 transition-colors">
+                                                <td className="py-3 px-4 font-semibold text-foreground">
                                                     <div className="flex items-center gap-2">
-                                                        <Radio className="w-4 h-4 text-blue-600 shrink-0" />
+                                                        <Radio className="w-4 h-4 text-primary shrink-0" />
                                                         <div>
                                                             <div>{olt.name}</div>
-                                                            <div className="text-[11px] font-normal text-slate-500">
+                                                            <div className="text-[11px] font-normal text-muted-foreground">
                                                                 {olt.brand || 'BDCOM'} {olt.access_mode || 'EPON'}
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="py-3 px-4 text-slate-700 font-mono">
+                                                <td className="py-3 px-4 text-foreground/85 font-mono">
                                                     {olt.ip_address}:{olt.telnet_port || 23}
                                                 </td>
-                                                <td className="py-3 px-4 text-slate-600">
-                                                    <div className="font-medium">{olt.cli_access_mode || 'Telnet Mode'}</div>
-                                                    <div className="text-[11px] text-slate-400">{olt.connection_path || 'Direct OLT IP'}</div>
+                                                <td className="py-3 px-4 text-muted-foreground">
+                                                    <div className="font-medium text-foreground">{olt.cli_access_mode || 'Telnet Mode'}</div>
+                                                    <div className="text-[11px] text-muted-foreground/80">{olt.connection_path || 'Direct OLT IP'}</div>
                                                 </td>
-                                                <td className="py-3 px-4 text-center text-slate-700 font-medium">
+                                                <td className="py-3 px-4 text-center text-foreground font-medium">
                                                     {olt.pon_ports_count || 8} ports
                                                 </td>
                                                 <td className="py-3 px-4 text-center">
-                                                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-600">
+                                                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
                                                         {olt.online_onus || 0}
                                                     </span>
-                                                    <span className="text-slate-400"> / {olt.total_onus || 0}</span>
+                                                    <span className="text-muted-foreground"> / {olt.total_onus || 0}</span>
                                                 </td>
                                                 <td className="py-3 px-4 text-center">
                                                     <Badge
                                                         variant="outline"
                                                         className={`text-[11px] font-semibold ${
                                                             olt.status === 'Online'
-                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                                                                ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                                                                : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800'
                                                         }`}
                                                     >
                                                         ● {olt.status || 'Online'}
                                                     </Badge>
                                                 </td>
-                                                <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
+                                                <td className="py-3 px-4 text-muted-foreground font-mono text-[11px]">
                                                     {olt.lat_long || (olt.latitude && olt.longitude ? `${Number(olt.latitude).toFixed(4)},${Number(olt.longitude).toFixed(4)}` : '23.8103,90.4125')}
                                                 </td>
                                                 <td className="py-3 px-4 text-right">
@@ -277,7 +277,7 @@ export default function TenantOltsPage() {
                                                             onClick={() => testOltMutation.mutate(olt.id)}
                                                             disabled={testOltMutation.isPending}
                                                             title="Test Connectivity"
-                                                            className="h-8 w-8 p-0 text-slate-600 hover:text-blue-600 hover:bg-blue-50"
+                                                            className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
                                                         >
                                                             <Activity className="w-4 h-4" />
                                                         </Button>
@@ -289,7 +289,7 @@ export default function TenantOltsPage() {
                                                                 setOltModalOpen(true);
                                                             }}
                                                             title="Edit OLT"
-                                                            className="h-8 w-8 p-0 text-slate-600 hover:text-amber-600 hover:bg-amber-50"
+                                                            className="h-8 w-8 p-0 text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
                                                         >
                                                             <Pencil className="w-4 h-4" />
                                                         </Button>
@@ -298,7 +298,7 @@ export default function TenantOltsPage() {
                                                             variant="ghost"
                                                             onClick={() => setPendingDeleteOlt(olt)}
                                                             title="Delete OLT"
-                                                            className="h-8 w-8 p-0 text-slate-600 hover:text-rose-600 hover:bg-rose-50"
+                                                            className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
                                                         >
                                                             <Trash2 className="w-4 h-4" />
                                                         </Button>
@@ -313,20 +313,20 @@ export default function TenantOltsPage() {
                     )}
 
                     {/* PPTP VPN LAN Connectivity Settings Card matching Screenshot 1 & 3 */}
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5">
+                    <div className="bg-card rounded-xl border border-border shadow-xs p-6 space-y-5">
                         {/* Card Header */}
                         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                             <div className="space-y-1">
                                 <div className="flex items-center gap-2">
-                                    <Network className="w-5 h-5 text-blue-600" />
-                                    <h2 className="text-base font-bold text-slate-900">
+                                    <Network className="w-5 h-5 text-primary" />
+                                    <h2 className="text-base font-bold text-foreground">
                                         PPTP VPN LAN Connectivity Settings
                                     </h2>
                                 </div>
-                                <p className="text-xs text-slate-500">
+                                <p className="text-xs text-muted-foreground">
                                     Establish a tenant-scoped PPTP tunnel from this SG server to the client&apos;s MikroTik so OLT private IPs can be reached directly.
                                 </p>
-                                <div className="flex items-center gap-1.5 text-xs text-amber-600 font-medium pt-0.5">
+                                <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium pt-0.5">
                                     <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                                     <span>PPTP is a legacy protocol. Use it only for restricted OLT management reachability and strong unique credentials.</span>
                                 </div>
@@ -338,25 +338,25 @@ export default function TenantOltsPage() {
                                     variant="outline"
                                     className={`px-3 py-1 text-xs font-semibold rounded-md border flex items-center gap-1.5 ${
                                         isConnected
-                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                            ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800'
                                             : vpnConfig?.status === 'Connecting'
-                                            ? 'bg-amber-50 text-amber-700 border-amber-300'
-                                            : 'bg-slate-100 text-slate-600 border-slate-300'
+                                            ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800'
+                                            : 'bg-muted text-muted-foreground border-border'
                                     }`}
                                 >
                                     {isConnected ? (
                                         <>
-                                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                                             Connected
                                         </>
                                     ) : vpnConfig?.status === 'Connecting' ? (
                                         <>
-                                            <RefreshCw className="w-3.5 h-3.5 text-amber-600 animate-spin" />
+                                            <RefreshCw className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 animate-spin" />
                                             Connecting
                                         </>
                                     ) : (
                                         <>
-                                            <Power className="w-3.5 h-3.5 text-slate-500" />
+                                            <Power className="w-3.5 h-3.5 text-muted-foreground" />
                                             Disabled
                                         </>
                                     )}
@@ -367,68 +367,68 @@ export default function TenantOltsPage() {
                         {/* Card Columns */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
                             {/* Left Column: Connection Parameters */}
-                            <div className="lg:col-span-2 bg-slate-50/70 border border-slate-100 rounded-lg p-5 space-y-4">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-sky-700">
-                                    <Info className="w-3.5 h-3.5 text-sky-600" />
+                            <div className="lg:col-span-2 bg-muted/30 border border-border/80 rounded-lg p-5 space-y-4">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-primary">
+                                    <Info className="w-3.5 h-3.5 text-primary" />
                                     <span>Connection Parameters</span>
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3.5 gap-x-6 text-xs">
                                     <div>
-                                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">PPTP Server IP:</div>
-                                        <div className="mt-0.5 font-medium text-slate-800">
-                                            {vpnConfig?.server_ip ? vpnConfig.server_ip : <span className="italic text-slate-400 font-normal">Not configured</span>}
+                                        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">PPTP Server IP:</div>
+                                        <div className="mt-0.5 font-medium text-foreground">
+                                            {vpnConfig?.server_ip ? vpnConfig.server_ip : <span className="italic text-muted-foreground font-normal">Not configured</span>}
                                         </div>
                                     </div>
                                     <div>
-                                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">OLT LAN Subnet Route:</div>
-                                        <div className="mt-0.5 font-medium text-slate-800">
-                                            {vpnConfig?.lan_subnet ? vpnConfig.lan_subnet : <span className="italic text-slate-400 font-normal">Not configured</span>}
+                                        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">OLT LAN Subnet Route:</div>
+                                        <div className="mt-0.5 font-medium text-foreground">
+                                            {vpnConfig?.lan_subnet ? vpnConfig.lan_subnet : <span className="italic text-muted-foreground font-normal">Not configured</span>}
                                         </div>
                                     </div>
 
                                     <div>
-                                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Tunnel Username:</div>
-                                        <div className="mt-0.5 font-medium text-slate-800">
-                                            {vpnConfig?.username ? vpnConfig.username : <span className="italic text-slate-400 font-normal">Not configured</span>}
+                                        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Tunnel Username:</div>
+                                        <div className="mt-0.5 font-medium text-foreground">
+                                            {vpnConfig?.username ? vpnConfig.username : <span className="italic text-muted-foreground font-normal">Not configured</span>}
                                         </div>
                                     </div>
                                     <div>
-                                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Active Interface:</div>
-                                        <div className={`mt-0.5 font-medium ${isConnected ? 'text-emerald-600' : 'text-slate-500'}`}>
+                                        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Active Interface:</div>
+                                        <div className={`mt-0.5 font-medium ${isConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
                                             {vpnConfig?.active_interface || 'None'}
                                         </div>
                                     </div>
 
                                     <div>
-                                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Encryption:</div>
-                                        <div className="mt-0.5 font-semibold text-blue-600">
+                                        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Encryption:</div>
+                                        <div className="mt-0.5 font-semibold text-primary">
                                             {vpnConfig?.require_mppe ? 'Required (MPPE-128)' : 'Optional / Disabled'}
                                         </div>
                                     </div>
                                     <div>
-                                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Tunnel Reachability:</div>
-                                        <div className="mt-0.5 font-medium text-slate-700">
+                                        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Tunnel Reachability:</div>
+                                        <div className="mt-0.5 font-medium text-foreground">
                                             {vpnConfig?.tunnel_reachability || 'Unknown'}
                                         </div>
                                     </div>
 
                                     <div>
-                                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Last Health Check:</div>
-                                        <div className="mt-0.5 text-slate-600">
+                                        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Last Health Check:</div>
+                                        <div className="mt-0.5 text-muted-foreground">
                                             {vpnConfig?.last_health_check ? new Date(vpnConfig.last_health_check).toLocaleString() : '—'}
                                         </div>
                                     </div>
                                     <div>
-                                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Last Successful Handshake:</div>
-                                        <div className="mt-0.5 text-slate-600">
+                                        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Last Successful Handshake:</div>
+                                        <div className="mt-0.5 text-muted-foreground">
                                             {vpnConfig?.last_handshake ? new Date(vpnConfig.last_handshake).toLocaleString() : '—'}
                                         </div>
                                     </div>
 
                                     <div>
-                                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Last OLT Reachable:</div>
-                                        <div className="mt-0.5 text-slate-600">
+                                        <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Last OLT Reachable:</div>
+                                        <div className="mt-0.5 text-muted-foreground">
                                             {vpnConfig?.last_olt_reachable ? new Date(vpnConfig.last_olt_reachable).toLocaleString() : '—'}
                                         </div>
                                     </div>
@@ -436,9 +436,9 @@ export default function TenantOltsPage() {
                             </div>
 
                             {/* Right Column: Tunnel Controls matching Screenshot 1 */}
-                            <div className="bg-slate-50/70 border border-slate-100 rounded-lg p-5 flex flex-col justify-between space-y-4">
-                                <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-sky-700">
-                                    <Wifi className="w-3.5 h-3.5 text-sky-600" />
+                            <div className="bg-muted/30 border border-border/80 rounded-lg p-5 flex flex-col justify-between space-y-4">
+                                <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-primary">
+                                    <Wifi className="w-3.5 h-3.5 text-primary" />
                                     <span>Tunnel Controls</span>
                                 </div>
 
@@ -448,9 +448,9 @@ export default function TenantOltsPage() {
                                         type="button"
                                         variant="outline"
                                         onClick={() => setVpnModalOpen(true)}
-                                        className="w-full border-blue-500 text-blue-600 hover:bg-blue-50 text-xs font-semibold h-10 gap-2 shadow-2xs"
+                                        className="w-full border-primary/40 text-primary hover:bg-primary/10 text-xs font-semibold h-10 gap-2 shadow-2xs"
                                     >
-                                        <Settings className="w-4 h-4 text-blue-600" />
+                                        <Settings className="w-4 h-4 text-primary" />
                                         Configure VPN
                                     </Button>
 
@@ -484,9 +484,9 @@ export default function TenantOltsPage() {
                                         variant="outline"
                                         onClick={() => diagnosticsMutation.mutate()}
                                         disabled={diagnosticsMutation.isPending}
-                                        className="w-full border-amber-400 text-amber-700 hover:bg-amber-50 text-xs font-semibold h-10 gap-2 shadow-2xs"
+                                        className="w-full border-amber-400 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 text-xs font-semibold h-10 gap-2 shadow-2xs"
                                     >
-                                        <Stethoscope className="w-4 h-4 text-amber-600" />
+                                        <Stethoscope className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                                         {diagnosticsMutation.isPending ? 'Running...' : 'Run Diagnostics'}
                                     </Button>
                                 </div>

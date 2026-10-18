@@ -125,6 +125,7 @@ export const queryKeys = {
         all: () => [...queryKeys.tenant(), 'routers'] as const,
         list: (params?: Record<string, unknown>) => [...queryKeys.routers.all(), 'list', params ?? {}] as const,
         detail: (id: string) => [...queryKeys.routers.all(), 'detail', id] as const,
+        workspace: (id: string, iface?: string) => [...queryKeys.routers.all(), 'workspace', id, iface ?? ''] as const,
     },
     bandwidth: {
         all: () => [...queryKeys.tenant(), 'bandwidth'] as const,

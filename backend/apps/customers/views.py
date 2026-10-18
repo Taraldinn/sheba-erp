@@ -24,6 +24,23 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import PermissionDenied
 from .router_sync import sync_customer_to_router, disconnect_customer_session, get_customer_live_session
 
+def generate_customer_code(tenant):
+    """Generate a unique customer code within the tenant if not provided."""
+    prefix = 'CUST'
+    if tenant and getattr(tenant, 'slug', None):
+        slug_clean = tenant.slug.replace('-', ' ').replace('_', ' ').split()
+        if len(slug_clean) >= 2:
+            prefix = ''.join(p[0] for p in slug_clean).upper()
+        elif slug_clean:
+            prefix = slug_clean[0][:4].upper()
+
+    count = Customer.objects.filter(tenant=tenant).count() + 1
+    code = f"{prefix}-{count:04d}"
+    while Customer.objects.filter(tenant=tenant, customer_code=code).exists():
+        count += 1
+        code = f"{prefix}-{count:04d}"
+    return code
+
 
 @extend_schema_view(
     list=extend_schema(tags=['2. Customers & Subscribers']),
@@ -112,7 +129,12 @@ class CustomerViewSet(viewsets.ModelViewSet):
         tenant = get_tenant_for_request(self.request)
         if not can(self.request.user, tenant, 'customer.create'):
             raise PermissionDenied("Permission denied: customer.create capability required.")
-        customer = serializer.save(tenant=tenant)
+        customer_code = serializer.validated_data.get('customer_code')
+        if not customer_code or not str(customer_code).strip():
+            code = generate_customer_code(tenant)
+            customer = serializer.save(tenant=tenant, customer_code=code)
+        else:
+            customer = serializer.save(tenant=tenant)
         sync_customer_to_router(customer)
         # Auto-issue a portal login + send credentials to the customer
         # via SMS / email. Idempotent (no-op if already sent) and

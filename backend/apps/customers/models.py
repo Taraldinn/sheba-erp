@@ -25,6 +25,7 @@ class ConnectionType(models.TextChoices):
 class BillingType(models.TextChoices):
     PREPAID = 'Prepaid', 'Prepaid'
     POSTPAID = 'Postpaid', 'Postpaid'
+    FREE = 'Free', 'Free'
 
 
 class Customer(models.Model):
@@ -33,7 +34,7 @@ class Customer(models.Model):
     reseller = models.ForeignKey(StaffProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='reseller_customers')
     
     # Identifiers
-    customer_code = models.CharField(max_length=50, blank=True, db_index=True)
+    customer_code = models.CharField(max_length=50, blank=True, default='', db_index=True)
     full_name = models.CharField(max_length=150)
     mobile = models.CharField(max_length=30, db_index=True)
     alternate_phone = models.CharField(max_length=30, blank=True)

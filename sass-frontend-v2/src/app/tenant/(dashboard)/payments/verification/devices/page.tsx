@@ -159,17 +159,17 @@ export default function SMSGatewaysDevicesPage() {
 
     return (
         <div className="space-y-6 pb-12">
-            {/* Header matching Screenshot 2 */}
+            {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-200">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 shadow-xs">
                         <ShieldCheck className="w-5 h-5" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">
                             SMS Gateways & Devices
                         </h1>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-muted-foreground">
                             Manage merchant gateway accounts and Android SMS forwarding tokens.
                         </p>
                     </div>
@@ -179,7 +179,7 @@ export default function SMSGatewaysDevicesPage() {
                     <Link href="/tenant/payments/verification">
                         <Button
                             variant="outline"
-                            className="border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold h-9 px-4 gap-2 shadow-2xs"
+                            className="border-border text-foreground hover:bg-muted text-xs font-semibold h-9 px-4 gap-2 shadow-2xs"
                         >
                             <ArrowLeft className="w-4 h-4" />
                             Back to Dashboard
@@ -188,26 +188,26 @@ export default function SMSGatewaysDevicesPage() {
                 </div>
             </div>
 
-            {/* Two-Column Grid matching Screenshot 2 */}
+            {/* Two-Column Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 {/* Left Column: Forms and Android Integration */}
                 <div className="lg:col-span-5 space-y-6">
                     {/* Card 1: Add New Device Gateway */}
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
-                        <div className="flex items-center gap-2 text-sm font-bold text-slate-900 border-b border-slate-100 pb-3">
-                            <Plus className="w-4 h-4 text-emerald-600" />
+                    <div className="bg-card rounded-2xl border border-border shadow-2xs p-6 space-y-4">
+                        <div className="flex items-center gap-2 text-sm font-bold text-foreground border-b border-border pb-3">
+                            <Plus className="w-4 h-4 text-primary" />
                             <span>Add New Device Gateway</span>
                         </div>
 
                         <form onSubmit={handleSave} className="space-y-4">
                             {/* MFS Provider */}
                             <div>
-                                <Label className="text-xs font-semibold text-slate-700">MFS Provider</Label>
+                                <Label className="text-xs font-semibold text-foreground">MFS Provider</Label>
                                 <Select value={provider} onValueChange={(val: any) => setProvider(val)}>
-                                    <SelectTrigger className="mt-1 bg-white border-slate-200 text-slate-800 text-xs h-9.5">
+                                    <SelectTrigger className="mt-1 text-xs h-9.5">
                                         <SelectValue placeholder="-- Select Provider --" />
                                     </SelectTrigger>
-                                    <SelectContent className="bg-white border-slate-200 text-xs">
+                                    <SelectContent className="text-xs">
                                         <SelectItem value="bKash">bKash</SelectItem>
                                         <SelectItem value="Nagad">Nagad</SelectItem>
                                         <SelectItem value="Rocket">Rocket</SelectItem>
@@ -218,39 +218,39 @@ export default function SMSGatewaysDevicesPage() {
 
                             {/* Merchant Mobile Number */}
                             <div>
-                                <Label className="text-xs font-semibold text-slate-700">Merchant Mobile Number</Label>
+                                <Label className="text-xs font-semibold text-foreground">Merchant Mobile Number</Label>
                                 <Input
                                     value={merchantNumber}
                                     onChange={(e) => setMerchantNumber(e.target.value)}
                                     placeholder="e.g. 01700000000"
-                                    className="mt-1 bg-white border-slate-200 text-slate-800 text-xs h-9.5"
+                                    className="mt-1 text-xs h-9.5"
                                 />
                             </div>
 
                             {/* Android Device ID */}
                             <div>
-                                <Label className="text-xs font-semibold text-slate-700">Android Device ID</Label>
+                                <Label className="text-xs font-semibold text-foreground">Android Device ID</Label>
                                 <Input
                                     value={deviceId}
                                     onChange={(e) => setDeviceId(e.target.value)}
                                     placeholder="e.g. Pixel_5_A12"
-                                    className="mt-1 bg-white border-slate-200 text-slate-800 text-xs h-9.5"
+                                    className="mt-1 text-xs h-9.5"
                                     required
                                 />
-                                <p className="text-[11px] text-slate-500 mt-1">
+                                <p className="text-[11px] text-muted-foreground mt-1">
                                     Unique identifier matching your Android forwarding app settings.
                                 </p>
                             </div>
 
                             {/* Webhook API Token */}
                             <div>
-                                <Label className="text-xs font-semibold text-slate-700">Webhook API Token</Label>
+                                <Label className="text-xs font-semibold text-foreground">Webhook API Token</Label>
                                 <div className="relative mt-1 flex items-center">
                                     <Input
                                         value={apiToken}
                                         onChange={(e) => setApiToken(e.target.value)}
                                         placeholder="click generate or enter token"
-                                        className="bg-white border-slate-200 text-slate-800 text-xs h-9.5 pr-10 font-mono"
+                                        className="text-xs h-9.5 pr-10 font-mono"
                                         required
                                     />
                                     <button
@@ -258,48 +258,48 @@ export default function SMSGatewaysDevicesPage() {
                                         onClick={() => generateTokenMutation.mutate()}
                                         disabled={generateTokenMutation.isPending}
                                         title="Generate Token"
-                                        className="absolute right-1.5 p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-md transition-colors"
+                                        className="absolute right-1.5 p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
                                     >
                                         <Key className="w-4 h-4" />
                                     </button>
                                 </div>
-                                <p className="text-[11px] text-slate-500 mt-1">
+                                <p className="text-[11px] text-muted-foreground mt-1">
                                     Used to authorize incoming SMS webhooks for this device.
                                 </p>
                             </div>
 
                             {/* Section: Automated Checkout Options */}
-                            <div className="pt-2 border-t border-slate-100 space-y-3.5">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                                    <ShoppingCart className="w-3.5 h-3.5 text-blue-600" />
+                            <div className="pt-2 border-t border-border space-y-3.5">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                                    <ShoppingCart className="w-3.5 h-3.5 text-primary" />
                                     <span>Automated Checkout Options</span>
                                 </div>
 
                                 {/* Checkout Enabled */}
                                 <div>
-                                    <Label className="text-xs font-semibold text-slate-700">Checkout Enabled</Label>
+                                    <Label className="text-xs font-semibold text-foreground">Checkout Enabled</Label>
                                     <Select value={checkoutEnabled} onValueChange={setCheckoutEnabled}>
-                                        <SelectTrigger className="mt-1 bg-white border-slate-200 text-slate-800 text-xs h-9.5">
+                                        <SelectTrigger className="mt-1 text-xs h-9.5">
                                             <SelectValue />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-white border-slate-200 text-xs">
+                                        <SelectContent className="text-xs">
                                             <SelectItem value="Enabled">Enabled</SelectItem>
                                             <SelectItem value="Disabled">Disabled</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                    <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                                    <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
                                         Allow customers to use this gateway for automated SMS checkout. Partner Reseller(POP)/Branch wallet top-up only requires this gateway to be Active.
                                     </p>
                                 </div>
 
                                 {/* Account Type */}
                                 <div>
-                                    <Label className="text-xs font-semibold text-slate-700">Account Type</Label>
+                                    <Label className="text-xs font-semibold text-foreground">Account Type</Label>
                                     <Select value={accountType} onValueChange={(val: any) => setAccountType(val)}>
-                                        <SelectTrigger className="mt-1 bg-white border-slate-200 text-slate-800 text-xs h-9.5">
+                                        <SelectTrigger className="mt-1 text-xs h-9.5">
                                             <SelectValue />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-white border-slate-200 text-xs">
+                                        <SelectContent className="text-xs">
                                             <SelectItem value="Personal">Personal</SelectItem>
                                             <SelectItem value="Merchant">Merchant</SelectItem>
                                             <SelectItem value="Agent">Agent</SelectItem>
@@ -309,42 +309,42 @@ export default function SMSGatewaysDevicesPage() {
 
                                 {/* Instruction Type */}
                                 <div>
-                                    <Label className="text-xs font-semibold text-slate-700">Instruction Type</Label>
+                                    <Label className="text-xs font-semibold text-foreground">Instruction Type</Label>
                                     <Select value={instructionType} onValueChange={(val: any) => setInstructionType(val)}>
-                                        <SelectTrigger className="mt-1 bg-white border-slate-200 text-slate-800 text-xs h-9.5">
+                                        <SelectTrigger className="mt-1 text-xs h-9.5">
                                             <SelectValue />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-white border-slate-200 text-xs">
+                                        <SelectContent className="text-xs">
                                             <SelectItem value="Send Money">Send Money</SelectItem>
                                             <SelectItem value="Payment">Payment</SelectItem>
                                             <SelectItem value="Cash In">Cash In</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                    <p className="text-[11px] text-slate-500 mt-1">
+                                    <p className="text-[11px] text-muted-foreground mt-1">
                                         Used to guide the user on the checkout page.
                                     </p>
                                 </div>
 
                                 {/* Checkout Expiry (Minutes) */}
                                 <div>
-                                    <Label className="text-xs font-semibold text-slate-700">Checkout Expiry (Minutes)</Label>
+                                    <Label className="text-xs font-semibold text-foreground">Checkout Expiry (Minutes)</Label>
                                     <Input
                                         type="number"
                                         value={checkoutExpiry}
                                         onChange={(e) => setCheckoutExpiry(e.target.value)}
                                         placeholder="10"
-                                        className="mt-1 bg-white border-slate-200 text-slate-800 text-xs h-9.5"
+                                        className="mt-1 text-xs h-9.5"
                                     />
                                 </div>
 
                                 {/* Gateway Status */}
                                 <div>
-                                    <Label className="text-xs font-semibold text-slate-700">Gateway Status</Label>
+                                    <Label className="text-xs font-semibold text-foreground">Gateway Status</Label>
                                     <Select value={status} onValueChange={(val: any) => setStatus(val)}>
-                                        <SelectTrigger className="mt-1 bg-white border-slate-200 text-slate-800 text-xs h-9.5">
+                                        <SelectTrigger className="mt-1 text-xs h-9.5">
                                             <SelectValue />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-white border-slate-200 text-xs">
+                                        <SelectContent className="text-xs">
                                             <SelectItem value="Active">Active</SelectItem>
                                             <SelectItem value="Inactive">Inactive</SelectItem>
                                         </SelectContent>
@@ -356,7 +356,7 @@ export default function SMSGatewaysDevicesPage() {
                             <Button
                                 type="submit"
                                 disabled={saveDeviceMutation.isPending}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-10 gap-2 shadow-sm shadow-blue-200 mt-2"
+                                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs h-10 gap-2 shadow-xs mt-2"
                             >
                                 <Save className="w-4 h-4" />
                                 {saveDeviceMutation.isPending ? 'Saving Device...' : 'Save'}
@@ -364,22 +364,22 @@ export default function SMSGatewaysDevicesPage() {
                         </form>
                     </div>
 
-                    {/* Card 2: Android Integration matching Screenshot 2 */}
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
-                        <div className="flex items-center gap-2 text-sm font-bold text-slate-900 border-b border-slate-100 pb-3">
-                            <Smartphone className="w-4 h-4 text-emerald-600" />
+                    {/* Card 2: Android Integration */}
+                    <div className="bg-card rounded-2xl border border-border shadow-2xs p-6 space-y-4">
+                        <div className="flex items-center gap-2 text-sm font-bold text-foreground border-b border-border pb-3">
+                            <Smartphone className="w-4 h-4 text-primary" />
                             <span>Android Integration</span>
                         </div>
 
-                        <p className="text-xs text-slate-500 leading-relaxed">
+                        <p className="text-xs text-muted-foreground leading-relaxed">
                             Configure your Android SMS Forwarder App with the following details to log payment SMS feeds automatically:
                         </p>
 
                         {/* API Endpoint URL */}
                         <div className="space-y-1">
-                            <Label className="text-xs font-semibold text-slate-700">API Endpoint URL</Label>
+                            <Label className="text-xs font-semibold text-foreground">API Endpoint URL</Label>
                             <div className="flex items-center gap-2">
-                                <div className="flex-1 bg-slate-50 border border-slate-200 rounded-md px-3 py-2 text-xs font-mono text-slate-800 select-all overflow-x-auto truncate">
+                                <div className="flex-1 bg-muted/50 border border-border rounded-md px-3 py-2 text-xs font-mono text-foreground select-all overflow-x-auto truncate">
                                     {webhookEndpointUrl}
                                 </div>
                                 <Button
@@ -387,77 +387,77 @@ export default function SMSGatewaysDevicesPage() {
                                     variant="outline"
                                     size="sm"
                                     onClick={handleCopyWebhookUrl}
-                                    className="h-9 px-3 border-slate-200 text-slate-600 hover:bg-slate-100"
+                                    className="h-9 px-3 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
                                 >
-                                    {copiedUrl ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                                    {copiedUrl ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-4 h-4" />}
                                 </Button>
                             </div>
                         </div>
 
                         {/* Request Headers */}
                         <div className="space-y-1 pt-1">
-                            <Label className="text-xs font-semibold text-slate-700">Request Headers</Label>
-                            <div className="bg-slate-50 border border-slate-200 rounded-md p-2.5 text-xs font-mono space-y-1 text-slate-700">
+                            <Label className="text-xs font-semibold text-foreground">Request Headers</Label>
+                            <div className="bg-muted/50 border border-border rounded-md p-2.5 text-xs font-mono space-y-1 text-foreground">
                                 <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-slate-500">Method:</span>
-                                    <Badge className="bg-blue-600 text-white text-[10px] px-1.5 py-0 h-4">POST</Badge>
+                                    <span className="font-semibold text-muted-foreground">Method:</span>
+                                    <Badge className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0 h-4">POST</Badge>
                                 </div>
                                 <div>
-                                    <span className="font-semibold text-slate-500">Content-Type:</span>{' '}
-                                    <span className="text-rose-600">application/json</span>
+                                    <span className="font-semibold text-muted-foreground">Content-Type:</span>{' '}
+                                    <span className="text-primary font-medium">application/json</span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Expected JSON Body */}
                         <div className="space-y-1 pt-1">
-                            <Label className="text-xs font-semibold text-slate-700">Expected JSON Body</Label>
-                            <div className="bg-[#0f172a] text-slate-100 rounded-md p-3.5 text-xs font-mono overflow-x-auto shadow-inner leading-relaxed">
-                                <span className="text-slate-400">{'{'}</span>
+                            <Label className="text-xs font-semibold text-foreground">Expected JSON Body</Label>
+                            <div className="bg-neutral-950 text-neutral-100 rounded-md p-3.5 text-xs font-mono overflow-x-auto shadow-inner leading-relaxed border border-border/40">
+                                <span className="text-neutral-400">{'{'}</span>
                                 <div className="pl-4">
-                                    <span className="text-cyan-400">&quot;device_id&quot;</span>: <span className="text-emerald-400">&quot;DEVICE_ID&quot;</span>,
+                                    <span className="text-primary">&quot;device_id&quot;</span>: <span className="text-emerald-400">&quot;DEVICE_ID&quot;</span>,
                                 </div>
                                 <div className="pl-4">
-                                    <span className="text-cyan-400">&quot;api_token&quot;</span>: <span className="text-emerald-400">&quot;API_TOKEN&quot;</span>,
+                                    <span className="text-primary">&quot;api_token&quot;</span>: <span className="text-emerald-400">&quot;API_TOKEN&quot;</span>,
                                 </div>
                                 <div className="pl-4">
-                                    <span className="text-cyan-400">&quot;gateway&quot;</span>: <span className="text-emerald-400">&quot;bKash&quot;</span>,
+                                    <span className="text-primary">&quot;gateway&quot;</span>: <span className="text-emerald-400">&quot;bKash&quot;</span>,
                                 </div>
                                 <div className="pl-4">
-                                    <span className="text-cyan-400">&quot;sms_text&quot;</span>: <span className="text-emerald-400">&quot;Sender SMS content...&quot;</span>,
+                                    <span className="text-primary">&quot;sms_text&quot;</span>: <span className="text-emerald-400">&quot;Sender SMS content...&quot;</span>,
                                 </div>
                                 <div className="pl-4">
-                                    <span className="text-cyan-400">&quot;received_at&quot;</span>: <span className="text-emerald-400">&quot;2026-10-15 00:52:03&quot;</span>
+                                    <span className="text-primary">&quot;received_at&quot;</span>: <span className="text-emerald-400">&quot;2026-10-15 00:52:03&quot;</span>
                                 </div>
-                                <span className="text-slate-400">{'}'}</span>
+                                <span className="text-neutral-400">{'}'}</span>
                             </div>
-                            <p className="text-[11px] text-rose-600 font-medium pt-1">
+                            <p className="text-[11px] text-muted-foreground font-medium pt-1">
                                 Supported gateway values: bKash, Nagad, Rocket, Upay
                             </p>
                         </div>
                     </div>
                 </div>
 
-                {/* Right Column: Configured Gateway Devices matching Screenshot 2 */}
+                {/* Right Column: Configured Gateway Devices */}
                 <div className="lg:col-span-7 space-y-4">
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
-                            <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                                <List className="w-4 h-4 text-slate-600" />
+                    <div className="bg-card rounded-2xl border border-border shadow-2xs overflow-hidden">
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/40">
+                            <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                                <List className="w-4 h-4 text-primary" />
                                 <span>Configured Gateway Devices</span>
                             </div>
-                            <span className="text-xs text-slate-500 font-medium">
+                            <span className="text-xs text-muted-foreground font-medium">
                                 Total: {devices.length}
                             </span>
                         </div>
 
                         {devices.length === 0 ? (
-                            <div className="py-20 px-6 text-center text-xs text-slate-500">
-                                <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                            <div className="py-20 px-6 text-center text-xs text-muted-foreground">
+                                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 text-muted-foreground">
                                     <Smartphone className="w-6 h-6" />
                                 </div>
-                                <p className="font-medium text-slate-600">No gateway devices configured.</p>
-                                <p className="mt-1 text-slate-400 max-w-sm mx-auto">
+                                <p className="font-medium text-foreground">No gateway devices configured.</p>
+                                <p className="mt-1 text-muted-foreground max-w-sm mx-auto">
                                     Add a device on the left to start receiving payment verification SMS feeds.
                                 </p>
                             </div>
@@ -465,7 +465,7 @@ export default function SMSGatewaysDevicesPage() {
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
-                                        <tr className="border-b border-slate-100 bg-slate-50/60 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                                        <tr className="border-b bg-muted/40 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                                             <th className="py-3 px-4">Gateway</th>
                                             <th className="py-3 px-4">Merchant Number</th>
                                             <th className="py-3 px-4">Device ID</th>
@@ -474,39 +474,39 @@ export default function SMSGatewaysDevicesPage() {
                                             <th className="py-3 px-4 text-right">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100 text-xs">
+                                    <tbody className="divide-y divide-border/60 text-xs">
                                         {devices.map((device) => {
                                             const isCopied = copiedTokenId === device.id;
                                             return (
-                                                <tr key={device.id} className="hover:bg-slate-50/80 transition-colors">
-                                                    <td className="py-3 px-4 font-semibold text-slate-900">
+                                                <tr key={device.id} className="hover:bg-muted/30 transition-colors">
+                                                    <td className="py-3 px-4 font-semibold text-foreground">
                                                         <Badge
                                                             variant="outline"
                                                             className={`text-xs font-semibold ${
                                                                 device.provider === 'bKash'
-                                                                    ? 'bg-pink-50 text-pink-700 border-pink-200'
+                                                                    ? 'bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-500/20'
                                                                     : device.provider === 'Nagad'
-                                                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
                                                                     : device.provider === 'Rocket'
-                                                                    ? 'bg-purple-50 text-purple-700 border-purple-200'
-                                                                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                                                                    ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
+                                                                    : 'bg-primary/10 text-primary border-primary/20'
                                                             }`}
                                                         >
                                                             {device.provider}
                                                         </Badge>
                                                     </td>
-                                                    <td className="py-3 px-4 text-slate-700 font-mono">
+                                                    <td className="py-3 px-4 text-foreground font-mono">
                                                         {device.merchant_number || '—'}
                                                     </td>
-                                                    <td className="py-3 px-4 text-slate-800 font-medium">
+                                                    <td className="py-3 px-4 text-foreground font-medium">
                                                         <div className="flex items-center gap-1.5">
-                                                            <Smartphone className="w-3.5 h-3.5 text-slate-400" />
+                                                            <Smartphone className="w-3.5 h-3.5 text-muted-foreground" />
                                                             <span>{device.device_id}</span>
                                                         </div>
                                                     </td>
                                                     <td className="py-3 px-4">
                                                         <div className="flex items-center gap-1.5">
-                                                            <span className="font-mono text-[11px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                                                            <span className="font-mono text-[11px] text-muted-foreground bg-muted px-2 py-0.5 rounded">
                                                                 {device.api_token ? `${device.api_token.slice(0, 10)}•••` : '—'}
                                                             </span>
                                                             {device.api_token && (
@@ -521,9 +521,9 @@ export default function SMSGatewaysDevicesPage() {
                                                                         }
                                                                     }}
                                                                     title="Copy Token"
-                                                                    className="text-slate-400 hover:text-slate-600"
+                                                                    className="text-muted-foreground hover:text-primary transition-colors"
                                                                 >
-                                                                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                                                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                                                                 </button>
                                                             )}
                                                         </div>
@@ -533,8 +533,8 @@ export default function SMSGatewaysDevicesPage() {
                                                             variant="outline"
                                                             className={`text-[11px] font-semibold ${
                                                                 device.status === 'Active'
-                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                                    : 'bg-slate-100 text-slate-600 border-slate-300'
+                                                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                                                    : 'bg-muted text-muted-foreground border-border'
                                                             }`}
                                                         >
                                                             ● {device.status}
@@ -548,7 +548,7 @@ export default function SMSGatewaysDevicesPage() {
                                                                 onClick={() => toggleStatusMutation.mutate(device.id)}
                                                                 disabled={toggleStatusMutation.isPending}
                                                                 title={device.status === 'Active' ? 'Deactivate' : 'Activate'}
-                                                                className="h-8 w-8 p-0 text-slate-600 hover:text-blue-600 hover:bg-blue-50"
+                                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
                                                             >
                                                                 <Power className="w-4 h-4" />
                                                             </Button>
@@ -557,7 +557,7 @@ export default function SMSGatewaysDevicesPage() {
                                                                 variant="ghost"
                                                                 onClick={() => setPendingDeleteDevice(device)}
                                                                 title="Delete Device"
-                                                                className="h-8 w-8 p-0 text-slate-600 hover:text-rose-600 hover:bg-rose-50"
+                                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                                             >
                                                                 <Trash2 className="w-4 h-4" />
                                                             </Button>

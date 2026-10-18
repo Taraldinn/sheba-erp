@@ -271,7 +271,7 @@ function CreateCustomerDialog({
         address: '',
         area_zone: '',
         pppoe_username: '',
-        connection_type: 'pppoe',
+        connection_type: 'PPPoE',
     });
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -301,7 +301,15 @@ function CreateCustomerDialog({
                             <Input value={form.area_zone ?? ''} onChange={e => setForm(f => ({ ...f, area_zone: e.target.value }))} />
                         </Field>
                         <Field label="Connection type">
-                            <Input value={form.connection_type ?? 'pppoe'} onChange={e => setForm(f => ({ ...f, connection_type: e.target.value }))} />
+                            <select
+                                value={form.connection_type ?? 'PPPoE'}
+                                onChange={e => setForm(f => ({ ...f, connection_type: e.target.value as any }))}
+                                className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                            >
+                                <option value="PPPoE">PPPoE</option>
+                                <option value="Static_IP">Static IP</option>
+                                <option value="DHCP">DHCP / IPoE</option>
+                            </select>
                         </Field>
                     </div>
                     <Field label="Address">

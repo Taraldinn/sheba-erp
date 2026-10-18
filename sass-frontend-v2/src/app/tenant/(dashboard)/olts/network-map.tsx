@@ -276,11 +276,11 @@ export function NetworkMap({ olts }: NetworkMapProps) {
         nodes.forEach((node) => {
             let icon;
             if (node.type === 'olt_primary') {
-                icon = createColorIcon('#2563eb', 'rgba(37, 99, 235, 0.5)', 18); // Blue
+                icon = createColorIcon('#ea580c', 'rgba(234, 88, 12, 0.5)', 18); // Primary Orange
             } else if (node.type === 'olt_secondary') {
                 icon = createColorIcon('#8b5cf6', 'rgba(139, 92, 246, 0.5)', 16); // Purple
             } else if (node.type === 'tj_box') {
-                icon = createColorIcon('#f97316', 'rgba(249, 115, 22, 0.5)', 13); // Orange
+                icon = createColorIcon('#0284c7', 'rgba(2, 132, 199, 0.5)', 13); // Cyan/Sky
             } else {
                 icon = createColorIcon('#10b981', 'rgba(16, 185, 129, 0.5)', 11); // Green
             }
@@ -317,7 +317,7 @@ export function NetworkMap({ olts }: NetworkMapProps) {
             const tj3 = nodes.find(n => n.id === 'tj-3');
             if (tj1) {
                 L.polyline([[primaryOlt.lat, primaryOlt.lng], [tj1.lat, tj1.lng]], {
-                    color: '#2563eb',
+                    color: '#ea580c',
                     weight: 2.5,
                     opacity: 0.75,
                     dashArray: '4, 4',
@@ -325,7 +325,7 @@ export function NetworkMap({ olts }: NetworkMapProps) {
             }
             if (tj3) {
                 L.polyline([[primaryOlt.lat, primaryOlt.lng], [tj3.lat, tj3.lng]], {
-                    color: '#2563eb',
+                    color: '#ea580c',
                     weight: 2.5,
                     opacity: 0.75,
                     dashArray: '4, 4',
@@ -360,7 +360,7 @@ export function NetworkMap({ olts }: NetworkMapProps) {
         const onu1 = nodes.find(n => n.id === 'onu-1');
         if (tj1 && onu1) {
             L.polyline([[tj1.lat, tj1.lng], [onu1.lat, onu1.lng]], {
-                color: '#f97316',
+                color: '#0284c7',
                 weight: 1.8,
                 opacity: 0.8,
             }).addTo(polylinesGroup);
@@ -370,7 +370,7 @@ export function NetworkMap({ olts }: NetworkMapProps) {
         const onu2 = nodes.find(n => n.id === 'onu-2');
         if (tj3 && onu2) {
             L.polyline([[tj3.lat, tj3.lng], [onu2.lat, onu2.lng]], {
-                color: '#f97316',
+                color: '#0284c7',
                 weight: 1.8,
                 opacity: 0.8,
             }).addTo(polylinesGroup);
@@ -394,18 +394,18 @@ export function NetworkMap({ olts }: NetworkMapProps) {
     };
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        <div className="bg-card rounded-xl border border-border shadow-xs overflow-hidden flex flex-col">
             {/* Top Toolbar matching Screenshot 4 */}
-            <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-slate-50/50 gap-3">
+            <div className="flex flex-col sm:flex-row items-center justify-between px-5 py-3.5 border-b border-border bg-muted/30 gap-3">
                 {/* Left: Select OLT */}
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Network className="w-4 h-4 text-blue-600" />
-                    <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">Select OLT:</span>
+                    <Network className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-semibold text-foreground whitespace-nowrap">Select OLT:</span>
                     <Select value={selectedOlt} onValueChange={handleSelectOltChange}>
-                        <SelectTrigger className="h-8.5 bg-white border-slate-200 text-xs min-w-[200px]">
+                        <SelectTrigger className="h-8.5 text-xs min-w-[200px]">
                             <SelectValue placeholder="-- All OLTs --" />
                         </SelectTrigger>
-                        <SelectContent className="bg-white border-slate-200 text-xs">
+                        <SelectContent className="text-xs">
                             <SelectItem value="all">-- All OLTs --</SelectItem>
                             {olts.map((o) => (
                                 <SelectItem key={o.id} value={o.id}>
@@ -417,17 +417,17 @@ export function NetworkMap({ olts }: NetworkMapProps) {
                 </div>
 
                 {/* Right: Legend matching Screenshot 4 */}
-                <div className="flex items-center gap-4 text-xs font-medium text-slate-600 flex-wrap justify-end">
+                <div className="flex items-center gap-4 text-xs font-medium text-muted-foreground flex-wrap justify-end">
                     <div className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#2563eb] inline-block shadow-xs"></span>
-                        <span>OLT Node</span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#ea580c] inline-block shadow-xs"></span>
+                        <span>Primary OLT</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <span className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6] inline-block shadow-xs"></span>
-                        <span>OLT Node</span>
+                        <span>Secondary OLT</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#f97316] inline-block shadow-xs"></span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#0284c7] inline-block shadow-xs"></span>
                         <span>Zone TJ Box</span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -438,11 +438,11 @@ export function NetworkMap({ olts }: NetworkMapProps) {
             </div>
 
             {/* Map Container */}
-            <div className="relative w-full h-[640px] bg-slate-100">
+            <div className="relative w-full h-[640px] bg-muted/40">
                 <div ref={mapContainerRef} className="w-full h-full z-0" />
                 {!isMapLoaded && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80 z-10 text-xs text-slate-500 font-medium gap-2">
-                        <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-xs z-10 text-xs text-muted-foreground font-medium gap-2">
+                        <RefreshCw className="w-4 h-4 animate-spin text-primary" />
                         Loading GIS Network Map...
                     </div>
                 )}

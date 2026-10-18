@@ -31,11 +31,11 @@ class POPBranchSerializer(serializers.ModelSerializer):
                 qs_branch = qs.filter(area_zone__iexact=obj.name)
             
             total = qs_branch.count()
-            active = qs_branch.filter(status='ACTIVE').count()
-            inactive = qs_branch.filter(status='INACTIVE').count()
-            expired = qs_branch.filter(status='EXPIRED').count()
-            free = qs_branch.filter(billing_type='FREE').count()
-            left = qs_branch.filter(status='TERMINATED').count()
+            active = qs_branch.filter(status__in=['Active', 'ACTIVE']).count()
+            inactive = qs_branch.filter(status__in=['Suspended', 'SUSPENDED', 'Expired', 'EXPIRED', 'INACTIVE']).count()
+            expired = qs_branch.filter(status__in=['Expired', 'EXPIRED']).count()
+            free = qs_branch.filter(billing_type__in=['FREE', 'Free']).count()
+            left = qs_branch.filter(status__in=['Left', 'LEFT', 'TERMINATED']).count()
             
             bill = float(sum(c.monthly_bill or 0 for c in qs_branch[:50])) if total > 0 else 0.0
             cost = float(bill * 0.45) if bill > 0 else 0.0

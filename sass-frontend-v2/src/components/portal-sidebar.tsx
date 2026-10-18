@@ -18,6 +18,7 @@ import {
   Network,
   Package,
   PhoneCall,
+  Radio,
   Receipt,
   RefreshCw,
   Server,
@@ -29,6 +30,7 @@ import {
   UserPlus,
   Users,
   Wallet,
+  Wifi,
 } from "lucide-react"
 
 import { NavMain, type NavSection } from "@/components/nav-main"
@@ -132,113 +134,103 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
     root: "/tenant",
     sections: [
       {
-        label: "",
+        label: "Overview",
         items: [
           {
             title: "Dashboard",
             url: "/tenant",
             icon: LayoutDashboard,
           },
+        ],
+      },
+      {
+        label: "Subscribers",
+        items: [
           {
-            title: "Configuration",
-            url: "/tenant/settings",
-            icon: Settings,
-            items: [
-              { title: "Payment Verification", url: "/tenant/payments/verification" },
-              { title: "SMS Gateways & Devices", url: "/tenant/payments/verification/devices" },
-              { title: "Invoices & Billing", url: "/tenant/invoices" },
-              { title: "Payment Transactions", url: "/tenant/payments" },
-              { title: "Tenant Settings", url: "/tenant/settings" },
-              { title: "Zones & POPs", url: "/tenant/zones" },
-              { title: "TJ Boxes / Ports", url: "/tenant/tj-boxes" },
-              { title: "Notifications", url: "/tenant/settings/notifications" },
-              { title: "Audit Logs", url: "/tenant/audit" },
-            ],
-          },
-          {
-            title: "Offer & Promotion",
-            url: "/tenant/packages",
-            icon: Receipt,
-            items: [
-              { title: "Packages & Offers", url: "/tenant/packages" },
-              { title: "Reseller Pricing", url: "/tenant/resellers" },
-            ],
-          },
-          {
-            title: "Client Management",
+            title: "Clients",
             url: "/tenant/customers",
             icon: Users,
             items: [
+              { title: "All Clients", url: "/tenant/customers" },
               { title: "Add New Client", url: "/tenant/customers/new" },
               { title: "Active Clients", url: "/tenant/customers?status=ACTIVE" },
-              { title: "Free Clients", url: "/tenant/customers?billing_type=FREE" },
-              { title: "Promise Active Clients", url: "/tenant/customers?status=PROMISE" },
-              { title: "Due Clients", url: "/tenant/customers?has_due=true" },
-              { title: "Inactive Clients", url: "/tenant/customers?status=INACTIVE" },
-              { title: "Expire", url: "/tenant/customers?status=EXPIRED" },
-              { title: "Left Clients", url: "/tenant/customers?status=TERMINATED" },
-              { title: "Online Monitoring", url: "/tenant/bandwidth" },
-              { title: "Tickets", url: "/tenant/tickets" },
+              { title: "Due / Pending", url: "/tenant/customers?has_due=true" },
+              { title: "Inactive / Expired", url: "/tenant/customers?status=INACTIVE" },
             ],
           },
           {
-            title: "Bandwidth Usage",
-            url: "/tenant/bandwidth",
+            title: "Subscriptions",
+            url: "/tenant/subscriptions",
+            icon: BadgeCent,
+          },
+          {
+            title: "Support Tickets",
+            url: "/tenant/tickets",
+            icon: ShieldAlert,
+          },
+          {
+            title: "Call Center & PBX",
+            url: "/tenant/callcenter",
+            icon: PhoneCall,
+            items: [
+              { title: "Call Center", url: "/tenant/callcenter" },
+              { title: "PBX Extensions", url: "/tenant/callcenter/pbx" },
+              { title: "SMS Templates", url: "/tenant/callcenter/templates" },
+            ],
+          },
+        ],
+      },
+      {
+        label: "Billing & Finance",
+        items: [
+          {
+            title: "Invoices",
+            url: "/tenant/invoices",
+            icon: Receipt,
+          },
+          {
+            title: "Payments",
+            url: "/tenant/payments",
+            icon: Wallet,
+          },
+          {
+            title: "Verification",
+            url: "/tenant/payments/verification",
+            icon: CreditCard,
+          },
+          {
+            title: "SMS Gateways",
+            url: "/tenant/payments/verification/devices",
             icon: Activity,
+          },
+          {
+            title: "Packages & Pricing",
+            url: "/tenant/packages",
+            icon: Package,
             items: [
-              { title: "Live Usage", url: "/tenant/bandwidth" },
-              { title: "Usage Reports", url: "/tenant/bandwidth/reports" },
+              { title: "All Packages", url: "/tenant/packages" },
+              { title: "Reseller Pricing", url: "/tenant/resellers" },
             ],
           },
+        ],
+      },
+      {
+        label: "Network & NOC",
+        items: [
           {
-            title: "Store & Devices",
-            url: "/tenant/store",
-            icon: ShoppingBag,
-            items: [
-              { title: "Store Items", url: "/tenant/store" },
-              { title: "Stock Movements", url: "/tenant/store/transactions" },
-            ],
-          },
-          {
-            title: "HR Management",
-            url: "/tenant/hr",
-            icon: Briefcase,
-            items: [
-              { title: "HR / Employees", url: "/tenant/hr" },
-              { title: "Attendance", url: "/tenant/hr/attendance" },
-              { title: "Leaves", url: "/tenant/hr/leaves" },
-              { title: "Payroll", url: "/tenant/hr/payroll" },
-            ],
-          },
-          {
-            title: "Manage Agents",
-            url: "/tenant/agents",
-            icon: UserCheck,
-          },
-          {
-            title: "POP/Branch List",
-            url: "/tenant/branches",
-            icon: Building2,
-          },
-          {
-            title: "Left POP/Branch List",
-            url: "/tenant/branches/left",
-            icon: Building,
-          },
-          {
-            title: "Office Staff",
-            url: "/tenant/staff",
-            icon: Users,
-          },
-          {
-            title: "Routers",
+            title: "MikroTik Routers",
             url: "/tenant/routers",
             icon: Server,
           },
           {
-            title: "OLT",
+            title: "OLT Devices",
             url: "/tenant/olts",
             icon: Network,
+          },
+          {
+            title: "ONU Monitoring",
+            url: "/tenant/onus",
+            icon: Radio,
           },
           {
             title: "Live Topology",
@@ -246,9 +238,103 @@ const portalConfigs: Record<PortalKey, { title: string; tag: string; root: strin
             icon: Link2,
           },
           {
-            title: "Packages",
-            url: "/tenant/packages",
-            icon: Package,
+            title: "PPPoE Sessions",
+            url: "/tenant/pppoe",
+            icon: Wifi,
+          },
+          {
+            title: "Bandwidth Usage",
+            url: "/tenant/bandwidth",
+            icon: Activity,
+            items: [
+              { title: "Live Bandwidth", url: "/tenant/bandwidth" },
+              { title: "Traffic Reports", url: "/tenant/bandwidth/reports" },
+            ],
+          },
+          {
+            title: "Zones & POPs",
+            url: "/tenant/zones",
+            icon: Building,
+          },
+          {
+            title: "TJ Distribution",
+            url: "/tenant/tj-boxes",
+            icon: Box,
+          },
+        ],
+      },
+      {
+        label: "Corporate & POPs",
+        items: [
+          {
+            title: "Corporate Leased",
+            url: "/tenant/corporate",
+            icon: Building2,
+            items: [
+              { title: "Corporate Dashboard", url: "/tenant/corporate" },
+              { title: "Dedicated Connections", url: "/tenant/corporate/connections" },
+              { title: "IP Pools", url: "/tenant/corporate/ip-pools" },
+              { title: "VLAN Networks", url: "/tenant/corporate/vlans" },
+            ],
+          },
+          {
+            title: "POP / Branches",
+            url: "/tenant/branches",
+            icon: Building2,
+            items: [
+              { title: "Active POP/Branches", url: "/tenant/branches" },
+              { title: "Left POP/Branches", url: "/tenant/branches/left" },
+            ],
+          },
+          {
+            title: "Manage Agents",
+            url: "/tenant/agents",
+            icon: UserCheck,
+          },
+        ],
+      },
+      {
+        label: "Operations & HR",
+        items: [
+          {
+            title: "Store & Inventory",
+            url: "/tenant/store",
+            icon: ShoppingBag,
+            items: [
+              { title: "Store Inventory", url: "/tenant/store" },
+              { title: "Stock Transactions", url: "/tenant/store/transactions" },
+            ],
+          },
+          {
+            title: "Office Staff",
+            url: "/tenant/staff",
+            icon: Users,
+          },
+          {
+            title: "HR & Payroll",
+            url: "/tenant/hr",
+            icon: Briefcase,
+            items: [
+              { title: "Employees", url: "/tenant/hr" },
+              { title: "Attendance", url: "/tenant/hr/attendance" },
+              { title: "Leaves", url: "/tenant/hr/leaves" },
+              { title: "Payroll", url: "/tenant/hr/payroll" },
+            ],
+          },
+        ],
+      },
+      {
+        label: "System",
+        items: [
+          {
+            title: "Tenant Settings",
+            url: "/tenant/settings",
+            icon: Settings,
+          },
+          {
+            title: "Audit Logs",
+            url: "/tenant/audit",
+            icon: FileText,
           },
         ],
       },

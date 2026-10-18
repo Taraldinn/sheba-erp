@@ -14,6 +14,84 @@ import type {
 } from './types';
 import { asList } from './types';
 
+export interface RouterWorkspaceData {
+    success: boolean;
+    online: boolean;
+    router: {
+        id: string;
+        name: string;
+        ip: string;
+        port: number;
+        model?: string;
+        hostname?: string;
+    };
+    identity: string;
+    resource: {
+        uptime?: string;
+        version?: string;
+        build_time?: string;
+        cpu?: string;
+        cpu_count?: number;
+        cpu_frequency?: string;
+        cpu_load?: number;
+        free_memory?: number;
+        total_memory?: number;
+        memory_percent?: number;
+        free_hdd_space?: number;
+        total_hdd_space?: number;
+        architecture?: string;
+        board_name?: string;
+        platform?: string;
+    };
+    routerboard: {
+        model?: string;
+        serial_number?: string;
+        current_firmware?: string;
+        upgrade_firmware?: string;
+        factory_firmware?: string;
+    };
+    health: {
+        temperature?: number;
+        voltage?: number;
+        fan1_speed?: number;
+        fan2_speed?: number;
+    };
+    interfaces: Array<{
+        id: string;
+        name: string;
+        type: string;
+        physical: boolean;
+        running: boolean;
+        disabled: boolean;
+        mtu: string | number;
+        mac_address: string;
+        rx_byte: number;
+        tx_byte: number;
+        rx_packet: number;
+        tx_packet: number;
+        rx_error: number;
+        tx_error: number;
+        link_downs: number;
+        comment: string;
+    }>;
+    active_ports: number;
+    total_ports: number;
+    active_interfaces: number;
+    total_interfaces: number;
+    pppoe_active: number;
+    total_secrets: number;
+    profiles: number;
+    latency_ms: number;
+    traffic?: {
+        interface: string;
+        rx_bps: number;
+        tx_bps: number;
+        rx_pps: number;
+        tx_pps: number;
+    };
+    collected_at: string;
+}
+
 export const routerApi = {
     list: (params?: Record<string, unknown>) =>
         fetchApi<PaginatedList<Router>>(`/routers/${toQuery(params)}`, { plane: 'tenant' }).then(r => asList(r)),
@@ -23,6 +101,16 @@ export const routerApi = {
     remove: (id: string) => fetchApi<void>(`/routers/${id}/`, { method: 'DELETE', plane: 'tenant' }),
     syncNow: (id: string) => fetchApi<{ ok: boolean; job_id?: string }>(`/network/usage/sync/`, { method: 'POST', json: { router_id: id }, plane: 'tenant' }),
     test: (id: string) => fetchApi<{ ok: boolean; latency_ms?: number }>(`/routers/${id}/test-connection/`, { method: 'POST', plane: 'tenant' }),
+    workspace: (id: string, iface?: string) =>
+        fetchApi<RouterWorkspaceData>(`/routers/${id}/workspace/${toQuery(iface ? { interface: iface } : {})}`, { plane: 'tenant' }),
+    unregisteredSecrets: (id: string) =>
+        fetchApi<{ router_id: string; count: number; secrets: Array<{ username: string; profile?: string; service?: string; caller_id?: string }> }>(`/routers/${id}/unregistered-secrets/`, { plane: 'tenant' }),
+    quickImportSecret: (id: string, username: string) =>
+        fetchApi<{ customer_id: string; username: string; message: string }>(`/routers/${id}/quick-import-secret/`, { method: 'POST', json: { username }, plane: 'tenant' }),
+    syncAllClients: (id: string) =>
+        fetchApi<{ message?: string; synced?: number }>(`/routers/${id}/sync-all-clients/`, { method: 'POST', plane: 'tenant' }),
+    syncPppoe: (id: string) =>
+        fetchApi<{ message?: string; sessions_synced?: number }>(`/routers/${id}/sync_pppoe/`, { method: 'POST', plane: 'tenant' }),
 };
 
 export const networkProfileApi = {
