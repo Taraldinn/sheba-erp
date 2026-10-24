@@ -152,7 +152,7 @@ const portalConfigs: Record<
             url: "/isp/subscriptions",
             icon: BadgeCent,
           },
-          { title: "Resellers", url: "/isp/resellers", icon: Briefcase },
+          { title: "POP & Branch List", url: "/isp/resellers", icon: Building2 },
         ],
       },
       {
@@ -193,6 +193,14 @@ const portalConfigs: Record<
               {
                 title: "Active Clients",
                 url: "/tenant/customers?status=ACTIVE",
+              },
+              {
+                title: "Promise Clients",
+                url: "/tenant/customers?is_promise=true",
+              },
+              {
+                title: "Free Clients",
+                url: "/tenant/customers?billing_type=Free",
               },
               { title: "Due / Pending", url: "/tenant/customers?has_due=true" },
               {
@@ -286,7 +294,7 @@ const portalConfigs: Record<
             icon: Building,
             items: [
               { title: "Zones & Areas", url: "/tenant/zones" },
-              { title: "Active POP/Branches", url: "/tenant/branches" },
+              { title: "POP & Branch List", url: "/tenant/branches" },
               { title: "Left POP/Branches", url: "/tenant/branches/left" },
             ],
           },
@@ -322,7 +330,7 @@ const portalConfigs: Record<
             ],
           },
           {
-            title: "Resellers & Agents",
+            title: "POP/Branch & Agents",
             url: "/tenant/agents",
             icon: UserCheck,
           },
