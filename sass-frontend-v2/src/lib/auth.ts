@@ -7,5 +7,6 @@ export const auth = createNeonAuth({
     baseUrl,
     cookies: {
         secret,
+        domain: process.env.NODE_ENV === 'production' ? '.shebafi.xyz' : undefined,
     },
 });

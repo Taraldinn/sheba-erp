@@ -48,6 +48,7 @@ from apps.core.organization_views import (
     OrganizationTenantActionView,
     OrganizationSubscriptionsView,
     PublicSaaSPackageListView,
+    TenantStaffAccountCreateView,
 )
 from apps.core.public_onboarding_views import (
     PublicOnboardingView,
@@ -350,6 +351,9 @@ urlpatterns = [
          OrganizationTenantActionView.as_view(), name='org-tenant-action'),
     path('api/v1/organizations/<uuid:id>/subscriptions/',
          OrganizationSubscriptionsView.as_view(), name='org-subscriptions'),
+
+    path('api/v1/saas/tenants/<uuid:tenant_id>/staff-accounts/',
+         TenantStaffAccountCreateView.as_view(), name='saas-tenant-staff-accounts'),
 
     # Public SaaSPackage list (auth-only) — used by the org-admin tenant
     # creation form to populate the package picker.

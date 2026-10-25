@@ -499,4 +499,24 @@ export const saasApi = {
             json: data,
             plane: 'central',
         }),
+
+    /* Tenant Staff Accounts Provisioning */
+    getTenantStaffAccounts: (tenantId: string) =>
+        fetchApi<{ results: any[]; count: number }>(`/tenants/${tenantId}/staff-accounts/`, { plane: 'central' }),
+    createTenantStaffAccount: (
+        tenantId: string,
+        data: {
+            username: string;
+            email: string;
+            password: string;
+            first_name?: string;
+            last_name?: string;
+            role?: string;
+        }
+    ) =>
+        fetchApi<any>(`/tenants/${tenantId}/staff-accounts/`, {
+            method: 'POST',
+            json: data,
+            plane: 'central',
+        }),
 };

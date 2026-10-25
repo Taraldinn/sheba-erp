@@ -8,6 +8,7 @@ import { useSession, signOut } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { OnboardingRequestForm } from '@/components/onboarding/onboarding-request-form';
 import { OnboardingStatusCard } from '@/components/onboarding/onboarding-status-card';
+import { TenantUserManager } from '@/components/tenant-users/tenant-user-manager';
 import { publicApi } from '@/lib/api/public';
 
 interface OrgState {
@@ -18,6 +19,7 @@ interface OrgState {
     rejectionReason?: string;
     submittedAt?: string;
     requestId?: string;
+    tenantId?: string;
 }
 
 export default function AppDashboardPage() {
@@ -157,15 +159,25 @@ export default function AppDashboardPage() {
 
                     {/* State 2, 3, 4: Pending / Approved / Rejected */}
                     {orgState.status !== 'none' && (
-                        <OnboardingStatusCard
-                            status={orgState.status}
-                            organizationName={orgState.organizationName}
-                            requestedSlug={orgState.requestedSlug}
-                            plan={orgState.plan}
-                            rejectionReason={orgState.rejectionReason}
-                            submittedAt={orgState.submittedAt}
-                            onResubmit={handleResubmit}
-                        />
+                        <>
+                            <OnboardingStatusCard
+                                status={orgState.status}
+                                organizationName={orgState.organizationName}
+                                requestedSlug={orgState.requestedSlug}
+                                plan={orgState.plan}
+                                rejectionReason={orgState.rejectionReason}
+                                submittedAt={orgState.submittedAt}
+                                onResubmit={handleResubmit}
+                            />
+                            {orgState.status === 'approved' && (
+                                <div className="pt-2">
+                                    <TenantUserManager
+                                        tenantId={orgState.tenantId || orgState.requestedSlug}
+                                        tenantSlug={orgState.requestedSlug}
+                                    />
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </main>

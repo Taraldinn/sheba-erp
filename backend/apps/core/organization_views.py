@@ -2223,3 +2223,95 @@ class PublicSaaSPackageListView(views.APIView):
             'count': qs.count(),
             'results': SaaSPackagePublicSerializer(qs, many=True).data,
         })
+
+
+from django.db import transaction
+from apps.authentication.models import StaffProfile, UserRole
+
+
+class TenantStaffAccountSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, min_length=8)
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    role = serializers.CharField(max_length=50, default='ADMIN')
+
+
+class TenantStaffAccountCreateView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _get_tenant(self, request, tenant_id):
+        tenant = Tenant.objects.filter(id=tenant_id).first()
+        if not tenant:
+            return None, Response({'error': 'Tenant not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not (request.user.is_staff or request.user.is_superuser):
+            is_member = OrganizationMembership.objects.filter(
+                organization=tenant.organization,
+                user=request.user,
+                role__in=['OWNER', 'ADMIN']
+            ).exists()
+            if not is_member:
+                return None, Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        return tenant, None
+
+    def get(self, request, tenant_id):
+        tenant, err = self._get_tenant(request, tenant_id)
+        if err:
+            return err
+        profiles = StaffProfile.objects.filter(tenant=tenant).select_related('user')
+        data = [
+            {
+                'id': p.user.id,
+                'username': p.user.username,
+                'email': p.user.email,
+                'first_name': p.user.first_name,
+                'last_name': p.user.last_name,
+                'role': p.role,
+                'is_active': p.user.is_active,
+            }
+            for p in profiles
+        ]
+        return Response({'results': data, 'count': len(data)})
+
+    def post(self, request, tenant_id):
+        tenant, err = self._get_tenant(request, tenant_id)
+        if err:
+            return err
+
+        ser = TenantStaffAccountSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        v = ser.validated_data
+
+        if User.objects.filter(username__iexact=v['username']).exists():
+            return Response({'error': 'Username already taken'}, status=status.HTTP_400_BAD_REQUEST)
+
+        role = getattr(UserRole, v.get('role', 'ADMIN'), UserRole.ADMIN)
+
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=v['username'],
+                email=v['email'],
+                password=v['password'],
+                first_name=v.get('first_name', ''),
+                last_name=v.get('last_name', ''),
+            )
+            profile, _ = StaffProfile.objects.update_or_create(
+                user=user,
+                defaults={
+                    'tenant': tenant,
+                    'role': role,
+                    'is_active': True,
+                }
+            )
+
+        return Response({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'role': profile.role,
+            'tenant_id': str(tenant.id),
+            'tenant_slug': tenant.slug,
+        }, status=status.HTTP_201_CREATED)
