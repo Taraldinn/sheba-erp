@@ -8,14 +8,15 @@ import { usePortal } from '@/lib/portal/portal-provider';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { storage, STORAGE_KEYS } from '@/lib/api/storage';
 
+import { BetterAuthCard } from '@/components/auth/better-auth-card';
+
 /**
  * Generic "sign in" landing.
  * - If launched with an `auto_token` (e.g. 1-click launch from ISP Admin), stores
  *   session credentials and redirects to the tenant workspace immediately.
  * - If accessed from a dedicated subdomain (admin.*, app.*, or {tenant}.*), routes
  *   to the appropriate portal's login screen.
- * - Otherwise renders the portal picker for public marketing visitors, with
- *   client-only highlight to prevent SSR hydration mismatches.
+ * - For app.shebafi.xyz or direct sign-in, renders BetterAuthCard (Google + Username/Email & Password).
  */
 export default function LoginRedirect() {
     return (
@@ -52,7 +53,7 @@ function LoginContent() {
             return;
         }
 
-        // Subdomain auto-routing for dedicated portals
+        // Subdomain auto-routing for dedicated backend portals
         if (portal.portal === 'TENANT') {
             const nextParam = searchParams.get('next');
             const target = nextParam ? `/tenant/login?next=${encodeURIComponent(nextParam)}` : '/tenant/login';
@@ -77,66 +78,28 @@ function LoginContent() {
         );
     }
 
-    return <LoginFallback preferPortal={portal.portal} />;
-}
-
-const PORTALS = [
-    { href: '/saas/login', key: 'SUPER_ADMIN', label: 'Super Admin', hint: 'Platform control plane', Icon: ShieldCheck },
-    { href: '/isp/login', key: 'ISP_ADMIN', label: 'ISP Admin', hint: 'Manage your ISP workspace', Icon: Building2 },
-    { href: '/tenant/login', key: 'TENANT', label: 'Tenant', hint: 'Daily operations & billing', Icon: Router },
-] as const;
-
-function LoginFallback({ preferPortal }: { preferPortal?: string }) {
-    const [mounted, setMounted] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
-
-    // Only compute preferred portal after client mounts to prevent SSR hydration mismatch
-    const activePortal = mounted ? preferPortal : undefined;
-
-    const visiblePortals = PORTALS.filter(p => {
-        if (p.key === 'SUPER_ADMIN') {
-            return activePortal === 'SUPER_ADMIN';
-        }
-        return true;
-    });
-
     return (
-        <AuthShell
-            portalLabel="Shebafi"
-            title="Sign in"
-            description="Choose the portal you'd like to sign in to."
-            icon={<ShieldCheck className="size-4" aria-hidden="true" />}
-            panelTitle="One platform. Dedicated workspaces."
-            panelBody="ISP owners and tenant staff each get a workspace designed for the job they do."
-            highlights={['Strict per-tenant isolation', 'Branded domains & portals', 'Role-aware dashboards']}
-        >
-            <ul className="flex flex-col gap-3">
-                {visiblePortals.map(({ href, key, label, hint, Icon }) => {
-                    const preferred = activePortal === key;
-                    return (
-                        <li key={href}>
-                            <Link
-                                href={href}
-                                className={`group flex items-center gap-4 rounded-xl border p-4 transition-colors ${
-                                    preferred ? 'border-primary bg-accent' : 'border-border bg-card hover:border-primary/50 hover:bg-muted/50'
-                                }`}
-                            >
-                                <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                    <Icon className="size-5" aria-hidden="true" />
-                                </span>
-                                <span className="flex min-w-0 flex-1 flex-col">
-                                    <span className="text-sm font-semibold">{label}</span>
-                                    <span className="text-xs text-muted-foreground">{hint}</span>
-                                </span>
-                                <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-                            </Link>
-                        </li>
-                    );
-                })}
-            </ul>
-        </AuthShell>
+        <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-gradient-to-b from-background via-muted/20 to-background">
+            <div className="mb-6 flex flex-col items-center text-center">
+                <Link href="/" className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl font-black tracking-tight text-primary">Shebafi</span>
+                </Link>
+                <p className="text-xs text-muted-foreground">Organization & Broadband Management Portal</p>
+            </div>
+            <BetterAuthCard mode="signin" callbackUrl={searchParams.get('next') || '/dashboard'} />
+            
+            <div className="mt-8 text-center text-xs text-muted-foreground">
+                <p>Need platform administration or staff access?</p>
+                <div className="mt-2 flex items-center justify-center gap-4">
+                    <Link href="/saas/login" className="hover:text-primary transition-colors underline">
+                        Super Admin
+                    </Link>
+                    <span>•</span>
+                    <Link href="/isp/login" className="hover:text-primary transition-colors underline">
+                        ISP Staff Portal
+                    </Link>
+                </div>
+            </div>
+        </div>
     );
 }

@@ -1,11 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery } from '@/lib/query/native';
 import { ArrowLeft, ArrowRight, Building2, CheckCircle2, CircleDashed, Loader2, PartyPopper, ShieldCheck } from 'lucide-react';
 
 import { publicApi, type PublicOnboardingInput } from '@/lib/api/public';
+import { useSession } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -89,6 +91,22 @@ export default function OnboardingPage() {
         dashboard_url?: string;
         onboarding_request_id?: string;
     }>(null);
+
+    const session = useSession();
+
+    useEffect(() => {
+        const u = session?.data?.user;
+        if (u) {
+            setState(prev => ({
+                ...prev,
+                org_contact_email: prev.org_contact_email || u.email || '',
+                owner_email: prev.owner_email || u.email || '',
+                owner_username: prev.owner_username || u.name?.toLowerCase().replace(/\s+/g, '_') || '',
+                owner_first_name: prev.owner_first_name || u.name?.split(' ')[0] || '',
+                owner_last_name: prev.owner_last_name || u.name?.split(' ').slice(1).join(' ') || '',
+            }));
+        }
+    }, [session?.data?.user]);
 
     const set = <K extends keyof WizardState>(k: K, v: WizardState[K]) =>
         setState(prev => ({ ...prev, [k]: v }));
@@ -210,11 +228,25 @@ export default function OnboardingPage() {
 
     return (
         <div className="space-y-6">
-            <header>
-                <h1 className="text-2xl font-semibold">Start your Shebafi organization</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Four quick steps. No credit card required to start a trial.
-                </p>
+            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-semibold">Start your Shebafi organization</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Four quick steps. No credit card required to start a trial.
+                    </p>
+                </div>
+                {session?.data?.user ? (
+                    <Badge variant="outline" className="px-3 py-1.5 text-xs bg-primary/5 text-primary border-primary/20 self-start sm:self-auto">
+                        Signed in as {session.data.user.name || session.data.user.email}
+                    </Badge>
+                ) : (
+                    <Link
+                        href="/login?next=/onboarding"
+                        className="text-xs font-semibold text-primary hover:underline self-start sm:self-auto"
+                    >
+                        Sign in with Google or Email &rarr;
+                    </Link>
+                )}
             </header>
 
             <Stepper stepIndex={stepIndex} />
