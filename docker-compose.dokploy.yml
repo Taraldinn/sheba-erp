@@ -11,8 +11,8 @@ services:
     environment:
       - ENVIRONMENT=production
       - DEBUG=False
-      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY environment variable is required}
-      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:?FIELD_ENCRYPTION_KEY is required for credential security}
+      - SECRET_KEY=${SECRET_KEY:-sheba-dokploy-prod-secret-key-replace-with-own-secure-token-xyz}
+      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:-sheba-dokploy-field-encryption-key-32chars!}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-api.shebafi.xyz,shebafi.xyz,.shebafi.xyz,admin.shebafi.xyz,app.shebafi.xyz,localhost,127.0.0.1}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-https://shebafi.xyz,https://admin.shebafi.xyz,https://app.shebafi.xyz,https://api.shebafi.xyz}
       - CORS_ALLOW_ALL_ORIGINS=${CORS_ALLOW_ALL_ORIGINS:-False}
@@ -144,8 +144,8 @@ services:
     environment:
       - ENVIRONMENT=production
       - DEBUG=False
-      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY environment variable is required}
-      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:?FIELD_ENCRYPTION_KEY is required}
+      - SECRET_KEY=${SECRET_KEY:-sheba-dokploy-prod-secret-key-replace-with-own-secure-token-xyz}
+      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:-sheba-dokploy-field-encryption-key-32chars!}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-*}
       - DATABASE_URL=${DATABASE_URL:-postgres://${POSTGRES_USER:-sheba_user}:${POSTGRES_PASSWORD:-sheba_secure_password}@postgres:5432/${POSTGRES_DB:-sheba_erp}}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
@@ -186,8 +186,8 @@ services:
     environment:
       - ENVIRONMENT=production
       - DEBUG=False
-      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY environment variable is required}
-      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:?FIELD_ENCRYPTION_KEY is required}
+      - SECRET_KEY=${SECRET_KEY:-sheba-dokploy-prod-secret-key-replace-with-own-secure-token-xyz}
+      - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:-sheba-dokploy-field-encryption-key-32chars!}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-*}
       - DATABASE_URL=${DATABASE_URL:-postgres://${POSTGRES_USER:-sheba_user}:${POSTGRES_PASSWORD:-sheba_secure_password}@postgres:5432/${POSTGRES_DB:-sheba_erp}}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
