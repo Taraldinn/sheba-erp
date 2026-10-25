@@ -60,16 +60,26 @@ CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://admin.yourdomain.com,https:/
 CORS_ALLOW_ALL_ORIGINS=False
 CSRF_TRUSTED_ORIGINS=https://api.yourdomain.com,https://yourdomain.com,https://admin.yourdomain.com,https://app.yourdomain.com
 
-# ── Internal Databases (from docker-compose.dokploy.yml) ──
-POSTGRES_DB=sheba_erp
-POSTGRES_USER=sheba_user
-POSTGRES_PASSWORD=replace-with-a-secure-database-password
-DATABASE_URL=postgres://sheba_user:replace-with-a-secure-database-password@postgres:5432/sheba_erp
+# ── External Neon PostgreSQL Database (Recommended) ──
+# Neon pooled connection string (PgBouncer port 6543 or pooled domain) for Django web & Celery workers:
+DATABASE_URL=postgresql://neondb_owner:npg_password@ep-cool-pool-123456-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require
+# Direct Neon connection string (for running migrations without transaction pooler limitations):
+DIRECT_DATABASE_URL=postgresql://neondb_owner:npg_password@ep-cool-pool-123456.us-east-2.aws.neon.tech/neondb?sslmode=require
+DB_CONN_MAX_AGE=300
+
+# ── Fallback Internal Database (Alternative if NOT using external Neon) ──
+# POSTGRES_DB=sheba_erp
+# POSTGRES_USER=sheba_user
+# POSTGRES_PASSWORD=replace-with-a-secure-database-password
+# DATABASE_URL=postgres://sheba_user:replace-with-a-secure-database-password@postgres:5432/sheba_erp
 REDIS_URL=redis://redis:6379/0
 ```
 
+> **Note on Neon PostgreSQL**:
+> Sheba ERP supports external Neon PostgreSQL with automatic SSL enforcement (`sslmode=require`). If `DATABASE_URL` points to an external Neon host, you can stop or disable the local `postgres` service in `docker-compose.dokploy.yml` to conserve VPS memory.
+
 6. Click **Deploy**.
-   Dokploy will build the Docker image, run all database migrations automatically via `entrypoint.sh`, start PostgreSQL and Redis, and launch the API and Celery workers.
+   Dokploy will build the Docker image, run database migrations automatically via `entrypoint.sh` using direct connections, and launch the API and Celery workers.
 
 ---
 
@@ -131,6 +141,17 @@ In the Vercel project configuration, add the following Environment Variables (fo
 | `NEXT_PUBLIC_KNOWN_APEX_DOMAINS` | Known Apex Domain | `yourdomain.com` |
 | `NEXT_PUBLIC_PUBLIC_SIGNUP_ENABLED` | Public signup feature flag | `true` |
 | `NEXT_PUBLIC_SHOW_DEV_PORTAL_SWITCHER` | Dev switcher widget (keep `false` in prod) | `false` |
+| `NEON_AUTH_BASE_URL` | Base URL of your Neon Managed Auth project | `https://ep-cool-pool-123456.us-east-2.aws.neon.tech` |
+| `NEON_AUTH_COOKIE_SECRET` | Secret key (minimum 32 chars) for encrypting auth cookies | `generate-with-openssl-rand-hex-32` |
+| `NEXT_PUBLIC_NEON_AUTH_URL` | Frontend URL for Neon Auth client | `https://app.yourdomain.com` |
+
+#### Neon Managed Better Auth Configuration in Neon Console
+1. In your [Neon Console](https://console.neon.tech/), select your project and click **Auth**.
+2. Enable **Neon Auth** (powered by Better Auth).
+3. Under **Social Providers**, enable **Google**:
+   - Provide your **Google OAuth Client ID** and **Client Secret** (from Google Cloud Console).
+   - Set the Redirect URI in Google Cloud Console to the Callback URL provided by Neon Console.
+4. Neon Auth automatically maintains the `neon_auth` schema in your PostgreSQL database, preserving user records, accounts, and sessions.
 
 ---
 
