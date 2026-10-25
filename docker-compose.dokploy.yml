@@ -6,8 +6,8 @@ services:
       dockerfile: Dockerfile
     container_name: sheba-backend
     restart: unless-stopped
-    ports:
-      - "${PORT:-8000}:8000"
+    expose:
+      - "8000"
     environment:
       - ENVIRONMENT=production
       - DEBUG=False
@@ -88,8 +88,8 @@ services:
         NEXT_PUBLIC_KNOWN_APEX_DOMAINS: shebafi.xyz
     container_name: sheba-frontend
     restart: unless-stopped
-    ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
