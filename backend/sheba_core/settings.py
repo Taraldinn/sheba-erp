@@ -145,6 +145,11 @@ DATABASES = {
     'default': env.db('DATABASE_URL', default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")
 }
 
+if not DEBUG and 'sqlite' not in DATABASES['default'].get('ENGINE', ''):
+    DATABASES['default'].setdefault('OPTIONS', {})
+    DATABASES['default']['OPTIONS']['sslmode'] = env.str('DB_SSLMODE', 'require')
+    DATABASES['default']['CONN_MAX_AGE'] = env.int('DB_CONN_MAX_AGE', 300)
+
 if 'test' in sys.argv:
     DATABASES['default'] = {
         'ENGINE': 'django.db.backends.sqlite3',
