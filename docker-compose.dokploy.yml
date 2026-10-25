@@ -86,6 +86,7 @@ services:
         NEXT_PUBLIC_PUBLIC_HOME_HOST: shebafi.xyz
         NEXT_PUBLIC_TENANT_ROOT_DOMAIN: shebafi.xyz
         NEXT_PUBLIC_KNOWN_APEX_DOMAINS: shebafi.xyz
+        NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-Nz/0+HC1B8RbNDvhMBDp9odpf9ax0NeHoGaBg20p3U4=}
     container_name: sheba-frontend
     restart: unless-stopped
     expose:
@@ -104,6 +105,7 @@ services:
       - NEXT_PUBLIC_PUBLIC_HOME_HOST=shebafi.xyz
       - NEXT_PUBLIC_TENANT_ROOT_DOMAIN=shebafi.xyz
       - NEXT_PUBLIC_KNOWN_APEX_DOMAINS=shebafi.xyz
+      - NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-Nz/0+HC1B8RbNDvhMBDp9odpf9ax0NeHoGaBg20p3U4=}
     networks:
       - default
       - dokploy-network

@@ -27,6 +27,7 @@ ARG NEXT_PUBLIC_ISP_HOST=app.shebafi.xyz
 ARG NEXT_PUBLIC_PUBLIC_HOME_HOST=shebafi.xyz
 ARG NEXT_PUBLIC_TENANT_ROOT_DOMAIN=shebafi.xyz
 ARG NEXT_PUBLIC_KNOWN_APEX_DOMAINS=shebafi.xyz
+ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=Nz/0+HC1B8RbNDvhMBDp9odpf9ax0NeHoGaBg20p3U4=
 
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
@@ -35,6 +36,8 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_PUBLIC_HOME_HOST=$NEXT_PUBLIC_PUBLIC_HOME_HOST \
     NEXT_PUBLIC_TENANT_ROOT_DOMAIN=$NEXT_PUBLIC_TENANT_ROOT_DOMAIN \
     NEXT_PUBLIC_KNOWN_APEX_DOMAINS=$NEXT_PUBLIC_KNOWN_APEX_DOMAINS \
+    NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=$NEXT_SERVER_ACTIONS_ENCRYPTION_KEY \
+    NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production
 
 # Compile Next.js production build
@@ -50,18 +53,19 @@ FROM node:22-alpine AS runner
 
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@9.15.5 --activate
-
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
 
 ENV NODE_ENV=production \
     PORT=3000 \
-    HOSTNAME="0.0.0.0"
+    HOSTNAME="0.0.0.0" \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PATH="/app/node_modules/.bin:$PATH"
 
 # Copy package metadata and production node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/next.config.js ./next.config.js
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
@@ -73,4 +77,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD wget -qO- http://localhost:3000/ || exit 1
 
-CMD ["pnpm", "run", "start"]
+CMD ["next", "start"]
