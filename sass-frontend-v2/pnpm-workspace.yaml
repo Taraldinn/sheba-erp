@@ -6,5 +6,6 @@ allowBuilds:
   unrs-resolver: true
   msw: false
   workerd: true
+  core-js: true
 
 ignoreScripts: false
