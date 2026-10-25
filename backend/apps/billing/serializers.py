@@ -10,15 +10,35 @@ def _tenant_from_context(context):
 
 class PackageSerializer(serializers.ModelSerializer):
     subscribers_count = serializers.SerializerMethodField()
+    router_name = serializers.CharField(source='router.name', read_only=True, allow_null=True)
 
     class Meta:
         model = Package
         fields = [
             'id', 'name', 'mikrotik_profile', 'speed_mbps', 'upload_speed_mbps',
-            'validity_days', 'regular_price', 'min_reseller_price', 'description',
-            'is_active', 'subscribers_count', 'created_at'
+            'validity_days', 'regular_price', 'buying_price', 'vat_percent',
+            'min_reseller_price', 'router', 'router_name', 'btrc_bandwidth_mbps',
+            'rate_limit', 'description', 'is_active', 'subscribers_count', 'created_at'
         ]
         read_only_fields = ('tenant',)
+
+    def validate_router(self, router):
+        if router is None:
+            return router
+        tenant = _tenant_from_context(self.context)
+        if tenant and router.tenant_id != tenant.id:
+            raise serializers.ValidationError("Selected router does not belong to your ISP.")
+        return router
+
+    def validate(self, attrs):
+        # Sync speed_mbps with btrc_bandwidth_mbps if one is given
+        btrc = attrs.get('btrc_bandwidth_mbps')
+        speed = attrs.get('speed_mbps')
+        if btrc and (speed is None or speed == 0):
+            attrs['speed_mbps'] = int(btrc)
+        elif speed and (btrc is None or btrc == 0):
+            attrs['btrc_bandwidth_mbps'] = speed
+        return super().validate(attrs)
 
     @extend_schema_field(serializers.IntegerField())
     def get_subscribers_count(self, obj):

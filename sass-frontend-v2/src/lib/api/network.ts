@@ -122,6 +122,8 @@ export const routerApi = {
         fetchApi<{ message?: string; synced?: number }>(`/routers/${id}/sync-all-clients/`, { method: 'POST', plane: 'tenant' }),
     syncPppoe: (id: string) =>
         fetchApi<{ message?: string; sessions_synced?: number }>(`/routers/${id}/sync_pppoe/`, { method: 'POST', plane: 'tenant' }),
+    syncProfiles: (id: string) =>
+        fetchApi<{ router_id: string; profiles: string[] }>(`/routers/${id}/sync-profiles/`, { plane: 'tenant' }),
 };
 
 export const networkProfileApi = {

@@ -27,6 +27,8 @@ const searchSchema = z.object({
     status: z.string().optional(),
     billing_type: z.string().optional(),
     has_due: z.string().optional(),
+    is_promise: z.string().optional(),
+    is_free: z.string().optional(),
 });
 export default function CustomersList() {
     const searchParams = useSearchParams();
@@ -51,6 +53,8 @@ export default function CustomersList() {
         status: search.status,
         billing_type: search.billing_type,
         has_due: search.has_due,
+        is_promise: search.is_promise,
+        is_free: search.is_free,
     };
     const customers = useQuery({
         queryKey: queryKeys.customers.list(params),
@@ -103,13 +107,31 @@ export default function CustomersList() {
         {
             id: 'status',
             header: 'Status',
-            cell: row => <StatusBadge status={row.status} />,
+            cell: row => (
+                <div className="flex flex-col gap-0.5">
+                    <StatusBadge status={row.status} />
+                    {row.promise_date && (
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-mono font-medium">
+                            Promise: {row.promise_date}
+                        </span>
+                    )}
+                </div>
+            ),
         },
         {
             id: 'monthly_bill',
             header: 'Monthly',
             align: 'right',
-            cell: row => <MoneyText value={row.monthly_bill} />,
+            cell: row => (
+                <div className="flex flex-col items-end">
+                    <MoneyText value={row.monthly_bill} />
+                    {(row.billing_type?.toLowerCase() === 'free' || String(row.monthly_bill) === '0' || String(row.monthly_bill) === '0.00') && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-semibold uppercase">
+                            FREE
+                        </span>
+                    )}
+                </div>
+            ),
         },
         {
             id: 'due_amount',
@@ -181,7 +203,7 @@ export default function CustomersList() {
                 onRefresh={() => customers.refetch()}
                 isRefreshing={customers.isFetching}
             />
-            {(search.status || search.billing_type || search.has_due) && (
+            {(search.status || search.billing_type || search.has_due || search.is_promise || search.is_free) && (
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="text-muted-foreground font-medium">Active Filters:</span>
                     {search.status && (
@@ -200,6 +222,22 @@ export default function CustomersList() {
                             </button>
                         </Badge>
                     )}
+                    {search.is_promise && (
+                        <Badge variant="secondary" className="gap-1 font-mono">
+                            Promise Clients
+                            <button onClick={() => updateSearch({ is_promise: undefined })} className="hover:text-foreground">
+                                <X className="size-3" />
+                            </button>
+                        </Badge>
+                    )}
+                    {search.is_free && (
+                        <Badge variant="secondary" className="gap-1 font-mono">
+                            Free Clients
+                            <button onClick={() => updateSearch({ is_free: undefined })} className="hover:text-foreground">
+                                <X className="size-3" />
+                            </button>
+                        </Badge>
+                    )}
                     {search.has_due && (
                         <Badge variant="secondary" className="gap-1 font-mono">
                             Due Clients
@@ -212,7 +250,7 @@ export default function CustomersList() {
                         variant="ghost"
                         size="sm"
                         className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => updateSearch({ status: undefined, billing_type: undefined, has_due: undefined })}
+                        onClick={() => updateSearch({ status: undefined, billing_type: undefined, has_due: undefined, is_promise: undefined, is_free: undefined })}
                     >
                         Reset filters
                     </Button>

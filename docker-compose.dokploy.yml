@@ -13,11 +13,11 @@ services:
       - DEBUG=False
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY environment variable is required}
       - FIELD_ENCRYPTION_KEY=${FIELD_ENCRYPTION_KEY:?FIELD_ENCRYPTION_KEY is required for credential security}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-*}
-      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-*}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-api.shebafi.xyz,shebafi.xyz,.shebafi.xyz,admin.shebafi.xyz,app.shebafi.xyz,localhost,127.0.0.1}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-https://shebafi.xyz,https://admin.shebafi.xyz,https://app.shebafi.xyz,https://api.shebafi.xyz}
       - CORS_ALLOW_ALL_ORIGINS=${CORS_ALLOW_ALL_ORIGINS:-False}
-      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-}
-      - SUPER_ADMIN_DOMAIN=${SUPER_ADMIN_DOMAIN:-admin.example.com}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://shebafi.xyz,https://admin.shebafi.xyz,https://app.shebafi.xyz,https://api.shebafi.xyz,https://*.shebafi.xyz}
+      - SUPER_ADMIN_DOMAIN=${SUPER_ADMIN_DOMAIN:-admin.shebafi.xyz}
       - DATABASE_URL=${DATABASE_URL:-postgres://${POSTGRES_USER:-sheba_user}:${POSTGRES_PASSWORD:-sheba_secure_password}@postgres:5432/${POSTGRES_DB:-sheba_erp}}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
@@ -33,6 +33,27 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
       - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-}
       - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-}
+    networks:
+      - default
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      # HTTP Router: Redirect all HTTP to HTTPS
+      - "traefik.http.routers.sheba-backend-http.rule=Host(`api.shebafi.xyz`)"
+      - "traefik.http.routers.sheba-backend-http.entrypoints=web"
+      - "traefik.http.routers.sheba-backend-http.middlewares=sheba-redirect-https@docker"
+      # HTTPS Router: Handle secure API traffic with higher priority
+      - "traefik.http.routers.sheba-backend-secure.rule=Host(`api.shebafi.xyz`)"
+      - "traefik.http.routers.sheba-backend-secure.entrypoints=websecure"
+      - "traefik.http.routers.sheba-backend-secure.tls=true"
+      - "traefik.http.routers.sheba-backend-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.sheba-backend-secure.priority=100"
+      # Backend Service Port
+      - "traefik.http.services.sheba-backend.loadbalancer.server.port=8000"
+      # Shared Middleware: Scheme redirect
+      - "traefik.http.middlewares.sheba-redirect-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.sheba-redirect-https.redirectscheme.permanent=true"
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,11 +62,75 @@ services:
     volumes:
       - backend_media:/app/media
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz/"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/healthz/" ]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
+
+  # ── Sheba ERP Frontend (Next.js 16 + Tailwind CSS) ────────────────────────
+  # Routes:
+  #   - shebafi.xyz & www.shebafi.xyz : Homepage (Public / Marketing)
+  #   - admin.shebafi.xyz             : Central Control Plane / Super Admin
+  #   - app.shebafi.xyz               : Org Admin / ISP Admin
+  #   - *.shebafi.xyz                 : Tenant & Customer Self-Care Portals
+  frontend:
+    build:
+      context: ./sass-frontend-v2
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://api.shebafi.xyz/api/v1
+        NEXT_PUBLIC_API_BASE_URL: https://api.shebafi.xyz/api/v1
+        NEXT_PUBLIC_SUPER_ADMIN_HOST: admin.shebafi.xyz
+        NEXT_PUBLIC_ISP_HOST: app.shebafi.xyz
+        NEXT_PUBLIC_PUBLIC_HOME_HOST: shebafi.xyz
+        NEXT_PUBLIC_TENANT_ROOT_DOMAIN: shebafi.xyz
+        NEXT_PUBLIC_KNOWN_APEX_DOMAINS: shebafi.xyz
+    container_name: sheba-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - VITE_API_BASE_URL=https://api.shebafi.xyz/api/v1
+      - NEXT_PUBLIC_API_URL=https://api.shebafi.xyz/api/v1
+      - NEXT_PUBLIC_API_BASE_URL=https://api.shebafi.xyz/api/v1
+      - INTERNAL_API_URL=http://backend:8000/api/v1/
+      - INTERNAL_API_BASE_URL=http://backend:8000/api/v1/
+      - NEXT_PUBLIC_SUPER_ADMIN_HOST=admin.shebafi.xyz
+      - NEXT_PUBLIC_ISP_HOST=app.shebafi.xyz
+      - NEXT_PUBLIC_PUBLIC_HOME_HOST=shebafi.xyz
+      - NEXT_PUBLIC_TENANT_ROOT_DOMAIN=shebafi.xyz
+      - NEXT_PUBLIC_KNOWN_APEX_DOMAINS=shebafi.xyz
+    networks:
+      - default
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      # HTTP Router: Redirect all HTTP to HTTPS
+      - "traefik.http.routers.sheba-frontend-http.rule=Host(`shebafi.xyz`) || Host(`www.shebafi.xyz`) || HostRegexp(`^[a-zA-Z0-9-]+\\.shebafi\\.xyz$$`)"
+      - "traefik.http.routers.sheba-frontend-http.entrypoints=web"
+      - "traefik.http.routers.sheba-frontend-http.middlewares=sheba-redirect-https@docker"
+      # HTTPS Router: Handle homepage, admin, app, and wildcard tenant subdomains
+      - "traefik.http.routers.sheba-frontend-secure.rule=Host(`shebafi.xyz`) || Host(`www.shebafi.xyz`) || HostRegexp(`^[a-zA-Z0-9-]+\\.shebafi\\.xyz$$`)"
+      - "traefik.http.routers.sheba-frontend-secure.entrypoints=websecure"
+      - "traefik.http.routers.sheba-frontend-secure.tls=true"
+      - "traefik.http.routers.sheba-frontend-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.sheba-frontend-secure.priority=50"
+      # Frontend Service Port
+      - "traefik.http.services.sheba-frontend.loadbalancer.server.port=3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:3000/ || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   # ── Celery Async Task Worker ──────────────────────────────────────────────
   # Processes payment callbacks, MikroTik/OLT sync, and invoice generation
@@ -81,7 +166,7 @@ services:
     volumes:
       - backend_media:/app/media
     healthcheck:
-      test: ["CMD", "celery", "-A", "sheba_core", "inspect", "ping", "--timeout", "5"]
+      test: [ "CMD", "celery", "-A", "sheba_core", "inspect", "ping", "--timeout", "5" ]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -130,7 +215,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sheba_user} -d ${POSTGRES_DB:-sheba_erp}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sheba_user} -d ${POSTGRES_DB:-sheba_erp}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -153,7 +238,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG || redis-cli -a \"$$REDIS_PASSWORD\" ping 2>/dev/null | grep -q PONG"]
+      test: [ "CMD-SHELL", "redis-cli ping | grep -q PONG || redis-cli -a \"$$REDIS_PASSWORD\" ping 2>/dev/null | grep -q PONG" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -163,3 +248,9 @@ volumes:
   postgres_data:
   redis_data:
   backend_media:
+
+networks:
+  default:
+    name: sheba_dokploy_net
+  dokploy-network:
+    external: true

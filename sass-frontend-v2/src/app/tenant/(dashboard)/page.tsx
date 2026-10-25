@@ -439,7 +439,7 @@ export default function TenantDashboard() {
                 icon={Handshake}
                 status="UP"
                 value={loading ? <Skeleton className="h-4 w-10 inline-block" /> : promiseClients.toLocaleString()}
-                href="/tenant/customers"
+                href="/tenant/customers?is_promise=true"
               />
             </TelemetryList>
           </ConsolePanel>
@@ -473,7 +473,7 @@ export default function TenantDashboard() {
                 icon={Gift}
                 status="INFO"
                 value={loading ? <Skeleton className="h-4 w-10 inline-block" /> : freeClients.toLocaleString()}
-                href="/tenant/customers"
+                href="/tenant/customers?billing_type=Free"
               />
               <TelemetryRow
                 name="Terminated / Left"

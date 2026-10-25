@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework import status
 from apps.core.models import Tenant
-from apps.customers.models import Customer, CustomerStatus
+from apps.customers.models import Customer, CustomerStatus, BillingType
 from apps.billing.models import Package, Recharge
 
 
@@ -88,4 +88,72 @@ class CustomerTests(TestCase):
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
         ids = [c['id'] for c in list_response.data.get('results', list_response.data)]
         self.assertNotIn(str(self.customer.id), ids)
+
+    def test_filter_promise_clients(self):
+        # Create a promise customer
+        promise_cust = Customer.objects.create(
+            tenant=self.tenant,
+            customer_code='CUST-PROMISE',
+            full_name='Promise User',
+            mobile='01711223344',
+            pppoe_username='promise_user',
+            monthly_bill=500.00,
+            status=CustomerStatus.ACTIVE,
+            promise_date=timezone.now().date() + datetime.timedelta(days=3)
+        )
+
+        # Test is_promise=true
+        resp = self.client.get("/api/v1/customers/?is_promise=true")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = [c['id'] for c in resp.data.get('results', resp.data)]
+        self.assertIn(str(promise_cust.id), ids)
+        self.assertNotIn(str(self.customer.id), ids)
+
+        # Test status=PROMISE
+        resp_status = self.client.get("/api/v1/customers/?status=PROMISE")
+        self.assertEqual(resp_status.status_code, status.HTTP_200_OK)
+        ids_status = [c['id'] for c in resp_status.data.get('results', resp_status.data)]
+        self.assertIn(str(promise_cust.id), ids_status)
+        self.assertNotIn(str(self.customer.id), ids_status)
+
+    def test_filter_free_clients(self):
+        # Create a free client via billing_type
+        free_cust_1 = Customer.objects.create(
+            tenant=self.tenant,
+            customer_code='CUST-FREE1',
+            full_name='Free User One',
+            mobile='01755667788',
+            pppoe_username='free_user1',
+            monthly_bill=0.00,
+            billing_type=BillingType.FREE,
+            status=CustomerStatus.ACTIVE
+        )
+        # Create a free client via monthly_bill=0
+        free_cust_2 = Customer.objects.create(
+            tenant=self.tenant,
+            customer_code='CUST-FREE2',
+            full_name='Free User Two',
+            mobile='01766778899',
+            pppoe_username='free_user2',
+            monthly_bill=0.00,
+            billing_type=BillingType.PREPAID,
+            status=CustomerStatus.ACTIVE
+        )
+
+        # Test billing_type=Free
+        resp = self.client.get("/api/v1/customers/?billing_type=Free")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = [c['id'] for c in resp.data.get('results', resp.data)]
+        self.assertIn(str(free_cust_1.id), ids)
+        self.assertIn(str(free_cust_2.id), ids)
+        self.assertNotIn(str(self.customer.id), ids)
+
+        # Test is_free=true
+        resp_free = self.client.get("/api/v1/customers/?is_free=true")
+        self.assertEqual(resp_free.status_code, status.HTTP_200_OK)
+        ids_free = [c['id'] for c in resp_free.data.get('results', resp_free.data)]
+        self.assertIn(str(free_cust_1.id), ids_free)
+        self.assertIn(str(free_cust_2.id), ids_free)
+        self.assertNotIn(str(self.customer.id), ids_free)
+
 

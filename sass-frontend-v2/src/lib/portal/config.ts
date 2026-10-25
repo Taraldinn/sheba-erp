@@ -4,6 +4,8 @@
  */
 
 export const RESERVED_SLUGS = new Set([
+    'v2',
+    'beta',
     'www',
     'api',
     'admin',

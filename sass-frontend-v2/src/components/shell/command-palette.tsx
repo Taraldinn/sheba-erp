@@ -79,6 +79,20 @@ export function CommandPalette({
         perform: () => router.push('/tenant/customers' as never),
       },
       {
+        id: 'nav-customers-promise',
+        title: 'Promise Clients',
+        category: 'Navigation',
+        icon: Users,
+        perform: () => router.push('/tenant/customers?is_promise=true' as never),
+      },
+      {
+        id: 'nav-customers-free',
+        title: 'Free Clients (Complimentary)',
+        category: 'Navigation',
+        icon: Users,
+        perform: () => router.push('/tenant/customers?billing_type=Free' as never),
+      },
+      {
         id: 'nav-routers',
         title: 'MikroTik Routers & Bandwidth',
         category: 'Navigation',

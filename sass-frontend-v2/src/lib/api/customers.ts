@@ -9,6 +9,8 @@ export interface ListCustomersParams {
     status?: string;
     billing_type?: string;
     has_due?: boolean | string;
+    is_promise?: boolean | string;
+    is_free?: boolean | string;
     package?: string;
     router?: string;
     area_zone?: string;

@@ -256,7 +256,7 @@ class TenantResolutionMiddleware(MiddlewareMixin):
         # C. Subdomain slug match (e.g., fardin.shebafi.com -> slug="fardin")
         if not tenant:
             parts = raw_host.split('.')
-            if len(parts) >= 2 and parts[0] not in ('www', 'api', 'localhost', '127', 'testserver'):
+            if len(parts) >= 2 and parts[0] not in ('www', 'api', 'v2', 'beta', 'localhost', '127', 'testserver'):
                 subdomain = parts[0]
                 try:
                     tenant = Tenant.objects.filter(slug__iexact=subdomain).first()

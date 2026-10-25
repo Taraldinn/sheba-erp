@@ -607,11 +607,17 @@ export interface CustomerSubscription {
 export interface IspPackage {
     id: string;
     name: string;
+    btrc_bandwidth_mbps?: number;
+    router?: string | null;
+    router_name?: string | null;
     mikrotik_profile: string;
+    rate_limit?: string;
     speed_mbps: number;
     upload_speed_mbps?: number;
     validity_days: number;
     regular_price: number | string;
+    buying_price?: number | string;
+    vat_percent?: number | string;
     min_reseller_price?: number | string;
     description?: string;
     is_active: boolean;

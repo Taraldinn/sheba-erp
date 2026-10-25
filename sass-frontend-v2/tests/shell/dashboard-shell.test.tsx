@@ -45,4 +45,17 @@ describe("DashboardShell Integration", () => {
     expect(screen.getByRole("button", { name: /open notifications/i })).toBeDefined();
     expect(screen.getByText("Page Content")).toBeDefined();
   });
+
+  it("renders Promise Clients and Free Clients under Clients submenu in sidebar", () => {
+    render(
+      <ThemePresetProvider initialPreset="signal" initialDensity="comfortable">
+        <DashboardShell rootHref="/tenant" rootLabel="Workspace" environment="Live" errorLabel="test">
+          <div>Workspace Content</div>
+        </DashboardShell>
+      </ThemePresetProvider>
+    );
+
+    expect(screen.getByText("Promise Clients")).toBeDefined();
+    expect(screen.getByText("Free Clients")).toBeDefined();
+  });
 });

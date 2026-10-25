@@ -96,11 +96,29 @@ class CustomerViewSet(viewsets.ModelViewSet):
         # Filters
         status_filter = self.request.query_params.get('status')
         if status_filter:
-            qs = qs.filter(status__iexact=status_filter)
+            if status_filter.upper() in ('PROMISE', 'PROMISE_ACTIVE', 'PROMISE ACTIVE'):
+                qs = qs.filter(promise_date__isnull=False)
+            elif status_filter.upper() == 'TERMINATED':
+                qs = qs.filter(status__in=[CustomerStatus.LEFT, 'Terminated', 'TERMINATED'])
+            elif status_filter.upper() == 'INACTIVE':
+                qs = qs.filter(status__in=[CustomerStatus.SUSPENDED, CustomerStatus.EXPIRED, 'Inactive', 'INACTIVE'])
+            else:
+                qs = qs.filter(status__iexact=status_filter)
+
+        is_promise = self.request.query_params.get('is_promise')
+        if is_promise in ('true', '1', 'True'):
+            qs = qs.filter(promise_date__isnull=False)
 
         billing_type = self.request.query_params.get('billing_type')
         if billing_type:
-            qs = qs.filter(billing_type__iexact=billing_type)
+            if billing_type.upper() == 'FREE':
+                qs = qs.filter(Q(billing_type__iexact='free') | Q(monthly_bill=0))
+            else:
+                qs = qs.filter(billing_type__iexact=billing_type)
+
+        is_free = self.request.query_params.get('is_free')
+        if is_free in ('true', '1', 'True'):
+            qs = qs.filter(Q(billing_type__iexact='free') | Q(monthly_bill=0))
 
         has_due = self.request.query_params.get('has_due')
         if has_due in ('true', '1', 'True'):

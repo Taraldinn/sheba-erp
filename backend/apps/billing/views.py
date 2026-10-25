@@ -20,11 +20,14 @@ from apps.core.models import AuditLog
 
 
 def sync_package_to_routers(package: Package) -> int:
-    """Provisions or updates this package's profile on all active tenant MikroTik routers."""
+    """Provisions or updates this package's profile on all active tenant MikroTik routers or assigned router."""
     from apps.network.models import Router
     from apps.network.services.mikrotik import MikroTikService
-    routers = Router.objects.filter(tenant=package.tenant, is_active=True)
-    rate_limit = f"{package.upload_speed_mbps or package.speed_mbps}M/{package.speed_mbps}M"
+    if package.router:
+        routers = [package.router] if package.router.is_active else []
+    else:
+        routers = Router.objects.filter(tenant=package.tenant, is_active=True)
+    rate_limit = package.rate_limit.strip() if getattr(package, 'rate_limit', '') else f"{package.upload_speed_mbps or package.speed_mbps}M/{package.speed_mbps}M"
     profile_name = package.mikrotik_profile or package.name.replace(' ', '_')
     synced_count = 0
     for r in routers:
