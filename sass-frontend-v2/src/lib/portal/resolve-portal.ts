@@ -103,12 +103,19 @@ export function resolvePortal(rawHostname: string, options: ResolvePortalOptions
         return { portal: 'SUPER_ADMIN', hostname, isDevelopment: isLocalDevHost };
     }
 
-    // ── 2. ISP central app ─────────────────────────────────────────────────
+    // ── 2. Client Organization App ─────────────────────────────────────────
+    if (
+        hostname === 'app.shebafi.xyz' ||
+        hostname === 'app.localhost' ||
+        hostname.startsWith('app.')
+    ) {
+        return { portal: 'ORGANIZATION_APP', hostname, isDevelopment: isLocalDevHost };
+    }
+
+    // ── 2b. ISP central admin ───────────────────────────────────────────────
     if (
         hostname === PORTAL_CONFIG.ispAdminHost ||
-        hostname === 'app.localhost' ||
         hostname === 'isp.localhost' ||
-        hostname.startsWith('app.') ||
         hostname.startsWith('isp.')
     ) {
         return { portal: 'ISP_ADMIN', hostname, isDevelopment: isLocalDevHost };
@@ -163,6 +170,6 @@ export type Plane = 'central' | 'tenant' | 'public';
 export function planeForPortal(portal: PortalType): Plane | null {
     if (portal === 'SUPER_ADMIN') return 'central';
     if (portal === 'ISP_ADMIN' || portal === 'TENANT') return 'tenant';
-    if (portal === 'PUBLIC_HOME' || portal === 'UNKNOWN') return 'public';
+    if (portal === 'PUBLIC_HOME' || portal === 'ORGANIZATION_APP' || portal === 'UNKNOWN') return 'public';
     return null;
 }

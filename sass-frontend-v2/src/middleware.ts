@@ -17,6 +17,9 @@ export function middleware(request: NextRequest) {
         if (resolution.portal === 'ISP_ADMIN') {
             return NextResponse.redirect(new URL('/isp', request.url));
         }
+        if (resolution.portal === 'ORGANIZATION_APP') {
+            return NextResponse.redirect(new URL('/dashboard', request.url));
+        }
         if (resolution.portal === 'TENANT') {
             return NextResponse.redirect(new URL('/tenant', request.url));
         }

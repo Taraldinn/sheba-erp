@@ -23,6 +23,12 @@ export const PORTAL_META: Record<
         themeColor: '#1e293b',
         ogType: 'website',
     },
+    ORGANIZATION_APP: {
+        title: 'Shebafi — Organization Dashboard',
+        description: 'Client organization dashboard: manage your organization, onboarding status, and tenant users.',
+        themeColor: '#1e1b4b',
+        ogType: 'website',
+    },
     ISP_ADMIN: {
         title: 'Shebafi — ISP Workspace',
         description: 'Central ISP workspace: domains, modules, child tenants, resellers, and the ISP admin user.',

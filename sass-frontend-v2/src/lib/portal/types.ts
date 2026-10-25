@@ -1,4 +1,4 @@
-export type PortalType = 'PUBLIC_HOME' | 'SUPER_ADMIN' | 'ISP_ADMIN' | 'TENANT' | 'UNKNOWN';
+export type PortalType = 'PUBLIC_HOME' | 'SUPER_ADMIN' | 'ORGANIZATION_APP' | 'ISP_ADMIN' | 'TENANT' | 'UNKNOWN';
 
 export interface PortalResolution {
     portal: PortalType;
