@@ -1,1 +1,0 @@
-# Corporate tests package

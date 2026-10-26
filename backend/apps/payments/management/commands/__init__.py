@@ -1,1 +1,0 @@
-# apps.payments.management.commands

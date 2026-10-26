@@ -9,3 +9,9 @@ allowBuilds:
   core-js: true
 
 ignoreScripts: false
+
+minimumReleaseAgeExclude:
+  - '@cloudflare/workers-response-store@1.1.3'
+  - '@vinext/cloudflare@1.2.1'
+  - '@vinext/types@1.0.2'
+  - vinext@1.3.1

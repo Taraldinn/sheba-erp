@@ -1,9 +1,0 @@
-{
-  "title": "Infrastructure & Deployment",
-  "pages": [
-    "overview",
-    "docker-architecture",
-    "dokploy-and-vps",
-    "production-runbook"
-  ]
-}
