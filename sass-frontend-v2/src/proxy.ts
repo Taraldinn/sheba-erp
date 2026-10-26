@@ -3,14 +3,14 @@ import type { NextRequest } from 'next/server';
 import { STORAGE_KEYS } from './lib/api/storage';
 import { resolvePortal } from './lib/portal/resolve-portal';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
     const pathname = request.nextUrl.pathname;
     const rawHost = request.headers.get('host') || request.nextUrl.hostname;
     const hostname = rawHost.split(':')[0].toLowerCase();
 
     // 0. Subdomain root routing
     if (pathname === '/') {
-        const resolution = resolvePortal(hostname);
+        const resolution = resolvePortal(hostname, { pathname });
         if (resolution.portal === 'SUPER_ADMIN') {
             return NextResponse.redirect(new URL('/saas', request.url));
         }
@@ -67,3 +67,5 @@ export function middleware(request: NextRequest) {
 export const config = {
     matcher: ['/', '/saas/:path*', '/tenant/:path*', '/isp/:path*'],
 };
+
+export default proxy;

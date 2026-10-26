@@ -43,19 +43,31 @@ export function resolvePortal(rawHostname: string, options: ResolvePortalOptions
         hostname === '127.0.0.1' ||
         hostname.endsWith('.localhost');
 
-    // ── Dev overrides (local dev or explicit flag) ─────────────────────────
-    if (isDevelopment || isLocalDevHost) {
+    const isHostingPlatformHost =
+        hostname.endsWith('.workers.dev') ||
+        hostname.endsWith('.pages.dev') ||
+        hostname.endsWith('.vercel.app') ||
+        hostname.endsWith('.netlify.app') ||
+        hostname.endsWith('.fly.dev') ||
+        hostname.endsWith('.onrender.com');
+
+    const isSingleHost = isLocalDevHost || isHostingPlatformHost;
+
+    // ── Dev & Single-Host overrides (local dev, preview/worker domains, or explicit flag) ──
+    if (isDevelopment || isSingleHost) {
         let overridePortal: string | null | undefined = undefined;
         let overrideTenant = options.devOverrideTenant;
 
-        // On plain localhost or 127.0.0.1 without subdomain, route based on path if explicit
-        if (options.pathname && (hostname === 'localhost' || hostname === '127.0.0.1')) {
+        // On single host (localhost, 127.0.0.1, workers.dev, etc.) without subdomain, route based on path if explicit
+        if (options.pathname && isSingleHost) {
             if (options.pathname.startsWith('/saas')) {
                 overridePortal = 'saas';
             } else if (options.pathname.startsWith('/isp')) {
                 overridePortal = 'isp';
             } else if (options.pathname.startsWith('/tenant')) {
                 overridePortal = 'tenant';
+            } else if (options.pathname.startsWith('/dashboard')) {
+                overridePortal = 'app';
             }
         }
 
@@ -72,21 +84,24 @@ export function resolvePortal(rawHostname: string, options: ResolvePortalOptions
         if (overridePortal) {
             const normalized = overridePortal.toLowerCase().trim();
             if (normalized === 'super_admin' || normalized === 'admin' || normalized === 'saas') {
-                return { portal: 'SUPER_ADMIN', hostname, isDevelopment: true };
+                return { portal: 'SUPER_ADMIN', hostname, isDevelopment: isLocalDevHost };
             }
-            if (normalized === 'isp_admin' || normalized === 'isp' || normalized === 'app') {
-                return { portal: 'ISP_ADMIN', hostname, isDevelopment: true };
+            if (normalized === 'isp_admin' || normalized === 'isp') {
+                return { portal: 'ISP_ADMIN', hostname, isDevelopment: isLocalDevHost };
+            }
+            if (normalized === 'organization_app' || normalized === 'app' || normalized === 'dashboard') {
+                return { portal: 'ORGANIZATION_APP', hostname, isDevelopment: isLocalDevHost };
             }
             if (normalized === 'tenant') {
                 return {
                     portal: 'TENANT',
                     tenantSlug: overrideTenant || 'demo-isp',
                     hostname,
-                    isDevelopment: true,
+                    isDevelopment: isLocalDevHost,
                 };
             }
             if (normalized === 'public' || normalized === 'home' || normalized === 'marketing') {
-                return { portal: 'PUBLIC_HOME', hostname, isDevelopment: true };
+                return { portal: 'PUBLIC_HOME', hostname, isDevelopment: isLocalDevHost };
             }
         }
     }
@@ -121,7 +136,7 @@ export function resolvePortal(rawHostname: string, options: ResolvePortalOptions
         return { portal: 'ISP_ADMIN', hostname, isDevelopment: isLocalDevHost };
     }
 
-    // ── 3. Public homepage (apex or www.*) ─────────────────────────────────
+    // ── 3. Public homepage (apex, www.*, or hosting platform deployment domain) ─
     const strippedWww = hostname.replace(/^www\./, '');
     const isPublicApex =
         hostname === PORTAL_CONFIG.publicHomeHost ||
@@ -129,7 +144,8 @@ export function resolvePortal(rawHostname: string, options: ResolvePortalOptions
         PORTAL_CONFIG.knownApexDomains.includes(hostname) ||
         PORTAL_CONFIG.knownApexDomains.includes(strippedWww) ||
         hostname === 'localhost' ||
-        hostname === '127.0.0.1';
+        hostname === '127.0.0.1' ||
+        isHostingPlatformHost;
 
     if (isPublicApex) {
         return { portal: 'PUBLIC_HOME', hostname, isDevelopment: isLocalDevHost };
@@ -154,7 +170,7 @@ export function resolvePortal(rawHostname: string, options: ResolvePortalOptions
     }
 
     // ── 5. Custom domains ──────────────────────────────────────────────────
-    if (hostname.includes('.')) {
+    if (hostname.includes('.') && !isHostingPlatformHost) {
         const firstLabel = hostname.split('.')[0];
         if (!RESERVED_SLUGS.has(firstLabel)) {
             return { portal: 'TENANT', hostname, isCustomDomain: true, isDevelopment: isLocalDevHost };
@@ -162,6 +178,7 @@ export function resolvePortal(rawHostname: string, options: ResolvePortalOptions
     }
 
     return { portal: 'UNKNOWN', hostname, isDevelopment: isLocalDevHost };
+
 }
 
 /** Returns the plane tag used by the API client. */
