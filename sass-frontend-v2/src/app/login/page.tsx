@@ -3,12 +3,14 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowRight, Building2, Loader2, Router, ShieldCheck } from 'lucide-react';
+import { Building2, Loader2 } from 'lucide-react';
 import { usePortal } from '@/lib/portal/portal-provider';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { storage, STORAGE_KEYS } from '@/lib/api/storage';
 
 import { BetterAuthCard } from '@/components/auth/better-auth-card';
+import { useSession } from '@/lib/auth-client';
+import { safeRedirectPath } from '@/lib/auth/safe-redirect';
 
 /**
  * Generic "sign in" landing.
@@ -30,7 +32,14 @@ function LoginContent() {
     const portal = usePortal();
     const router = useRouter();
     const searchParams = useSearchParams();
+    const session = useSession();
     const [isAutoLoggingIn, setIsAutoLoggingIn] = useState(false);
+    const next = safeRedirectPath(searchParams.get('next') || searchParams.get('callbackUrl'));
+
+    // Already signed in → straight to where they were headed.
+    useEffect(() => {
+        if (session.data?.user && !searchParams.get('auto_token')) router.replace(next);
+    }, [session.data?.user, next, searchParams, router]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -48,7 +57,7 @@ function LoginContent() {
             storage.setJSON('sheba_session_tenant', { token: autoToken, user: null });
 
             const nextParam = searchParams.get('next');
-            const target = nextParam && nextParam.startsWith('/') ? nextParam : '/tenant';
+            const target = safeRedirectPath(nextParam, '/tenant');
             window.location.href = target;
             return;
         }
@@ -79,27 +88,28 @@ function LoginContent() {
     }
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-gradient-to-b from-background via-muted/20 to-background">
-            <div className="mb-6 flex flex-col items-center text-center">
-                <Link href="/" className="flex items-center gap-2 mb-2">
-                    <span className="text-2xl font-black tracking-tight text-primary">Shebafi</span>
-                </Link>
-                <p className="text-xs text-muted-foreground">Organization & Broadband Management Portal</p>
-            </div>
-            <BetterAuthCard mode="signin" callbackUrl={searchParams.get('next') || '/dashboard'} />
-            
-            <div className="mt-8 text-center text-xs text-muted-foreground">
-                <p>Need platform administration or staff access?</p>
-                <div className="mt-2 flex items-center justify-center gap-4">
-                    <Link href="/saas/login" className="hover:text-primary transition-colors underline">
+        <AuthShell
+            portalLabel="Organization portal"
+            title="Sign in to your organization"
+            description="Use Google or your email and password."
+            icon={<Building2 className="size-4" aria-hidden="true" />}
+            panelTitle="Your ISP workspace, one sign-in away."
+            panelBody="Manage your onboarding request, approval status and organization workspace from the Organization Hub."
+            highlights={['Sign in with Google or email', 'Track your onboarding request', 'Launch your tenant workspace once approved']}
+            footer={
+                <p>
+                    Platform admin or staff?{' '}
+                    <Link href="/saas/login" className="font-medium text-foreground underline-offset-4 hover:underline">
                         Super Admin
                     </Link>
-                    <span>•</span>
-                    <Link href="/isp/login" className="hover:text-primary transition-colors underline">
-                        ISP Staff Portal
+                    {' · '}
+                    <Link href="/isp/login" className="font-medium text-foreground underline-offset-4 hover:underline">
+                        ISP Staff
                     </Link>
-                </div>
-            </div>
-        </div>
+                </p>
+            }
+        >
+            <BetterAuthCard mode="signin" callbackUrl={next} />
+        </AuthShell>
     );
 }

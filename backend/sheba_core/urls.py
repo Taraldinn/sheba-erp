@@ -50,6 +50,7 @@ from apps.core.organization_views import (
     PublicSaaSPackageListView,
     TenantStaffAccountCreateView,
 )
+from apps.core.org_portal_views import OrgMeView, OrgOnboardingView, OrgTenantSessionView
 from apps.core.public_onboarding_views import (
     PublicOnboardingView,
     PublicOnboardingStatusView,
@@ -362,6 +363,10 @@ urlpatterns = [
 
     # Public, anonymous-facing organization onboarding. Throttled at
     # settings.THROTTLE_RATES['public_onboarding'] (default 5/hour).
+    # Organization portal (Neon Auth JWT → Django user; see apps/core/neon_auth.py)
+    path('api/v1/org/me/', OrgMeView.as_view(), name='org-me'),
+    path('api/v1/org/onboarding/', OrgOnboardingView.as_view(), name='org-onboarding'),
+    path('api/v1/org/tenant-session/', OrgTenantSessionView.as_view(), name='org-tenant-session'),
     path('api/v1/public/onboarding/',
          PublicOnboardingView.as_view(), name='public-onboarding'),
     path('api/v1/public/onboarding/<uuid:request_id>/status/',

@@ -233,6 +233,9 @@ REST_FRAMEWORK = {
         'webhooks': env('THROTTLE_WEBHOOK_RATE', default='300/minute'),
         'recharge': env('THROTTLE_RECHARGE_RATE', default='60/minute'),
         'public_onboarding': env('THROTTLE_PUBLIC_ONBOARDING_RATE', default='5/hour'),
+        'org_portal': env('THROTTLE_ORG_PORTAL_RATE', default='120/minute'),
+        'org_onboarding': env('THROTTLE_ORG_ONBOARDING_RATE', default='10/hour'),
+        'org_tenant_session': env('THROTTLE_ORG_TENANT_SESSION_RATE', default='30/hour'),
     },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
@@ -765,3 +768,13 @@ if 'test' not in sys.argv:
         f"  Email Engine: {email_engine}\n"
         f"[SHEBA-BACKEND] ═══════════════════════════════════════════════════════\n"
     )
+
+
+# ─── Neon Managed Better Auth (Organization portal sign-in) ─────────────────
+# The portal signs users in with Neon Auth (Google / email+password) and sends
+# the Neon JWT as `Authorization: Bearer ...` to /api/v1/org/*. Django verifies
+# it against the Neon JWKS and maps it to a Django user (apps/core/neon_auth.py).
+# Same value as the frontend's NEON_AUTH_BASE_URL (includes the path).
+NEON_AUTH_BASE_URL = env('NEON_AUTH_BASE_URL', default='').strip()
+# Optional override; defaults to <NEON_AUTH_BASE_URL>/.well-known/jwks.json
+NEON_AUTH_JWKS_URL = env('NEON_AUTH_JWKS_URL', default='').strip()

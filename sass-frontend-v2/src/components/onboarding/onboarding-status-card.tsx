@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Clock, CheckCircle2, XCircle, ArrowUpRight, RotateCcw } from 'lucide-react';
+import { Clock, CheckCircle2, XCircle, ArrowUpRight, RotateCcw, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,10 @@ export interface OnboardingStatusCardProps {
     rejectionReason?: string;
     submittedAt?: string;
     onResubmit?: () => void;
+    /** Open the approved workspace (exchanges the Neon login for a tenant session). */
+    onLaunch?: () => void;
+    launching?: boolean;
+    launchError?: string | null;
 }
 
 export function OnboardingStatusCard({
@@ -24,9 +28,10 @@ export function OnboardingStatusCard({
     rejectionReason,
     submittedAt,
     onResubmit,
+    onLaunch,
+    launching = false,
+    launchError,
 }: OnboardingStatusCardProps) {
-    const tenantUrl = `https://${requestedSlug}.shebafi.xyz`;
-
     return (
         <Card className="w-full max-w-2xl border-border/80 shadow-md">
             <CardHeader className="flex flex-row items-start justify-between pb-4">
@@ -94,12 +99,14 @@ export function OnboardingStatusCard({
 
             <CardFooter className="flex items-center justify-between border-t border-border/40 pt-4">
                 {status === 'approved' ? (
-                    <Button asChild className="gap-2 font-semibold">
-                        <a href={tenantUrl} target="_blank" rel="noopener noreferrer">
+                    <div className="flex flex-col gap-2">
+                        <Button onClick={onLaunch} disabled={!onLaunch || launching} className="gap-2 font-semibold">
+                            {launching ? <Loader2 className="size-4 animate-spin" /> : null}
                             Launch Workspace
                             <ArrowUpRight className="size-4" />
-                        </a>
-                    </Button>
+                        </Button>
+                        {launchError && <span className="text-xs text-destructive">{launchError}</span>}
+                    </div>
                 ) : status === 'rejected' && onResubmit ? (
                     <Button variant="outline" onClick={onResubmit} className="gap-2 font-semibold">
                         <RotateCcw className="size-4" />

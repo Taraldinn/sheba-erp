@@ -39,7 +39,7 @@ export function MarketingHeader() {
                         Sign in
                     </Link>
                     <Link
-                        href="/onboarding"
+                        href="/signup"
                         className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
                     >
                         Start free
@@ -53,7 +53,7 @@ export function MarketingHeader() {
 
 export function MarketingFooter() {
     const cols: Array<{ title: string; links: Array<[string, string]> }> = [
-        { title: 'Product', links: [['Platform', '#features'], ['Pricing', '#pricing'], ['Sign up', '/onboarding']] },
+        { title: 'Product', links: [['Platform', '#features'], ['Pricing', '#pricing'], ['Sign up', '/signup']] },
         { title: 'Portals', links: [['Super admin', '/saas/login'], ['ISP admin', '/isp/login'], ['Tenant', '/tenant/login']] },
         { title: 'Resources', links: [['FAQ', '#faq'], ['Documentation', '/docs']] },
     ];
@@ -121,7 +121,7 @@ export function Hero() {
                         </p>
                         <div className="flex flex-wrap gap-3">
                             <Link
-                                href="/onboarding"
+                                href="/signup"
                                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
                             >
                                 Start your organization
@@ -329,12 +329,12 @@ export function Pricing({ packages, loading }: { packages: import('@/lib/api/typ
                 price: p.monthly_price ?? p.price,
                 description: p.description || 'A complete ISP control plane.',
                 features: p.features && p.features.length > 0 ? p.features : FALLBACK_FEATURES,
-                href: `/onboarding?package=${p.id}`,
+                href: `/signup?next=${encodeURIComponent(`/dashboard?package=${p.id}`)}`,
             }))
             : [
-                { id: 'starter', name: 'Starter', price: 5000, description: 'Up to 500 subscribers. Perfect for a single POP.', features: FALLBACK_FEATURES, href: '/onboarding' },
-                { id: 'growth', name: 'Growth', price: 15000, description: 'Up to 2,500 subscribers. Multi-POP, multi-tenant.', features: [...FALLBACK_FEATURES, 'Reseller wallets'], href: '/onboarding' },
-                { id: 'enterprise', name: 'Enterprise', price: 35000, description: 'Unlimited subscribers. SLA, SSO, dedicated engineer.', features: [...FALLBACK_FEATURES, 'Reseller wallets', 'Dedicated engineer'], href: '/onboarding' },
+                { id: 'starter', name: 'Starter', price: 5000, description: 'Up to 500 subscribers. Perfect for a single POP.', features: FALLBACK_FEATURES, href: '/signup' },
+                { id: 'growth', name: 'Growth', price: 15000, description: 'Up to 2,500 subscribers. Multi-POP, multi-tenant.', features: [...FALLBACK_FEATURES, 'Reseller wallets'], href: '/signup' },
+                { id: 'enterprise', name: 'Enterprise', price: 35000, description: 'Unlimited subscribers. SLA, SSO, dedicated engineer.', features: [...FALLBACK_FEATURES, 'Reseller wallets', 'Dedicated engineer'], href: '/signup' },
             ];
     const featuredIndex = plans.length >= 3 ? 1 : -1;
 
@@ -450,7 +450,7 @@ export function Faq() {
                             </p>
                         </div>
                         <Link
-                            href="/onboarding"
+                            href="/signup"
                             className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
                         >
                             Start your organization

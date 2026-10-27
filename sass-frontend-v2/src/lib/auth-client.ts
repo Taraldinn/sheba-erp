@@ -1,7 +1,6 @@
 'use client';
 
-import { createAuthClient } from '@neondatabase/auth';
-import { BetterAuthReactAdapter } from '@neondatabase/auth/react/adapters';
+import { createAuthClient } from '@neondatabase/auth/next';
 
 export function getCookieDomain(hostname: string): string | undefined {
     if (hostname.endsWith('shebafi.xyz')) {
@@ -10,13 +9,13 @@ export function getCookieDomain(hostname: string): string | undefined {
     return undefined;
 }
 
-const authUrl =
-    typeof window !== 'undefined'
-        ? (process.env.NEXT_PUBLIC_NEON_AUTH_URL || window.location.origin)
-        : (process.env.NEXT_PUBLIC_NEON_AUTH_URL || 'http://app.localhost:3000');
-
-export const authClient = createAuthClient(authUrl, {
-    adapter: BetterAuthReactAdapter(),
-});
+/**
+ * Neon Managed Better Auth client for the Organization portal.
+ *
+ * Takes no arguments on purpose: it talks to the same-origin proxy at
+ * `/api/auth/*` (see `app/api/auth/[...all]/route.ts`), which forwards to
+ * NEON_AUTH_BASE_URL and manages the session cookie.
+ */
+export const authClient = createAuthClient();
 
 export const { signIn, signUp, useSession, signOut } = authClient;

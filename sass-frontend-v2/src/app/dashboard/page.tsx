@@ -1,99 +1,84 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Loader2, LogOut, User as UserIcon, Building2, ShieldCheck } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Loader2, LogOut } from 'lucide-react';
 import { useSession, signOut } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { OnboardingRequestForm } from '@/components/onboarding/onboarding-request-form';
 import { OnboardingStatusCard } from '@/components/onboarding/onboarding-status-card';
 import { TenantUserManager } from '@/components/tenant-users/tenant-user-manager';
-import { publicApi } from '@/lib/api/public';
-
-interface OrgState {
-    status: 'none' | 'pending' | 'approved' | 'rejected';
-    organizationName: string;
-    requestedSlug: string;
-    plan: string;
-    rejectionReason?: string;
-    submittedAt?: string;
-    requestId?: string;
-    tenantId?: string;
-}
+import { orgApi, type OrgMe } from '@/lib/api/org';
+import { useQuery } from '@/lib/query/native';
 
 export default function AppDashboardPage() {
+    return (
+        <Suspense fallback={null}>
+            <AppDashboardContent />
+        </Suspense>
+    );
+}
+
+/** Where the tenant workspace lives for a given tenant (local dev vs production). */
+function workspaceOrigin(slug: string, domain: string | null): string {
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('localhost')) {
+        return `${window.location.protocol}//${slug}.localhost${window.location.port ? `:${window.location.port}` : ''}`;
+    }
+    return `https://${domain || `${slug}.shebafi.xyz`}`;
+}
+
+function AppDashboardContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const session = useSession();
+    const authUser = session.data?.user;
+    const defaultPackageId = searchParams.get('package') || '';
 
-    const [orgState, setOrgState] = useState<OrgState>({
-        status: 'none',
-        organizationName: '',
-        requestedSlug: '',
-        plan: 'Trial Plan',
+    // Not signed in → send to login and come back here (keeping ?package=).
+    useEffect(() => {
+        if (session.isPending || authUser) return;
+        const here = `/dashboard${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+        router.replace(`/login?next=${encodeURIComponent(here)}`);
+    }, [session.isPending, authUser, searchParams, router]);
+
+    // Django is the source of truth: who I am, my org/tenant memberships and my
+    // onboarding requests. Poll while a request is awaiting review.
+    const [hasPending, setHasPending] = useState(false);
+    const me = useQuery<OrgMe>({
+        queryKey: ['org', 'me', authUser?.id ?? 'anon'],
+        queryFn: () => orgApi.me(),
+        enabled: !!authUser,
+        retry: 0,
+        refetchInterval: hasPending ? 10_000 : false,
     });
-    const [loadingOrg, setLoadingOrg] = useState(false);
+    const latest = me.data?.onboarding_requests?.[0];
+    useEffect(() => setHasPending(latest?.status === 'pending'), [latest?.status]);
 
-    // Load saved or active onboarding request for this user
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const saved = localStorage.getItem('sheba_user_onboarding_request');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                setOrgState(parsed);
-            } catch {
-                // ignore
-            }
-        }
-    }, []);
-
-    // Polling for status updates if request is pending
-    useEffect(() => {
-        if (orgState.status !== 'pending' || !orgState.requestId) return;
-
-        const interval = setInterval(async () => {
-            try {
-                const res = await publicApi.getOnboardingStatus(orgState.requestId!);
-                if (res.status === 'approved' || res.status === 'rejected') {
-                    const updated: OrgState = {
-                        ...orgState,
-                        status: res.status as 'approved' | 'rejected',
-                    };
-                    setOrgState(updated);
-                    localStorage.setItem('sheba_user_onboarding_request', JSON.stringify(updated));
-                }
-            } catch {
-                // ignore polling errors
-            }
-        }, 10000);
-
-        return () => clearInterval(interval);
-    }, [orgState]);
-
-    const handleFormSuccess = (data: { organizationName: string; requestedSlug: string; plan: string; requestId?: string }) => {
-        const next: OrgState = {
-            status: 'pending',
-            organizationName: data.organizationName,
-            requestedSlug: data.requestedSlug,
-            plan: data.plan,
-            submittedAt: new Date().toLocaleDateString(),
-            requestId: data.requestId,
-        };
-        setOrgState(next);
-        localStorage.setItem('sheba_user_onboarding_request', JSON.stringify(next));
-    };
-
-    const handleResubmit = () => {
-        setOrgState(prev => ({ ...prev, status: 'none' }));
-    };
+    const [editing, setEditing] = useState(false);
+    const [launching, setLaunching] = useState(false);
+    const [launchError, setLaunchError] = useState<string | null>(null);
 
     const handleSignOut = async () => {
         await signOut();
         router.push('/login');
     };
 
-    if (session.isPending || loadingOrg) {
+    const handleLaunch = async (tenantId: string, slug: string, domain: string | null) => {
+        setLaunching(true);
+        setLaunchError(null);
+        try {
+            const s = await orgApi.tenantSession(tenantId);
+            // Same hand-off the ISP-admin "login as tenant" uses (see /login auto_token).
+            window.location.href = `${workspaceOrigin(slug, domain)}/login?auto_token=${encodeURIComponent(s.token)}&tenant=${encodeURIComponent(slug)}`;
+        } catch (err: unknown) {
+            setLaunchError(err instanceof Error ? err.message : 'Could not open the workspace.');
+            setLaunching(false);
+        }
+    };
+
+    if (session.isPending || !authUser || (me.isLoading && !me.data)) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-background">
                 <Loader2 className="size-8 animate-spin text-primary" />
@@ -101,7 +86,8 @@ export default function AppDashboardPage() {
         );
     }
 
-    const user = session.data?.user;
+    const tenant = me.data?.tenants?.[0];
+    const showForm = !latest || (latest.status === 'rejected' && editing);
 
     return (
         <div className="min-h-screen bg-muted/20 text-foreground flex flex-col">
@@ -118,17 +104,15 @@ export default function AppDashboardPage() {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        {user && (
-                            <div className="flex items-center gap-2.5 text-sm">
-                                <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase">
-                                    {user.name ? user.name[0] : 'U'}
-                                </div>
-                                <div className="hidden sm:flex flex-col text-left">
-                                    <span className="font-semibold text-xs leading-none">{user.name || 'User'}</span>
-                                    <span className="text-[11px] text-muted-foreground">{user.email}</span>
-                                </div>
+                        <div className="flex items-center gap-2.5 text-sm">
+                            <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase">
+                                {authUser.name ? authUser.name[0] : 'U'}
                             </div>
-                        )}
+                            <div className="hidden sm:flex flex-col text-left">
+                                <span className="font-semibold text-xs leading-none">{authUser.name || 'User'}</span>
+                                <span className="text-[11px] text-muted-foreground">{authUser.email}</span>
+                            </div>
+                        </div>
                         <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-1.5 text-xs text-muted-foreground hover:text-foreground">
                             <LogOut className="size-3.5" />
                             Sign Out
@@ -140,7 +124,6 @@ export default function AppDashboardPage() {
             {/* Main Content Area */}
             <main className="flex-1 container mx-auto px-4 py-8 sm:px-6 flex flex-col items-center justify-center">
                 <div className="w-full max-w-2xl space-y-6">
-                    {/* Welcome banner */}
                     <div className="space-y-1 text-center sm:text-left">
                         <h1 className="text-2xl font-bold tracking-tight">Organization Portal</h1>
                         <p className="text-sm text-muted-foreground">
@@ -148,36 +131,45 @@ export default function AppDashboardPage() {
                         </p>
                     </div>
 
-                    {/* State 1: No request yet */}
-                    {orgState.status === 'none' && (
-                        <OnboardingRequestForm
-                            defaultEmail={user?.email || ''}
-                            defaultName={user?.name || ''}
-                            onSuccess={handleFormSuccess}
-                        />
+                    {me.error && (
+                        <Alert variant="destructive">
+                            <AlertDescription>
+                                {me.error instanceof Error ? me.error.message : 'Could not load your account.'}
+                            </AlertDescription>
+                        </Alert>
                     )}
 
-                    {/* State 2, 3, 4: Pending / Approved / Rejected */}
-                    {orgState.status !== 'none' && (
-                        <>
-                            <OnboardingStatusCard
-                                status={orgState.status}
-                                organizationName={orgState.organizationName}
-                                requestedSlug={orgState.requestedSlug}
-                                plan={orgState.plan}
-                                rejectionReason={orgState.rejectionReason}
-                                submittedAt={orgState.submittedAt}
-                                onResubmit={handleResubmit}
-                            />
-                            {orgState.status === 'approved' && (
-                                <div className="pt-2">
-                                    <TenantUserManager
-                                        tenantId={orgState.tenantId || orgState.requestedSlug}
-                                        tenantSlug={orgState.requestedSlug}
-                                    />
-                                </div>
-                            )}
-                        </>
+                    {showForm ? (
+                        <OnboardingRequestForm
+                            defaultEmail={authUser.email || ''}
+                            defaultPackageId={defaultPackageId}
+                            onSuccess={() => {
+                                setEditing(false);
+                                void me.refetch();
+                            }}
+                        />
+                    ) : (
+                        latest && (
+                            <>
+                                <OnboardingStatusCard
+                                    status={latest.status}
+                                    organizationName={latest.organization_name}
+                                    requestedSlug={latest.requested_slug}
+                                    plan={latest.plan}
+                                    rejectionReason={latest.rejection_reason}
+                                    submittedAt={latest.created_at ? new Date(latest.created_at).toLocaleDateString() : undefined}
+                                    onResubmit={() => setEditing(true)}
+                                    onLaunch={tenant ? () => handleLaunch(tenant.id, tenant.slug, tenant.domain) : undefined}
+                                    launching={launching}
+                                    launchError={launchError}
+                                />
+                                {latest.status === 'approved' && tenant && (
+                                    <div className="pt-2">
+                                        <TenantUserManager tenantId={tenant.id} tenantSlug={tenant.slug} />
+                                    </div>
+                                )}
+                            </>
+                        )
                     )}
                 </div>
             </main>

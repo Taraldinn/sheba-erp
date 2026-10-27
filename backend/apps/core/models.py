@@ -989,3 +989,35 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"[{self.category}] {self.title} ({'read' if self.is_read else 'unread'})"
+
+
+class NeonIdentity(models.Model):
+    """
+    Links a Neon Managed Better Auth account (Organization portal sign-in:
+    Google or email/password) to exactly one Django ``User``.
+
+    The link is keyed on the immutable Neon user id (JWT ``sub``) — never on
+    email — so a Neon account can never be attached to, or take over, an
+    existing Django staff/superadmin account just by sharing an email address.
+    The linked Django user has an unusable password and no staff flags; every
+    permission it holds comes from explicit ``OrganizationMembership`` /
+    ``StaffMembership`` rows.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    neon_user_id = models.CharField(max_length=128, unique=True)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='neon_identity',
+    )
+    email = models.EmailField(blank=True)
+    email_verified = models.BooleanField(default=False)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"NeonIdentity({self.neon_user_id}) → {self.user_id}"

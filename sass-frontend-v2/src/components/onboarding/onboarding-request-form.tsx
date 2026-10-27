@@ -6,12 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { publicApi, type PublicOnboardingInput } from '@/lib/api/public';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useQuery } from '@/lib/query/native';
+import { publicApi } from '@/lib/api/public';
+import { orgApi, type OrgOnboardingInput } from '@/lib/api/org';
 
 export interface OnboardingRequestFormProps {
     defaultEmail?: string;
     defaultName?: string;
-    onSuccess: (data: { organizationName: string; requestedSlug: string; plan: string }) => void;
+    /** Preselect a package (e.g. from the homepage pricing card). */
+    defaultPackageId?: string;
+    onSuccess: () => void;
 }
 
 const slugify = (s: string) =>
@@ -25,7 +30,7 @@ const slugify = (s: string) =>
 
 export function OnboardingRequestForm({
     defaultEmail = '',
-    defaultName = '',
+    defaultPackageId = '',
     onSuccess,
 }: OnboardingRequestFormProps) {
     const [loading, setLoading] = useState(false);
@@ -36,9 +41,16 @@ export function OnboardingRequestForm({
     const [contactPhone, setContactPhone] = useState('');
     const [contactEmail, setContactEmail] = useState(defaultEmail);
     const [address, setAddress] = useState('');
-    const [plan, setPlan] = useState('Trial Plan');
-    const [notes, setNotes] = useState('');
+    const [packageId, setPackageId] = useState(defaultPackageId);
 
+    const packages = useQuery({
+        queryKey: ['public', 'packages'],
+        queryFn: () => publicApi.getPublicPackages(),
+        staleTime: 5 * 60 * 1000,
+        retry: 0,
+    });
+    const packageList = (packages.data ?? []).filter(p => p.is_active !== false);
+    
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
@@ -52,25 +64,17 @@ export function OnboardingRequestForm({
         }
 
         try {
-            const payload: PublicOnboardingInput = {
+            const payload: OrgOnboardingInput = {
                 org_name: orgName,
                 org_slug: cleanSlug,
                 org_contact_phone: contactPhone || undefined,
                 org_contact_email: contactEmail,
                 org_address: address || undefined,
-                tenant_name: `${orgName} ISP`,
-                tenant_slug: cleanSlug,
-                owner_email: contactEmail,
-                owner_username: `${cleanSlug}_admin`,
-                notes: notes || undefined,
+                package: packageId || null,
             };
 
-            await publicApi.startOnboarding(payload);
-            onSuccess({
-                organizationName: orgName,
-                requestedSlug: cleanSlug,
-                plan,
-            });
+            await orgApi.requestOnboarding(payload);
+            onSuccess();
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'Failed to submit onboarding request.');
         } finally {
@@ -180,6 +184,27 @@ export function OnboardingRequestForm({
                             disabled={loading}
                         />
                     </div>
+
+                    {packageList.length > 0 && (
+                        <div className="space-y-1.5">
+                            <Label htmlFor="package" className="font-medium">
+                                Plan
+                            </Label>
+                            <Select value={packageId || 'trial'} onValueChange={v => setPackageId(v === 'trial' ? '' : v)} disabled={loading}>
+                                <SelectTrigger id="package" className="h-10 w-full">
+                                    <SelectValue placeholder="Choose a plan" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="trial">Trial plan</SelectItem>
+                                    {packageList.map(p => (
+                                        <SelectItem key={p.id} value={p.id}>
+                                            {p.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
 
                     <Button type="submit" className="w-full gap-2 font-semibold h-11" disabled={loading}>
                         {loading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}

@@ -1626,6 +1626,15 @@ class SaaSTenantRequestViewSet(viewsets.ModelViewSet):
                 defaults={'role': admin_role, 'is_active': True}
             )
 
+        # 1b. Organization-portal (Neon Auth) requesters also become OWNER of an
+        #     Organization that contains the new tenant, so Django authorization
+        #     (OrganizationMembership) matches what they were just approved for.
+        try:
+            from apps.core.neon_auth import grant_org_ownership
+            grant_org_ownership(req_obj, tenant)
+        except Exception:
+            logger.exception("Could not grant organization ownership for onboarding request %s", req_obj.id)
+
         # 2. Setup subscription
         package = req_obj.package or SaaSPackage.objects.filter(name__iexact=plan).first()
         if package:
