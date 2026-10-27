@@ -1,0 +1,44 @@
+# Git and project tooling
+.git
+.gitignore
+.github
+.agents
+.cursor
+.vscode
+.idea
+
+# Frontend assets & documentation (not needed for backend build)
+sass-frontend-v2/
+docs/
+controllers/
+olt/
+*.md
+
+# Node.js
+node_modules/
+
+# Python cache & virtual environments
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*.so
+
+# Local SQLite databases & backups
+*.sqlite3
+db.sqlite3
+*.db
+backups/
+*.log
+
+# Static and media uploads
+backend/media/
+backend/staticfiles/
+media/
+staticfiles/
+
+# OS metadata
+.DS_Store
+Thumbs.db

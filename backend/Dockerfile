@@ -1,14 +1,34 @@
 # ==============================================================================
+# Sheba ERP Backend - Multi-Context Production Dockerfile
+# Supports two build contexts seamlessly:
+#   1. context = repo root      (Dokploy default application deployment)
+#   2. context = ./backend      (Dokploy Compose / docker compose deployment)
+# ==============================================================================
+
+# ==============================================================================
+# Stage 0: Context Resolver
+# Normalizes files so /src always contains the backend application tree
+# ==============================================================================
+FROM alpine:latest AS context-resolver
+
+WORKDIR /src
+COPY . /context/
+
+RUN if [ -f /context/backend/requirements.txt ]; then \
+        echo "Detected repository root context. Copying backend files..."; \
+        cp -a /context/backend/. /src/; \
+    elif [ -f /context/requirements.txt ]; then \
+        echo "Detected ./backend context. Copying files..."; \
+        cp -a /context/. /src/; \
+    else \
+        echo "Error: requirements.txt not found in build context!" && exit 1; \
+    fi && \
+    rm -rf /src/.git /src/__pycache__ /src/*/__pycache__ /src/*/*/__pycache__
+
+# ==============================================================================
 # Stage 1: Build dependencies
 # ==============================================================================
-FROM python:3.15-slim AS builder
-
-# This Dockerfile supports two build contexts:
-#   1. context = ./backend      (used by docker-compose.dokploy.yml)
-#   2. context = repo root      (used by Dokploy single-app auto-detect)
-# The ARG below lets the COPY lines resolve correctly in both cases.
-# Override at build time with:  docker build --build-arg CTX_PREFIX=backend .
-ARG CTX_PREFIX=.
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
@@ -23,16 +43,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python packages into user directory
-COPY ${CTX_PREFIX}/requirements.txt ./requirements.txt
+COPY --from=context-resolver /src/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # ==============================================================================
 # Stage 2: Production runtime
 # ==============================================================================
-FROM python:3.15-slim AS runner
-
-# Re-declare so the value flows into this stage.
-ARG CTX_PREFIX=.
+FROM python:3.12-slim AS runner
 
 WORKDIR /app
 
@@ -56,10 +73,8 @@ RUN groupadd -r -g 1001 appuser && \
 # Copy installed Python packages from builder
 COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
 
-# Copy application files. Path is prefix-aware:
-#   CTX_PREFIX=.    -> COPY . .         (when context = ./backend)
-#   CTX_PREFIX=backend -> COPY backend/ . (when context = repo root)
-COPY --chown=appuser:appuser ${CTX_PREFIX}/. .
+# Copy application files resolved from context-resolver
+COPY --from=context-resolver --chown=appuser:appuser /src /app
 
 # Ensure staticfiles, media, and entrypoint have correct permissions
 RUN mkdir -p /app/staticfiles /app/media && \
