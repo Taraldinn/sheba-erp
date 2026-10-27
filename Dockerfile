@@ -2,6 +2,7 @@
 # Sheba ERP Backend - Root Multi-Context Production Dockerfile
 # Enables direct single-application deployment from Dokploy
 # ==============================================================================
+ARG PYTHON_VERSION=3.15-slim
 
 # ==============================================================================
 # Stage 0: Context Resolver
@@ -26,7 +27,7 @@ RUN if [ -f /context/backend/requirements.txt ]; then \
 # ==============================================================================
 # Stage 1: Build dependencies
 # ==============================================================================
-FROM python:3.12-slim AS builder
+FROM python:${PYTHON_VERSION} AS builder
 
 WORKDIR /app
 
@@ -47,7 +48,7 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # ==============================================================================
 # Stage 2: Production runtime
 # ==============================================================================
-FROM python:3.12-slim AS runner
+FROM python:${PYTHON_VERSION} AS runner
 
 WORKDIR /app
 

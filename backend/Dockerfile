@@ -4,6 +4,7 @@
 #   1. context = repo root      (Dokploy default application deployment)
 #   2. context = ./backend      (Dokploy Compose / docker compose deployment)
 # ==============================================================================
+ARG PYTHON_VERSION=3.15-slim
 
 # ==============================================================================
 # Stage 0: Context Resolver
@@ -28,7 +29,7 @@ RUN if [ -f /context/backend/requirements.txt ]; then \
 # ==============================================================================
 # Stage 1: Build dependencies
 # ==============================================================================
-FROM python:3.12-slim AS builder
+FROM python:${PYTHON_VERSION} AS builder
 
 WORKDIR /app
 
@@ -49,7 +50,7 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # ==============================================================================
 # Stage 2: Production runtime
 # ==============================================================================
-FROM python:3.12-slim AS runner
+FROM python:${PYTHON_VERSION} AS runner
 
 WORKDIR /app
 
