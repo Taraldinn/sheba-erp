@@ -18,7 +18,7 @@ class MediaS3Storage(S3Boto3Storage):
         super().__init__(**settings_dict)
         custom_domain = getattr(settings, 'AWS_S3_CUSTOM_DOMAIN', None)
         if custom_domain:
-            self.custom_domain = custom_domain
+            self.custom_domain = custom_domain.replace('https://', '').replace('http://', '').strip('/')
 
 class StaticS3Storage(S3Boto3Storage):
     """
@@ -32,4 +32,4 @@ class StaticS3Storage(S3Boto3Storage):
         super().__init__(**settings_dict)
         custom_domain = getattr(settings, 'AWS_S3_CUSTOM_DOMAIN', None)
         if custom_domain:
-            self.custom_domain = custom_domain
+            self.custom_domain = custom_domain.replace('https://', '').replace('http://', '').strip('/')

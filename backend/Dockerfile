@@ -1,7 +1,7 @@
 # ==============================================================================
 # Stage 1: Build dependencies
 # ==============================================================================
-FROM python:3.12-slim AS builder
+FROM python:3.15-slim AS builder
 
 # This Dockerfile supports two build contexts:
 #   1. context = ./backend      (used by docker-compose.dokploy.yml)
@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # ==============================================================================
 # Stage 2: Production runtime
 # ==============================================================================
-FROM python:3.12-slim AS runner
+FROM python:3.15-slim AS runner
 
 # Re-declare so the value flows into this stage.
 ARG CTX_PREFIX=.
