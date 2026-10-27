@@ -51,9 +51,7 @@
   "exclude": [
     "node_modules",
     ".next",
-    ".open-next",
     "dist",
-    "open-next.config.ts",
     "cloudflare.config.ts",
     "eslint.config.js"
   ]

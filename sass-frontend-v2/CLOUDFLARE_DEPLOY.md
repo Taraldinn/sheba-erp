@@ -18,9 +18,8 @@ pnpm build
 pnpm start
 ```
 
-`pnpm build` produces the Worker bundle in `dist/`; `pnpm start` previews it
-locally. `pnpm dev` remains available for normal Next.js development, while
-`pnpm dev:vinext` runs the Workers-compatible Vite server on port 3001.
+`pnpm build` produces the Worker bundle in `dist/` using Vite; `pnpm start` previews it
+locally. `pnpm dev` starts the local development server powered by Vite and Vinext.
 
 ## Deployment
 
