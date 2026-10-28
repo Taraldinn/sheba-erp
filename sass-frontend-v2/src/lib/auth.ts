@@ -16,6 +16,10 @@ function required(name: string, devFallback?: string): string {
     // Don't break `next build` in CI/Docker where runtime env isn't present yet.
     if (isBuild) return devFallback ?? 'build-placeholder-not-for-runtime-use-0000';
     if (!isProd && devFallback) return devFallback;
+    if (devFallback) {
+        console.warn(`[auth] Missing environment variable ${name} in production, using fallback.`);
+        return devFallback;
+    }
     throw new Error(`Missing required environment variable ${name} (Neon Auth). See .env.example.`);
 }
 

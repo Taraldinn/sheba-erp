@@ -58,14 +58,16 @@ export function BetterAuthCard({ mode = 'signin', callbackUrl = '/dashboard', on
         setError(null);
         setPending('google');
         try {
-            // callbackURL must be an absolute URL on a Neon Auth trusted domain.
+            // Use relative path for callbackURL (relative paths are permitted by Neon Auth)
             const res = await signIn.social({
                 provider: 'google',
-                callbackURL: `${window.location.origin}${target}`,
+                callbackURL: target,
             });
             if (res?.error) {
                 setError(res.error.message || 'Could not start Google sign-in.');
                 setPending(null);
+            } else if ((res as { data?: { url?: string } })?.data?.url) {
+                window.location.href = (res as { data?: { url?: string } }).data!.url!;
             }
             // On success the browser is redirected to Google; keep the spinner.
         } catch (err: unknown) {

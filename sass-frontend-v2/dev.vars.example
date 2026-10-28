@@ -22,5 +22,11 @@ NEXT_PUBLIC_KNOWN_APEX_DOMAINS=shebafi.xyz
 NEXT_PUBLIC_PUBLIC_SIGNUP_ENABLED=true
 NEXT_PUBLIC_SHOW_DEV_PORTAL_SWITCHER=false
 
-# Non-NEXT_PUBLIC secrets (if any in the future) belong in `wrangler secret put`,
-# not in dev.vars. This file is only for build-time inlined public values.
+# Neon Database
+DATABASE_URL=postgresql://user:password@ep-pooler-xxxx.aws.neon.tech/neondb?sslmode=require
+
+# Neon Auth (Managed Better Auth)
+NEON_AUTH_BASE_URL=https://ep-xxxx.neonauth.region.aws.neon.tech/neondb/auth
+NEON_AUTH_COOKIE_SECRET=dev-only-secret-change-me-0123456789abcdef
+NEON_AUTH_COOKIE_DOMAIN=
+

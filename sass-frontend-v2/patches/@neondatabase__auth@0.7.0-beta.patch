@@ -1,0 +1,13 @@
+diff --git a/dist/adapter-core-N_pQf5vS.mjs b/dist/adapter-core-N_pQf5vS.mjs
+index 17143fa755d25a1c4395f9c91dde3d0fa8d38813..0ede64e9570b37de3e175e156471af866c0b0188 100644
+--- a/dist/adapter-core-N_pQf5vS.mjs
++++ b/dist/adapter-core-N_pQf5vS.mjs
+@@ -376,7 +376,7 @@ const anonymousTokenClient = () => {
+ 
+ //#endregion
+ //#region src/core/better-auth-methods.ts
+-const CURRENT_TAB_CLIENT_ID = crypto.randomUUID();
++const CURRENT_TAB_CLIENT_ID = typeof window !== "undefined" && typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "tab-client-id";
+ const BETTER_AUTH_METHODS_IN_FLIGHT_REQUESTS = new InFlightRequestManager();
+ const BETTER_AUTH_METHODS_CACHE = new SessionCacheManager();
+ const BETTER_AUTH_ANONYMOUS_TOKEN_CACHE = new AnonymousTokenCacheManager();

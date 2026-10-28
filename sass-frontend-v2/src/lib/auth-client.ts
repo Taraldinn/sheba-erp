@@ -13,7 +13,7 @@ export function getCookieDomain(hostname: string): string | undefined {
  * Neon Managed Better Auth client for the Organization portal.
  *
  * Takes no arguments on purpose: it talks to the same-origin proxy at
- * `/api/auth/*` (see `app/api/auth/[...all]/route.ts`), which forwards to
+ * `/api/auth/*` (see `app/api/auth/[...path]/route.ts`), which forwards to
  * NEON_AUTH_BASE_URL and manages the session cookie.
  */
 export const authClient = createAuthClient();
