@@ -28,11 +28,32 @@ once, then deploy the built project:
 
 ```bash
 pnpm exec cf login
-pnpm deploy
+pnpm run deploy
 ```
 
-For CI, make `CLOUDFLARE_API_TOKEN` available to the job and run `pnpm deploy`.
+`pnpm run deploy` calls `vinext-cloudflare deploy`, which builds with Vite and deploys
+through the `cf` CLI. Use `pnpm run deploy` (not `pnpm deploy` — that is a different,
+built-in pnpm workspace command).
+
+For CI, make `CLOUDFLARE_API_TOKEN` available to the job and run `pnpm run deploy`.
 The token needs permission to deploy and manage the `sheba-frontend` Worker.
+
+### Cloudflare Workers Builds (dashboard CI)
+
+This project uses the `cf` CLI, not `wrangler` directly. Workers Builds must be
+configured with the correct commands or the deploy will fail with a
+`.cloudflare/output` conflict error.
+
+In **Workers & Pages → sheba-frontend → Settings → Build**, set:
+
+| Field | Value |
+| --- | --- |
+| Build command | `pnpm install --frozen-lockfile && pnpm run build` |
+| Deploy command | `pnpm run deploy` |
+| Root directory | `sass-frontend-v2` |
+
+Do **not** use `npx wrangler deploy` as the deploy command — wrangler detects the
+`cf`-generated `.cloudflare/output` directory and refuses to run.
 
 ## Environment variables
 
